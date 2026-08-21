@@ -15,6 +15,7 @@ import {
   Download,
   Filter,
   BarChart2,
+  BarChart3,
   PieChart as PieChartIcon,
   Printer,
   ChevronRight,
@@ -56,6 +57,7 @@ import {
 
 export type TimeDimension = 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
 export type ViewPerspective = 'all_personal' | 'submitter' | 'auditor' | 'global_org';
+export type OverviewTimeRange = '本周' | '本月' | '本季度' | '本年' | '自定义区间';
 
 export const Statistics: React.FC = () => {
   // View mode: 'all_personal' (综合个人), 'submitter' (报送员身份), 'auditor' (审核员身份), 'global_org' (全域宏观大盘)
@@ -71,6 +73,112 @@ export const Statistics: React.FC = () => {
   const [rankViewTab, setRankViewTab] = useState<'submitter' | 'auditor'>('submitter');
   const [submitterSearch, setSubmitterSearch] = useState('');
   const [auditorSearch, setAuditorSearch] = useState('');
+  const [overviewTimeRange, setOverviewTimeRange] = useState<OverviewTimeRange>('本周');
+
+  const overviewStatsConfig = {
+    本周: {
+      submitWait: 5,
+      submitDraft: 3,
+      submitReject: 2,
+      submitTotal: 11,
+      submitPassed: 1,
+      submitPending: 9,
+      submitPassRate: '9%',
+      submitDirectPass: 0,
+      submitRepairPass: 1,
+      submitOncePassRate: '0%',
+      auditWait: 5,
+      auditTotal: 2,
+      auditTotalPool: 7,
+      auditProcessRate: '29%',
+      auditAvgResponse: '1 h',
+      auditPassed: 1,
+      auditRejected: 1,
+      auditPending: 5
+    },
+    本月: {
+      submitWait: 7,
+      submitDraft: 4,
+      submitReject: 3,
+      submitTotal: 38,
+      submitPassed: 19,
+      submitPending: 16,
+      submitPassRate: '50%',
+      submitDirectPass: 12,
+      submitRepairPass: 7,
+      submitOncePassRate: '31%',
+      auditWait: 12,
+      auditTotal: 24,
+      auditTotalPool: 36,
+      auditProcessRate: '67%',
+      auditAvgResponse: '45 min',
+      auditPassed: 19,
+      auditRejected: 5,
+      auditPending: 12
+    },
+    本季度: {
+      submitWait: 14,
+      submitDraft: 9,
+      submitReject: 5,
+      submitTotal: 112,
+      submitPassed: 86,
+      submitPending: 21,
+      submitPassRate: '77%',
+      submitDirectPass: 68,
+      submitRepairPass: 18,
+      submitOncePassRate: '60%',
+      auditWait: 18,
+      auditTotal: 98,
+      auditTotalPool: 116,
+      auditProcessRate: '84%',
+      auditAvgResponse: '35 min',
+      auditPassed: 86,
+      auditRejected: 12,
+      auditPending: 18
+    },
+    本年: {
+      submitWait: 22,
+      submitDraft: 15,
+      submitReject: 7,
+      submitTotal: 345,
+      submitPassed: 302,
+      submitPending: 36,
+      submitPassRate: '87%',
+      submitDirectPass: 254,
+      submitRepairPass: 48,
+      submitOncePassRate: '73%',
+      auditWait: 26,
+      auditTotal: 328,
+      auditTotalPool: 354,
+      auditProcessRate: '92%',
+      auditAvgResponse: '28 min',
+      auditPassed: 302,
+      auditRejected: 26,
+      auditPending: 26
+    },
+    自定义区间: {
+      submitWait: 5,
+      submitDraft: 3,
+      submitReject: 2,
+      submitTotal: 20,
+      submitPassed: 8,
+      submitPending: 10,
+      submitPassRate: '40%',
+      submitDirectPass: 5,
+      submitRepairPass: 3,
+      submitOncePassRate: '25%',
+      auditWait: 8,
+      auditTotal: 12,
+      auditTotalPool: 20,
+      auditProcessRate: '60%',
+      auditAvgResponse: '50 min',
+      auditPassed: 8,
+      auditRejected: 4,
+      auditPending: 8
+    }
+  } as const;
+
+  const overviewCurrentStats = overviewStatsConfig[overviewTimeRange];
 
   // Handle preset date switches
   const handleTimeDimChange = (dim: TimeDimension) => {
@@ -1077,161 +1185,170 @@ export const Statistics: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Stack: Report + Audit Summary */}
-        <div className="lg:col-span-4">
-          <div className="bg-white p-3 rounded-2xl border border-slate-200/90 shadow-2xs space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h3 className="text-sm font-extrabold text-gray-900 flex items-center space-x-1.5">
-                <BarChart2 className="w-4 h-4 text-[#1E5ABB]" />
-                <span>数据分析统计看板</span>
-              </h3>
+      </div>
 
+      {/* 4. 数据分析统计看板 */}
+      <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <BarChart3 className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm text-slate-900">数据分析统计看板</h3>
+              <p className="text-[11px] text-slate-400">统计周期内报送效能与审核履职情况综合分析</p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-1.5 bg-slate-100 p-1 rounded-xl text-xs self-start sm:self-auto">
+            {(['本周', '本月', '本季度', '本年', '自定义区间'] as OverviewTimeRange[]).map((tab) => {
+              const isActive = overviewTimeRange === tab;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setOverviewTimeRange(tab)}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${isActive ? 'bg-white text-[#1E5ABB] shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  {tab}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div className="bg-slate-50/70 rounded-xl p-5 border border-slate-200/70 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-[#1E5ABB]"></div>
+                <h4 className="font-bold text-sm text-slate-900">报送成效统计</h4>
+              </div>
+              <span className="text-[11px] text-slate-400 font-medium">按上报任务</span>
             </div>
 
-            {/* 报送统计 */}
-            <div className="rounded-xl border border-blue-100 bg-blue-50/25 p-3 space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-extrabold text-gray-900 flex items-center space-x-1.5">
-                  <Send className="w-4 h-4 text-[#1E5ABB]" />
-                  <span>报送统计</span>
-                </h3>
-                <span className="text-[11px] text-slate-400 font-bold">按上报任务统计</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+              <div className="relative flex items-center justify-center py-2">
+                <svg className="w-36 h-36 transform -rotate-90" viewBox="0 0 120 120">
+                  <circle cx="60" cy="60" r="46" className="stroke-slate-200/70" strokeWidth="12" fill="transparent" />
+                  <circle cx="60" cy="60" r="46" stroke="#94A3B8" strokeWidth="12" fill="transparent" strokeDasharray="289" strokeDashoffset="70" strokeLinecap="round" />
+                  <circle cx="60" cy="60" r="46" stroke="#0091FF" strokeWidth="12" fill="transparent" strokeDasharray="289" strokeDashoffset="245" strokeLinecap="round" />
+                  <circle cx="60" cy="60" r="46" stroke="#FF4D4F" strokeWidth="12" fill="transparent" strokeDasharray="289" strokeDashoffset="265" strokeLinecap="round" />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+                  <span className="text-[11px] text-slate-400 font-medium">累计上报</span>
+                  <span className="text-2xl font-black text-slate-900 leading-tight">{overviewCurrentStats.submitTotal}</span>
+                  <span className="text-[10px] text-slate-400">件</span>
+                </div>
               </div>
 
-              <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-3 items-center">
-                <div className="relative h-28">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={[
-                          { name: '一次性通过', value: 0, color: '#10B981' },
-                          { name: '返修通过', value: 1, color: '#06B6D4' },
-                          { name: '待审核', value: 9, color: '#94A3B8' },
-                          { name: '驳回', value: 1, color: '#F43F5E' }
-                        ]}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={34}
-                        outerRadius={50}
-                        paddingAngle={2}
-                        dataKey="value"
-                      >
-                        {['#10B981', '#06B6D4', '#94A3B8', '#F43F5E'].map((color, index) => (
-                          <Cell key={`report-cell-${index}`} fill={color} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span className="text-[10px] text-slate-500 font-bold">累计上报</span>
-                    <span className="text-2xl leading-none font-black text-slate-900 font-mono mt-0.5">11</span>
-                    <span className="text-[10px] text-slate-400 font-bold mt-0.5">件</span>
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-100">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#00C288]"></span>
+                    <span className="text-slate-700 font-medium">一次性通过</span>
                   </div>
+                  <span className="font-bold text-slate-900">{overviewCurrentStats.submitDirectPass} 件</span>
                 </div>
-
-                <div className="space-y-2 text-xs min-w-0">
-                  {[
-                    { name: '一次性通过', value: '0件', color: '#10B981', valueClass: 'text-emerald-600' },
-                    { name: '返修通过', value: '1件', color: '#06B6D4', valueClass: 'text-cyan-600' },
-                    { name: '待审核', value: '9件', color: '#94A3B8', valueClass: 'text-slate-700' },
-                    { name: '驳回', value: '1件', color: '#F43F5E', valueClass: 'text-rose-600' }
-                  ].map((item) => (
-                    <div key={item.name} className="flex items-center justify-between rounded-lg bg-white border border-slate-100 px-2.5 py-1.5 shadow-2xs">
-                      <div className="flex items-center space-x-2 min-w-0">
-                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }}></span>
-                        <span className="font-bold text-slate-700 truncate">{item.name}</span>
-                      </div>
-                      <span className={`font-black font-mono ${item.valueClass}`}>{item.value}</span>
-                    </div>
-                  ))}
+                <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-100">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#0091FF]"></span>
+                    <span className="text-slate-700 font-medium">返修通过</span>
+                  </div>
+                  <span className="font-bold text-slate-900">{overviewCurrentStats.submitRepairPass} 件</span>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded-xl bg-white border border-slate-100 px-3 py-2 flex items-center justify-between">
-                  <span className="font-bold text-slate-600">整体通过率</span>
-                  <span className="font-black text-emerald-600 font-mono text-sm">9%</span>
+                <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-100">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#94A3B8]"></span>
+                    <span className="text-slate-700 font-medium">待审核</span>
+                  </div>
+                  <span className="font-bold text-slate-900">{overviewCurrentStats.submitPending} 件</span>
                 </div>
-                <div className="rounded-xl bg-white border border-slate-100 px-3 py-2 flex items-center justify-between">
-                  <span className="font-bold text-slate-600">一次性通过率</span>
-                  <span className="font-black text-blue-600 font-mono text-sm">0%</span>
+                <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-100">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#FF4D4F]"></span>
+                    <span className="text-slate-700 font-medium">驳回</span>
+                  </div>
+                  <span className="font-bold text-slate-900">{overviewCurrentStats.submitReject} 件</span>
                 </div>
               </div>
             </div>
 
-            {/* 审核统计 */}
-            <div className="rounded-xl border border-emerald-100 bg-emerald-50/25 p-3 space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-extrabold text-gray-900 flex items-center space-x-1.5">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                  <span>审核统计</span>
-                </h3>
-                <span className="text-[11px] text-slate-400 font-bold">按审核任务统计</span>
+            <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-slate-200/60 text-xs">
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-50/70 border border-emerald-100">
+                <span className="text-slate-600 font-medium">整体通过率</span>
+                <span className="text-xs font-bold text-emerald-600">{overviewCurrentStats.submitPassRate}</span>
+              </div>
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-blue-50/70 border border-blue-100">
+                <span className="text-slate-600 font-medium">一次性通过率</span>
+                <span className="text-xs font-bold text-blue-600">{overviewCurrentStats.submitOncePassRate}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-slate-50/70 rounded-xl p-5 border border-slate-200/70 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-[#0052D9]"></div>
+                <h4 className="font-bold text-sm text-slate-900">审核履职统计</h4>
+              </div>
+              <span className="text-[11px] text-slate-400 font-medium">按审核任务</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+              <div className="relative flex items-center justify-center py-2">
+                <svg className="w-36 h-36 transform -rotate-90" viewBox="0 0 120 120">
+                  <circle cx="60" cy="60" r="46" className="stroke-slate-200/70" strokeWidth="12" fill="transparent" />
+                  <circle cx="60" cy="60" r="46" stroke="#94A3B8" strokeWidth="12" fill="transparent" strokeDasharray="289" strokeDashoffset="100" strokeLinecap="round" />
+                  <circle cx="60" cy="60" r="46" stroke="#00C288" strokeWidth="12" fill="transparent" strokeDasharray="289" strokeDashoffset="245" strokeLinecap="round" />
+                  <circle cx="60" cy="60" r="46" stroke="#FF4D4F" strokeWidth="12" fill="transparent" strokeDasharray="289" strokeDashoffset="270" strokeLinecap="round" />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+                  <span className="text-[11px] text-slate-400 font-medium">待审总数</span>
+                  <span className="text-2xl font-black text-slate-900 leading-tight">{overviewCurrentStats.auditTotalPool}</span>
+                  <span className="text-[10px] text-slate-400">件</span>
+                </div>
               </div>
 
-              <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-3 items-center">
-                <div className="relative h-28">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={[
-                          { name: '审核通过', value: 1, color: '#10B981' },
-                          { name: '审核驳回', value: 1, color: '#F43F5E' },
-                          { name: '待审核', value: 5, color: '#94A3B8' }
-                        ]}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={34}
-                        outerRadius={50}
-                        paddingAngle={2}
-                        dataKey="value"
-                      >
-                        {['#10B981', '#F43F5E', '#94A3B8'].map((color, index) => (
-                          <Cell key={`audit-cell-${index}`} fill={color} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span className="text-[10px] text-slate-500 font-bold">累计审核</span>
-                    <span className="text-2xl leading-none font-black text-slate-900 font-mono mt-0.5">7</span>
-                    <span className="text-[10px] text-slate-400 font-bold mt-0.5">件</span>
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-100">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#00C288]"></span>
+                    <span className="text-slate-700 font-medium">审核通过</span>
                   </div>
+                  <span className="font-bold text-slate-900">{overviewCurrentStats.auditPassed} 件</span>
                 </div>
-
-                <div className="space-y-2 text-xs min-w-0">
-                  {[
-                    { name: '审核通过', value: '1件', color: '#10B981', valueClass: 'text-emerald-600' },
-                    { name: '审核驳回', value: '1件', color: '#F43F5E', valueClass: 'text-rose-600' },
-                    { name: '待审核', value: '5件', color: '#94A3B8', valueClass: 'text-slate-700' }
-                  ].map((item) => (
-                    <div key={item.name} className="flex items-center justify-between rounded-lg bg-white border border-slate-100 px-2.5 py-1.5 shadow-2xs">
-                      <div className="flex items-center space-x-2 min-w-0">
-                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }}></span>
-                        <span className="font-bold text-slate-700 truncate">{item.name}</span>
-                      </div>
-                      <span className={`font-black font-mono ${item.valueClass}`}>{item.value}</span>
-                    </div>
-                  ))}
+                <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-100">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#FF4D4F]"></span>
+                    <span className="text-slate-700 font-medium">审核驳回</span>
+                  </div>
+                  <span className="font-bold text-slate-900">{overviewCurrentStats.auditRejected} 件</span>
+                </div>
+                <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-100">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#94A3B8]"></span>
+                    <span className="text-slate-700 font-medium">待审核</span>
+                  </div>
+                  <span className="font-bold text-slate-900">{overviewCurrentStats.auditPending} 件</span>
                 </div>
               </div>
+            </div>
 
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded-xl bg-white border border-slate-100 px-3 py-2 flex items-center justify-between">
-                  <span className="font-bold text-slate-600">平均审核响应时间</span>
-                  <span className="font-black text-emerald-600 font-mono text-sm">1 h</span>
-                </div>
-                <div className="rounded-xl bg-white border border-slate-100 px-3 py-2 flex items-center justify-between">
-                  <span className="font-bold text-slate-600">审核处理率</span>
-                  <span className="font-black text-blue-600 font-mono text-sm">29%</span>
-                </div>
+            <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-slate-200/60 text-xs">
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-50/70 border border-emerald-100">
+                <span className="text-slate-600 font-medium">平均响应时间</span>
+                <span className="text-xs font-bold text-emerald-600">{overviewCurrentStats.auditAvgResponse}</span>
+              </div>
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-blue-50/70 border border-blue-100">
+                <span className="text-slate-600 font-medium">审核办结率</span>
+                <span className="text-xs font-bold text-blue-600">{overviewCurrentStats.auditProcessRate}</span>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 4. 双轨排行榜: 人员报送排行榜 与 人员审核排行榜 */}
+      {/* 5. 双轨排行榜: 人员报送排行榜 与 人员审核排行榜 */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs space-y-5">
         {/* Header & Leaderboard Switcher */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3.5">
@@ -1439,18 +1556,7 @@ export const Statistics: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Auditor Search Filter */}
-                <div className="relative flex items-center bg-white border border-gray-200 rounded-lg px-2.5 py-1 shadow-2xs">
-                  <Search className="w-3.5 h-3.5 text-gray-400 mr-1.5 shrink-0" />
-                  <input
-                    type="text"
-                    placeholder="搜索审核员或单位..."
-                    value={auditorSearch}
-                    onChange={(e) => setAuditorSearch(e.target.value)}
-                    className="w-28 sm:w-36 focus:outline-none text-xs text-gray-700 bg-transparent"
-                  />
                 </div>
-              </div>
 
               {/* Auditor Top 3 Podium Highlights */}
               <div className="grid grid-cols-3 gap-2 sm:gap-3 pt-1">
@@ -1509,7 +1615,6 @@ export const Statistics: React.FC = () => {
                         <th className="py-2.5 px-3 text-right">经办总量</th>
                         <th className="py-2.5 px-3 text-right font-mono">通过/驳回</th>
                         <th className="py-2.5 px-3 text-center">平均响应时效</th>
-                        <th className="py-2.5 px-3 text-right">转办督办</th>
                         <th className="py-2.5 px-3 text-center">评级</th>
                       </tr>
                     </thead>
@@ -1572,9 +1677,6 @@ export const Statistics: React.FC = () => {
                                 <span>{row.avgTime}</span>
                               </span>
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono font-bold text-blue-700">
-                              {row.transferCount} 件
-                            </td>
                             <td className="py-2.5 px-3 text-center">
                               <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded border ${
                                 row.level === '卓越'
@@ -1599,6 +1701,8 @@ export const Statistics: React.FC = () => {
     </div>
   );
 };
+
+
 
 
 
