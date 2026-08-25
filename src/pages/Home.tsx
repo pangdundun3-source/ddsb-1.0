@@ -8,16 +8,25 @@ import {
   ArrowRight,
   FileEdit,
   Inbox,
-  Flame,
-  MessageSquare,
-  Radio,
   CheckCircle2,
   Check,
   PlusCircle,
-  BarChart3,
   ChevronLeft,
-  AlertCircle
+  AlertCircle,
+  Zap,
+  FileText,
+  HelpCircle,
+  ShieldAlert,
+  BookOpen,
+  FileSpreadsheet,
+  Settings2,
+  Send,
+  SlidersHorizontal,
+  Flame,
+  MessageSquare,
+  Radio
 } from 'lucide-react';
+import { PRESET_TEMPLATES, ReportTemplateDef } from '../components/NewReportModal';
 
 export type SystemRoleMode = 'all' | 'reporter' | 'auditor';
 
@@ -213,6 +222,12 @@ export const Home: React.FC<HomeProps> = ({
   // Automatically determine the active role mode matched by the system
   const effectiveRoleMode: SystemRoleMode = (() => {
     if (userRole) return userRole;
+    if (
+      (currentRoleTitle.includes('上报') || currentRoleTitle.includes('填报')) &&
+      currentRoleTitle.includes('审核')
+    ) {
+      return 'all';
+    }
     if (currentRoleTitle.includes('管理员') || currentRoleTitle.includes('超级') || currentRoleTitle.includes('全权')) {
       return 'all';
     }
@@ -382,40 +397,6 @@ export const Home: React.FC<HomeProps> = ({
     });
   };
 
-  const handleSelectTemplate = (type: 'emergency' | 'livelihood' | 'rumor') => {
-    if (type === 'emergency') {
-      onOpenNewReport?.({
-        title: '【突发事件速报】关于辖区突发事件的核查情况报告',
-        infoType: '突发事件',
-        source: '群众举报',
-        region: '西屯区',
-        summary: '【突发事件速报】\n发生时间：2026年8月19日\n发生地点：西屯区主干道路段\n涉及人数：约30人\n现场影响情况：道路局部拥堵，现场已有交警到场处置，总体秩序受控。',
-        demands: '请协调相关应急与公安部门联动处置，发布官方通告引导舆论。',
-        recommendations: '建议持续跟进舆情走势，做好信息公开与辟谣准备。'
-      });
-    } else if (type === 'livelihood') {
-      onOpenNewReport?.({
-        title: '【民生诉求核查】关于社区网格居民反映民生事项核实报告',
-        infoType: '民生诉求',
-        source: '群众举报',
-        region: '北屯区',
-        summary: '【民生诉求核查】\n反映人员：社区网格居民代表\n诉求事项：关于小区公共绿化修剪及供水管道维护诉求\n调查核实细节：网格员现场核实情况属实，物业正在拟定维修改造方案。',
-        demands: '建议街道办督促物业公司于3个工作日内出具施工进度计划表。',
-        recommendations: '安排社区书记对接居民网格群，实时通报进展以平息疑虑。'
-      });
-    } else if (type === 'rumor') {
-      onOpenNewReport?.({
-        title: '【网络谣言线索】关于社交平台流传不实信息的研判报告',
-        infoType: '舆情动态',
-        source: '社交媒体',
-        region: '全市',
-        summary: '【网络谣言线索】\n谣言主要观点：网传某学校近期发生重大安全事故\n首发及传播平台：抖音、微博、微信群聊\n扩散路径：个别自媒体账号搬运二创，短时间内点赞转发达3000+\n传播危害：引发部分家长焦虑恐慌，已严重误导公众认知。',
-        demands: '建议联合教育局与公安网安大队立即发布权威辟谣声明。',
-        recommendations: '对造谣传谣账号依法依规依约从严处置。'
-      });
-    }
-  };
-
   return (
     <div className="space-y-6 pb-12 max-w-[1720px] mx-auto">
       {/* Toast Notification */}
@@ -426,34 +407,69 @@ export const Home: React.FC<HomeProps> = ({
         </div>
       )}
 
-      {/* ================= 1. 顶部角色数据指标概览 (自适应排版) ================= */}
+      {/* ================= 1. 顶部双重视角指标概览卡片 (上报员 + 审核员 并存) ================= */}
       <div
-        className={`grid gap-4 sm:gap-5 ${
-          showReporter && showAuditor ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'
+        className={`grid gap-5 ${
+          showReporter && showAuditor ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'
         }`}
       >
-        {/* 1.1 【上报员】报送数据概览卡片 */}
+        {/* 1.1 上报员视角指标卡片 (蓝色系) */}
         {showReporter && (
-          <div className="bg-gradient-to-br from-[#185adb] via-[#1e60dc] to-[#0ea5e9] rounded-2xl p-5 text-white shadow-sm relative overflow-hidden flex flex-col justify-between border border-blue-400/30">
+          <div className="bg-gradient-to-br from-[#185adb] via-[#1e60dc] to-[#0ea5e9] rounded-2xl p-4.5 sm:p-5 text-white shadow-sm relative overflow-hidden flex flex-col justify-between border border-blue-400/30">
             <div className="absolute right-0 bottom-0 w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none transform translate-x-8 translate-y-8"></div>
-            <div>
-              <div className="flex items-center justify-between mb-3.5">
-                <div className="flex items-center space-x-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#38ef7d] shadow-sm animate-pulse"></div>
-                  <h3 className="font-extrabold text-sm sm:text-base tracking-wide text-white drop-shadow-xs">
-                    【上报员】报送数据概览
-                  </h3>
+            <div className="relative z-10 space-y-3.5">
+              {/* 待办提醒通告条（作为卡片头部） */}
+              <div className="bg-white/95 backdrop-blur-md rounded-xl p-3.5 border border-white/60 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-slate-900">
+                <div className="flex items-center space-x-3">
+                  <div className="w-9 h-9 rounded-lg bg-[#1E5ABB] text-white flex items-center justify-center shadow-xs shrink-0">
+                    <FileEdit className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-extrabold text-xs sm:text-sm text-slate-900 tracking-tight">
+                        今日报送待办：共有 <strong className="text-blue-600 font-mono font-black text-sm sm:text-base">{submitTodos.length || 5}</strong> 项待处理
+                      </span>
+                      <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                        上报员
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-600 mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 font-medium">
+                      <span className="flex items-center space-x-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block"></span>
+                        <span>草稿: <strong className="text-slate-800 font-bold font-mono">{submitTodos.filter(t => t.status === '草稿').length || 3}</strong></span>
+                      </span>
+                      <span className="flex items-center space-x-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block"></span>
+                        <span>驳回: <strong className="text-rose-600 font-bold font-mono">{submitTodos.filter(t => t.status === '已驳回').length || 2}</strong></span>
+                      </span>
+                      <span className="flex items-center space-x-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
+                        <span>待审核: <strong className="text-amber-700 font-bold font-mono">{currentStats.submitPending || 7}</strong></span>
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <button
-                  onClick={() => onNavigate('report-summary')}
-                  className="text-xs text-white/90 hover:text-white bg-white/15 hover:bg-white/25 px-2.5 py-1 rounded-lg backdrop-blur-xs flex items-center space-x-1 font-semibold transition-all border border-white/20 cursor-pointer"
-                >
-                  <span>报送管理</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
+
+                <div className="flex items-center space-x-2 shrink-0 self-end sm:self-center">
+                  <button
+                    onClick={() => {
+                      const el = document.getElementById('reporter-todo-section');
+                      if (el) {
+                        el.scrollIntoView({ behavior: 'smooth' });
+                      } else {
+                        onNavigate('report-summary');
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#1E5ABB] font-bold text-xs rounded-lg border border-blue-200 shadow-2xs hover:shadow-xs flex items-center space-x-1 transition-all cursor-pointer group"
+                  >
+                    <span>立即处理 ({submitTodos.length || 5})</span>
+                    <ChevronRight className="w-3.5 h-3.5 text-[#1E5ABB] group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+                </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              {/* 核心指标 4 列网格 */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 <div
                   onClick={() => {
                     const el = document.getElementById('reporter-todo-section');
@@ -484,12 +500,22 @@ export const Home: React.FC<HomeProps> = ({
                 </div>
 
                 <div className="bg-white/15 backdrop-blur-sm rounded-xl p-3 border border-white/25 shadow-2xs">
-                  <div className="text-xs text-white/80 font-medium mb-0.5">整体通过率</div>
+                  <div className="text-xs text-white/80 font-medium mb-0.5">一次性通过率</div>
                   <div className="text-2xl sm:text-3xl font-black text-[#5CFFC6] leading-tight">
+                    {currentStats.submitOncePassRate || (currentStats.submitTotal ? `${Math.round(((currentStats.submitDirectPass || 0) / currentStats.submitTotal) * 100)}%` : '0%')}
+                  </div>
+                  <div className="text-[11px] text-white/75 mt-0.5 truncate">
+                    {currentStats.submitDirectPass || 0}/{currentStats.submitTotal} 首审直通
+                  </div>
+                </div>
+
+                <div className="bg-white/15 backdrop-blur-sm rounded-xl p-3 border border-white/25 shadow-2xs">
+                  <div className="text-xs text-white/80 font-medium mb-0.5">整体通过率</div>
+                  <div className="text-2xl sm:text-3xl font-black text-white leading-tight">
                     {currentStats.submitPassRate}
                   </div>
                   <div className="text-[11px] text-white/75 mt-0.5 truncate">
-                    {currentStats.submitPassed}/{currentStats.submitTotal} 已通过
+                    {currentStats.submitPassed}/{currentStats.submitTotal} 终审已过
                   </div>
                 </div>
               </div>
@@ -497,28 +523,64 @@ export const Home: React.FC<HomeProps> = ({
           </div>
         )}
 
-        {/* 1.2 【审核员】审核数据概览卡片 */}
+        {/* 1.2 审核员视角指标卡片 (靛青/琥珀色系) */}
         {showAuditor && (
-          <div className="bg-gradient-to-br from-[#0f3b82] via-[#1d4ed8] to-[#2563eb] rounded-2xl p-5 text-white shadow-sm relative overflow-hidden flex flex-col justify-between border border-blue-500/30">
-            <div className="absolute right-0 bottom-0 w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none transform translate-x-8 translate-y-8"></div>
-            <div>
-              <div className="flex items-center justify-between mb-3.5">
-                <div className="flex items-center space-x-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#fbbf24] shadow-sm animate-pulse"></div>
-                  <h3 className="font-extrabold text-sm sm:text-base tracking-wide text-white drop-shadow-xs">
-                    【审核员】审核数据概览
-                  </h3>
+          <div className="bg-gradient-to-br from-[#1E293B] via-[#1E3A8A] to-[#2563EB] rounded-2xl p-4.5 sm:p-5 text-white shadow-sm relative overflow-hidden flex flex-col justify-between border border-blue-400/30">
+            <div className="absolute right-0 bottom-0 w-48 h-48 bg-amber-400/10 rounded-full blur-3xl pointer-events-none transform translate-x-8 translate-y-8"></div>
+            <div className="relative z-10 space-y-3.5">
+              {/* 审核提醒通告条（作为卡片头部） */}
+              <div className="bg-white/95 backdrop-blur-md rounded-xl p-3.5 border border-white/60 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-slate-900">
+                <div className="flex items-center space-x-3">
+                  <div className="w-9 h-9 rounded-lg bg-amber-500 text-white flex items-center justify-center shadow-xs shrink-0">
+                    <ShieldCheck className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-extrabold text-xs sm:text-sm text-slate-900 tracking-tight">
+                        今日审核待办：共有 <strong className="text-amber-600 font-mono font-black text-sm sm:text-base">{allPendingAudits.length}</strong> 条线索待审批
+                      </span>
+                      <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                        审核员
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-600 mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 font-medium">
+                      <span className="flex items-center space-x-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
+                        <span>待审批: <strong className="text-amber-800 font-bold font-mono">{allPendingAudits.length}</strong> 条</span>
+                      </span>
+                      <span className="flex items-center space-x-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
+                        <span>已通过: <strong className="text-emerald-700 font-bold font-mono">{currentStats.auditPassed}</strong> 条</span>
+                      </span>
+                      <span className="flex items-center space-x-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block"></span>
+                        <span>已驳回: <strong className="text-rose-700 font-bold font-mono">{currentStats.auditRejected}</strong> 条</span>
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <button
-                  onClick={() => onNavigate('report-audit')}
-                  className="text-xs text-white/90 hover:text-white bg-white/15 hover:bg-white/25 px-2.5 py-1 rounded-lg backdrop-blur-xs flex items-center space-x-1 font-semibold transition-all border border-white/20 cursor-pointer"
-                >
-                  <span>审核管理</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
+
+                <div className="flex items-center space-x-2 shrink-0 self-end sm:self-center">
+                  <button
+                    onClick={() => {
+                      const el = document.getElementById('auditor-todo-section');
+                      if (el) {
+                        el.scrollIntoView({ behavior: 'smooth' });
+                      } else {
+                        onNavigate('report-audit');
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs rounded-lg border border-amber-200 shadow-2xs hover:shadow-xs flex items-center space-x-1 transition-all cursor-pointer group"
+                  >
+                    <span>立即审批</span>
+                    <ChevronRight className="w-3.5 h-3.5 text-amber-900 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {/* 核心指标 4 列网格 */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                {/* 1. 审核待办 */}
                 <div
                   onClick={() => {
                     const el = document.getElementById('auditor-todo-section');
@@ -526,40 +588,50 @@ export const Home: React.FC<HomeProps> = ({
                   }}
                   className="bg-white/15 hover:bg-white/25 transition-all backdrop-blur-sm rounded-xl p-3 border border-white/25 cursor-pointer group shadow-2xs"
                 >
-                  <div className="text-xs text-white/80 font-medium mb-0.5">审核待办</div>
-                  <div className="text-2xl sm:text-3xl font-black text-[#FFDF00] leading-tight group-hover:scale-105 transition-transform">
-                    {currentStats.auditWait}
+                  <div className="text-xs text-white/90 font-medium mb-0.5">审核待办</div>
+                  <div className="text-2xl sm:text-3xl font-black text-yellow-400 leading-tight group-hover:scale-105 transition-transform">
+                    {allPendingAudits.length || currentStats.auditWait || 5}
                   </div>
-                  <div className="text-[11px] text-white/75 mt-0.5 truncate">待审速报</div>
+                  <div className="text-[11px] text-white/80 mt-0.5 truncate">
+                    待审核
+                  </div>
                 </div>
 
+                {/* 2. 累计审核 */}
                 <div
                   onClick={() => onNavigate('audit-records')}
                   className="bg-white/15 hover:bg-white/25 transition-all backdrop-blur-sm rounded-xl p-3 border border-white/25 cursor-pointer group shadow-2xs"
                 >
-                  <div className="text-xs text-white/80 font-medium mb-0.5">累计审核</div>
+                  <div className="text-xs text-white/90 font-medium mb-0.5">累计审核</div>
                   <div className="text-2xl sm:text-3xl font-black text-white leading-tight group-hover:scale-105 transition-transform">
                     {currentStats.auditTotal}
                   </div>
-                  <div className="text-[11px] text-white/75 mt-0.5 truncate">已办结</div>
+                  <div className="text-[11px] text-white/80 mt-0.5 truncate flex items-center space-x-1.5 font-medium">
+                    <span className="text-emerald-300">通过:{currentStats.auditPassed}</span>
+                    <span className="text-rose-300">驳回:{currentStats.auditRejected}</span>
+                  </div>
                 </div>
 
+                {/* 3. 审核处理率 */}
                 <div className="bg-white/15 backdrop-blur-sm rounded-xl p-3 border border-white/25 shadow-2xs">
-                  <div className="text-xs text-white/80 font-medium mb-0.5">处理率</div>
+                  <div className="text-xs text-white/90 font-medium mb-0.5">审核处理率</div>
                   <div className="text-2xl sm:text-3xl font-black text-white leading-tight">
                     {currentStats.auditProcessRate}
                   </div>
-                  <div className="text-[11px] text-white/75 mt-0.5 truncate">
-                    {currentStats.auditTotal}/{currentStats.auditTotalPool} 办结
+                  <div className="text-[11px] text-white/80 mt-0.5 truncate">
+                    {currentStats.auditTotal}/{currentStats.auditTotalPool || 7}
                   </div>
                 </div>
 
+                {/* 4. 平均响应 */}
                 <div className="bg-white/15 backdrop-blur-sm rounded-xl p-3 border border-white/25 shadow-2xs">
-                  <div className="text-xs text-white/80 font-medium mb-0.5">平均响应</div>
-                  <div className="text-2xl sm:text-3xl font-black text-[#96F0FF] leading-tight">
+                  <div className="text-xs text-white/90 font-medium mb-0.5">平均响应</div>
+                  <div className="text-2xl sm:text-3xl font-black text-cyan-300 leading-tight">
                     {currentStats.auditAvgResponse}
                   </div>
-                  <div className="text-[11px] text-white/75 mt-0.5 truncate">审核耗时</div>
+                  <div className="text-[11px] text-white/80 mt-0.5 truncate">
+                    审核耗时
+                  </div>
                 </div>
               </div>
             </div>
@@ -567,81 +639,117 @@ export const Home: React.FC<HomeProps> = ({
         )}
       </div>
 
-      {/* ================= 2. 标准化速报模板专区 (3列横向水平平衡网格) ================= */}
-      {showReporter && (
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#1E5ABB] flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-[#1E5ABB]" />
-              </div>
-              <div>
-                <h3 className="font-bold text-sm text-slate-900">标准化上报模板专区</h3>
-                <p className="text-[11px] text-slate-400">选择适用业务场景预置模板，一键快速填报</p>
-              </div>
-            </div>
+      {/* ================= 2. 各模版快捷上报入口 (标准化上报模板专区) ================= */}
+      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/90 shadow-2xs space-y-4">
+        {/* Section Header */}
+        <div className="flex items-center space-x-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+            <Sparkles className="w-4.5 h-4.5 text-blue-600" />
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Template 1: 突发事件 */}
-            <div
-              onClick={() => handleSelectTemplate('emergency')}
-              className="bg-slate-50/70 hover:bg-red-50/40 border border-slate-200/90 hover:border-red-300 rounded-xl p-4 transition-all duration-200 cursor-pointer shadow-2xs hover:shadow-sm group flex items-center justify-between"
-            >
-              <div className="flex items-center space-x-3">
-                <div className="w-9 h-9 rounded-lg bg-red-100/90 text-red-600 flex items-center justify-center shrink-0">
-                  <Flame className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-sm text-slate-800 group-hover:text-red-600 transition-colors">
-                    突发事件速报模板
-                  </h4>
-                  <span className="text-[11px] text-slate-400">现场秩序、安全事故、应急研判</span>
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-red-600 group-hover:translate-x-0.5 transition-all" />
-            </div>
-
-            {/* Template 2: 民生诉求 */}
-            <div
-              onClick={() => handleSelectTemplate('livelihood')}
-              className="bg-slate-50/70 hover:bg-amber-50/40 border border-slate-200/90 hover:border-amber-300 rounded-xl p-4 transition-all duration-200 cursor-pointer shadow-2xs hover:shadow-sm group flex items-center justify-between"
-            >
-              <div className="flex items-center space-x-3">
-                <div className="w-9 h-9 rounded-lg bg-amber-100/90 text-amber-600 flex items-center justify-center shrink-0">
-                  <MessageSquare className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-sm text-slate-800 group-hover:text-amber-700 transition-colors">
-                    民生诉求核查模板
-                  </h4>
-                  <span className="text-[11px] text-slate-400">物业维权、水电气热、市政诉求</span>
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-amber-700 group-hover:translate-x-0.5 transition-all" />
-            </div>
-
-            {/* Template 3: 网络谣言 */}
-            <div
-              onClick={() => handleSelectTemplate('rumor')}
-              className="bg-slate-50/70 hover:bg-emerald-50/40 border border-slate-200/90 hover:border-emerald-300 rounded-xl p-4 transition-all duration-200 cursor-pointer shadow-2xs hover:shadow-sm group flex items-center justify-between"
-            >
-              <div className="flex items-center space-x-3">
-                <div className="w-9 h-9 rounded-lg bg-emerald-100/90 text-emerald-600 flex items-center justify-center shrink-0">
-                  <Radio className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-sm text-slate-800 group-hover:text-emerald-700 transition-colors">
-                    网络谣言线索模板
-                  </h4>
-                  <span className="text-[11px] text-slate-400">网络不实信息、虚假炒作辟谣</span>
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-700 group-hover:translate-x-0.5 transition-all" />
-            </div>
+          <div>
+            <h3 className="font-extrabold text-sm sm:text-base text-slate-900 tracking-tight">标准化上报模板专区</h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              选择适用业务场景预置模板，一键快速填报
+            </p>
           </div>
         </div>
-      )}
+
+        {/* 3 列标准化模板卡片网格 */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-4">
+          {/* 卡片 1: 突发事件速报模板 */}
+          <div
+            onClick={() => {
+              onOpenNewReport?.({
+                title: '【紧急】关于某路段突发管网故障抢修进展的快报',
+                source: '网格巡查',
+                region: '西屯区',
+                infoType: '突发事件',
+                summary: `【突发时间】：${new Date().toLocaleDateString('zh-CN')} ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}\n【事发精准地点】：西屯区XX路与XX街交叉口\n【事件简述】：现场因市政施工突发管网渗漏，造成路面局部积水并影响早高峰通行。\n【伤亡及损失情况】：现场无人员伤亡，周边已设立安全警戒线。\n【当前处置进展】：抢修工程车辆及应急处置组已进场作业，正在进行分流抢修。`,
+                demands: '周边居民及过往车主高度关注积水排除与恢复通行的预计时间。',
+                recommendations: '1. 联动交警支队实施临时交通分流与道路交通疏导。\n2. 属地融媒体中心通过微信公众号发布临时通行提示，回应群众关切。'
+              });
+            }}
+            className="bg-white rounded-xl border border-slate-200/90 p-4 flex items-center justify-between hover:border-rose-300 hover:shadow-xs transition-all cursor-pointer group"
+          >
+            <div className="flex items-center space-x-3.5 min-w-0">
+              <div className="w-10 h-10 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-500 shrink-0 group-hover:scale-105 transition-transform">
+                <Flame className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="font-bold text-sm text-slate-800 group-hover:text-rose-600 transition-colors truncate">
+                  突发事件速报模板
+                </h4>
+                <p className="text-[11px] text-slate-400 mt-0.5 truncate">
+                  现场秩序、安全事故、应急研判
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-rose-500 group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
+          </div>
+
+          {/* 卡片 2: 民生诉求核查模板 */}
+          <div
+            onClick={() => {
+              onOpenNewReport?.({
+                title: '关于某小区业主反映物业擅自调高公摊费用的诉求专报',
+                source: '热线12345',
+                region: '北屯区',
+                infoType: '民生诉求',
+                summary: `一、诉求来源与规模：\n12345热线近3日内累计收到相关工单12件，涉及业主超过50户。\n\n二、诉求核心事实：\n业主反映物业管理处未履行公示与表决程序，直接在月度物业费账单中增列地下车库公共能耗费用。\n\n三、初步调解情况：\n社区居委会已介入搭建沟通平台，督促物业做好账目核算。`,
+                demands: '业主普遍要求物业撤回不合理收费项目，退还已代扣款项，并公开年度公摊水电账目。',
+                recommendations: '1. 建议街道城管科联合房管局约谈物业负责人，限期3日内自查自纠并出具整改说明。\n2. 社区居委会指导业主委员会依法召开业主代表沟通会。'
+              });
+            }}
+            className="bg-white rounded-xl border border-slate-200/90 p-4 flex items-center justify-between hover:border-amber-300 hover:shadow-xs transition-all cursor-pointer group"
+          >
+            <div className="flex items-center space-x-3.5 min-w-0">
+              <div className="w-10 h-10 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-500 shrink-0 group-hover:scale-105 transition-transform">
+                <MessageSquare className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="font-bold text-sm text-slate-800 group-hover:text-amber-600 transition-colors truncate">
+                  民生诉求核查模板
+                </h4>
+                <p className="text-[11px] text-slate-400 mt-0.5 truncate">
+                  物业维修、水电气热、市政诉求
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-amber-500 group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
+          </div>
+
+          {/* 卡片 3: 网络谣言线索模板 */}
+          <div
+            onClick={() => {
+              onOpenNewReport?.({
+                title: '关于短视频平台流传“某小区突发不明气体泄漏”虚假信息的核查澄清报送',
+                source: '网络巡查',
+                region: '南屯区',
+                infoType: '网络谣言',
+                summary: `一、谣言源头与传播特征：\n抖音账号“XX市民热心事”于今晨发布15秒短视频，配文称“某小区疑似发生危化品气体泄漏”，截至目前点赞量达1.2万次，转发3500余次。\n\n二、官方部门实地核查：\n属地应急管理局与生态环境执法大队第一时间赶赴现场排查，实为周边市政自来水管道例行冲洗排放水雾，未检出任何有害气体。\n\n三、当前发酵态势：\n评论区存在个别恐慌情绪蔓延，急需权威声音辟谣。`,
+                demands: '网民关注官方权威调查结论与是否存在安全隐患。',
+                recommendations: '1. 建议网信办联合应急管理局在官方微博与抖音号发布权威辟谣通报。\n2. 对首发造谣账号予以限流并固定电子证据，移交公安部门进一步处理。'
+              });
+            }}
+            className="bg-white rounded-xl border border-slate-200/90 p-4 flex items-center justify-between hover:border-emerald-300 hover:shadow-xs transition-all cursor-pointer group"
+          >
+            <div className="flex items-center space-x-3.5 min-w-0">
+              <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-500 shrink-0 group-hover:scale-105 transition-transform">
+                <Radio className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="font-bold text-sm text-slate-800 group-hover:text-emerald-600 transition-colors truncate">
+                  网络谣言线索模板
+                </h4>
+                <p className="text-[11px] text-slate-400 mt-0.5 truncate">
+                  网络不实信息、虚假炒作辟谣
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-emerald-500 group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
+          </div>
+        </div>
+      </div>
 
       {/* ================= 3. 待办任务专区 (固定区域展示 · 支持翻页与滚动) ================= */}
       <div
@@ -670,14 +778,6 @@ export const Home: React.FC<HomeProps> = ({
                     {submitTodos.length}
                   </span>
                 </div>
-
-                <button
-                  onClick={() => onNavigate('report-summary')}
-                  className="text-xs text-[#1E5ABB] hover:text-blue-700 font-bold flex items-center space-x-0.5 cursor-pointer"
-                >
-                  <span>报送管理</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
               </div>
 
               {/* Scrollable / Paged Item Container (Fixed Height) */}
@@ -795,20 +895,12 @@ export const Home: React.FC<HomeProps> = ({
                   </div>
                   <div>
                     <h3 className="font-bold text-sm text-slate-900">审核待审核列表</h3>
-                    <span className="text-[11px] text-slate-400">待研判批复的速报线索</span>
+                    <span className="text-[11px] text-slate-400">待审批批复的速报线索</span>
                   </div>
                   <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded-full ml-1">
                     {allPendingAudits.length}
                   </span>
                 </div>
-
-                <button
-                  onClick={() => onNavigate('report-audit')}
-                  className="text-xs text-[#1E5ABB] hover:text-blue-700 font-bold flex items-center space-x-0.5 cursor-pointer"
-                >
-                  <span>审核管理</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
               </div>
 
               {/* Scrollable / Paged Item Container (Fixed Height) */}
@@ -890,183 +982,6 @@ export const Home: React.FC<HomeProps> = ({
             </div>
           </div>
         )}
-      </div>
-
-      {/* ================= 4. 统计图放在一起 (统一综合统计分析大板块) ================= */}
-      <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs space-y-5">
-        {/* Header with Time Capsule */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-              <BarChart3 className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="font-bold text-sm text-slate-900">舆情速报数据统计分析看板</h3>
-              <p className="text-[11px] text-slate-400">统计周期内报送效能与审核履职情况综合分析</p>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-1.5 bg-slate-100 p-1 rounded-xl text-xs self-start sm:self-auto">
-            {(['本周', '本月', '本季度', '本年', '自定义区间'] as TimeRange[]).map((tab) => {
-              const isActive = timeRange === tab;
-              return (
-                <button
-                  key={tab}
-                  onClick={() => setTimeRange(tab)}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                    isActive
-                      ? 'bg-white text-[#1E5ABB] shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {tab}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Charts Grid: 报送统计 + 审核统计 紧凑合并放在一起 */}
-        <div
-          className={`grid gap-5 ${
-            showReporter && showAuditor ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'
-          }`}
-        >
-          {/* 4.1 报送统计卡片 */}
-          {showReporter && (
-            <div className="bg-slate-50/70 rounded-xl p-5 border border-slate-200/70 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#1E5ABB]"></div>
-                  <h4 className="font-bold text-sm text-slate-900">报送成效统计</h4>
-                </div>
-                <span className="text-[11px] text-slate-400 font-medium">按上报任务</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
-                <div className="relative flex items-center justify-center py-2">
-                  <svg className="w-36 h-36 transform -rotate-90" viewBox="0 0 120 120">
-                    <circle cx="60" cy="60" r="46" className="stroke-slate-200/70" strokeWidth="12" fill="transparent" />
-                    <circle cx="60" cy="60" r="46" stroke="#94A3B8" strokeWidth="12" fill="transparent" strokeDasharray="289" strokeDashoffset="70" strokeLinecap="round" />
-                    <circle cx="60" cy="60" r="46" stroke="#0091FF" strokeWidth="12" fill="transparent" strokeDasharray="289" strokeDashoffset="245" strokeLinecap="round" />
-                    <circle cx="60" cy="60" r="46" stroke="#FF4D4F" strokeWidth="12" fill="transparent" strokeDasharray="289" strokeDashoffset="265" strokeLinecap="round" />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-                    <span className="text-[11px] text-slate-400 font-medium">累计上报</span>
-                    <span className="text-2xl font-black text-slate-900 leading-tight">{currentStats.submitTotal}</span>
-                    <span className="text-[10px] text-slate-400">件</span>
-                  </div>
-                </div>
-
-                <div className="space-y-2 text-xs">
-                  <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-100">
-                    <div className="flex items-center space-x-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#00C288]"></span>
-                      <span className="text-slate-700 font-medium">一次性通过</span>
-                    </div>
-                    <span className="font-bold text-slate-900">{currentStats.submitDirectPass} 件</span>
-                  </div>
-                  <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-100">
-                    <div className="flex items-center space-x-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#0091FF]"></span>
-                      <span className="text-slate-700 font-medium">返修通过</span>
-                    </div>
-                    <span className="font-bold text-slate-900">{currentStats.submitRepairPass} 件</span>
-                  </div>
-                  <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-100">
-                    <div className="flex items-center space-x-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#94A3B8]"></span>
-                      <span className="text-slate-700 font-medium">待审核</span>
-                    </div>
-                    <span className="font-bold text-slate-900">{currentStats.submitPending} 件</span>
-                  </div>
-                  <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-100">
-                    <div className="flex items-center space-x-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#FF4D4F]"></span>
-                      <span className="text-slate-700 font-medium">已驳回</span>
-                    </div>
-                    <span className="font-bold text-slate-900">{currentStats.submitReject} 件</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-slate-200/60 text-xs">
-                <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-50/70 border border-emerald-100">
-                  <span className="text-slate-600 font-medium">整体通过率</span>
-                  <span className="text-xs font-bold text-emerald-600">{currentStats.submitPassRate}</span>
-                </div>
-                <div className="flex items-center justify-between p-2.5 rounded-lg bg-blue-50/70 border border-blue-100">
-                  <span className="text-slate-600 font-medium">一次性通过率</span>
-                  <span className="text-xs font-bold text-blue-600">{currentStats.submitOncePassRate}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 4.2 审核统计卡片 */}
-          {showAuditor && (
-            <div className="bg-slate-50/70 rounded-xl p-5 border border-slate-200/70 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#0052D9]"></div>
-                  <h4 className="font-bold text-sm text-slate-900">审核履职统计</h4>
-                </div>
-                <span className="text-[11px] text-slate-400 font-medium">按审核任务</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
-                <div className="relative flex items-center justify-center py-2">
-                  <svg className="w-36 h-36 transform -rotate-90" viewBox="0 0 120 120">
-                    <circle cx="60" cy="60" r="46" className="stroke-slate-200/70" strokeWidth="12" fill="transparent" />
-                    <circle cx="60" cy="60" r="46" stroke="#94A3B8" strokeWidth="12" fill="transparent" strokeDasharray="289" strokeDashoffset="100" strokeLinecap="round" />
-                    <circle cx="60" cy="60" r="46" stroke="#00C288" strokeWidth="12" fill="transparent" strokeDasharray="289" strokeDashoffset="245" strokeLinecap="round" />
-                    <circle cx="60" cy="60" r="46" stroke="#FF4D4F" strokeWidth="12" fill="transparent" strokeDasharray="289" strokeDashoffset="270" strokeLinecap="round" />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-                    <span className="text-[11px] text-slate-400 font-medium">待审总数</span>
-                    <span className="text-2xl font-black text-slate-900 leading-tight">{currentStats.auditTotalPool}</span>
-                    <span className="text-[10px] text-slate-400">件</span>
-                  </div>
-                </div>
-
-                <div className="space-y-2 text-xs">
-                  <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-100">
-                    <div className="flex items-center space-x-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#00C288]"></span>
-                      <span className="text-slate-700 font-medium">审核通过</span>
-                    </div>
-                    <span className="font-bold text-slate-900">{currentStats.auditPassed} 件</span>
-                  </div>
-                  <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-100">
-                    <div className="flex items-center space-x-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#FF4D4F]"></span>
-                      <span className="text-slate-700 font-medium">审核驳回</span>
-                    </div>
-                    <span className="font-bold text-slate-900">{currentStats.auditRejected} 件</span>
-                  </div>
-                  <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-100">
-                    <div className="flex items-center space-x-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#94A3B8]"></span>
-                      <span className="text-slate-700 font-medium">待审核</span>
-                    </div>
-                    <span className="font-bold text-slate-900">{currentStats.auditPending} 件</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-slate-200/60 text-xs">
-                <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-50/70 border border-emerald-100">
-                  <span className="text-slate-600 font-medium">平均响应时间</span>
-                  <span className="text-xs font-bold text-emerald-600">{currentStats.auditAvgResponse}</span>
-                </div>
-                <div className="flex items-center justify-between p-2.5 rounded-lg bg-blue-50/70 border border-blue-100">
-                  <span className="text-slate-600 font-medium">审核办结率</span>
-                  <span className="text-xs font-bold text-blue-600">{currentStats.auditProcessRate}</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );

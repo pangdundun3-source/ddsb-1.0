@@ -8,6 +8,7 @@ export interface OrgAccount {
   role: string;
   code: string;
   type: string;
+  roles?: string[];
 }
 
 interface HeaderProps {
@@ -19,11 +20,11 @@ interface HeaderProps {
 }
 
 export const AVAILABLE_ORGS: OrgAccount[] = [
-  { id: '1', name: '台中市网信办', role: '超级管理员', code: 'WX-001', type: '网安指挥' },
-  { id: '2', name: '市委宣传部', role: '舆情审核专员', code: 'XC-002', type: '市级部门' },
-  { id: '3', name: '西区网络网信局', role: '综合填报员', code: 'XQ-003', type: '区县机构' },
-  { id: '4', name: '北区网络网信局', role: '专职审核员', code: 'BQ-004', type: '区县机构' },
-  { id: '5', name: '市发展改革委', role: '直属上报员', code: 'FG-005', type: '直属部门' }
+  { id: '1', name: '台中市网信办', role: '上报员 · 审核员', roles: ['上报员', '审核员'], code: 'WX-001', type: '网安指挥' },
+  { id: '2', name: '市委宣传部', role: '上报员 · 审核员', roles: ['上报员', '审核员'], code: 'XC-002', type: '市级部门' },
+  { id: '3', name: '西区网络网信局', role: '上报员 · 审核员', roles: ['上报员', '审核员'], code: 'XQ-003', type: '区县机构' },
+  { id: '4', name: '北区网络网信局', role: '上报员 · 审核员', roles: ['上报员', '审核员'], code: 'BQ-004', type: '区县机构' },
+  { id: '5', name: '市发展改革委', role: '上报员 · 审核员', roles: ['上报员', '审核员'], code: 'FG-005', type: '直属部门' }
 ];
 
 export const Header: React.FC<HeaderProps> = ({
@@ -67,9 +68,8 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Left Logo Section - 点点速豹 System Branding */}
       <Logo variant="header" />
 
-      {/* Right Top Bar Tools & Avatar - Simplified */}
+      {/* Right Top Bar Tools & Avatar - Dual Role & Org Display */}
       <div className="flex items-center space-x-3.5">
-
         {/* Bell Notifications */}
         <div className="relative">
           <button
@@ -112,17 +112,38 @@ export const Header: React.FC<HeaderProps> = ({
               {currentUser.slice(0, 1)}
             </div>
             <div className="text-left hidden sm:block">
-              <span className="text-xs font-bold text-gray-700 block leading-tight">{currentUser}</span>
+              <div className="flex items-center space-x-1">
+                <span className="text-xs font-bold text-gray-700 block leading-tight">{currentUser}</span>
+                <span className="text-[9px] px-1 py-0.2 rounded font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  双重视角
+                </span>
+              </div>
               <span className="text-[10px] text-gray-400 block leading-none">{currentOrg.name}</span>
             </div>
             <ChevronDown className="w-3 h-3 text-gray-400" />
           </button>
 
           {showUserMenu && (
-            <div className="absolute right-0 mt-2 w-52 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-50 text-xs">
-              <div className="px-3 py-2 border-b border-gray-100 bg-gray-50">
-                <p className="font-bold text-gray-800">{currentUser}</p>
-                <p className="text-blue-700 font-medium text-[10px]">{currentOrg.name} · {currentOrg.role}</p>
+            <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-50 text-xs">
+              <div className="px-3 py-2.5 border-b border-gray-100 bg-gray-50/90 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <p className="font-bold text-gray-800">{currentUser}</p>
+                  <span className="text-[10px] text-slate-500 font-mono">{currentOrg.code}</span>
+                </div>
+                <p className="text-gray-600 font-medium text-[11px] flex items-center space-x-1">
+                  <Building2 className="w-3 h-3 text-blue-600" />
+                  <span>{currentOrg.name}</span>
+                </p>
+                <div className="flex items-center space-x-1 pt-0.5">
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">
+                    上报员
+                  </span>
+                  <span className="text-gray-400 text-[10px] font-bold">+</span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900">
+                    审核员
+                  </span>
+                  <span className="text-[10px] text-emerald-700 font-bold ml-auto">全权限</span>
+                </div>
               </div>
               <button
                 onClick={() => {
@@ -145,7 +166,7 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <div className="flex items-center space-x-2 text-gray-700 group-hover:text-[#1E5ABB] font-medium">
                   <Building2 className="w-3.5 h-3.5 text-blue-600" />
-                  <span>切换机构</span>
+                  <span>切换工作机构</span>
                 </div>
                 <span className="text-[10px] bg-blue-100 text-[#1E5ABB] px-1.5 py-0.2 rounded font-bold">
                   {currentOrg.code}
@@ -169,7 +190,7 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Switch Organization Modal */}
       {showOrgModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="px-5 py-4 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <div className="p-1.5 bg-blue-600 rounded-lg">
@@ -177,7 +198,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
                 <div>
                   <h3 className="font-bold text-sm">切换工作机构</h3>
-                  <p className="text-[11px] text-slate-300">选择要切换到的直属或辖区机构管理身份</p>
+                  <p className="text-[11px] text-slate-300">各直属与辖区机构均已开启【上报员 + 审核员】双重视角权限</p>
                 </div>
               </div>
               <button
@@ -201,16 +222,26 @@ export const Header: React.FC<HeaderProps> = ({
                         : 'bg-white border-gray-200 hover:border-blue-300 hover:bg-slate-50'
                     }`}
                   >
-                    <div className="space-y-1">
+                    <div className="space-y-1.5">
                       <div className="flex items-center space-x-2">
                         <span className="font-bold text-xs text-gray-900">{org.name}</span>
                         <span className="text-[10px] px-2 py-0.2 rounded font-bold bg-slate-100 text-slate-600 border border-slate-200">
                           {org.type}
                         </span>
+                        <span className="text-[10px] text-slate-400 font-mono">{org.code}</span>
                       </div>
-                      <p className="text-[11px] text-gray-500">
-                        当前身份: <span className="font-medium text-gray-700">{org.role}</span> (编号: {org.code})
-                      </p>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-[11px] text-gray-500">机构身份:</span>
+                        <div className="flex items-center space-x-1">
+                          <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-blue-100 text-blue-800">
+                            上报员
+                          </span>
+                          <span className="text-slate-400 text-[10px]">+</span>
+                          <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 text-amber-900">
+                            审核员
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
                     {isSelected ? (
@@ -229,7 +260,7 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
 
             <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 text-right flex justify-between items-center text-xs">
-              <span className="text-gray-400">切换后将即时更新页面数据权限范围</span>
+              <span className="text-gray-400">切换后将即时同步报送与审核双重视角数据</span>
               <button
                 onClick={() => setShowOrgModal(false)}
                 className="px-4 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-lg transition-colors cursor-pointer"
