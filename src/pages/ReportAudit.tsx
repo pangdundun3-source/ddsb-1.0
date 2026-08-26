@@ -33,16 +33,20 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
     if (organization !== '全部' && item.organization !== organization) return false;
     return true;
   });
-  const sameLinkGroups = Object.values(
-    filtered.reduce<Record<string, ReportItem[]>>((groups, item) => {
-      if (!item.matchUrl) return groups;
-      groups[item.matchUrl] = [...(groups[item.matchUrl] || []), item];
-      return groups;
-    }, {})
-  )
+  const linkGroupMap: Record<string, ReportItem[]> = {};
+  filtered.forEach((item) => {
+    if (item.matchUrl) {
+      if (!linkGroupMap[item.matchUrl]) {
+        linkGroupMap[item.matchUrl] = [];
+      }
+      linkGroupMap[item.matchUrl].push(item);
+    }
+  });
+
+  const sameLinkGroups: { link: string; items: ReportItem[] }[] = Object.values(linkGroupMap)
     .filter((items) => items.length > 1)
     .map((items) => ({
-      link: items[0].matchUrl || '',
+      link: items[0]?.matchUrl || '',
       items
     }));
   const batchMatchedIds = new Set(

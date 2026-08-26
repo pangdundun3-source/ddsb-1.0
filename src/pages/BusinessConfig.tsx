@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Search,
@@ -1856,7 +1856,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
   const getMetricCategoryLabel = (category?: MetricCategory) => metricCategoryOptions.find(item => item.id === category)?.label || '未分类';
   const getMetricPeriodLabel = (period?: ConfigModuleItem['period']) => metricPeriodOptions.find(item => item.id === period)?.label || '今日';
   const getDictCategoryMeta = (category?: string) => dictCategoryOptions.find(item => item.id === (category || 'reject_reason')) || dictCategoryOptions[0];
-  const getPersonnelRoleGroup = (item: Pick<ConfigModuleItem, 'name' | 'description' | 'personnelRoleGroup'>): '上报员' | '审核员' => {
+  const getPersonnelRoleGroup = (item: Partial<ConfigModuleItem>): '上报员' | '审核员' => {
     if (item.personnelRoleGroup === '上报员' || item.personnelRoleGroup === '审核员') return item.personnelRoleGroup;
     const text = `${item.name} ${item.description || ''}`;
     return text.includes('审核员') ? '审核员' : '上报员';

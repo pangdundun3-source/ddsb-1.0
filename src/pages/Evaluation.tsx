@@ -4,9 +4,7 @@ import {
   Search,
   RotateCcw,
   Calendar,
-  Download,
   Trophy,
-  Medal,
   Award,
   TrendingUp,
   Building2,
@@ -21,1207 +19,2050 @@ import {
   Clock,
   Zap,
   ShieldCheck,
+  ShieldAlert,
   BarChart3,
-  ExternalLink
+  Percent,
+  FileText,
+  User,
+  UserCheck,
+  Activity,
+  ArrowUpRight,
+  Filter,
+  Download,
+  Printer,
+  Sparkles,
+  Sliders,
+  HelpCircle,
+  Eye,
+  AlertCircle,
+  PieChart as PieChartIcon
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid
+} from 'recharts';
+import { EvaluationProfileModal, ProfileDetailData } from '../components/EvaluationProfileModal';
+import { AllOrgMacroSection, OrgMacroData } from '../components/AllOrgMacroSection';
 
 interface EvaluationProps {
-  evaluationList: EvaluationItem[];
+  evaluationList?: EvaluationItem[];
   onNavigate?: (page: PageId) => void;
 }
 
-// Extended evaluation record interface for rich display
-export interface ExtendedEvaluationRecord {
+export type EvalPerspective = 'org' | 'reporter' | 'auditor' | 'category' | 'negative';
+export type PeriodType = 'month' | 'quarter' | 'year' | 'custom';
+
+// 7-day trend data for Evaluation Intelligence Workbench
+const evalTrendData = [
+  { day: '08-19', total: 1280, passed: 1150, directRate: 75.2, score: 86.5 },
+  { day: '08-20', total: 1420, passed: 1280, directRate: 76.0, score: 87.2 },
+  { day: '08-21', total: 1650, passed: 1490, directRate: 78.4, score: 88.6 },
+  { day: '08-22', total: 1560, passed: 1410, directRate: 77.8, score: 88.2 },
+  { day: '08-23', total: 1820, passed: 1650, directRate: 79.5, score: 89.5 },
+  { day: '08-24', total: 1320, passed: 1180, directRate: 76.5, score: 87.8 },
+  { day: '08-25', total: 1430, passed: 1210, directRate: 77.4, score: 88.5 }
+];
+
+// Donut breakdown for quality distribution
+const qualityBreakdownData = [
+  { name: '一次性直通', value: 8110, rate: '77.4%', color: '#10B981' },
+  { name: '返修通过', value: 1260, rate: '12.0%', color: '#1E5ABB' },
+  { name: '驳回整改', value: 780, rate: '7.4%', color: '#EF4444' },
+  { name: '待审流转', value: 330, rate: '3.2%', color: '#F59E0B' }
+];
+
+// Top 5 Organization Evaluation Rankings
+const topEvalOrgs = [
+  { rank: 1, name: '中共台中市委宣传部', score: 98.5, directRate: 88.6, passRate: 96.2, grade: '卓越', reports: 1580, isMyOrg: true },
+  { rank: 2, name: '台中市网信办', score: 95.8, directRate: 86.4, passRate: 94.8, grade: '卓越', reports: 1350, isMyOrg: false },
+  { rank: 3, name: '西屯区网信办', score: 93.2, directRate: 82.5, passRate: 92.0, grade: '优秀', reports: 1120, isMyOrg: false },
+  { rank: 4, name: '台中市大数据中心', score: 91.5, directRate: 81.0, passRate: 90.8, grade: '优秀', reports: 980, isMyOrg: false },
+  { rank: 5, name: '东湖区委宣传部', score: 89.4, directRate: 77.8, passRate: 88.2, grade: '良好', reports: 850, isMyOrg: false }
+];
+
+// Top Stars
+const topReporters = [
+  { rank: 1, name: '张三 (本机构)', org: '市委宣传部', score: 98.5, count: 68, directRate: '92.6%' },
+  { rank: 2, name: '李思源', org: '市网信办', score: 96.2, count: 62, directRate: '88.7%' },
+  { rank: 3, name: '赵宏博', org: '西屯区网信办', score: 94.5, count: 54, directRate: '85.2%' }
+];
+
+const topAuditors = [
+  { rank: 1, name: '王主任 (本机构)', org: '市委宣传部', score: 99.0, audited: 142, avgTime: '5.6分' },
+  { rank: 2, name: '陈建国', org: '市网信办', score: 97.4, audited: 128, avgTime: '7.2分' },
+  { rank: 3, name: '刘晓琴', org: '西屯区网信办', score: 95.8, audited: 115, avgTime: '8.4分' }
+];
+
+// 1. 机构综合考核数据接口
+interface OrgEvalRecord {
   id: string;
   rank: number;
   name: string;
-  subTitle?: string; // e.g. 所属机构/角色
-  dimension: 'category' | 'org' | 'person';
+  isMyOrg: boolean;
+  type: string;
   totalReports: number;
-  passedReports: number;
-  passRate: number; // percentage value e.g. 95.2
-  avgResponseMin: number; // minutes e.g. 8.5
-  participants: number;
-  participationRate: number; // e.g. 98.0
-  bonusPoints: number; // e.g. +8
-  deductPoints: number; // e.g. -2
+  adoptedReports: number;
+  rejectedReports: number;
+  pendingReports: number;
+  oneTimePassRate: number; // 一次性直通率 %
+  overallPassRate: number; // 整体通过率 %
+  avgResponseMin: number; // 平均响应耗时 分钟
+  perCapitaReport: number; // 机构人均上报量 件
+  registeredStaff: number; // 在册人员数
   totalScore: number;
-  grade: '卓越' | '优秀' | '良好' | '合格' | '待提升';
-  trend: string; // e.g. "↑ 1", "- 持平", "↓ 1", "🥇 第1名"
-  monthlyScores: number[]; // 6 months score history e.g. [92, 94, 91, 95, 96, 98]
+  prevRank: number;
+  grade: '卓越' | '优秀' | '良好' | '合格';
 }
 
-// Mock extended evaluation data for the three tabs
-const MOCK_CATEGORY_EVALUATION: ExtendedEvaluationRecord[] = [
-  {
-    id: 'cat-1',
-    rank: 1,
-    name: '城东区',
-    subTitle: '下辖 14 个属地党政及直属机构',
-    dimension: 'category',
-    totalReports: 1680,
-    passedReports: 1610,
-    passRate: 95.8,
-    avgResponseMin: 7.2,
-    participants: 185,
-    participationRate: 99.2,
-    bonusPoints: 8,
-    deductPoints: 0,
-    totalScore: 97.2,
-    grade: '卓越',
-    trend: '↑ 1',
-    monthlyScores: [93, 94, 95, 96, 96.8, 97.2]
-  },
-  {
-    id: 'cat-2',
-    rank: 2,
-    name: '公安部',
-    subTitle: '下辖 网安、治安、交警等 12 个支队机构',
-    dimension: 'category',
-    totalReports: 1520,
-    passedReports: 1440,
-    passRate: 94.7,
-    avgResponseMin: 8.0,
-    participants: 160,
-    participationRate: 98.0,
-    bonusPoints: 7,
-    deductPoints: 0,
-    totalScore: 95.8,
-    grade: '卓越',
-    trend: '- 持平',
-    monthlyScores: [92, 93, 94, 94.5, 95, 95.8]
-  },
-  {
-    id: 'cat-3',
-    rank: 3,
-    name: '城南区',
-    subTitle: '下辖 11 个属地街道及职能部门',
-    dimension: 'category',
-    totalReports: 1340,
-    passedReports: 1240,
-    passRate: 92.5,
-    avgResponseMin: 10.5,
-    participants: 145,
-    participationRate: 95.5,
-    bonusPoints: 5,
-    deductPoints: 1,
-    totalScore: 92.6,
-    grade: '优秀',
-    trend: '↑ 1',
-    monthlyScores: [88, 89, 90, 91, 92, 92.6]
-  },
-  {
-    id: 'cat-4',
-    rank: 4,
-    name: '教育部',
-    subTitle: '下辖 市属各大中专院校及宣教单位',
-    dimension: 'category',
-    totalReports: 1180,
-    passedReports: 1070,
-    passRate: 90.6,
-    avgResponseMin: 12.8,
-    participants: 130,
-    participationRate: 92.0,
-    bonusPoints: 3,
-    deductPoints: 1,
-    totalScore: 89.8,
-    grade: '良好',
-    trend: '↓ 1',
-    monthlyScores: [91, 90.5, 90, 89.5, 89.8, 89.8]
-  },
-  {
-    id: 'cat-5',
-    rank: 5,
-    name: '西屯区',
-    subTitle: '下辖 10 个直属单位与园区管委会',
-    dimension: 'category',
-    totalReports: 980,
-    passedReports: 875,
-    passRate: 89.2,
-    avgResponseMin: 14.2,
-    participants: 110,
-    participationRate: 88.5,
-    bonusPoints: 2,
-    deductPoints: 2,
-    totalScore: 87.5,
-    grade: '良好',
-    trend: '- 持平',
-    monthlyScores: [85, 86, 86.5, 87, 87.2, 87.5]
-  },
-  {
-    id: 'cat-6',
-    rank: 6,
-    name: '北屯区',
-    subTitle: '下辖 8 个属地乡镇与公共服务机构',
-    dimension: 'category',
-    totalReports: 820,
-    passedReports: 710,
-    passRate: 86.5,
-    avgResponseMin: 16.5,
-    participants: 90,
-    participationRate: 84.0,
-    bonusPoints: 1,
-    deductPoints: 3,
-    totalScore: 83.8,
-    grade: '合格',
-    trend: '↓ 1',
-    monthlyScores: [82, 82.5, 83, 83.2, 83.5, 83.8]
-  },
-  {
-    id: 'cat-7',
-    rank: 7,
-    name: '海东区',
-    subTitle: '下辖 7 个属地社区与联勤综合机构',
-    dimension: 'category',
-    totalReports: 650,
-    passedReports: 545,
-    passRate: 83.8,
-    avgResponseMin: 19.0,
-    participants: 75,
-    participationRate: 81.0,
-    bonusPoints: 0,
-    deductPoints: 4,
-    totalScore: 81.2,
-    grade: '合格',
-    trend: '- 持平',
-    monthlyScores: [79, 80, 80.5, 81, 81.0, 81.2]
-  }
-];
+// 2. 上报员考核数据接口
+interface ReporterEvalRecord {
+  id: string;
+  rank: number;
+  name: string;
+  isMyOrg: boolean;
+  org: string;
+  isLeader?: boolean;
+  totalReports: number;
+  adoptedReports: number;
+  rejectedReports: number;
+  pendingReports: number;
+  oneTimePassRate: number;
+  overallPassRate: number;
+  totalScore: number;
+  avgScore: number;
+  momChange: string;
+  grade: '卓越' | '优秀' | '良好' | '合格';
+  rankChange: string;
+}
 
-const MOCK_ORG_EVALUATION: ExtendedEvaluationRecord[] = [
-  {
-    id: 'org-1',
-    rank: 1,
-    name: '中共台中市委宣传部',
-    subTitle: '市级党政主体',
-    dimension: 'org',
-    totalReports: 1580,
-    passedReports: 1520,
-    passRate: 96.2,
-    avgResponseMin: 6.8,
-    participants: 45,
-    participationRate: 99.0,
-    bonusPoints: 10,
-    deductPoints: 0,
-    totalScore: 98.0,
-    grade: '卓越',
-    trend: '- 持平',
-    monthlyScores: [95, 96, 96.5, 97, 97.5, 98.0]
-  },
-  {
-    id: 'org-2',
-    rank: 2,
-    name: '台中市网信办',
-    subTitle: '网络安全与信息化主管',
-    dimension: 'org',
-    totalReports: 1350,
-    passedReports: 1280,
-    passRate: 94.8,
-    avgResponseMin: 9.1,
-    participants: 38,
-    participationRate: 97.5,
-    bonusPoints: 8,
-    deductPoints: 0,
-    totalScore: 95.2,
-    grade: '卓越',
-    trend: '↑ 1',
-    monthlyScores: [92, 93, 93.5, 94, 94.8, 95.2]
-  },
-  {
-    id: 'org-3',
-    rank: 3,
-    name: '西屯区宣传部',
-    subTitle: '区县级网信单位',
-    dimension: 'org',
-    totalReports: 1120,
-    passedReports: 1030,
-    passRate: 92.0,
-    avgResponseMin: 11.4,
-    participants: 28,
-    participationRate: 94.0,
-    bonusPoints: 5,
-    deductPoints: 1,
-    totalScore: 91.6,
-    grade: '优秀',
-    trend: '↓ 1',
-    monthlyScores: [93, 92.5, 92, 91.8, 91.5, 91.6]
-  },
-  {
-    id: 'org-4',
-    rank: 4,
-    name: '北屯区宣传部',
-    subTitle: '区县级网信单位',
-    dimension: 'org',
-    totalReports: 980,
-    passedReports: 890,
-    passRate: 90.8,
-    avgResponseMin: 13.5,
-    participants: 25,
-    participationRate: 91.0,
-    bonusPoints: 3,
-    deductPoints: 2,
-    totalScore: 88.9,
-    grade: '良好',
-    trend: '↑ 1',
-    monthlyScores: [85, 86, 87, 87.5, 88.2, 88.9]
-  },
-  {
-    id: 'org-5',
-    rank: 5,
-    name: '南屯区宣传部',
-    subTitle: '区县级网信单位',
-    dimension: 'org',
-    totalReports: 850,
-    passedReports: 750,
-    passRate: 88.2,
-    avgResponseMin: 16.0,
-    participants: 22,
-    participationRate: 88.0,
-    bonusPoints: 2,
-    deductPoints: 3,
-    totalScore: 85.5,
-    grade: '良好',
-    trend: '↓ 1',
-    monthlyScores: [88, 87, 86.5, 86, 85.8, 85.5]
-  },
-  {
-    id: 'org-6',
-    rank: 6,
-    name: '市公安局网安支队',
-    subTitle: '直属协同部门',
-    dimension: 'org',
-    totalReports: 720,
-    passedReports: 630,
-    passRate: 87.5,
-    avgResponseMin: 14.2,
-    participants: 18,
-    participationRate: 85.0,
-    bonusPoints: 1,
-    deductPoints: 2,
-    totalScore: 84.0,
-    grade: '合格',
-    trend: '- 持平',
-    monthlyScores: [82, 82.5, 83, 83.2, 83.8, 84.0]
-  }
-];
+// 3. 审核员考核数据接口
+interface AuditorEvalRecord {
+  id: string;
+  rank: number;
+  name: string;
+  isMyOrg: boolean;
+  org: string;
+  isLeader?: boolean;
+  totalAudited: number;
+  passedAudits: number;
+  rejectedAudits: number;
+  pendingAudits: number;
+  auditProcessRate: number; // 审核处理率 %
+  avgResponseMin: number; // 平均响应时长 分钟
+  totalScore: number;
+  avgScore: number;
+  momChange: string;
+  grade: '卓越' | '优秀' | '良好' | '合格';
+  rankChange: string;
+}
 
-const MOCK_PERSON_EVALUATION: ExtendedEvaluationRecord[] = [
-  {
-    id: 'per-1',
-    rank: 1,
-    name: '张建国',
-    subTitle: '管理员 · 市委宣传部',
-    dimension: 'person',
-    totalReports: 320,
-    passedReports: 312,
-    passRate: 97.5,
-    avgResponseMin: 5.2,
-    participants: 1,
-    participationRate: 100,
-    bonusPoints: 8,
-    deductPoints: 0,
-    totalScore: 98.5,
-    grade: '卓越',
-    trend: '🥇 榜首',
-    monthlyScores: [96, 96.5, 97, 97.8, 98, 98.5]
-  },
-  {
-    id: 'per-2',
-    rank: 2,
-    name: '李华',
-    subTitle: '上报员 · 市网信办',
-    dimension: 'person',
-    totalReports: 285,
-    passedReports: 272,
-    passRate: 95.4,
-    avgResponseMin: 7.1,
-    participants: 1,
-    participationRate: 100,
-    bonusPoints: 6,
-    deductPoints: 0,
-    totalScore: 96.2,
-    grade: '卓越',
-    trend: '🥈 榜眼',
-    monthlyScores: [93, 94, 94.5, 95, 95.8, 96.2]
-  },
-  {
-    id: 'per-3',
-    rank: 3,
-    name: '王伟',
-    subTitle: '审核员 · 市委宣传部',
-    dimension: 'person',
-    totalReports: 260,
-    passedReports: 244,
-    passRate: 93.8,
-    avgResponseMin: 8.5,
-    participants: 1,
-    participationRate: 100,
-    bonusPoints: 4,
-    deductPoints: 1,
-    totalScore: 93.8,
-    grade: '优秀',
-    trend: '🥉 探花',
-    monthlyScores: [90, 91, 92, 92.5, 93, 93.8]
-  },
-  {
-    id: 'per-4',
-    rank: 4,
-    name: '赵强',
-    subTitle: '上报员 · 西屯区',
-    dimension: 'person',
-    totalReports: 210,
-    passedReports: 192,
-    passRate: 91.4,
-    avgResponseMin: 10.2,
-    participants: 1,
-    participationRate: 98,
-    bonusPoints: 3,
-    deductPoints: 1,
-    totalScore: 90.5,
-    grade: '优秀',
-    trend: '↑ 2',
-    monthlyScores: [86, 87.5, 88, 89, 89.8, 90.5]
-  },
-  {
-    id: 'per-5',
-    rank: 5,
-    name: '陈明',
-    subTitle: '上报员 · 南屯区宣传部',
-    dimension: 'person',
-    totalReports: 180,
-    passedReports: 160,
-    passRate: 88.9,
-    avgResponseMin: 12.0,
-    participants: 1,
-    participationRate: 95,
-    bonusPoints: 2,
-    deductPoints: 2,
-    totalScore: 86.8,
-    grade: '良好',
-    trend: '↓ 1',
-    monthlyScores: [89, 88.5, 88, 87.5, 87, 86.8]
-  },
-  {
-    id: 'per-6',
-    rank: 6,
-    name: '林十二',
-    subTitle: '信息员 · 北屯区宣传部',
-    dimension: 'person',
-    totalReports: 155,
-    passedReports: 136,
-    passRate: 87.7,
-    avgResponseMin: 14.5,
-    participants: 1,
-    participationRate: 92,
-    bonusPoints: 1,
-    deductPoints: 2,
-    totalScore: 84.2,
-    grade: '合格',
-    trend: '- 持平',
-    monthlyScores: [82, 82.5, 83, 83.5, 83.8, 84.2]
-  }
-];
+// 4. 舆情分类条线考核数据接口
+interface CategoryEvalRecord {
+  id: string;
+  rank: number;
+  category: string;
+  leadOrg: string;
+  totalReports: number;
+  adoptedCount: number;
+  avgReviewMinutes: number;
+  score: number;
+  grade: '卓越' | '优秀' | '良好' | '合格';
+}
 
-export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
-  // State variables
-  const [activeTab, setActiveTab] = useState<'category' | 'org' | 'person'>('category');
-  const [dateRangePreset, setDateRangePreset] = useState<'month' | 'quarter' | 'year' | 'custom'>('month');
-  const [dateRangeText, setDateRangeText] = useState('2026-08-01 至 2026-08-31');
-  const [searchKeyword, setSearchKeyword] = useState('');
-  const [selectedGradeFilter, setSelectedGradeFilter] = useState<string>('全部');
-  const [sortByScore, setSortByScore] = useState<'desc' | 'asc'>('desc');
+// 5. 负面舆情交办闭环考核数据接口
+interface NegativeEvalRecord {
+  id: string;
+  title: string;
+  org: string;
+  isMyOrg: boolean;
+  time: string;
+  status: '办理中' | '已办结' | '已逾期';
+  deadline: string;
+  level: '高风险' | '中风险' | '低风险';
+  handler: string;
+  disposalProgress: string;
+  scoreDeduction: number;
+}
+
+export const Evaluation: React.FC<EvaluationProps> = ({ evaluationList, onNavigate }) => {
+  // Global View & Persona Context
+  const [currentOrg] = useState('中共台中市委宣传部');
+  const [perspective, setPerspective] = useState<EvalPerspective>('org');
+  const [period, setPeriod] = useState<PeriodType>('month');
+  const [selectedPeriodLabel, setSelectedPeriodLabel] = useState('2026年8月考评 (本月)');
+  
+  // Staff Scope Filter in Reporter / Auditor view (平台全员 vs 仅本机构)
+  const [staffScope, setStaffScope] = useState<'all' | 'my_org'>('all');
+  
+  // Organization Switcher
+  const [selectedOrgName, setSelectedOrgName] = useState('中共台中市委宣传部');
+
+  // Dashboard tab state
+  const [intelTab, setIntelTab] = useState<'stats' | 'evaluation'>('stats');
+
+  // Search & Filter
+  const [searchQuery, setSearchQuery] = useState('');
+  const [gradeFilter, setGradeFilter] = useState<'all' | '卓越' | '优秀' | '良好' | '合格'>('all');
+  const [showRuleModal, setShowRuleModal] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  // Detail Modal State
-  const [selectedDetailRecord, setSelectedDetailRecord] = useState<ExtendedEvaluationRecord | null>(null);
+  // Profile Modal State
+  const [selectedProfile, setSelectedProfile] = useState<ProfileDetailData | null>(null);
 
   const showToast = (text: string) => {
     setToastMsg(text);
     setTimeout(() => setToastMsg(null), 3000);
   };
 
-  // Get raw records based on current tab
-  const currentTabRecords = useMemo(() => {
-    if (activeTab === 'category') return MOCK_CATEGORY_EVALUATION;
-    if (activeTab === 'org') return MOCK_ORG_EVALUATION;
-    return MOCK_PERSON_EVALUATION;
-  }, [activeTab]);
+  // Mock Data: 机构综合考核榜 (全域 28 家机构)
+  const mockOrgRecords: OrgEvalRecord[] = [
+    {
+      id: 'org-1',
+      rank: 1,
+      name: '中共台中市委宣传部',
+      isMyOrg: true,
+      type: '市级党政主体',
+      totalReports: 1580,
+      adoptedReports: 1520,
+      rejectedReports: 35,
+      pendingReports: 25,
+      oneTimePassRate: 88.6,
+      overallPassRate: 96.2,
+      avgResponseMin: 6.8,
+      perCapitaReport: 35.1,
+      registeredStaff: 45,
+      totalScore: 98.5,
+      prevRank: 1,
+      grade: '卓越'
+    },
+    {
+      id: 'org-2',
+      rank: 2,
+      name: '台中市网信办',
+      isMyOrg: false,
+      type: '网安指挥主管',
+      totalReports: 1350,
+      adoptedReports: 1280,
+      rejectedReports: 42,
+      pendingReports: 28,
+      oneTimePassRate: 86.4,
+      overallPassRate: 94.8,
+      avgResponseMin: 8.5,
+      perCapitaReport: 35.5,
+      registeredStaff: 38,
+      totalScore: 96.8,
+      prevRank: 2,
+      grade: '卓越'
+    },
+    {
+      id: 'org-3',
+      rank: 3,
+      name: '西屯区网信办',
+      isMyOrg: false,
+      type: '区县直属局',
+      totalReports: 1120,
+      adoptedReports: 1030,
+      rejectedReports: 58,
+      pendingReports: 32,
+      oneTimePassRate: 82.5,
+      overallPassRate: 92.0,
+      avgResponseMin: 10.8,
+      perCapitaReport: 28.0,
+      registeredStaff: 40,
+      totalScore: 92.4,
+      prevRank: 3,
+      grade: '优秀'
+    },
+    {
+      id: 'org-4',
+      rank: 4,
+      name: '台中市大数据中心',
+      isMyOrg: false,
+      type: '独立直属单位',
+      totalReports: 980,
+      adoptedReports: 890,
+      rejectedReports: 60,
+      pendingReports: 30,
+      oneTimePassRate: 81.0,
+      overallPassRate: 90.8,
+      avgResponseMin: 12.2,
+      perCapitaReport: 24.5,
+      registeredStaff: 40,
+      totalScore: 91.2,
+      prevRank: 5,
+      grade: '优秀'
+    },
+    {
+      id: 'org-5',
+      rank: 5,
+      name: '东湖区委宣传部',
+      isMyOrg: false,
+      type: '区县直属局',
+      totalReports: 850,
+      adoptedReports: 750,
+      rejectedReports: 65,
+      pendingReports: 35,
+      oneTimePassRate: 77.8,
+      overallPassRate: 88.2,
+      avgResponseMin: 14.5,
+      perCapitaReport: 22.4,
+      registeredStaff: 38,
+      totalScore: 87.5,
+      prevRank: 4,
+      grade: '良好'
+    },
+    {
+      id: 'org-6',
+      rank: 6,
+      name: '北屯区宣传部',
+      isMyOrg: false,
+      type: '区县直属局',
+      totalReports: 720,
+      adoptedReports: 630,
+      rejectedReports: 55,
+      pendingReports: 35,
+      oneTimePassRate: 75.0,
+      overallPassRate: 87.5,
+      avgResponseMin: 15.0,
+      perCapitaReport: 20.6,
+      registeredStaff: 35,
+      totalScore: 85.0,
+      prevRank: 7,
+      grade: '良好'
+    },
+    {
+      id: 'org-7',
+      rank: 7,
+      name: '南屯区网信办',
+      isMyOrg: false,
+      type: '区县直属局',
+      totalReports: 680,
+      adoptedReports: 590,
+      rejectedReports: 52,
+      pendingReports: 38,
+      oneTimePassRate: 74.2,
+      overallPassRate: 86.8,
+      avgResponseMin: 15.5,
+      perCapitaReport: 20.0,
+      registeredStaff: 34,
+      totalScore: 83.2,
+      prevRank: 6,
+      grade: '合格'
+    },
+    {
+      id: 'org-8',
+      rank: 8,
+      name: '高新区管委会',
+      isMyOrg: false,
+      type: '独立直属单位',
+      totalReports: 590,
+      adoptedReports: 510,
+      rejectedReports: 48,
+      pendingReports: 32,
+      oneTimePassRate: 73.0,
+      overallPassRate: 86.4,
+      avgResponseMin: 16.0,
+      perCapitaReport: 19.6,
+      registeredStaff: 30,
+      totalScore: 81.8,
+      prevRank: 8,
+      grade: '合格'
+    }
+  ];
 
-  // Filter & Sort
-  const filteredRecords = useMemo(() => {
-    return currentTabRecords
-      .filter((rec) => {
-        const matchesKey =
-          !searchKeyword ||
-          rec.name.toLowerCase().includes(searchKeyword.toLowerCase()) ||
-          (rec.subTitle && rec.subTitle.toLowerCase().includes(searchKeyword.toLowerCase()));
-        const matchesGrade = selectedGradeFilter === '全部' || rec.grade === selectedGradeFilter;
-        return matchesKey && matchesGrade;
-      })
-      .sort((a, b) => {
-        return sortByScore === 'desc' ? b.totalScore - a.totalScore : a.totalScore - b.totalScore;
+  // Mock Data: 平台所有上报员考核榜 (含本机构上报员与全平台人员)
+  const mockReporterRecords: ReporterEvalRecord[] = [
+    {
+      id: 'rep-1',
+      rank: 1,
+      name: '张三',
+      isMyOrg: true,
+      org: '中共台中市委宣传部',
+      isLeader: true,
+      totalReports: 42,
+      adoptedReports: 36,
+      rejectedReports: 3,
+      pendingReports: 3,
+      oneTimePassRate: 85.7,
+      overallPassRate: 92.9,
+      totalScore: 3986.5,
+      avgScore: 94.9,
+      momChange: '+3.2%',
+      grade: '卓越',
+      rankChange: '持平'
+    },
+    {
+      id: 'rep-2',
+      rank: 2,
+      name: '王五',
+      isMyOrg: false,
+      org: '台中市大数据中心',
+      totalReports: 38,
+      adoptedReports: 32,
+      rejectedReports: 3,
+      pendingReports: 3,
+      oneTimePassRate: 84.2,
+      overallPassRate: 89.5,
+      totalScore: 3560.0,
+      avgScore: 93.7,
+      momChange: '+2.5%',
+      grade: '卓越',
+      rankChange: '↑1'
+    },
+    {
+      id: 'rep-3',
+      rank: 3,
+      name: '赵六',
+      isMyOrg: false,
+      org: '西屯区网信办',
+      totalReports: 35,
+      adoptedReports: 29,
+      rejectedReports: 4,
+      pendingReports: 2,
+      oneTimePassRate: 80.0,
+      overallPassRate: 85.7,
+      totalScore: 3120.0,
+      avgScore: 89.1,
+      momChange: '+1.8%',
+      grade: '优秀',
+      rankChange: '↓1'
+    },
+    {
+      id: 'rep-4',
+      rank: 4,
+      name: '孙七',
+      isMyOrg: false,
+      org: '东湖区委宣传部',
+      totalReports: 31,
+      adoptedReports: 25,
+      rejectedReports: 4,
+      pendingReports: 2,
+      oneTimePassRate: 77.4,
+      overallPassRate: 83.9,
+      totalScore: 2680.0,
+      avgScore: 86.5,
+      momChange: '+1.2%',
+      grade: '优秀',
+      rankChange: '↑2'
+    },
+    {
+      id: 'rep-5',
+      rank: 5,
+      name: '李四',
+      isMyOrg: false,
+      org: '台中市网信办',
+      totalReports: 28,
+      adoptedReports: 22,
+      rejectedReports: 4,
+      pendingReports: 2,
+      oneTimePassRate: 75.0,
+      overallPassRate: 82.1,
+      totalScore: 2350.0,
+      avgScore: 83.9,
+      momChange: '-0.8%',
+      grade: '良好',
+      rankChange: '↓1'
+    },
+    {
+      id: 'rep-6',
+      rank: 6,
+      name: '周志明',
+      isMyOrg: true,
+      org: '中共台中市委宣传部',
+      totalReports: 26,
+      adoptedReports: 21,
+      rejectedReports: 3,
+      pendingReports: 2,
+      oneTimePassRate: 76.9,
+      overallPassRate: 80.8,
+      totalScore: 2180.0,
+      avgScore: 83.8,
+      momChange: '+1.4%',
+      grade: '良好',
+      rankChange: '↑1'
+    },
+    {
+      id: 'rep-7',
+      rank: 7,
+      name: '刘芳',
+      isMyOrg: true,
+      org: '中共台中市委宣传部',
+      totalReports: 24,
+      adoptedReports: 19,
+      rejectedReports: 3,
+      pendingReports: 2,
+      oneTimePassRate: 75.0,
+      overallPassRate: 79.2,
+      totalScore: 2010.0,
+      avgScore: 83.7,
+      momChange: '+0.5%',
+      grade: '良好',
+      rankChange: '持平'
+    },
+    {
+      id: 'rep-8',
+      rank: 8,
+      name: '吴强',
+      isMyOrg: false,
+      org: '北屯区宣传部',
+      totalReports: 22,
+      adoptedReports: 17,
+      rejectedReports: 3,
+      pendingReports: 2,
+      oneTimePassRate: 72.7,
+      overallPassRate: 77.3,
+      totalScore: 1820.0,
+      avgScore: 82.7,
+      momChange: '-1.2%',
+      grade: '合格',
+      rankChange: '↓1'
+    }
+  ];
+
+  // Mock Data: 平台所有审核员考核榜 (含本机构审核员与全平台人员)
+  const mockAuditorRecords: AuditorEvalRecord[] = [
+    {
+      id: 'aud-1',
+      rank: 1,
+      name: '王主任',
+      isMyOrg: true,
+      org: '中共台中市委宣传部',
+      isLeader: true,
+      totalAudited: 156,
+      passedAudits: 142,
+      rejectedAudits: 10,
+      pendingAudits: 4,
+      auditProcessRate: 97.5,
+      avgResponseMin: 6.8,
+      totalScore: 15210.0,
+      avgScore: 97.5,
+      momChange: '+1.5%',
+      grade: '卓越',
+      rankChange: '持平'
+    },
+    {
+      id: 'aud-2',
+      rank: 2,
+      name: '李明',
+      isMyOrg: false,
+      org: '台中市网信办',
+      totalAudited: 138,
+      passedAudits: 124,
+      rejectedAudits: 9,
+      pendingAudits: 5,
+      auditProcessRate: 96.4,
+      avgResponseMin: 7.9,
+      totalScore: 13248.0,
+      avgScore: 96.0,
+      momChange: '+2.1%',
+      grade: '卓越',
+      rankChange: '↑1'
+    },
+    {
+      id: 'aud-3',
+      rank: 3,
+      name: '陈科长',
+      isMyOrg: false,
+      org: '台中市大数据中心',
+      totalAudited: 120,
+      passedAudits: 106,
+      rejectedAudits: 8,
+      pendingAudits: 6,
+      auditProcessRate: 95.0,
+      avgResponseMin: 8.8,
+      totalScore: 11160.0,
+      avgScore: 93.0,
+      momChange: '+0.9%',
+      grade: '优秀',
+      rankChange: '↓1'
+    },
+    {
+      id: 'aud-4',
+      rank: 4,
+      name: '周主管',
+      isMyOrg: false,
+      org: '西屯区网信办',
+      totalAudited: 95,
+      passedAudits: 82,
+      rejectedAudits: 8,
+      pendingAudits: 5,
+      auditProcessRate: 94.7,
+      avgResponseMin: 11.2,
+      totalScore: 8455.0,
+      avgScore: 89.0,
+      momChange: '+1.1%',
+      grade: '良好',
+      rankChange: '持平'
+    },
+    {
+      id: 'aud-5',
+      rank: 5,
+      name: '韩科长',
+      isMyOrg: true,
+      org: '中共台中市委宣传部',
+      totalAudited: 92,
+      passedAudits: 80,
+      rejectedAudits: 7,
+      pendingAudits: 5,
+      auditProcessRate: 94.6,
+      avgResponseMin: 9.2,
+      totalScore: 8188.0,
+      avgScore: 89.0,
+      momChange: '+1.8%',
+      grade: '良好',
+      rankChange: '↑1'
+    },
+    {
+      id: 'aud-6',
+      rank: 6,
+      name: '徐副主任',
+      isMyOrg: false,
+      org: '东湖区委宣传部',
+      totalAudited: 78,
+      passedAudits: 67,
+      rejectedAudits: 6,
+      pendingAudits: 5,
+      auditProcessRate: 93.6,
+      avgResponseMin: 12.5,
+      totalScore: 6786.0,
+      avgScore: 87.0,
+      momChange: '-0.5%',
+      grade: '合格',
+      rankChange: '↓1'
+    }
+  ];
+
+  // Mock Data: 舆情分类条线考评
+  const mockCategoryRecords: CategoryEvalRecord[] = [
+    { id: 'cat-1', rank: 1, category: '突发舆情事件速报', leadOrg: '台中市网信办', totalReports: 3420, adoptedCount: 3180, avgReviewMinutes: 8.5, score: 96.5, grade: '卓越' },
+    { id: 'cat-2', rank: 2, category: '民生热点诉求核查', leadOrg: '中共台中市委宣传部', totalReports: 2850, adoptedCount: 2590, avgReviewMinutes: 11.2, score: 94.0, grade: '优秀' },
+    { id: 'cat-3', rank: 3, category: '网络谣言与辟谣澄清', leadOrg: '市公安局网安支队', totalReports: 1420, adoptedCount: 1260, avgReviewMinutes: 12.0, score: 91.5, grade: '优秀' },
+    { id: 'cat-4', rank: 4, category: '重大政策解读反响', leadOrg: '市发改委/政研室', totalReports: 742, adoptedCount: 630, avgReviewMinutes: 16.5, score: 86.0, grade: '良好' }
+  ];
+
+  // Mock Data: 负面舆情交办闭环考核台账 (从统计台账模块完整合并至考核管理)
+  const mockNegativeRecords: NegativeEvalRecord[] = [
+    {
+      id: 'TS-20260811-01',
+      title: '关于某大型小区二次供水管网破裂停水舆情',
+      org: '市水务集团 / 西屯区网信办',
+      isMyOrg: false,
+      time: '2026-08-11 10:15',
+      status: '办理中',
+      deadline: '剩余 2 小时',
+      level: '高风险',
+      handler: '西屯区网信办-刘科长',
+      disposalProgress: '已调派应急供水车并发布情况通报，正在管道抢修',
+      scoreDeduction: 0
+    },
+    {
+      id: 'TS-20260810-04',
+      title: '东湖区部分高新技术园区晚高峰交通拥堵关切',
+      org: '中共台中市委宣传部 / 市交警支队',
+      isMyOrg: true,
+      time: '2026-08-10 16:30',
+      status: '已办结',
+      deadline: '已按时办结',
+      level: '中风险',
+      handler: '市委宣传部-张三',
+      disposalProgress: '联合交管部门完成动态信号灯调优并在政务微博发布疏导指南',
+      scoreDeduction: 0
+    },
+    {
+      id: 'TS-20260809-02',
+      title: '网传“某生鲜市场物价异常上涨”不实辟谣',
+      org: '中共台中市委宣传部 / 市网信办',
+      isMyOrg: true,
+      time: '2026-08-09 11:20',
+      status: '已办结',
+      deadline: '已发布通告',
+      level: '高风险',
+      handler: '市委宣传部-王主任',
+      disposalProgress: '现场核实取证，市监局现场抽检合格，官方账号发布权威通告辟谣',
+      scoreDeduction: 0
+    },
+    {
+      id: 'TS-20260808-05',
+      title: '某自媒体账号炒作暴雨积水历史旧视频',
+      org: '台中市网信办',
+      isMyOrg: false,
+      time: '2026-08-08 09:40',
+      status: '已办结',
+      deadline: '已按时办结',
+      level: '中风险',
+      handler: '网信办-应急科',
+      disposalProgress: '约谈自媒体运营主体并作下架处罚，全网通报辟谣',
+      scoreDeduction: 0
+    },
+    {
+      id: 'TS-20260807-03',
+      title: '高新区某企业劳动纠纷言论发酵情况',
+      org: '高新区管委会',
+      isMyOrg: false,
+      time: '2026-08-07 14:10',
+      status: '已办结',
+      deadline: '已按时办结',
+      level: '中风险',
+      handler: '高新区管委会-调解组',
+      disposalProgress: '人社部门组织双方调解并达成和解协议，舆情平息',
+      scoreDeduction: 0
+    }
+  ];
+
+  // Open profile modal for any record
+  const handleOpenProfile = (type: 'org' | 'reporter' | 'auditor', item: any) => {
+    if (type === 'org') {
+      const org = item as OrgEvalRecord;
+      setSelectedProfile({
+        id: org.id,
+        name: org.name,
+        type: 'org',
+        subTitle: `${org.type} · 在册编制 ${org.registeredStaff} 人`,
+        rank: org.rank,
+        totalScore: org.totalScore,
+        grade: org.grade,
+        stats: [
+          { label: '总上报量', value: `${org.totalReports} 件`, isHighlight: true },
+          { label: '采纳通过量', value: `${org.adoptedReports} 件` },
+          { label: '首审直通率', value: `${org.oneTimePassRate}%`, isHighlight: true },
+          { label: '整体通过率', value: `${org.overallPassRate}%` },
+          { label: '审核平均响应', value: `${org.avgResponseMin} 分钟` },
+          { label: '人均贡献量', value: `${org.perCapitaReport} 件` }
+        ],
+        radarData: [
+          { subject: '报送时效', value: 96, fullMark: 100 },
+          { subject: '采纳质效', value: 98, fullMark: 100 },
+          { subject: '首审直通', value: 92, fullMark: 100 },
+          { subject: '审核响应', value: 95, fullMark: 100 },
+          { subject: '负面闭环', value: 99, fullMark: 100 }
+        ],
+        historyScores: [
+          { month: '4月', score: 95.0 },
+          { month: '5月', score: 96.2 },
+          { month: '6月', score: 97.0 },
+          { month: '7月', score: 97.8 },
+          { month: '8月', score: org.totalScore }
+        ],
+        breakdown: [
+          { category: '基础报送', item: '累计采纳 1,520 件', points: '+60.8 分', desc: '按单件采纳 0.04 分计分' },
+          { category: '直通激励', item: '首审直通率 88.6%', points: '+25.0 分', desc: '达到全域领先梯队激励' },
+          { category: '审核提速', item: '平均响应 6.8 分钟', points: '+12.7 分', desc: '平均耗时大幅优于全域均值' }
+        ],
+        summaryEvaluation: `${org.name} 本考核周期内报送质效出众，一次性直通率位居全域第一，响应速度稳居第一梯队。`
       });
-  }, [currentTabRecords, searchKeyword, selectedGradeFilter, sortByScore]);
-
-  // KPI Summary stats
-  const kpiStats = useMemo(() => {
-    const totalReportsSum = currentTabRecords.reduce((acc, r) => acc + r.totalReports, 0);
-    const passedReportsSum = currentTabRecords.reduce((acc, r) => acc + r.passedReports, 0);
-    const avgScore = (
-      currentTabRecords.reduce((acc, r) => acc + r.totalScore, 0) / currentTabRecords.length
-    ).toFixed(1);
-    const overallPassRate = ((passedReportsSum / (totalReportsSum || 1)) * 100).toFixed(1);
-    const topPerformer = currentTabRecords[0];
-
-    return {
-      totalReportsSum,
-      passedReportsSum,
-      avgScore,
-      overallPassRate,
-      topPerformerName: topPerformer?.name || '中共台中市委宣传部',
-      topPerformerScore: topPerformer?.totalScore || 98.0
-    };
-  }, [currentTabRecords]);
-
-  // Handle Export report
-  const handleExport = () => {
-    const tabLabel = activeTab === 'category' ? '分类' : activeTab === 'org' ? '机构' : '人员';
-    showToast(`成功导出【${tabLabel}考核统计分析表_${dateRangeText.slice(0, 7)}.xlsx】`);
+    } else if (type === 'reporter') {
+      const rep = item as ReporterEvalRecord;
+      setSelectedProfile({
+        id: rep.id,
+        name: rep.name,
+        type: 'reporter',
+        subTitle: `${rep.org} · 上报员岗位`,
+        rank: rep.rank,
+        totalScore: rep.totalScore,
+        grade: rep.grade,
+        stats: [
+          { label: '累计上报', value: `${rep.totalReports} 件`, isHighlight: true },
+          { label: '采纳通过', value: `${rep.adoptedReports} 件` },
+          { label: '首审直通率', value: `${rep.oneTimePassRate}%`, isHighlight: true },
+          { label: '整体通过率', value: `${rep.overallPassRate}%` },
+          { label: '单条平均得分', value: `${rep.avgScore} 分` },
+          { label: '环比得分增幅', value: rep.momChange }
+        ],
+        radarData: [
+          { subject: '报送活跃', value: 95, fullMark: 100 },
+          { subject: '采纳质量', value: 96, fullMark: 100 },
+          { subject: '首审直通', value: 90, fullMark: 100 },
+          { subject: '要素完整', value: 94, fullMark: 100 },
+          { subject: '业务研判', value: 92, fullMark: 100 }
+        ],
+        historyScores: [
+          { month: '4月', score: 3200 },
+          { month: '5月', score: 3450 },
+          { month: '6月', score: 3620 },
+          { month: '7月', score: 3810 },
+          { month: '8月', score: rep.totalScore }
+        ],
+        breakdown: [
+          { category: '采纳积分', item: `采纳 ${rep.adoptedReports} 件`, points: `+${(rep.adoptedReports * 95).toFixed(1)} 分`, desc: '依据信息价值量加权核算' },
+          { category: '直通加分', item: `首审直通率 ${rep.oneTimePassRate}%`, points: '+280.0 分', desc: '一次性直通专项质效奖励' },
+          { category: '驳回扣分', item: `驳回 ${rep.rejectedReports} 件`, points: `-${(rep.rejectedReports * 15).toFixed(1)} 分`, desc: '格式或要素不全修正扣分' }
+        ],
+        summaryEvaluation: `${rep.name}（${rep.org}）工作扎实严谨，报送采纳率稳定在 90% 以上，综合考评表现卓越。`
+      });
+    } else if (type === 'auditor') {
+      const aud = item as AuditorEvalRecord;
+      setSelectedProfile({
+        id: aud.id,
+        name: aud.name,
+        type: 'auditor',
+        subTitle: `${aud.org} · 审核员岗位`,
+        rank: aud.rank,
+        totalScore: aud.totalScore,
+        grade: aud.grade,
+        stats: [
+          { label: '累计审核', value: `${aud.totalAudited} 件`, isHighlight: true },
+          { label: '审核通过', value: `${aud.passedAudits} 件` },
+          { label: '审核处理率', value: `${aud.auditProcessRate}%`, isHighlight: true },
+          { label: '平均响应时长', value: `${aud.avgResponseMin} 分钟` },
+          { label: '单条均分', value: `${aud.avgScore} 分` },
+          { label: '环比得分增幅', value: aud.momChange }
+        ],
+        radarData: [
+          { subject: '响应时效', value: 98, fullMark: 100 },
+          { subject: '把关严谨', value: 96, fullMark: 100 },
+          { subject: '日均处理', value: 94, fullMark: 100 },
+          { subject: '研判准确', value: 97, fullMark: 100 },
+          { subject: '交办追踪', value: 95, fullMark: 100 }
+        ],
+        historyScores: [
+          { month: '4月', score: 12100 },
+          { month: '5月', score: 13400 },
+          { month: '6月', score: 14200 },
+          { month: '7月', score: 14800 },
+          { month: '8月', score: aud.totalScore }
+        ],
+        breakdown: [
+          { category: '审结基础分', item: `审结 ${aud.passedAudits + aud.rejectedAudits} 件`, points: `+${((aud.passedAudits + aud.rejectedAudits) * 98).toFixed(1)} 分`, desc: '完成舆情审核流转基础赋分' },
+          { category: '极速响应分', item: `平均响应 ${aud.avgResponseMin} 分钟`, points: '+450.0 分', desc: '10分钟以内极速审核加分' }
+        ],
+        summaryEvaluation: `${aud.name}（${aud.org}）审核把关严密、流转极其高效，平均耗时仅 6.8 分钟，位居全域榜首。`
+      });
+    }
   };
 
-  // Handle Date Preset Click
-  const handlePresetDate = (preset: 'month' | 'quarter' | 'year') => {
-    setDateRangePreset(preset);
-    if (preset === 'month') setDateRangeText('2026-08-01 至 2026-08-31');
-    if (preset === 'quarter') setDateRangeText('2026-07-01 至 2026-09-30');
-    if (preset === 'year') setDateRangeText('2026-01-01 至 2026-12-31');
+  // Currently Active Selected Organization for benchmark cards
+  const currentOrgRecord = useMemo(() => {
+    return mockOrgRecords.find(o => o.name === selectedOrgName) || mockOrgRecords[0];
+  }, [mockOrgRecords, selectedOrgName]);
+
+  // Filtered Records
+  const filteredOrgList = useMemo(() => {
+    return mockOrgRecords.filter(item => {
+      const matchSearch = item.name.includes(searchQuery) || item.type.includes(searchQuery);
+      const matchGrade = gradeFilter === 'all' || item.grade === gradeFilter;
+      return matchSearch && matchGrade;
+    });
+  }, [mockOrgRecords, searchQuery, gradeFilter]);
+
+  const filteredReporterList = useMemo(() => {
+    return mockReporterRecords.filter(item => {
+      const matchSearch = item.name.includes(searchQuery) || item.org.includes(searchQuery);
+      const matchGrade = gradeFilter === 'all' || item.grade === gradeFilter;
+      if (staffScope === 'my_org') {
+        return matchSearch && matchGrade && item.isMyOrg;
+      }
+      return matchSearch && matchGrade;
+    });
+  }, [mockReporterRecords, searchQuery, gradeFilter, staffScope]);
+
+  const filteredAuditorList = useMemo(() => {
+    return mockAuditorRecords.filter(item => {
+      const matchSearch = item.name.includes(searchQuery) || item.org.includes(searchQuery);
+      const matchGrade = gradeFilter === 'all' || item.grade === gradeFilter;
+      if (staffScope === 'my_org') {
+        return matchSearch && matchGrade && item.isMyOrg;
+      }
+      return matchSearch && matchGrade;
+    });
+  }, [mockAuditorRecords, searchQuery, gradeFilter, staffScope]);
+
+  const filteredNegativeList = useMemo(() => {
+    return mockNegativeRecords.filter(item => {
+      const matchSearch = item.title.includes(searchQuery) || item.org.includes(searchQuery) || item.id.includes(searchQuery) || item.handler.includes(searchQuery);
+      return matchSearch;
+    });
+  }, [mockNegativeRecords, searchQuery]);
+
+  const handleSelectOrgMacro = (orgData: OrgMacroData) => {
+    const matching = mockOrgRecords.find(o => o.name === orgData.name) || {
+      id: `org-${orgData.rank}`,
+      rank: orgData.rank,
+      name: orgData.name,
+      isMyOrg: !!orgData.isMyOrg,
+      type: orgData.type,
+      totalReports: orgData.total,
+      adoptedReports: orgData.passed,
+      rejectedReports: orgData.rejected,
+      pendingReports: orgData.pending,
+      oneTimePassRate: orgData.directRate,
+      overallPassRate: orgData.passRate,
+      avgResponseMin: orgData.avgTime,
+      perCapitaReport: orgData.perCapita,
+      totalScore: orgData.avgScore,
+      grade: orgData.grade,
+      registeredStaff: orgData.staff
+    };
+    handleOpenProfile('org', matching);
   };
 
   return (
-    <div className="space-y-5 animate-in fade-in duration-200 pb-10">
+    <div className="space-y-4 animate-in fade-in duration-200 pb-12">
       {/* Toast Notification */}
       {toastMsg && (
-        <div className="fixed top-5 right-5 z-50 bg-[#1E5ABB] text-white px-4 py-2.5 rounded-lg shadow-lg border border-blue-400/30 flex items-center space-x-2 text-xs animate-in slide-in-from-top-2">
+        <div className="fixed top-5 right-5 z-50 bg-[#1E5ABB] text-white px-4 py-2.5 rounded-xl shadow-xl border border-blue-400/30 flex items-center space-x-2 text-xs animate-in slide-in-from-top-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{toastMsg}</span>
         </div>
       )}
 
-      {/* FILTER & EXPORT BAR */}
-      <div className="bg-white p-4 sm:p-5 rounded-xl border border-gray-200/90 shadow-2xs space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-          {/* Quick Date Presets & Date Range Box */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            <span className="text-gray-600 font-bold flex items-center space-x-1.5">
-              <Calendar className="w-4 h-4 text-blue-600" />
-              <span>考核统计时间:</span>
-            </span>
+      {/* 1. 机构管理员考评全局控制台 (Executive Header & Identity & Perspective Bar) */}
+      <div className="bg-white px-5 py-4 rounded-xl border border-slate-200/90 shadow-2xs space-y-3.5">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div className="flex items-center space-x-3">
+            <div className="p-2.5 bg-gradient-to-br from-amber-500 to-amber-700 text-white rounded-xl shadow-2xs flex items-center justify-center">
+              <Trophy className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-base font-extrabold text-gray-900 tracking-tight">
+                  考核管理与综合绩效评定
+                </h1>
+              </div>
+              <p className="text-xs text-gray-400 mt-0.5">
+                对标全域 28 家机构及 186 名工作人员，实时量化机构综合考评得分、上报员及审核员个人绩效排行
+              </p>
+            </div>
+          </div>
 
-            {/* Quick Date Presets */}
-            <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200/80 text-gray-600 font-medium">
+          {/* Action Buttons */}
+          <div className="flex items-center space-x-2 shrink-0">
+            <button
+              onClick={() => setShowRuleModal(true)}
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg border border-slate-200 shadow-2xs flex items-center space-x-1.5 transition-colors cursor-pointer"
+            >
+              <Info className="w-3.5 h-3.5 text-blue-600" />
+              <span>考核赋分规则</span>
+            </button>
+            <button
+              onClick={() => showToast('已生成并导出【2026年8月综合考核通报红头简报.xlsx】！')}
+              className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-blue-700 text-white text-xs font-medium rounded-lg shadow-2xs flex items-center space-x-1.5 transition-colors cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>导出考评大表</span>
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="px-3.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium rounded-lg border border-slate-200 shadow-2xs flex items-center space-x-1.5 transition-colors cursor-pointer"
+            >
+              <Printer className="w-3.5 h-3.5 text-slate-500" />
+              <span>打印简报</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Global Toolbar: 考核视角切换 & 考核周期选择 & 搜索筛选 */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-xs">
+          {/* Left: Perspective Switch Tabs */}
+          <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold border border-slate-200/80">
+            <button
+              onClick={() => setPerspective('org')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center space-x-1.5 ${
+                perspective === 'org' ? 'bg-[#1E5ABB] text-white shadow-2xs' : 'text-gray-600 hover:text-blue-900'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              <span>全域机构考核总榜</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${perspective === 'org' ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-700'}`}>
+                28家
+              </span>
+            </button>
+
+            <button
+              onClick={() => setPerspective('reporter')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center space-x-1.5 ${
+                perspective === 'reporter' ? 'bg-[#1E5ABB] text-white shadow-2xs' : 'text-gray-600 hover:text-blue-900'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>平台所有上报员考评</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${perspective === 'reporter' ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-700'}`}>
+                124人
+              </span>
+            </button>
+
+            <button
+              onClick={() => setPerspective('auditor')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center space-x-1.5 ${
+                perspective === 'auditor' ? 'bg-[#1E5ABB] text-white shadow-2xs' : 'text-gray-600 hover:text-blue-900'
+              }`}
+            >
+              <UserCheck className="w-3.5 h-3.5" />
+              <span>平台所有审核员考评</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${perspective === 'auditor' ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-700'}`}>
+                42人
+              </span>
+            </button>
+          </div>
+
+          {/* Right: 切换机构 & Period & Staff Scope & Grade & Search */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* 切换机构 Select Dropdown */}
+            <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-xl px-2.5 py-1 text-xs shadow-2xs hover:border-blue-400 transition-colors">
+              <Building2 className="w-3.5 h-3.5 text-[#1E5ABB] shrink-0" />
+              <span className="text-slate-500 font-medium shrink-0">切换机构:</span>
+              <select
+                value={selectedOrgName}
+                onChange={(e) => {
+                  setSelectedOrgName(e.target.value);
+                  showToast(`已切换至【${e.target.value}】考评视角`);
+                }}
+                className="bg-transparent text-slate-800 font-bold focus:outline-none cursor-pointer pr-1 text-xs"
+              >
+                {mockOrgRecords.map(org => (
+                  <option key={org.id} value={org.name}>
+                    {org.name} {org.isMyOrg ? '(本机构)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Staff Scope Filter (仅在人员考评视角显示) */}
+            {(perspective === 'reporter' || perspective === 'auditor') && (
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-lg text-xs font-medium border border-slate-200">
+                <button
+                  onClick={() => setStaffScope('all')}
+                  className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                    staffScope === 'all' ? 'bg-white text-[#1E5ABB] shadow-2xs font-bold' : 'text-gray-600'
+                  }`}
+                >
+                  平台全员
+                </button>
+                <button
+                  onClick={() => setStaffScope('my_org')}
+                  className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                    staffScope === 'my_org' ? 'bg-white text-[#1E5ABB] shadow-2xs font-bold' : 'text-gray-600'
+                  }`}
+                >
+                  仅本机构人员
+                </button>
+              </div>
+            )}
+
+            {/* Period selector */}
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg text-xs font-medium">
               <button
-                onClick={() => handlePresetDate('month')}
-                className={`px-3 py-1.5 rounded-md transition-all cursor-pointer ${
-                  dateRangePreset === 'month' ? 'bg-white text-[#1E5ABB] font-bold shadow-2xs' : 'hover:text-gray-900'
+                onClick={() => { setPeriod('month'); setSelectedPeriodLabel('2026年8月考评 (本月)'); }}
+                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                  period === 'month' ? 'bg-[#1E5ABB] text-white shadow-2xs font-bold' : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
-                本月
+                月度
               </button>
               <button
-                onClick={() => handlePresetDate('quarter')}
-                className={`px-3 py-1.5 rounded-md transition-all cursor-pointer ${
-                  dateRangePreset === 'quarter' ? 'bg-white text-[#1E5ABB] font-bold shadow-2xs' : 'hover:text-gray-900'
+                onClick={() => { setPeriod('quarter'); setSelectedPeriodLabel('2026年第3季度综合考评'); }}
+                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                  period === 'quarter' ? 'bg-[#1E5ABB] text-white shadow-2xs font-bold' : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
-                本季度
+                季度
               </button>
               <button
-                onClick={() => handlePresetDate('year')}
-                className={`px-3 py-1.5 rounded-md transition-all cursor-pointer ${
-                  dateRangePreset === 'year' ? 'bg-white text-[#1E5ABB] font-bold shadow-2xs' : 'hover:text-gray-900'
+                onClick={() => { setPeriod('year'); setSelectedPeriodLabel('2026年度总考评'); }}
+                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                  period === 'year' ? 'bg-[#1E5ABB] text-white shadow-2xs font-bold' : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
                 年度
               </button>
             </div>
 
-            {/* Date Range Box */}
-            <div className="relative flex items-center bg-white border border-gray-300 rounded-lg px-3 py-1.5 shadow-2xs text-gray-700">
+            {/* Grade filter */}
+            <select
+              value={gradeFilter}
+              onChange={(e) => setGradeFilter(e.target.value as any)}
+              className="bg-white border border-gray-300 text-gray-700 rounded-lg px-2 py-1 text-xs focus:outline-none cursor-pointer font-medium"
+            >
+              <option value="all">全部等次</option>
+              <option value="卓越">卓越等次</option>
+              <option value="优秀">优秀等次</option>
+              <option value="良好">良好等次</option>
+              <option value="合格">合格等次</option>
+            </select>
+
+            {/* Search Input */}
+            <div className="relative flex items-center bg-slate-50 border border-gray-300 rounded-xl px-2.5 py-1 text-xs">
+              <Search className="w-3.5 h-3.5 text-gray-400 mr-1.5 shrink-0" />
               <input
                 type="text"
-                value={dateRangeText}
-                onChange={(e) => {
-                  setDateRangeText(e.target.value);
-                  setDateRangePreset('custom');
-                }}
-                className="w-44 focus:outline-none font-mono text-xs text-gray-800"
+                placeholder="搜索机构/人员姓名..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-36 focus:outline-none text-xs text-gray-800 bg-transparent"
               />
-            </div>
-          </div>
-
-          {/* Export Report Button */}
-          <button
-            onClick={handleExport}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-lg shadow-2xs flex items-center space-x-1.5 transition-all cursor-pointer"
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>导出考核报表</span>
-          </button>
-        </div>
-
-        {/* TOP 4 EXECUTIVE KPI SUMMARY CARDS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-1 border-t border-gray-100">
-          {/* Card 1: 综合考评平均分 */}
-          <div className="bg-gradient-to-br from-blue-50/60 via-white to-blue-50/20 p-3.5 rounded-xl border border-blue-100/90 shadow-2xs flex flex-col justify-between space-y-2">
-            <div className="flex items-center justify-between text-xs text-gray-500 font-medium">
-              <span className="flex items-center space-x-1.5 text-blue-900 font-bold">
-                <BarChart3 className="w-4 h-4 text-blue-600" />
-                <span>综合考评平均分</span>
-              </span>
-              <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-bold border border-emerald-200">
-                ↑ 较上期 +3.2%
-              </span>
-            </div>
-            <div className="flex items-baseline justify-between">
-              <div className="text-2xl font-black text-[#1E5ABB] font-mono tracking-tight">
-                {kpiStats.avgScore}
-                <span className="text-xs font-normal text-gray-500 ml-1">分</span>
-              </div>
-              <span className="text-xs text-blue-700 font-extrabold bg-blue-100/80 px-2 py-0.5 rounded">
-                达标评级 A+
-              </span>
-            </div>
-            <div className="w-full bg-blue-100 h-1.5 rounded-full overflow-hidden">
-              <div
-                className="bg-blue-600 h-full rounded-full transition-all duration-500"
-                style={{ width: `${Math.min(100, Number(kpiStats.avgScore))}%` }}
-              ></div>
-            </div>
-          </div>
-
-          {/* Card 2: 本期榜首榜魁 */}
-          <div className="bg-gradient-to-br from-amber-50/60 via-white to-amber-50/20 p-3.5 rounded-xl border border-amber-200/80 shadow-2xs flex flex-col justify-between space-y-2">
-            <div className="flex items-center justify-between text-xs text-gray-500 font-medium">
-              <span className="flex items-center space-x-1.5 text-amber-900 font-bold">
-                <Award className="w-4 h-4 text-amber-600" />
-                <span>榜首最高考评</span>
-              </span>
-              <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded font-bold border border-amber-200">
-                🥇 领跑单位
-              </span>
-            </div>
-            <div className="flex items-baseline justify-between">
-              <div className="text-base font-extrabold text-gray-900 truncate max-w-[170px]" title={kpiStats.topPerformerName}>
-                {kpiStats.topPerformerName}
-              </div>
-              <span className="text-lg font-black text-amber-700 font-mono">
-                {kpiStats.topPerformerScore}分
-              </span>
-            </div>
-            <div className="text-[11px] text-amber-800/80 flex items-center justify-between font-medium pt-0.5">
-              <span>通过率: 96.2%</span>
-              <span>响应耗时: 6.8分</span>
-            </div>
-          </div>
-
-          {/* Card 3: 上报采纳总量 */}
-          <div className="bg-gradient-to-br from-slate-50 via-white to-slate-50/50 p-3.5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col justify-between space-y-2">
-            <div className="flex items-center justify-between text-xs text-gray-500 font-medium">
-              <span className="flex items-center space-x-1.5 text-gray-800 font-bold">
-                <Zap className="w-4 h-4 text-purple-600" />
-                <span>上报与采纳总量</span>
-              </span>
-              <span className="text-[10px] text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded font-bold border border-purple-200">
-                通过率 {kpiStats.overallPassRate}%
-              </span>
-            </div>
-            <div className="flex items-baseline justify-between">
-              <div className="text-2xl font-black text-gray-900 font-mono tracking-tight">
-                {kpiStats.totalReportsSum.toLocaleString()}
-                <span className="text-xs font-normal text-gray-500 ml-1">件</span>
-              </div>
-              <span className="text-xs text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
-                已采纳 {kpiStats.passedReportsSum.toLocaleString()}
-              </span>
-            </div>
-            <div className="text-[11px] text-gray-500 flex items-center justify-between font-medium pt-0.5">
-              <span>有效率: 92.4%</span>
-              <span>无损剔除: 218件</span>
-            </div>
-          </div>
-
-          {/* Card 4: 机构全员参与率 */}
-          <div className="bg-gradient-to-br from-indigo-50/50 via-white to-indigo-50/20 p-3.5 rounded-xl border border-indigo-100/90 shadow-2xs flex flex-col justify-between space-y-2">
-            <div className="flex items-center justify-between text-xs text-gray-500 font-medium">
-              <span className="flex items-center space-x-1.5 text-indigo-900 font-bold">
-                <Users className="w-4 h-4 text-indigo-600" />
-                <span>全员参与覆盖度</span>
-              </span>
-              <span className="text-[10px] text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded font-bold border border-indigo-200">
-                活跃度高
-              </span>
-            </div>
-            <div className="flex items-baseline justify-between">
-              <div className="text-2xl font-black text-indigo-950 font-mono tracking-tight">
-                96.5%
-              </div>
-              <span className="text-xs text-indigo-700 font-bold bg-indigo-50 px-2 py-0.5 rounded">
-                在册 285 人
-              </span>
-            </div>
-            <div className="text-[11px] text-indigo-900/80 flex items-center justify-between font-medium pt-0.5">
-              <span>全勤单位: 12个</span>
-              <span>满分信息员: 8人</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* MAIN CONTAINER WITH THREE DIMENSION TABS & SEARCH CONTROLS */}
-      <div className="bg-white rounded-xl border border-gray-200/90 shadow-2xs p-5 space-y-5">
-        {/* Navigation Tabs */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-200 pb-3 gap-3">
-          <div className="flex space-x-2 bg-slate-100 p-1 rounded-lg border border-slate-200/80 text-xs font-bold">
-            <button
-              onClick={() => setActiveTab('category')}
-              className={`px-4 py-2 rounded-md transition-all cursor-pointer flex items-center space-x-1.5 ${
-                activeTab === 'category'
-                  ? 'bg-[#1E5ABB] text-white shadow-2xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-slate-200/60'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>分类考核统计</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('org')}
-              className={`px-4 py-2 rounded-md transition-all cursor-pointer flex items-center space-x-1.5 ${
-                activeTab === 'org'
-                  ? 'bg-[#1E5ABB] text-white shadow-2xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-slate-200/60'
-              }`}
-            >
-              <Building2 className="w-3.5 h-3.5" />
-              <span>机构考核统计</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('person')}
-              className={`px-4 py-2 rounded-md transition-all cursor-pointer flex items-center space-x-1.5 ${
-                activeTab === 'person'
-                  ? 'bg-[#1E5ABB] text-white shadow-2xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-slate-200/60'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>人员考核统计</span>
-            </button>
-          </div>
+      {/* 2. 机构管理员效能对标与考评全局画像看板 (Institutional Admin Benchmark & Intelligence Hub) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+        {/* Left Column (lg:col-span-5): 3 Benchmark Cards + Score Structure */}
+        <div className="lg:col-span-5 flex flex-col justify-between space-y-3">
+          {/* Card 1: 机构考评总分与排位 (Hero Flagship Card - Dynamically Bound to selectedOrgName) */}
+          <div className="bg-gradient-to-br from-white via-amber-50/20 to-orange-50/30 p-4 rounded-2xl border border-amber-200/80 shadow-2xs space-y-3 relative overflow-hidden flex-1 flex flex-col justify-between">
+            {/* Top Row: Org Identity & Rank Pill */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="p-2 bg-gradient-to-br from-amber-500 to-amber-600 text-white rounded-xl shadow-xs">
+                  <Trophy className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center space-x-1.5">
+                    <h3 className="text-xs font-black text-slate-900 tracking-tight">{currentOrgRecord.name}</h3>
+                    {currentOrgRecord.isMyOrg ? (
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 bg-blue-50 text-blue-700 rounded border border-blue-200">本机构</span>
+                    ) : (
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 bg-slate-100 text-slate-700 rounded border border-slate-200">{currentOrgRecord.type}</span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-500 font-medium">全域综合绩效考核画像</p>
+                </div>
+              </div>
 
-          {/* Search & Filter Controls */}
-          <div className="flex items-center space-x-2 text-xs">
-            {/* Keyword Search Input */}
-            <div className="relative flex items-center">
-              <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5" />
-              <input
-                type="text"
-                value={searchKeyword}
-                onChange={(e) => setSearchKeyword(e.target.value)}
-                placeholder={
-                  activeTab === 'category'
-                    ? '搜索分类名称...'
-                    : activeTab === 'org'
-                    ? '搜索机构名称...'
-                    : '搜索人员姓名/角色...'
-                }
-                className="pl-8 pr-3 py-1.5 bg-slate-50 border border-gray-300 rounded-lg text-gray-800 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white w-48 transition-all"
-              />
-              {searchKeyword && (
-                <button
-                  onClick={() => setSearchKeyword('')}
-                  className="absolute right-2 text-gray-400 hover:text-gray-600"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
+              <button
+                onClick={() => handleOpenProfile('org', currentOrgRecord)}
+                className="px-2.5 py-1 bg-white hover:bg-amber-50 text-amber-900 text-[11px] font-bold rounded-lg border border-amber-200 shadow-2xs transition-all flex items-center space-x-1 cursor-pointer hover:border-amber-300 group"
+              >
+                <span>深度画像</span>
+                <ChevronRight className="w-3 h-3 text-amber-600 group-hover:translate-x-0.5 transition-transform" />
+              </button>
             </div>
 
-            {/* Grade Filter Dropdown */}
-            <select
-              value={selectedGradeFilter}
-              onChange={(e) => setSelectedGradeFilter(e.target.value)}
-              className="px-2.5 py-1.5 bg-slate-50 border border-gray-300 rounded-lg text-gray-700 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer font-medium"
-            >
-              <option value="全部">全部考评等次</option>
-              <option value="卓越">卓越</option>
-              <option value="优秀">优秀</option>
-              <option value="良好">良好</option>
-              <option value="合格">合格</option>
-            </select>
+            {/* Middle Row: Score Number & Highlights */}
+            <div className="flex items-end justify-between pt-1">
+              <div>
+                <div className="flex items-baseline space-x-1.5">
+                  <span className="text-3xl sm:text-4xl font-black text-amber-800 font-mono tracking-tight">{currentOrgRecord.totalScore}</span>
+                  <span className="text-xs text-slate-500 font-bold">/ 100 分</span>
+                </div>
+                <div className="flex items-center space-x-1.5 mt-0.5">
+                  <span className="text-[10px] font-extrabold px-1.5 py-0.2 bg-amber-500 text-white rounded">{currentOrgRecord.grade}等次</span>
+                  <span className="text-[10px] text-emerald-700 font-bold flex items-center">
+                    <TrendingUp className="w-3 h-3 mr-0.5" />
+                    {currentOrgRecord.totalScore >= 87.3 ? `超均值 +${(currentOrgRecord.totalScore - 87.3).toFixed(1)}分` : `较均值 ${(currentOrgRecord.totalScore - 87.3).toFixed(1)}分`}
+                  </span>
+                </div>
+              </div>
 
-            {/* Sort Toggle */}
-            <button
-              onClick={() => setSortByScore(sortByScore === 'desc' ? 'asc' : 'desc')}
-              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-gray-700 font-medium rounded-lg border border-slate-200 flex items-center space-x-1 cursor-pointer transition-colors"
-              title="切换总分高低排序"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />
-              <span>{sortByScore === 'desc' ? '得分从高到低' : '得分从低到高'}</span>
-            </button>
+              <div className="text-right space-y-0.5">
+                <div className="text-[10px] text-slate-400 font-medium">全市综合排名</div>
+                <div className="text-lg font-black text-slate-900 font-mono flex items-center justify-end">
+                  <span className="text-xs text-amber-700 mr-1">TOP</span>
+                  <span className="text-2xl text-amber-700 leading-none">{currentOrgRecord.rank}</span>
+                  <span className="text-xs text-slate-400 ml-1">/ 28 家</span>
+                </div>
+              </div>
+            </div>
 
-            {/* Reset Filters */}
-            {(searchKeyword || selectedGradeFilter !== '全部' || sortByScore !== 'desc') && (
-              <button
-                onClick={() => {
-                  setSearchKeyword('');
-                  setSelectedGradeFilter('全部');
-                  setSortByScore('desc');
-                }}
-                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
-                title="重置筛选"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
-            )}
+            {/* Bottom Row: Micro Performance Tags */}
+            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-amber-100/80 text-[10px]">
+              <div className="bg-white/80 p-1.5 rounded-lg border border-amber-100/60">
+                <span className="text-slate-400 block text-[9px]">直通采纳率</span>
+                <strong className="text-slate-800 font-mono font-bold text-xs">{currentOrgRecord.oneTimePassRate}%</strong>
+              </div>
+              <div className="bg-white/80 p-1.5 rounded-lg border border-amber-100/60">
+                <span className="text-slate-400 block text-[9px]">累计报送</span>
+                <strong className="text-slate-800 font-mono font-bold text-xs">{currentOrgRecord.totalReports.toLocaleString()} 件</strong>
+              </div>
+              <div className="bg-white/80 p-1.5 rounded-lg border border-amber-100/60">
+                <span className="text-slate-400 block text-[9px]">平均时效</span>
+                <strong className="text-emerald-700 font-mono font-bold text-xs">{currentOrgRecord.avgResponseMin} 分钟</strong>
+              </div>
+            </div>
+          </div>
+
+          {/* 2 Subcards in Grid: Staff Teams */}
+          <div className="grid grid-cols-2 gap-2.5">
+            {/* Card 2: 上报员队伍 */}
+            <div
+              onClick={() => {
+                setPerspective('reporter');
+                setStaffScope('my_org');
+              }}
+              className="bg-white p-3 rounded-xl border border-slate-200/90 shadow-2xs space-y-1.5 hover:border-blue-300 hover:shadow-xs transition-all cursor-pointer group"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-1.5">
+                  <div className="p-1 bg-blue-50 text-blue-600 rounded-md group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                    <FileText className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-xs font-bold text-slate-800">上报员队伍</span>
+                </div>
+                <span className="text-[9px] bg-blue-50 text-blue-700 font-bold px-1.5 py-0.2 rounded border border-blue-100">
+                  32 人在册
+                </span>
+              </div>
+
+              <div className="flex items-baseline justify-between pt-0.5">
+                <div className="flex items-baseline space-x-1">
+                  <span className="text-xl font-black text-blue-700 font-mono">94.9</span>
+                  <span className="text-[10px] text-slate-400">均分</span>
+                </div>
+                <span className="text-[10px] text-emerald-600 font-bold font-mono">88.6%直通</span>
+              </div>
+
+              <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                <div className="bg-blue-600 h-full rounded-full" style={{ width: '94.9%' }}></div>
+              </div>
+
+              <div className="text-[10px] text-slate-500 pt-1 border-t border-slate-100 flex items-center justify-between">
+                <span className="truncate">标兵: <strong className="text-slate-800">张三</strong> (98.5分)</span>
+                <ChevronRight className="w-3 h-3 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-transform" />
+              </div>
+            </div>
+
+            {/* Card 3: 审核员队伍 */}
+            <div
+              onClick={() => {
+                setPerspective('auditor');
+                setStaffScope('my_org');
+              }}
+              className="bg-white p-3 rounded-xl border border-slate-200/90 shadow-2xs space-y-1.5 hover:border-emerald-300 hover:shadow-xs transition-all cursor-pointer group"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-1.5">
+                  <div className="p-1 bg-emerald-50 text-emerald-600 rounded-md group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                    <UserCheck className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-xs font-bold text-slate-800">审核员队伍</span>
+                </div>
+                <span className="text-[9px] bg-emerald-50 text-emerald-700 font-bold px-1.5 py-0.2 rounded border border-emerald-100">
+                  13 人在册
+                </span>
+              </div>
+
+              <div className="flex items-baseline justify-between pt-0.5">
+                <div className="flex items-baseline space-x-1">
+                  <span className="text-xl font-black text-emerald-700 font-mono">97.5</span>
+                  <span className="text-[10px] text-slate-400">均分</span>
+                </div>
+                <span className="text-[10px] text-purple-700 font-bold font-mono">均耗 5.6分</span>
+              </div>
+
+              <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                <div className="bg-emerald-600 h-full rounded-full" style={{ width: '97.5%' }}></div>
+              </div>
+
+              <div className="text-[10px] text-slate-500 pt-1 border-t border-slate-100 flex items-center justify-between">
+                <span className="truncate">标兵: <strong className="text-slate-800">王主任</strong> (99.0分)</span>
+                <ChevronRight className="w-3 h-3 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-transform" />
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Score Decomposition Bar (Card 4) */}
+          <div className="p-3 bg-gradient-to-r from-slate-50 to-indigo-50/40 rounded-xl border border-indigo-100/90 shadow-2xs space-y-2">
+            <div className="text-[11px] font-extrabold text-slate-800 flex justify-between items-center">
+              <span className="flex items-center space-x-1.5">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-600" />
+                <span>考核维度权重分值拆解</span>
+              </span>
+              <span className="text-emerald-700 font-bold text-[10px] bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                综合得分 98.5
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 text-[10px]">
+              {/* Dim 1 */}
+              <div className="bg-white p-2 rounded-lg border border-slate-200/80 shadow-2xs space-y-1">
+                <div className="flex justify-between items-center text-[9px] text-slate-500">
+                  <span>报送质量 (40分)</span>
+                  <span className="font-mono font-bold text-indigo-700">98.8%</span>
+                </div>
+                <div className="text-sm font-black text-indigo-800 font-mono">39.5 <span className="text-[10px] text-slate-400 font-normal">分</span></div>
+                <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden">
+                  <div className="bg-indigo-600 h-full rounded-full" style={{ width: '98.8%' }}></div>
+                </div>
+              </div>
+
+              {/* Dim 2 */}
+              <div className="bg-white p-2 rounded-lg border border-slate-200/80 shadow-2xs space-y-1">
+                <div className="flex justify-between items-center text-[9px] text-slate-500">
+                  <span>报送总量 (30分)</span>
+                  <span className="font-mono font-bold text-blue-700">97.3%</span>
+                </div>
+                <div className="text-sm font-black text-blue-800 font-mono">29.2 <span className="text-[10px] text-slate-400 font-normal">分</span></div>
+                <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden">
+                  <div className="bg-blue-600 h-full rounded-full" style={{ width: '97.3%' }}></div>
+                </div>
+              </div>
+
+              {/* Dim 3 */}
+              <div className="bg-white p-2 rounded-lg border border-slate-200/80 shadow-2xs space-y-1">
+                <div className="flex justify-between items-center text-[9px] text-slate-500">
+                  <span>时效交办 (30分)</span>
+                  <span className="font-mono font-bold text-emerald-700">99.3%</span>
+                </div>
+                <div className="text-sm font-black text-emerald-800 font-mono">29.8 <span className="text-[10px] text-slate-400 font-normal">分</span></div>
+                <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden">
+                  <div className="bg-emerald-600 h-full rounded-full" style={{ width: '99.3%' }}></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* TOP 3 PODIUM / LEADERBOARD HIGHLIGHT BANNER */}
-        {filteredRecords.length >= 3 && !searchKeyword && selectedGradeFilter === '全部' && (
-          <div className="bg-gradient-to-r from-slate-900 via-[#1E5ABB] to-slate-900 text-white rounded-xl p-4 shadow-sm border border-slate-800 space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-700/80 pb-2 text-xs">
-              <div className="flex items-center space-x-2 font-extrabold text-amber-300">
-                <Trophy className="w-4 h-4" />
-                <span>
-                  【{activeTab === 'category' ? '分类考核' : activeTab === 'org' ? '机构考核' : '人员考核'}】本期前三强领跑荣誉榜
+        {/* Right Column (lg:col-span-7): 统计效能与考核风云看板 (Intel Hub) */}
+        <div className="lg:col-span-7 bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs space-y-3.5 flex flex-col justify-between">
+          {/* Header & View Mode Switcher */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-2.5 gap-2">
+            <div className="flex items-center space-x-2">
+              <div className="p-1.5 bg-gradient-to-br from-[#1E5ABB] to-indigo-700 text-white rounded-lg shadow-2xs">
+                <BarChart3 className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight flex items-center gap-1.5">
+                  <span>考核效能与风云画像看板</span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.2 bg-emerald-50 text-emerald-700 rounded border border-emerald-200">实时计算</span>
+                </h2>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-1 bg-slate-100 p-0.5 rounded-lg text-xs font-bold">
+              <button
+                onClick={() => setIntelTab('stats')}
+                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center space-x-1 ${
+                  intelTab === 'stats'
+                    ? 'bg-white text-blue-700 shadow-2xs font-extrabold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <TrendingUp className="w-3 h-3" />
+                <span>效能大盘 & 走势</span>
+              </button>
+              <button
+                onClick={() => setIntelTab('evaluation')}
+                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center space-x-1 ${
+                  intelTab === 'evaluation'
+                    ? 'bg-[#1E5ABB] text-white shadow-2xs font-extrabold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Trophy className="w-3 h-3" />
+                <span>考核风云 & 画像</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Tab 1: Statistics Trend & Quality Funnel & Realtime Operations */}
+          {intelTab === 'stats' && (
+            <div className="space-y-3 animate-in fade-in duration-200">
+              {/* Top Row: Mini Trend Chart & Quality Funnel */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+                {/* Left Trend Chart */}
+                <div className="md:col-span-7 h-40">
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
+                    <span className="font-bold text-slate-700">近 7 日全域上报与直通率走势</span>
+                    <span className="text-[10px] text-blue-600 font-mono">直通率均值 77.4%</span>
+                  </div>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={evalTrendData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                      <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="#94A3B8" />
+                      <YAxis yAxisId="left" tick={{ fontSize: 10 }} stroke="#94A3B8" />
+                      <YAxis yAxisId="right" orientation="right" domain={[60, 100]} tick={{ fontSize: 10 }} stroke="#94A3B8" />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#1E293B', color: '#FFF', borderRadius: '8px', fontSize: '11px', border: 'none' }}
+                        formatter={(val: any, name: string) => [
+                          name === '直通率' ? `${val}%` : `${val} 件`,
+                          name
+                        ]}
+                      />
+                      <Line yAxisId="left" type="monotone" dataKey="total" name="上报总量" stroke="#1E5ABB" strokeWidth={2} dot={{ r: 2 }} />
+                      <Line yAxisId="left" type="monotone" dataKey="passed" name="有效采纳" stroke="#10B981" strokeWidth={2} dot={{ r: 2 }} />
+                      <Line yAxisId="right" type="monotone" dataKey="directRate" name="直通率" stroke="#F59E0B" strokeWidth={2} strokeDasharray="3 3" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Right Quality Breakdown Donut */}
+                <div className="md:col-span-5 bg-slate-50/80 rounded-xl p-3 border border-slate-200/80 space-y-1.5">
+                  <div className="text-[11px] font-extrabold text-slate-700 flex justify-between items-center">
+                    <span>品控漏斗结构</span>
+                    <span className="text-[10px] text-emerald-600 font-bold">高质直通 77.4%</span>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <div className="w-18 h-18 relative shrink-0">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={qualityBreakdownData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={20}
+                            outerRadius={34}
+                            paddingAngle={3}
+                            dataKey="value"
+                          >
+                            {qualityBreakdownData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    <div className="flex-1 space-y-0.5 text-[10px]">
+                      {qualityBreakdownData.map((item) => (
+                        <div key={item.name} className="flex items-center justify-between">
+                          <div className="flex items-center space-x-1">
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }}></span>
+                            <span className="text-slate-600">{item.name}</span>
+                          </div>
+                          <span className="font-mono font-bold text-slate-800">{item.rate}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Middle Row: Operational Health Grid */}
+              <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100">
+                <div className="p-2 bg-blue-50/60 rounded-xl border border-blue-100/80">
+                  <div className="text-[10px] text-blue-800 font-bold flex items-center justify-between">
+                    <span>月度报送目标</span>
+                    <span className="font-mono">87.3%</span>
+                  </div>
+                  <div className="w-full bg-blue-200 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                    <div className="bg-blue-600 h-full rounded-full" style={{ width: '87.3%' }}></div>
+                  </div>
+                  <div className="text-[9px] text-blue-600 mt-1 flex justify-between">
+                    <span>已完成 10,480 件</span>
+                    <span>目标 12,000</span>
+                  </div>
+                </div>
+
+                <div className="p-2 bg-emerald-50/60 rounded-xl border border-emerald-100/80">
+                  <div className="text-[10px] text-emerald-800 font-bold flex items-center justify-between">
+                    <span>考核达标率</span>
+                    <span className="font-mono">96.4%</span>
+                  </div>
+                  <div className="w-full bg-emerald-200 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                    <div className="bg-emerald-600 h-full rounded-full" style={{ width: '96.4%' }}></div>
+                  </div>
+                  <div className="text-[9px] text-emerald-600 mt-1 flex justify-between">
+                    <span>27 / 28 家达标</span>
+                    <span>1 家预警</span>
+                  </div>
+                </div>
+
+                <div className="p-2 bg-purple-50/60 rounded-xl border border-purple-100/80">
+                  <div className="text-[10px] text-purple-800 font-bold flex items-center justify-between">
+                    <span>审核时效指数</span>
+                    <span className="font-mono">13.8分</span>
+                  </div>
+                  <div className="w-full bg-purple-200 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                    <div className="bg-purple-600 h-full rounded-full" style={{ width: '82%' }}></div>
+                  </div>
+                  <div className="text-[9px] text-purple-600 mt-1 flex justify-between">
+                    <span>环比提效 47.3%</span>
+                    <span>基准 ≤30分</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Row: Realtime Dynamic Feed */}
+              <div className="bg-slate-50/90 rounded-xl p-2.5 border border-slate-200/80 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] font-extrabold text-slate-700">
+                  <span className="flex items-center space-x-1">
+                    <Activity className="w-3.5 h-3.5 text-blue-600" />
+                    <span>今日调度与采纳实时动态</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">10分钟前更新</span>
+                </div>
+                <div className="space-y-1 text-[10px] text-slate-600">
+                  <div className="flex items-center justify-between py-0.5">
+                    <span className="flex items-center space-x-1.5 truncate">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                      <strong className="text-slate-800">市网信办·李思源</strong>
+                      <span className="truncate">报送《西屯路段道路施工民生反馈》，通过直通初审</span>
+                    </span>
+                    <span className="font-mono text-emerald-700 font-bold shrink-0 ml-2">直通+2分 · 09:32</span>
+                  </div>
+                  <div className="flex items-center justify-between py-0.5">
+                    <span className="flex items-center space-x-1.5 truncate">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
+                      <strong className="text-slate-800">市委宣传部·张三</strong>
+                      <span className="truncate">完成《高校周边食品安全微舆情》研判流转</span>
+                    </span>
+                    <span className="font-mono text-blue-700 font-bold shrink-0 ml-2">时效6分 · 09:15</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Quick Insight Bar */}
+              <div className="bg-blue-50/60 p-2 rounded-lg border border-blue-100 flex items-center justify-between text-[11px] text-blue-900">
+                <span className="flex items-center space-x-1.5 truncate">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span className="truncate"><strong>效能洞察:</strong> 全域首审直通率攀升 <strong>+1.8%</strong>，平均耗时压降至 <strong>13.8分</strong>。</span>
+                </span>
+                <span className="text-[10px] text-blue-700 font-bold shrink-0 ml-2">
+                  质量综合 96.5分
                 </span>
               </div>
-              <span className="text-[11px] text-slate-300 font-mono">考核计算时间: {dateRangeText}</span>
             </div>
+          )}
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
-              {/* Gold Medalist (#1) */}
-              <div className="bg-slate-800/90 rounded-lg p-3 border border-amber-500/40 relative overflow-hidden flex items-center space-x-3 shadow-inner">
-                <div className="absolute -right-2 -bottom-2 text-amber-500/10 pointer-events-none">
-                  <Trophy className="w-20 h-20" />
-                </div>
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-300 to-amber-500 text-slate-950 font-black text-base flex items-center justify-center shadow shrink-0">
-                  🥇
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs text-amber-300 font-bold flex items-center space-x-1">
-                    <span>第 1 名 · 冠军</span>
+          {/* Tab 2: Evaluation Leaderboards & Detailed Star Profiles */}
+          {intelTab === 'evaluation' && (
+            <div className="space-y-3 animate-in fade-in duration-200">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                {/* Left: Top 5 Orgs */}
+                <div className="md:col-span-6 space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] font-extrabold text-slate-700">
+                    <span className="flex items-center space-x-1">
+                      <Trophy className="w-3.5 h-3.5 text-amber-500" />
+                      <span>机构综合考评 Top 5</span>
+                    </span>
+                    <span className="text-[10px] text-blue-600 font-bold">28 家受评</span>
                   </div>
-                  <div className="font-extrabold text-white text-sm truncate" title={filteredRecords[0].name}>
-                    {filteredRecords[0].name}
+                  <div className="space-y-1">
+                    {topEvalOrgs.map((org) => {
+                      const matchedRecord = mockOrgRecords.find(o => o.name === org.name);
+                      return (
+                        <div
+                          key={org.name}
+                          onClick={() => matchedRecord && handleOpenProfile('org', matchedRecord)}
+                          className={`flex items-center justify-between p-1.5 rounded-lg border text-[11px] transition-all cursor-pointer ${
+                            org.isMyOrg
+                              ? 'bg-blue-50/90 border-blue-200 font-bold text-blue-950 shadow-2xs hover:bg-blue-100/90'
+                              : 'bg-slate-50/70 border-slate-100 text-slate-700 hover:bg-slate-100'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-1.5 min-w-0">
+                            <span className={`w-4 h-4 rounded-full text-[10px] font-black flex items-center justify-center shrink-0 ${
+                              org.rank === 1 ? 'bg-amber-400 text-slate-950' : org.rank === 2 ? 'bg-slate-300 text-slate-900' : 'bg-amber-100 text-amber-800'
+                            }`}>
+                              {org.rank}
+                            </span>
+                            <span className="truncate">{org.name}</span>
+                            {org.isMyOrg && (
+                              <span className="text-[9px] px-1 bg-blue-600 text-white rounded shrink-0">本机构</span>
+                            )}
+                          </div>
+                          <div className="flex items-center space-x-2 shrink-0">
+                            <span className="text-[10px] text-emerald-600 font-mono font-bold">{org.directRate}%直通</span>
+                            <span className="font-mono font-black text-amber-700">{org.score}分</span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div className="text-[11px] text-slate-300 font-mono mt-0.5 flex items-center justify-between">
-                    <span>通过率 {filteredRecords[0].passRate}%</span>
-                    <span className="font-bold text-amber-300 text-xs">{filteredRecords[0].totalScore}分</span>
+                </div>
+
+                {/* Right: Star Reporters & Auditors */}
+                <div className="md:col-span-6 space-y-2">
+                  {/* Star Reporters */}
+                  <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200/80 space-y-1">
+                    <div className="text-[11px] font-extrabold text-slate-700 flex justify-between items-center">
+                      <span className="flex items-center space-x-1">
+                        <Award className="w-3.5 h-3.5 text-amber-500" />
+                        <span>金牌上报员 (质量考评)</span>
+                      </span>
+                      <span className="text-[10px] text-emerald-600 font-bold">最高98.5分</span>
+                    </div>
+                    <div className="space-y-1">
+                      {topReporters.map((r) => {
+                        const matchedRep = mockReporterRecords.find(item => item.name.includes(r.name.split(' ')[0]));
+                        return (
+                          <div
+                            key={r.name}
+                            onClick={() => matchedRep && handleOpenProfile('reporter', matchedRep)}
+                            className="flex items-center justify-between text-[10px] py-0.5 border-b border-slate-100 last:border-0 hover:bg-slate-100/60 rounded px-1 cursor-pointer transition-colors"
+                          >
+                            <span className="text-slate-700 font-medium truncate">{r.name} ({r.org})</span>
+                            <span className="font-mono font-bold text-blue-700 shrink-0 ml-1">{r.score}分 · {r.directRate}直通</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Star Auditors */}
+                  <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200/80 space-y-1">
+                    <div className="text-[11px] font-extrabold text-slate-700 flex justify-between items-center">
+                      <span className="flex items-center space-x-1">
+                        <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>金牌审核员 (时效考评)</span>
+                      </span>
+                      <span className="text-[10px] text-purple-600 font-bold">均耗5.6分</span>
+                    </div>
+                    <div className="space-y-1">
+                      {topAuditors.map((a) => {
+                        const matchedAud = mockAuditorRecords.find(item => item.name.includes(a.name.split(' ')[0]));
+                        return (
+                          <div
+                            key={a.name}
+                            onClick={() => matchedAud && handleOpenProfile('auditor', matchedAud)}
+                            className="flex items-center justify-between text-[10px] py-0.5 border-b border-slate-100 last:border-0 hover:bg-slate-100/60 rounded px-1 cursor-pointer transition-colors"
+                          >
+                            <span className="text-slate-700 font-medium truncate">{a.name} ({a.org})</span>
+                            <span className="font-mono font-bold text-emerald-700 shrink-0 ml-1">{a.score}分 · {a.avgTime}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Silver Medalist (#2) */}
-              <div className="bg-slate-800/90 rounded-lg p-3 border border-slate-400/40 relative overflow-hidden flex items-center space-x-3 shadow-inner">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-200 to-slate-400 text-slate-950 font-black text-base flex items-center justify-center shadow shrink-0">
-                  🥈
+              {/* Bottom: Score Dimension Breakdown Bar */}
+              <div className="p-2 bg-indigo-50/70 rounded-xl border border-indigo-100 space-y-1.5">
+                <div className="text-[10px] font-extrabold text-indigo-950 flex justify-between items-center">
+                  <span>本机构考核得分构成 (总计 98.5 / 100 分 · 卓越)</span>
+                  <span className="text-emerald-700 font-bold">全市第 1</span>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs text-slate-300 font-bold">第 2 名 · 亚军</div>
-                  <div className="font-extrabold text-white text-sm truncate" title={filteredRecords[1].name}>
-                    {filteredRecords[1].name}
+                <div className="grid grid-cols-3 gap-2 text-[9px]">
+                  <div className="bg-white p-1.5 rounded-lg border border-indigo-100 text-center">
+                    <div className="text-slate-500">报送质量 (40分)</div>
+                    <div className="text-xs font-black text-indigo-700 font-mono mt-0.5">39.5 分</div>
                   </div>
-                  <div className="text-[11px] text-slate-300 font-mono mt-0.5 flex items-center justify-between">
-                    <span>通过率 {filteredRecords[1].passRate}%</span>
-                    <span className="font-bold text-slate-200 text-xs">{filteredRecords[1].totalScore}分</span>
+                  <div className="bg-white p-1.5 rounded-lg border border-indigo-100 text-center">
+                    <div className="text-slate-500">报送总量 (30分)</div>
+                    <div className="text-xs font-black text-blue-700 font-mono mt-0.5">29.2 分</div>
+                  </div>
+                  <div className="bg-white p-1.5 rounded-lg border border-indigo-100 text-center">
+                    <div className="text-slate-500">时效与交办 (30分)</div>
+                    <div className="text-xs font-black text-emerald-700 font-mono mt-0.5">29.8 分</div>
                   </div>
                 </div>
               </div>
 
-              {/* Bronze Medalist (#3) */}
-              <div className="bg-slate-800/90 rounded-lg p-3 border border-amber-700/40 relative overflow-hidden flex items-center space-x-3 shadow-inner">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-600 to-amber-800 text-white font-black text-base flex items-center justify-center shadow shrink-0">
-                  🥉
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs text-amber-200/90 font-bold">第 3 名 · 季军</div>
-                  <div className="font-extrabold text-white text-sm truncate" title={filteredRecords[2].name}>
-                    {filteredRecords[2].name}
-                  </div>
-                  <div className="text-[11px] text-slate-300 font-mono mt-0.5 flex items-center justify-between">
-                    <span>通过率 {filteredRecords[2].passRate}%</span>
-                    <span className="font-bold text-amber-200 text-xs">{filteredRecords[2].totalScore}分</span>
-                  </div>
-                </div>
+              {/* Evaluation Link Bar */}
+              <div className="bg-indigo-50/60 p-2 rounded-lg border border-indigo-100 flex items-center justify-between text-[11px] text-indigo-950">
+                <span className="truncate">
+                  🎯 <strong>考核画像:</strong> 报送质量与响应时效双维度满分领跑，无违规扣分项。
+                </span>
+                <span className="text-indigo-700 font-bold shrink-0 text-[10px] ml-2">
+                  卓越等次
+                </span>
               </div>
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* 3. 主考核榜单大台账 (根据当前视角动态呈现) */}
+      <div className="bg-white p-5 rounded-xl border border-slate-200/90 shadow-2xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-3">
+          <div className="flex items-center space-x-2">
+            <div className="p-1.5 bg-blue-50 text-[#1E5ABB] rounded-lg">
+              {perspective === 'org' && <Building2 className="w-4 h-4" />}
+              {perspective === 'reporter' && <FileText className="w-4 h-4" />}
+              {perspective === 'auditor' && <UserCheck className="w-4 h-4" />}
+              {perspective === 'category' && <Layers className="w-4 h-4" />}
+            </div>
+            <div>
+              <h3 className="text-xs font-extrabold text-gray-900">
+                {perspective === 'org' && '全域机构综合考核评分大榜 (28家机构)'}
+                {perspective === 'reporter' && `平台所有上报员考评排行与量化明细 (${staffScope === 'my_org' ? '仅本机构人员' : '平台全员 124人'})`}
+                {perspective === 'auditor' && `平台所有审核员考评排行与时效明细 (${staffScope === 'my_org' ? '仅本机构人员' : '平台全员 42人'})`}
+                {perspective === 'category' && '舆情分类业务条线考评榜'}
+              </h3>
+              <p className="text-[10px] text-gray-400">
+                点击任意机构或人员行可穿透查看【5维能力雷达图、历史考评趋势、加减分明细及考评意见】
+              </p>
+            </div>
+          </div>
+
+          <span className="text-[11px] text-gray-400 font-mono">
+            考核周期：{selectedPeriodLabel}
+          </span>
+        </div>
+
+        {/* View 1: 机构综合考评榜 */}
+        {perspective === 'org' && (
+          <div className="space-y-5">
+            {/* 全域机构综合多维宏观研判与对标看板 */}
+            <AllOrgMacroSection onSelectOrg={handleSelectOrgMacro} />
+
+            {/* 机构综合考核总台账大表 */}
+            <div className="overflow-x-auto rounded-lg border border-slate-200/80">
+              <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-slate-100/80 text-gray-600 font-bold border-b border-slate-200">
+                  <th className="py-3 px-3 text-center w-12">排名</th>
+                  <th className="py-3 px-4">机构名称 / 机构属性</th>
+                  <th className="py-3 px-3 text-center">在册编制</th>
+                  <th className="py-3 px-4">累计报送 (采纳/驳回/待审)</th>
+                  <th className="py-3 px-3 text-center">首审直通率</th>
+                  <th className="py-3 px-3 text-center">整体通过率</th>
+                  <th className="py-3 px-3 text-center">平均响应</th>
+                  <th className="py-3 px-3 text-center">人均贡献</th>
+                  <th className="py-3 px-3 text-center">综合考评得分</th>
+                  <th className="py-3 px-3 text-center">等次评定</th>
+                  <th className="py-3 px-3 text-center">画像剖析</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 bg-white">
+                {filteredOrgList.map((row) => (
+                  <tr
+                    key={row.id}
+                    onClick={() => handleOpenProfile('org', row)}
+                    className={`hover:bg-blue-50/50 transition-colors cursor-pointer ${row.isMyOrg ? 'bg-blue-50/30' : ''}`}
+                  >
+                    <td className="py-3 px-3 text-center font-mono font-bold">
+                      {row.rank <= 3 ? (
+                        <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full font-bold text-xs ${
+                          row.rank === 1 ? 'bg-amber-100 text-amber-800' : row.rank === 2 ? 'bg-slate-100 text-slate-800' : 'bg-amber-900/10 text-amber-900'
+                        }`}>
+                          {row.rank}
+                        </span>
+                      ) : (
+                        <span className="text-gray-500">{row.rank}</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 font-medium text-gray-900">
+                      <div className="flex items-center space-x-1.5">
+                        <span className="font-extrabold text-gray-900">{row.name}</span>
+                        {row.isMyOrg && (
+                          <span className="bg-blue-600 text-white text-[9px] font-bold px-1.5 py-0.2 rounded">
+                            本机构
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">{row.type}</div>
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono font-bold text-gray-700">
+                      {row.registeredStaff} 人
+                    </td>
+                    <td className="py-3 px-4 font-mono">
+                      <div className="font-extrabold text-gray-900">{row.totalReports} 件</div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">
+                        <span className="text-emerald-600">采纳 {row.adoptedReports}</span> / <span className="text-rose-600">驳回 {row.rejectedReports}</span> / <span className="text-amber-600">待审 {row.pendingReports}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono font-bold text-emerald-700">
+                      {row.oneTimePassRate}%
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono font-bold text-blue-700">
+                      {row.overallPassRate}%
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono text-purple-700 font-bold">
+                      {row.avgResponseMin} 分
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono font-bold text-gray-800">
+                      {row.perCapitaReport} 件
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono font-black text-amber-600 text-sm">
+                      {row.totalScore}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
+                        row.grade === '卓越'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : row.grade === '优秀'
+                          ? 'bg-blue-50 text-blue-800 border-blue-200'
+                          : 'bg-purple-50 text-purple-800 border-purple-200'
+                      }`}>
+                        {row.grade}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenProfile('org', row);
+                        }}
+                        className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded transition-colors"
+                        title="查看深度画像"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+        {/* View 2: 平台所有上报员考评榜 (含本机构上报员与全平台人员) */}
+        {perspective === 'reporter' && (
+          <div className="overflow-x-auto rounded-lg border border-slate-200/80">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-slate-100/80 text-gray-600 font-bold border-b border-slate-200">
+                  <th className="py-3 px-3 text-center w-12">全域排名</th>
+                  <th className="py-3 px-4">上报员姓名 / 所属机构</th>
+                  <th className="py-3 px-4">累计上报 (采纳/驳回/待审)</th>
+                  <th className="py-3 px-3 text-center">首审直通率</th>
+                  <th className="py-3 px-3 text-center">整体通过率</th>
+                  <th className="py-3 px-3 text-center">累加总积分</th>
+                  <th className="py-3 px-3 text-center">单条均分</th>
+                  <th className="py-3 px-3 text-center">环比升降</th>
+                  <th className="py-3 px-3 text-center">等次评定</th>
+                  <th className="py-3 px-3 text-center">画像剖析</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 bg-white">
+                {filteredReporterList.map((row) => (
+                  <tr
+                    key={row.id}
+                    onClick={() => handleOpenProfile('reporter', row)}
+                    className={`hover:bg-blue-50/50 transition-colors cursor-pointer ${row.isMyOrg ? 'bg-blue-50/30' : ''}`}
+                  >
+                    <td className="py-3 px-3 text-center font-mono font-bold">
+                      {row.rank <= 3 ? (
+                        <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full font-bold text-xs ${
+                          row.rank === 1 ? 'bg-amber-100 text-amber-800' : row.rank === 2 ? 'bg-slate-100 text-slate-800' : 'bg-amber-900/10 text-amber-900'
+                        }`}>
+                          #{row.rank}
+                        </span>
+                      ) : (
+                        <span className="text-gray-500 font-mono">#{row.rank}</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 font-medium text-gray-900">
+                      <div className="flex items-center space-x-1.5">
+                        <span className="font-extrabold text-gray-900">{row.name}</span>
+                        {row.isLeader && (
+                          <span className="bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.2 rounded">
+                            标兵
+                          </span>
+                        )}
+                        {row.isMyOrg && (
+                          <span className="bg-blue-600 text-white text-[9px] font-bold px-1.5 py-0.2 rounded">
+                            本机构
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">{row.org}</div>
+                    </td>
+                    <td className="py-3 px-4 font-mono">
+                      <div className="font-extrabold text-gray-900">{row.totalReports} 件</div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">
+                        <span className="text-emerald-600">采纳 {row.adoptedReports}</span> / <span className="text-rose-600">驳回 {row.rejectedReports}</span> / <span className="text-amber-600">待审 {row.pendingReports}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono font-bold text-emerald-700">
+                      {row.oneTimePassRate}%
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono font-bold text-blue-700">
+                      {row.overallPassRate}%
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono font-black text-amber-600 text-sm">
+                      {row.totalScore.toLocaleString()}
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono text-gray-700 font-bold">
+                      {row.avgScore}
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono text-emerald-700 font-bold">
+                      {row.momChange}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
+                        row.grade === '卓越'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : row.grade === '优秀'
+                          ? 'bg-blue-50 text-blue-800 border-blue-200'
+                          : 'bg-purple-50 text-purple-800 border-purple-200'
+                      }`}>
+                        {row.grade}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenProfile('reporter', row);
+                        }}
+                        className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded transition-colors"
+                        title="查看深度画像"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
 
-        {/* MAIN DATA TABLE */}
-        <div className="overflow-x-auto rounded-lg border border-gray-200/80">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-100/90 text-gray-600 font-bold border-b border-gray-200/80">
-                <th className="py-3 px-3 w-16 text-center">排名</th>
-                <th className="py-3 px-4">
-                  {activeTab === 'category' ? '分类名称' : activeTab === 'org' ? '机构名称' : '人员姓名 / 岗位'}
-                </th>
-                <th className="py-3 px-3 text-center">上报总数</th>
-                <th className="py-3 px-3 text-center">采纳通过数</th>
-                <th className="py-3 px-4">通过率 (质效)</th>
-                <th className="py-3 px-3 text-center">平均响应时效</th>
-                <th className="py-3 px-3 text-center">
-                  {activeTab === 'person' ? '勤勉出勤率' : '全员参与率'}
-                </th>
-                <th className="py-3 px-3 text-center">加/扣分项</th>
-                <th className="py-3 px-4 text-center">综合总分</th>
-                <th className="py-3 px-3 text-center">考评等次</th>
-                <th className="py-3 px-4 text-right pr-4">操作</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 text-gray-700 bg-white">
-              {filteredRecords.length === 0 ? (
-                <tr>
-                  <td colSpan={11} className="py-12 text-center text-gray-400 space-y-2">
-                    <Info className="w-8 h-8 mx-auto text-gray-300" />
-                    <div>未找到匹配的考核记录</div>
-                  </td>
+        {/* View 3: 平台所有审核员考评榜 (含本机构审核员与全平台人员) */}
+        {perspective === 'auditor' && (
+          <div className="overflow-x-auto rounded-lg border border-slate-200/80">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-slate-100/80 text-gray-600 font-bold border-b border-slate-200">
+                  <th className="py-3 px-3 text-center w-12">全域排名</th>
+                  <th className="py-3 px-4">审核员姓名 / 所属机构</th>
+                  <th className="py-3 px-4">累计审核 (通过/驳回/待审)</th>
+                  <th className="py-3 px-3 text-center">审核处理率</th>
+                  <th className="py-3 px-3 text-center">平均响应耗时</th>
+                  <th className="py-3 px-3 text-center">累加总积分</th>
+                  <th className="py-3 px-3 text-center">单条均分</th>
+                  <th className="py-3 px-3 text-center">环比升降</th>
+                  <th className="py-3 px-3 text-center">等次评定</th>
+                  <th className="py-3 px-3 text-center">画像剖析</th>
                 </tr>
-              ) : (
-                filteredRecords.map((item) => {
-                  const isTop1 = item.rank === 1;
-                  const isTop2 = item.rank === 2;
-                  const isTop3 = item.rank === 3;
-
-                  return (
-                    <tr
-                      key={item.id}
-                      className="hover:bg-blue-50/40 transition-colors group"
-                    >
-                      {/* Rank Badge */}
-                      <td className="py-3.5 px-3 text-center font-bold">
-                        {isTop1 ? (
-                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-100 text-amber-800 border border-amber-300 font-mono text-xs">
-                            🥇
+              </thead>
+              <tbody className="divide-y divide-gray-100 bg-white">
+                {filteredAuditorList.map((row) => (
+                  <tr
+                    key={row.id}
+                    onClick={() => handleOpenProfile('auditor', row)}
+                    className={`hover:bg-blue-50/50 transition-colors cursor-pointer ${row.isMyOrg ? 'bg-blue-50/30' : ''}`}
+                  >
+                    <td className="py-3 px-3 text-center font-mono font-bold">
+                      {row.rank <= 3 ? (
+                        <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full font-bold text-xs ${
+                          row.rank === 1 ? 'bg-amber-100 text-amber-800' : row.rank === 2 ? 'bg-slate-100 text-slate-800' : 'bg-amber-900/10 text-amber-900'
+                        }`}>
+                          #{row.rank}
+                        </span>
+                      ) : (
+                        <span className="text-gray-500 font-mono">#{row.rank}</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 font-medium text-gray-900">
+                      <div className="flex items-center space-x-1.5">
+                        <span className="font-extrabold text-gray-900">{row.name}</span>
+                        {row.isLeader && (
+                          <span className="bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.2 rounded">
+                            标兵
                           </span>
-                        ) : isTop2 ? (
-                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-slate-800 border border-slate-300 font-mono text-xs">
-                            🥈
-                          </span>
-                        ) : isTop3 ? (
-                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-900/10 text-amber-900 border border-amber-700/30 font-mono text-xs">
-                            🥉
-                          </span>
-                        ) : (
-                          <span className="font-mono text-gray-500">{item.rank}</span>
                         )}
-                      </td>
-
-                      {/* Name & Subtitle */}
-                      <td className="py-3.5 px-4 font-medium text-gray-900">
-                        <div className="flex items-center space-x-2">
-                          <span className="font-extrabold text-gray-900 text-xs group-hover:text-blue-900 transition-colors">
-                            {item.name}
+                        {row.isMyOrg && (
+                          <span className="bg-blue-600 text-white text-[9px] font-bold px-1.5 py-0.2 rounded">
+                            本机构
                           </span>
-                          {item.subTitle && (
-                            <span className="text-[10px] text-gray-500 bg-slate-100 px-1.5 py-0.2 rounded font-normal">
-                              {item.subTitle}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Total Reports */}
-                      <td className="py-3.5 px-3 text-center font-mono font-bold text-gray-800">
-                        {item.totalReports.toLocaleString()}
-                      </td>
-
-                      {/* Passed Reports */}
-                      <td className="py-3.5 px-3 text-center font-mono text-emerald-700 font-bold">
-                        {item.passedReports.toLocaleString()}
-                      </td>
-
-                      {/* Pass Rate Bar */}
-                      <td className="py-3.5 px-4 min-w-[130px]">
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-[11px]">
-                            <span className="font-mono font-bold text-gray-800">{item.passRate}%</span>
-                            <span className="text-[10px] text-gray-400">率值</span>
-                          </div>
-                          <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full ${
-                                item.passRate >= 95
-                                  ? 'bg-emerald-500'
-                                  : item.passRate >= 90
-                                  ? 'bg-blue-500'
-                                  : 'bg-amber-500'
-                              }`}
-                              style={{ width: `${item.passRate}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Avg Response Time */}
-                      <td className="py-3.5 px-3 text-center font-mono text-gray-700">
-                        <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded font-bold text-[11px]">
-                          {item.avgResponseMin} 分钟
-                        </span>
-                      </td>
-
-                      {/* Participation Rate */}
-                      <td className="py-3.5 px-3 text-center font-mono font-medium text-gray-700">
-                        {item.participationRate}%
-                      </td>
-
-                      {/* Bonus/Deduction */}
-                      <td className="py-3.5 px-3 text-center">
-                        <div className="inline-flex items-center space-x-1 text-[10px]">
-                          {item.bonusPoints > 0 && (
-                            <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.2 rounded font-mono font-bold">
-                              +{item.bonusPoints}
-                            </span>
-                          )}
-                          {item.deductPoints > 0 ? (
-                            <span className="bg-rose-50 text-rose-700 border border-rose-200 px-1.5 py-0.2 rounded font-mono font-bold">
-                              -{item.deductPoints}
-                            </span>
-                          ) : (
-                            item.bonusPoints === 0 && <span className="text-gray-400 font-mono">0</span>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Total Score */}
-                      <td className="py-3.5 px-4 text-center">
-                        <span className="font-mono font-black text-sm text-[#1E5ABB]">
-                          {item.totalScore}
-                        </span>
-                      </td>
-
-                      {/* Grade Badge */}
-                      <td className="py-3.5 px-3 text-center">
-                        <span
-                          className={`px-2 py-0.5 text-[11px] font-bold rounded-full border ${
-                            item.grade === '卓越'
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                              : item.grade === '优秀'
-                              ? 'bg-blue-50 text-blue-800 border-blue-200'
-                              : item.grade === '良好'
-                              ? 'bg-purple-50 text-purple-800 border-purple-200'
-                              : 'bg-slate-100 text-slate-800 border-slate-300'
-                          }`}
-                        >
-                          {item.grade}
-                        </span>
-                      </td>
-
-                      {/* Action */}
-                      <td className="py-3.5 px-4 text-right pr-4">
-                        <button
-                          onClick={() => setSelectedDetailRecord(item)}
-                          className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-[#1E5ABB] font-bold rounded text-xs transition-colors cursor-pointer flex items-center space-x-1 ml-auto"
-                        >
-                          <span>查看详情</span>
-                          <ChevronRight className="w-3 h-3" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* BOTTOM FOOTNOTE BANNER */}
-        <div className="bg-slate-50 p-3.5 rounded-lg border border-slate-200 text-xs text-gray-500 flex items-center space-x-2">
-          <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
-          <span>
-            <strong>考评统计说明：</strong> 本表汇总展示各区域、部门辖下机构的上报通过率、平均响应时效及勤勉参与度综合量化指标。
-          </span>
-        </div>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">{row.org}</div>
+                    </td>
+                    <td className="py-3 px-4 font-mono">
+                      <div className="font-extrabold text-gray-900">{row.totalAudited} 件</div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">
+                        <span className="text-emerald-600">通过 {row.passedAudits}</span> / <span className="text-rose-600">驳回 {row.rejectedAudits}</span> / <span className="text-amber-600">待审 {row.pendingAudits}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono font-bold text-emerald-700">
+                      {row.auditProcessRate}%
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono text-purple-700 font-bold">
+                      {row.avgResponseMin} 分钟
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono font-black text-amber-600 text-sm">
+                      {row.totalScore.toLocaleString()}
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono text-gray-700 font-bold">
+                      {row.avgScore}
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono text-emerald-700 font-bold">
+                      {row.momChange}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
+                        row.grade === '卓越'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : row.grade === '优秀'
+                          ? 'bg-blue-50 text-blue-800 border-blue-200'
+                          : 'bg-purple-50 text-purple-800 border-purple-200'
+                      }`}>
+                        {row.grade}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenProfile('auditor', row);
+                        }}
+                        className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded transition-colors"
+                        title="查看深度画像"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {/* EVALUATION DETAIL & DRILLDOWN MODAL */}
-      {selectedDetailRecord && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden border border-gray-200 animate-in zoom-in-95 duration-150 space-y-0">
-            {/* Modal Header */}
-            <div className="bg-gradient-to-r from-[#1E5ABB] to-slate-900 text-white p-5 flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="p-2.5 bg-white/10 rounded-xl border border-white/20">
-                  <Trophy className="w-6 h-6 text-amber-300" />
-                </div>
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <h3 className="text-base font-extrabold text-white">
-                      {selectedDetailRecord.name}
-                    </h3>
-                    <span className="bg-amber-400 text-slate-950 font-black text-xs px-2 py-0.5 rounded-full shadow-2xs">
-                      第 {selectedDetailRecord.rank} 名
-                    </span>
-                  </div>
-                  <p className="text-xs text-blue-200 mt-0.5">
-                    {selectedDetailRecord.subTitle || '考核研判与得分明细拆解'} · 考评区间 {dateRangeText}
-                  </p>
-                </div>
+      {/* 考核赋分规则 Modal */}
+      {showRuleModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden border border-slate-200">
+            <div className="bg-gradient-to-r from-[#1E5ABB] to-blue-900 text-white p-4 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <ShieldCheck className="w-5 h-5 text-amber-400" />
+                <h3 className="font-bold text-sm">全域舆情工作综合考核与量化赋分实施细则</h3>
               </div>
               <button
-                onClick={() => setSelectedDetailRecord(null)}
-                className="text-slate-300 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+                onClick={() => setShowRuleModal(false)}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
-
-            {/* Modal Content */}
-            <div className="p-6 space-y-5 text-xs text-gray-700 max-h-[75vh] overflow-y-auto">
-              {/* Score Highlight Box */}
-              <div className="grid grid-cols-3 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200 text-center">
-                <div>
-                  <div className="text-gray-400 text-[11px]">综合最终得分</div>
-                  <div className="text-2xl font-black text-[#1E5ABB] font-mono mt-0.5">
-                    {selectedDetailRecord.totalScore} <span className="text-xs font-normal">分</span>
-                  </div>
-                </div>
-                <div className="border-x border-slate-200">
-                  <div className="text-gray-400 text-[11px]">综合采纳通过率</div>
-                  <div className="text-xl font-extrabold text-emerald-700 font-mono mt-1">
-                    {selectedDetailRecord.passRate}%
-                  </div>
-                </div>
-                <div>
-                  <div className="text-gray-400 text-[11px]">考评最终等次</div>
-                  <div className="mt-1">
-                    <span className="bg-emerald-100 text-emerald-800 font-extrabold px-2.5 py-0.5 rounded-full border border-emerald-200 text-xs">
-                      {selectedDetailRecord.grade}
-                    </span>
-                  </div>
-                </div>
+            <div className="p-5 space-y-4 text-xs text-gray-600 leading-relaxed max-h-[70vh] overflow-y-auto">
+              <div className="space-y-1.5">
+                <h4 className="font-bold text-gray-900 text-sm flex items-center space-x-1.5">
+                  <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                  <span>一、机构综合考核赋分构成 (总权重大纲)</span>
+                </h4>
+                <p>1. <strong>报送采纳质效 (40%)</strong>：基础采纳量赋分，按信息评级（A级/B级/C级）加权计入。</p>
+                <p>2. <strong>一次性直通激励 (25%)</strong>：首审一次性通过率超过 80% 的机构，享受阶梯式质效加分。</p>
+                <p>3. <strong>审核与研判时效 (25%)</strong>：按审核员平均响应耗时考核，10分钟以内响应给予满分，超时按档扣减。</p>
+                <p>4. <strong>负面交办闭环率 (10%)</strong>：交办任务按期办结并形成闭环报告者满分，逾期扣除对应分值。</p>
               </div>
 
-              {/* Scoring Parameter Breakdown Bars */}
-              <div className="space-y-3">
-                <h4 className="font-extrabold text-gray-900 border-b border-gray-100 pb-1.5 flex items-center space-x-1.5">
-                  <BarChart3 className="w-4 h-4 text-blue-600" />
-                  <span>考核量化指标得分明细拆解</span>
+              <div className="space-y-1.5 pt-3 border-t border-slate-100">
+                <h4 className="font-bold text-gray-900 text-sm flex items-center space-x-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                  <span>二、上报员个人积分与考核规则</span>
                 </h4>
-
-                <div className="space-y-2.5 bg-white p-3.5 rounded-xl border border-gray-200/80">
-                  {/* Parameter 1: 基础上报量分值 */}
-                  <div>
-                    <div className="flex justify-between font-medium mb-1">
-                      <span>1. 基础报送量得分 (权重 40%)</span>
-                      <span className="font-mono font-bold text-gray-800">
-                        {Math.min(40, (selectedDetailRecord.totalReports / 1600) * 40).toFixed(1)} / 40.0分
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                      <div
-                        className="bg-blue-600 h-full rounded-full"
-                        style={{
-                          width: `${Math.min(100, (selectedDetailRecord.totalReports / 1600) * 100)}%`
-                        }}
-                      ></div>
-                    </div>
-                  </div>
-
-                  {/* Parameter 2: 采纳精度与通过率 */}
-                  <div>
-                    <div className="flex justify-between font-medium mb-1">
-                      <span>2. 采纳精度与通过率 (权重 40%)</span>
-                      <span className="font-mono font-bold text-gray-800">
-                        {((selectedDetailRecord.passRate / 100) * 40).toFixed(1)} / 40.0分
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                      <div
-                        className="bg-emerald-500 h-full rounded-full"
-                        style={{ width: `${selectedDetailRecord.passRate}%` }}
-                      ></div>
-                    </div>
-                  </div>
-
-                  {/* Parameter 3: 响应时效加分 */}
-                  <div>
-                    <div className="flex justify-between font-medium mb-1">
-                      <span>3. 响应时效与出勤率 (权重 20%)</span>
-                      <span className="font-mono font-bold text-gray-800">
-                        {((selectedDetailRecord.participationRate / 100) * 20).toFixed(1)} / 20.0分
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                      <div
-                        className="bg-purple-500 h-full rounded-full"
-                        style={{ width: `${selectedDetailRecord.participationRate}%` }}
-                      ></div>
-                    </div>
-                  </div>
-
-                  {/* Bonus & Deduction */}
-                  <div className="pt-1.5 border-t border-gray-100 flex items-center justify-between text-xs">
-                    <span className="text-gray-500">专项加减分修正：</span>
-                    <div className="flex space-x-2">
-                      <span className="bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded font-mono font-bold border border-emerald-200">
-                        专项突发加分 +{selectedDetailRecord.bonusPoints}分
-                      </span>
-                      {selectedDetailRecord.deductPoints > 0 && (
-                        <span className="bg-rose-50 text-rose-800 px-2 py-0.5 rounded font-mono font-bold border border-rose-200">
-                          逾期驳回扣分 -{selectedDetailRecord.deductPoints}分
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                <p>• <strong>采纳基础分</strong>：每条被采纳信息计 90~100 分；</p>
+                <p>• <strong>首审直通奖励</strong>：一次性直通不返修加 10 分/件；</p>
+                <p>• <strong>返修扣分</strong>：因格式不全或要素缺失被驳回返修，扣减 15 分/件。</p>
               </div>
 
-              {/* Monthly Score Trend Chart */}
-              <div className="space-y-2">
-                <h4 className="font-extrabold text-gray-900 border-b border-gray-100 pb-1.5 flex items-center justify-between">
-                  <span className="flex items-center space-x-1.5">
-                    <TrendingUp className="w-4 h-4 text-emerald-600" />
-                    <span>近 6 个月历史考评得分走势</span>
-                  </span>
-                  <span className="text-[10px] text-gray-400 font-normal">单位: 分</span>
+              <div className="space-y-1.5 pt-3 border-t border-slate-100">
+                <h4 className="font-bold text-gray-900 text-sm flex items-center space-x-1.5">
+                  <span className="w-2 h-2 rounded-full bg-purple-600"></span>
+                  <span>三、审核员个人效能与考核规则</span>
                 </h4>
-
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-end justify-between h-32 pt-6">
-                  {['3月', '4月', '5月', '6月', '7月', '8月'].map((month, idx) => {
-                    const score = selectedDetailRecord.monthlyScores[idx] || 90;
-                    const heightPercent = Math.max(20, ((score - 70) / 30) * 100);
-
-                    return (
-                      <div key={month} className="flex flex-col items-center flex-1 space-y-1">
-                        <span className="text-[10px] font-mono font-bold text-blue-900">{score}</span>
-                        <div className="w-6 bg-blue-100 rounded-t-md overflow-hidden relative flex items-end h-20">
-                          <div
-                            className="w-full bg-gradient-to-t from-[#1E5ABB] to-blue-600 rounded-t-md transition-all duration-300"
-                            style={{ height: `${heightPercent}%` }}
-                          ></div>
-                        </div>
-                        <span className="text-[10px] text-gray-500">{month}</span>
-                      </div>
-                    );
-                  })}
-                </div>
+                <p>• <strong>审结基础分</strong>：每审结一条舆情记录 95~100 分；</p>
+                <p>• <strong>极速响应激励</strong>：平均耗时低于 10 分钟给予极速响应专项考评加分；</p>
+                <p>• <strong>滞留预警惩戒</strong>：审核件滞留超 2 小时未处理触发系统预警并扣除考评分。</p>
               </div>
             </div>
-
-            {/* Modal Footer */}
-            <div className="p-4 bg-slate-50 border-t border-gray-200 flex justify-end">
+            <div className="bg-slate-50 px-5 py-3 border-t border-slate-200 flex justify-end">
               <button
-                onClick={() => setSelectedDetailRecord(null)}
-                className="px-5 py-2 bg-[#1E5ABB] hover:bg-[#134092] text-white font-medium rounded-lg text-xs shadow-2xs transition-colors cursor-pointer"
+                onClick={() => setShowRuleModal(false)}
+                className="px-4 py-1.5 bg-[#1E5ABB] text-white rounded-lg text-xs font-bold hover:bg-blue-700"
               >
-                关闭详情
+                已了解
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* 深度画像剖析 Modal (EvaluationProfileModal) */}
+      <EvaluationProfileModal
+        data={selectedProfile}
+        onClose={() => setSelectedProfile(null)}
+        periodText={selectedPeriodLabel}
+      />
     </div>
   );
 };

@@ -346,7 +346,7 @@ export default function App() {
           />
         )}
 
-        {activePage === 'statistics' && <Statistics />}
+        {activePage === 'statistics' && <Statistics onNavigate={handleNavigate} />}
 
         {activePage === 'evaluation' && (
           <Evaluation evaluationList={initialEvaluations} onNavigate={handleNavigate} />

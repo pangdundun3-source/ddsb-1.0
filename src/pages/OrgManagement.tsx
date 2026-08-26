@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Search,
@@ -455,7 +455,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate }) => {
   };
 
   const handleDownloadOrgQrCode = () => {
-    const svg = document.getElementById('org-qrcode-svg') as SVGSVGElement | null;
+    const svg = document.getElementById('org-qrcode-svg') as unknown as SVGSVGElement | null;
     if (!svg) {
       triggerToast('未找到二维码');
       return;
