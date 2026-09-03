@@ -12,7 +12,7 @@ pnpm install
 pnpm run dev
 ```
 
-默认访问地址为 `http://localhost:3000/`。
+默认访问地址为 `http://localhost:3002/`。
 
 ## 打包构建
 
