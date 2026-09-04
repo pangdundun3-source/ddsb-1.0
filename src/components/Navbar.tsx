@@ -4,22 +4,31 @@ import { List, ChevronDown } from 'lucide-react';
 
 interface NavbarProps {
   activePage: PageId;
+  reportDetailSourcePage?: PageId;
   onNavigate: (page: PageId, extra?: string) => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ activePage, onNavigate }) => {
+export const Navbar: React.FC<NavbarProps> = ({
+  activePage,
+  reportDetailSourcePage = 'report-summary',
+  onNavigate
+}) => {
   const [reportMenuOpen, setReportMenuOpen] = useState(false);
+  const [auditMenuOpen, setAuditMenuOpen] = useState(false);
   const [systemMenuOpen, setSystemMenuOpen] = useState(false);
 
-  const isReportActive = [
-    'report-summary',
-    'report-detail',
+  const isReportActive = ['report-summary', 'report-records', 'report-detail'].includes(activePage);
+  const isFromReportRecords =
+    activePage === 'report-detail' && reportDetailSourcePage === 'report-records';
+  const isFromReportSummary =
+    activePage === 'report-detail' &&
+    (reportDetailSourcePage === 'report-summary' || !reportDetailSourcePage);
+
+  const isAuditActive = [
     'report-audit',
     'audit-detail',
     'audit-records',
-    'audit-record-detail',
-    'negative-info',
-    'negative-detail'
+    'audit-record-detail'
   ].includes(activePage);
 
   const isSystemActive = [
@@ -52,7 +61,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activePage, onNavigate }) => {
             onMouseLeave={() => setReportMenuOpen(false)}
           >
             <button
-              onClick={() => onNavigate('report-audit')}
+              onClick={() => onNavigate('report-summary')}
               className={`px-4 py-2 transition-all cursor-pointer rounded flex items-center space-x-1 ${
                 isReportActive
                   ? 'bg-blue-600/90 font-bold text-white shadow-xs'
@@ -65,51 +74,74 @@ export const Navbar: React.FC<NavbarProps> = ({ activePage, onNavigate }) => {
 
             {reportMenuOpen && (
               <div className="absolute left-0 top-full w-44 bg-white text-gray-800 rounded-md shadow-xl border border-gray-100 py-1 z-50 text-xs animate-in fade-in duration-150">
-                {/* 1. 报送审核 */}
-                <button
-                  onClick={() => {
-                    onNavigate('report-audit');
-                    setReportMenuOpen(false);
-                  }}
-                  className={`w-full text-left px-3.5 py-2 hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center justify-between cursor-pointer ${
-                    activePage === 'report-audit' || activePage === 'audit-detail' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : ''
-                  }`}
-                >
-                  <span>报送审核</span>
-                  <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.2 rounded font-bold">待办</span>
-                </button>
-                {/* 2. 不良信息库 */}
-                <button
-                  onClick={() => {
-                    onNavigate('negative-info');
-                    setReportMenuOpen(false);
-                  }}
-                  className={`w-full text-left px-3.5 py-2 hover:bg-blue-50 hover:text-[#1E5ABB] cursor-pointer ${
-                    activePage === 'negative-info' || activePage === 'negative-detail' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : ''
-                  }`}
-                >
-                  <span>不良信息库</span>
-                </button>
-                {/* 3. 报送记录 */}
+                {/* 1. 报送待办 */}
                 <button
                   onClick={() => {
                     onNavigate('report-summary');
                     setReportMenuOpen(false);
                   }}
                   className={`w-full text-left px-3.5 py-2 hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center justify-between cursor-pointer ${
-                    activePage === 'report-summary' || activePage === 'report-detail' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : ''
+                    activePage === 'report-summary' || isFromReportSummary ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : ''
+                  }`}
+                >
+                  <span>报送待办</span>
+                </button>
+                {/* 2. 报送记录 */}
+                <button
+                  onClick={() => {
+                    onNavigate('report-records');
+                    setReportMenuOpen(false);
+                  }}
+                  className={`w-full text-left px-3.5 py-2 hover:bg-blue-50 hover:text-[#1E5ABB] cursor-pointer ${
+                    activePage === 'report-records' || isFromReportRecords ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : ''
                   }`}
                 >
                   <span>报送记录</span>
                 </button>
-                {/* 4. 审核记录 */}
+              </div>
+            )}
+          </div>
+
+          {/* 审核管理 Dropdown */}
+          <div
+            className="relative"
+            onMouseEnter={() => setAuditMenuOpen(true)}
+            onMouseLeave={() => setAuditMenuOpen(false)}
+          >
+            <button
+              onClick={() => onNavigate('report-audit')}
+              className={`px-4 py-2 transition-all cursor-pointer rounded flex items-center space-x-1 ${
+                isAuditActive
+                  ? 'bg-blue-600/90 font-bold text-white shadow-xs'
+                  : 'hover:bg-white/10 text-white/90'
+              }`}
+            >
+              <span>审核管理</span>
+              <ChevronDown className={`w-3 h-3 transition-transform ${auditMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {auditMenuOpen && (
+              <div className="absolute left-0 top-full w-44 bg-white text-gray-800 rounded-md shadow-xl border border-gray-100 py-1 z-50 text-xs animate-in fade-in duration-150">
+                {/* 1. 审核待办 */}
+                <button
+                  onClick={() => {
+                    onNavigate('report-audit');
+                    setAuditMenuOpen(false);
+                  }}
+                  className={`w-full text-left px-3.5 py-2 hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center justify-between cursor-pointer ${
+                    activePage === 'report-audit' || activePage === 'audit-detail' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : ''
+                  }`}
+                >
+                  <span>审核待办</span>
+                </button>
+                {/* 2. 审核记录 */}
                 <button
                   onClick={() => {
                     onNavigate('audit-records');
-                    setReportMenuOpen(false);
+                    setAuditMenuOpen(false);
                   }}
                   className={`w-full text-left px-3.5 py-2 hover:bg-blue-50 hover:text-[#1E5ABB] cursor-pointer ${
-                    activePage === 'audit-records' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : ''
+                    ['audit-records', 'audit-record-detail'].includes(activePage) ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : ''
                   }`}
                 >
                   <span>审核记录</span>
@@ -117,6 +149,18 @@ export const Navbar: React.FC<NavbarProps> = ({ activePage, onNavigate }) => {
               </div>
             )}
           </div>
+
+          {/* 不良信息库 */}
+          <button
+            onClick={() => onNavigate('negative-info')}
+            className={`px-4 py-2 transition-all cursor-pointer rounded flex items-center space-x-1 ${
+              activePage === 'negative-info' || activePage === 'negative-detail'
+                ? 'bg-blue-600/90 font-bold text-white shadow-xs'
+                : 'hover:bg-white/10 text-white/90'
+            }`}
+          >
+            <span>不良信息库</span>
+          </button>
 
           {/* 统计管理 */}
           <button

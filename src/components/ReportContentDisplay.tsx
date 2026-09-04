@@ -1,5 +1,6 @@
 import React from 'react';
 import { Attachment, ReportItem } from '../types';
+import { getFinalAuditScore } from '../auditStage';
 import {
   Clock,
   Download,
@@ -42,10 +43,14 @@ const fallbackAttachments: Attachment[] = [
 ];
 
 const getStatusMeta = (status: ReportItem['auditStatus']) => {
-  if (status === '被驳回') return { label: '已驳回', className: 'bg-rose-50 text-rose-700 border-rose-200' };
+  if (status === '被驳回' || status === '已驳回') return { label: '已驳回', className: 'bg-rose-50 text-rose-700 border-rose-200' };
   if (status === '待审核') return { label: '待审核', className: 'bg-amber-50 text-amber-700 border-amber-200' };
   if (status === '审核中') return { label: '审核中', className: 'bg-blue-50 text-blue-700 border-blue-200' };
-  return { label: '已采纳', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  if (status === '已通过') return { label: '已通过', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  if (status === '待转办') return { label: '待转办', className: 'bg-orange-50 text-orange-700 border-orange-200' };
+  if (status === '已转办') return { label: '已转办', className: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+  if (status === '草稿') return { label: '草稿', className: 'bg-slate-100 text-slate-600 border-slate-200' };
+  return { label: '已采纳', className: 'bg-teal-50 text-teal-700 border-teal-200' };
 };
 
 const getAttachmentUrl = (attachment: Attachment) => attachment.url || attachment.thumbnailUrl || '';
@@ -83,7 +88,7 @@ export const ReportContentDisplay: React.FC<ReportContentDisplayProps> = ({ repo
     report.attachments?.find((attachment) => attachment.type === 'link')?.url ||
     'https://news.example.com/';
   const statusMeta = getStatusMeta(report.auditStatus);
-  const scoreText = report.score === undefined || report.score === null ? '--' : String(report.score);
+  const finalScore = getFinalAuditScore(report);
 
   const handlePreviewAttachment = (attachment: Attachment) => {
     const url = getAttachmentUrl(attachment) || createFallbackAttachmentBlob(attachment, 'preview');
@@ -118,9 +123,11 @@ export const ReportContentDisplay: React.FC<ReportContentDisplayProps> = ({ repo
                 <Clock className="h-3.5 w-3.5 text-slate-400" />
                 {report.submitTime}
               </span>
-              <span className="inline-flex items-center rounded border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold text-amber-700">
-                评分：{scoreText} 分
-              </span>
+              {finalScore !== undefined && (
+                <span className="inline-flex items-center rounded border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold text-amber-700">
+                  评分：{finalScore} 分
+                </span>
+              )}
             </div>
           </div>
           <span className={`shrink-0 rounded border px-2.5 py-1 text-[11px] font-bold ${statusMeta.className}`}>

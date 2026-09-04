@@ -3,7 +3,6 @@ import { Calendar, Bell, Headphones, ChevronDown, User, LogOut, Settings, Buildi
 import { Logo } from './Logo';
 
 interface HeaderProps {
-  onNewReportClick: () => void;
   currentUser: string;
 }
 
@@ -15,7 +14,7 @@ const AVAILABLE_ORGS = [
   { id: '5', name: '市发展改革委', role: '综合填报员', code: 'FG-005', type: '直属部门' }
 ];
 
-export const Header: React.FC<HeaderProps> = ({ onNewReportClick, currentUser }) => {
+export const Header: React.FC<HeaderProps> = ({ currentUser }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
   const [currentOrg, setCurrentOrg] = useState(AVAILABLE_ORGS[0]);
@@ -47,15 +46,6 @@ export const Header: React.FC<HeaderProps> = ({ onNewReportClick, currentUser })
 
       {/* Right Top Bar Tools & Avatar - Simplified */}
       <div className="flex items-center space-x-3.5">
-        {/* Quick New Report Button */}
-        <button
-          onClick={onNewReportClick}
-          className="flex items-center space-x-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs px-3 py-1.5 rounded-md font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
-        >
-          <span className="text-sm leading-none">+</span>
-          <span>新建上报</span>
-        </button>
-
         {/* Bell Notifications */}
         <div className="relative">
           <button
@@ -227,4 +217,3 @@ export const Header: React.FC<HeaderProps> = ({ onNewReportClick, currentUser })
     </header>
   );
 };
-
