@@ -65,11 +65,24 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   };
 
   const handleDirectAdminLogin = () => {
+    if (loginTheme === 'zhengguanyong') {
+      setIsScanning(true);
+      setScanSuccess(false);
+      setTimeout(() => {
+        setIsScanning(false);
+        setScanSuccess(true);
+        setTimeout(() => {
+          onLogin('张三 (系统管理员)', 'portal');
+        }, 300);
+      }, 400);
+      return;
+    }
+
     if (roleTab === 'admin') {
       setIsScanning(false);
       setScanSuccess(true);
       setTimeout(() => {
-        onLogin('张三 (系统管理员)');
+        onLogin('张三 (系统管理员)', 'home');
       }, 250);
     } else {
       setReporterFeedback('审核上报员微信扫码鉴权已完成！该角色为移动端专属上报通道，暂不跳转PC管理中枢后台。');
@@ -1190,67 +1203,35 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
               </span>
             </div>
           </div>
+
+
         </div>
 
         {/* Right 1:1 Floating Glass Login Card */}
-        <div className="w-[390px] sm:w-[410px] shrink-0">
-          <div className="relative bg-white/85 backdrop-blur-xl border border-white/90 rounded-[28px] shadow-[0_25px_60px_-15px_rgba(25,65,125,0.13),0_0_0_1px_rgba(255,255,255,0.6)] p-8 sm:p-9 transition-all">
+        <div className="w-[380px] sm:w-[400px] shrink-0">
+          <div className="relative bg-white/90 backdrop-blur-xl border border-white/90 rounded-[28px] shadow-[0_25px_60px_-15px_rgba(25,65,125,0.15),0_0_0_1px_rgba(255,255,255,0.7)] p-8 sm:p-10 transition-all">
             {/* Card Titles */}
-            <div className="text-center mb-5">
-              <h2 className="text-[24px] font-extrabold text-[#193B67] tracking-wider">
+            <div className="text-center mb-6">
+              <h2 className="text-[26px] font-black text-[#1D3E6E] tracking-wider">
                 欢迎登录
               </h2>
-              <p className="text-[13px] font-medium text-[#5E7FA9] mt-1.5 tracking-wider">
+              <p className="text-[14px] font-medium text-[#4D6F9C] mt-2 tracking-wider">
                 网络生态综合治理平台
               </p>
-            </div>
-
-            {/* 身份切换导航 (管理员 / 审核上报员) */}
-            <div className="w-full bg-[#EDF3FA] p-1 rounded-xl flex items-center mb-5 border border-[#D5E3F3]">
-              <button
-                type="button"
-                onClick={() => {
-                  setRoleTab('admin');
-                  setReporterFeedback(null);
-                }}
-                className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 ${
-                  roleTab === 'admin'
-                    ? 'bg-white text-[#193B67] shadow-xs border border-slate-200/80'
-                    : 'text-[#5E7FA9] hover:text-[#193B67]'
-                }`}
-              >
-                <ShieldCheck className={`w-3.5 h-3.5 ${roleTab === 'admin' ? 'text-[#193B67]' : 'text-slate-400'}`} />
-                <span>管理员</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setRoleTab('reporter');
-                  setReporterFeedback(null);
-                }}
-                className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5 ${
-                  roleTab === 'reporter'
-                    ? 'bg-white text-[#193B67] shadow-xs border border-slate-200/80'
-                    : 'text-[#5E7FA9] hover:text-[#193B67]'
-                }`}
-              >
-                <UserCheck className={`w-3.5 h-3.5 ${roleTab === 'reporter' ? 'text-blue-600' : 'text-slate-400'}`} />
-                <span>审核上报员</span>
-              </button>
             </div>
 
             {/* 1:1 WeChat QR Code Login */}
             <div className="flex flex-col items-center">
               {/* QR Code Container */}
               <div
-                onClick={handleSimulateScan}
-                className="relative group cursor-pointer p-4 bg-white rounded-2xl shadow-[0_4px_20px_rgba(30,70,130,0.06)] border border-slate-100/90 transition-transform duration-300 hover:scale-[1.02]"
-                title={roleTab === 'admin' ? '点击微信扫码登录后台' : '点击微信扫码 (审核上报员)'}
+                onClick={handleDirectAdminLogin}
+                className="relative group cursor-pointer p-4 bg-white rounded-2xl shadow-[0_4px_24px_rgba(30,70,130,0.08)] border border-slate-100/90 transition-transform duration-300 hover:scale-[1.02]"
+                title="点击微信扫码登录平台"
               >
                 {/* High-Fidelity SVG QR Code */}
                 <svg
                   viewBox="0 0 240 240"
-                  className="w-52 h-52 text-[#1C4376]"
+                  className="w-52 h-52 sm:w-56 sm:h-56 text-[#1D4478]"
                   fill="currentColor"
                 >
                   {/* Outer corner position marks */}
@@ -1306,19 +1287,19 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   <circle cx="125" cy="220" r="4" />
                 </svg>
 
-                {/* Central "正管用" Brand Badge Inside QR Code */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 bg-white rounded-xl border border-[#2B548B] shadow-md flex flex-col items-center justify-center p-0.5">
-                  <div className="flex items-center space-x-0.5 text-[9px] font-black text-[#1C4376] leading-none">
+                {/* Central "正管" Brand Badge Inside QR Code */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 bg-white rounded-xl border-2 border-[#1D4478] shadow-md flex flex-col items-center justify-center p-1">
+                  <div className="flex items-center space-x-0.5 text-[10px] font-black text-[#1D4478] leading-none">
                     <span>正</span>
                     <span>管</span>
                   </div>
-                  <div className="text-[9px] font-black text-[#1C4376] leading-none mt-[1px]">
+                  <div className="text-[10px] font-black text-[#1D4478] leading-none mt-0.5">
                     用
                   </div>
-                  <div className="flex items-center space-x-1 mt-[2px]">
-                    <div className="w-1 h-1 rounded-full bg-[#1C4376]" />
-                    <div className="w-2.5 h-[0.8px] bg-[#1C4376]" />
-                    <div className="w-1 h-1 rounded-full bg-[#1C4376]" />
+                  <div className="flex items-center space-x-1 mt-1">
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#1D4478]" />
+                    <div className="w-3.5 h-[1px] bg-[#1D4478]" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#1D4478]" />
                   </div>
                 </div>
 
@@ -1331,7 +1312,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 {isScanning && (
                   <div className="absolute inset-0 bg-white/90 backdrop-blur-xs rounded-2xl flex flex-col items-center justify-center space-y-2 text-[#1C4376] animate-in fade-in">
                     <RefreshCw className="w-7 h-7 animate-spin text-[#1C5ABB]" />
-                    <span className="text-xs font-bold">微信已扫码，正在确认...</span>
+                    <span className="text-xs font-bold">微信已扫码，正在进入平台...</span>
                   </div>
                 )}
 
@@ -1340,24 +1321,16 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   <div className="absolute inset-0 bg-white/95 backdrop-blur-xs rounded-2xl flex flex-col items-center justify-center space-y-2 text-emerald-600 animate-in zoom-in-95">
                     <CheckCircle2 className="w-9 h-9 text-emerald-600 animate-bounce" />
                     <span className="text-xs font-bold text-slate-800">
-                      {roleTab === 'admin' ? '扫码成功，正在进入系统...' : '扫码成功（审核上报员身份）'}
+                      扫码成功，正在进入正管用平台...
                     </span>
                   </div>
                 )}
               </div>
 
-              {/* Micro Subtext */}
-              <div className="mt-5 text-[12px] text-[#6985A9] font-medium tracking-wide">
-                {roleTab === 'admin' ? '—— 请使用管理员微信扫码登录 ——' : '—— 请使用审核上报员微信扫码 ——'}
+              {/* Micro Subtext matching screenshot: —— 请使用微信扫码登录 —— */}
+              <div className="mt-6 text-[13px] text-[#4D6F9C] font-semibold tracking-wider">
+                —— 请使用微信扫码登录 ——
               </div>
-
-              {/* Reporter Notice Box */}
-              {reporterFeedback && (
-                <div className="mt-3.5 w-full p-2.5 bg-blue-50/90 border border-blue-200/80 rounded-xl text-[11px] text-[#1B406E] flex items-start space-x-2 animate-in fade-in slide-in-from-top-1">
-                  <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                  <span className="leading-tight">{reporterFeedback}</span>
-                </div>
-              )}
             </div>
           </div>
         </div>

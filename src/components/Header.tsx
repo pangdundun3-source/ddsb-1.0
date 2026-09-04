@@ -21,26 +21,25 @@ interface HeaderProps {
 }
 
 const ORG_OPTIONS = [
-  { name: '台中市网信办', code: 'TC-WXB-01', desc: '直属综合网信治理中枢 · 指令流转总调中心' },
-  { name: '市委宣传部舆情监测科', code: 'TC-XCB-04', desc: '新闻舆情监测预警与网络研判分析' },
-  { name: '市公安局网安支队', code: 'TC-GA-WA02', desc: '涉网违法犯罪线索协查与处置打击' },
-  { name: '市网络应急指挥中心', code: 'TC-YJ-ZH01', desc: '重大网络舆情与安全突发事件应急联调' },
-  { name: '市互联网辟谣联动中心', code: 'TC-PY-001', desc: '涉台辟谣科普与涉假网络谣言溯源' },
+  { name: '禁用-测试机构 (台湾省)', code: 'TEST-TW-01' },
+  { name: '台中市网信办', code: 'TC-WXB-01' },
+  { name: '西区网络网信局', code: 'TC-XQ-01' },
 ];
 
 export const Header: React.FC<HeaderProps> = ({ currentUser, onLogout, onNavigate }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
   const [currentOrg, setCurrentOrg] = useState('台中市网信办');
+  const [selectedTempOrg, setSelectedTempOrg] = useState('台中市网信办');
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
   const [showSwitchOrgModal, setShowSwitchOrgModal] = useState(false);
   const [switchToast, setSwitchToast] = useState<string | null>(null);
 
-  const handleSelectOrg = (orgName: string) => {
-    setCurrentOrg(orgName);
+  const handleConfirmSwitch = () => {
+    setCurrentOrg(selectedTempOrg);
     setShowSwitchOrgModal(false);
     setShowUserMenu(false);
-    setSwitchToast(`已成功切换当前管理机构为：${orgName}`);
+    setSwitchToast(`已成功切换当前管理机构为：${selectedTempOrg}`);
     setTimeout(() => {
       setSwitchToast(null);
     }, 3000);
@@ -139,6 +138,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, onLogout, onNavigat
                 <button
                   onClick={() => {
                     setShowUserMenu(false);
+                    setSelectedTempOrg(currentOrg);
                     setShowSwitchOrgModal(true);
                   }}
                   className="w-full text-left px-4 py-2.5 hover:bg-slate-50 hover:text-blue-600 flex items-center space-x-3 text-[13px] font-normal transition-colors cursor-pointer"
@@ -254,87 +254,69 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, onLogout, onNavigat
         </div>
       )}
 
-      {/* MODAL: 切换机构 */}
+      {/* SWITCH ORG POPOVER (dropdown form matching user screenshot) */}
       {showSwitchOrgModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 text-slate-800">
-            {/* Modal Header */}
-            <div className="px-6 py-4 bg-gradient-to-r from-[#193B67] to-[#255594] text-white flex items-center justify-between">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center">
-                  <ArrowLeftRight className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm leading-none">切换机构</h3>
-                  <p className="text-[11px] text-white/70 mt-1">选择您需协同办公的网信与治理业务主体</p>
-                </div>
-              </div>
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setShowSwitchOrgModal(false)}
+          />
+          <div className="absolute right-2 top-full mt-2 w-[310px] bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 overflow-hidden">
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-bold text-slate-900 text-sm">切换机构</h3>
               <button
                 onClick={() => setShowSwitchOrgModal(false)}
-                className="p-1 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors cursor-pointer"
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Organization Options List */}
-            <div className="p-6 space-y-2.5 text-xs">
+            <div className="p-5 space-y-2.5">
               {ORG_OPTIONS.map((org) => {
-                const isSelected = currentOrg === org.name;
+                const isSelected = selectedTempOrg === org.name;
                 return (
                   <div
                     key={org.code}
-                    onClick={() => handleSelectOrg(org.name)}
-                    className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                    onClick={() => setSelectedTempOrg(org.name)}
+                    className={`p-3.5 rounded-xl border transition-all cursor-pointer relative overflow-hidden ${
                       isSelected
-                        ? 'bg-blue-50/80 border-blue-300 shadow-xs'
-                        : 'bg-white border-slate-200 hover:bg-slate-50'
+                        ? 'border-[#1E5ABB] bg-blue-50/10 shadow-2xs'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
                     }`}
                   >
-                    <div className="flex items-start space-x-3">
-                      <div
-                        className={`w-4 h-4 rounded-full border flex items-center justify-center mt-0.5 shrink-0 ${
-                          isSelected
-                            ? 'border-blue-600 bg-blue-600 text-white'
-                            : 'border-slate-300 bg-white'
-                        }`}
-                      >
-                        {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
-                      </div>
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <span className={`font-bold ${isSelected ? 'text-[#193B67]' : 'text-slate-800'}`}>
-                            {org.name}
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-mono">({org.code})</span>
-                        </div>
-                        <p className="text-[11px] text-slate-500 mt-0.5">{org.desc}</p>
-                      </div>
-                    </div>
+                    <div className="font-bold text-slate-900 text-xs sm:text-sm">{org.name}</div>
+                    
+                    {/* Bottom-right blue checkmark badge matching screenshot */}
                     {isSelected && (
-                      <span className="px-2 py-0.5 bg-blue-600 text-white rounded text-[10px] font-bold shrink-0">
-                        当前
-                      </span>
+                      <div className="absolute bottom-0 right-0 w-6 h-6 bg-[#1E5ABB] text-white rounded-tl-xl flex items-center justify-center">
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      </div>
                     )}
                   </div>
                 );
               })}
             </div>
 
-            {/* Footer */}
-            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-[11px] text-slate-500">
-                当前选中：<strong className="text-slate-800">{currentOrg}</strong>
-              </span>
+            {/* Footer Buttons matching screenshot */}
+            <div className="px-5 py-3.5 bg-slate-50/70 border-t border-slate-100 flex items-center justify-end space-x-2.5">
               <button
                 onClick={() => setShowSwitchOrgModal(false)}
-                className="px-5 py-1.5 bg-[#193B67] hover:bg-[#204a80] text-white text-xs font-bold rounded-lg cursor-pointer transition-colors"
+                className="px-3.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-lg cursor-pointer transition-colors"
               >
-                确认切换
+                取消
+              </button>
+              <button
+                onClick={handleConfirmSwitch}
+                className="px-4 py-1.5 bg-[#1E5ABB] hover:bg-blue-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-colors shadow-2xs"
+              >
+                确定
               </button>
             </div>
           </div>
-        </div>
+        </>
       )}
     </header>
   );

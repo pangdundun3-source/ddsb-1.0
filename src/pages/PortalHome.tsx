@@ -544,50 +544,6 @@ export const PortalHome: React.FC<PortalHomeProps> = ({
                 数解舆情
               </span>
             </div>
-
-            {/* 10. 点点速豹 (正式版 - Orange/Amber) */}
-            <div
-              onClick={() => handleAppClick('点点速豹')}
-              className="group flex flex-col items-center cursor-pointer transition-all active:scale-95"
-            >
-              <div className="relative w-20 h-20 sm:w-[92px] sm:h-[92px] bg-white rounded-[24px] shadow-[0_10px_25px_rgba(0,0,0,0.25)] flex items-center justify-center p-3 group-hover:-translate-y-1.5 transition-transform duration-300 ring-2 ring-amber-400/50">
-                {/* Badge: 正式版 */}
-                <div className="absolute -top-1.5 -right-1.5 bg-[#EA580C] text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm leading-none">
-                  正式版
-                </div>
-                {/* Cheetah / Speed Leopard Vector Emblem */}
-                <div className="w-12 h-12 flex items-center justify-center text-[#EA580C]">
-                  <svg viewBox="0 0 36 36" className="w-11 h-11" fill="none">
-                    <path
-                      d="M6,22 C9,17 14,14 20,14 C22.5,14 25,15 27,16.5 L31,13 L29,19 C31,21 32,23.5 32,26 C32,27 31,28 30,28 C26,28 23,24 20,24 C16,24 12,27 8,27 C6.5,27 6,25 6,22 Z"
-                      fill="#EA580C"
-                      opacity="0.2"
-                    />
-                    <path
-                      d="M7,20 C10,15 15,13 21,13 C24,13 27,14.5 29,16.5 L32,13 L30.5,19 C32,21 32.5,23 32,25 C31,26.5 29,26.5 27.5,25.5 C24.5,23.5 21.5,23 18.5,23 C14.5,23 11,26 7.5,26 C6,26 5.5,24 7,20 Z"
-                      stroke="#EA580C"
-                      strokeWidth="2.2"
-                      strokeLinejoin="round"
-                    />
-                    <circle cx="28" cy="18" r="1.8" fill="#EA580C" />
-                    <path
-                      d="M13,7 L7,15 L14,15 L10,22"
-                      stroke="#D97706"
-                      strokeWidth="2.2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </div>
-              </div>
-              <span className="mt-2.5 text-sm sm:text-[15px] font-medium text-white tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.7)] group-hover:text-amber-200 transition-colors">
-                点点速豹
-              </span>
-            </div>
-
-            {/* Empty placeholders to preserve grid alignment */}
-            <div className="hidden sm:block" />
-            <div className="hidden sm:block" />
           </div>
         </div>
       </main>
