@@ -5,9 +5,14 @@ import { UserRole } from '../types';
 interface LoginViewProps {
   onLoginSuccess: (account: string, role: UserRole) => void;
   onToast: (msg: string) => void;
+  onBackToOfficialAccount?: () => void;
 }
 
-export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onToast }) => {
+export const LoginView: React.FC<LoginViewProps> = ({
+  onLoginSuccess,
+  onToast,
+  onBackToOfficialAccount,
+}) => {
   const [account, setAccount] = useState<string>('grid_zhangsan');
   const [captcha, setCaptcha] = useState<string>('582913');
   const [role, setRole] = useState<UserRole>('综合网格员');
@@ -160,6 +165,16 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onToast })
                 </>
               )}
             </button>
+
+            {onBackToOfficialAccount && (
+              <button
+                type="button"
+                onClick={onBackToOfficialAccount}
+                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs rounded-xl transition-all flex items-center justify-center space-x-1"
+              >
+                <span>← 返回“点点速豹”公众号主页</span>
+              </button>
+            )}
           </form>
         </div>
 

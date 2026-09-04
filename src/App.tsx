@@ -23,11 +23,18 @@ import { ProfileView } from './components/ProfileView';
 import { DetailModal } from './components/DetailModal';
 import { ActionSheet } from './components/ActionSheet';
 import { Toast, ToastMessage } from './components/Toast';
+import { OfficialAccountEntryView } from './components/OfficialAccountEntryView';
 
 export default function App() {
   // Application State with LocalStorage Persistence
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     const saved = localStorage.getItem('wechat_v8_logged');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
+
+  // Official Account Screen vs H5 Workbench Screen
+  const [isOfficialAccount, setIsOfficialAccount] = useState<boolean>(() => {
+    const saved = localStorage.getItem('wechat_v8_oa_screen');
     return saved !== null ? JSON.parse(saved) : true;
   });
 
@@ -77,6 +84,10 @@ export default function App() {
     localStorage.setItem('wechat_v8_notifications', JSON.stringify(notifications));
   }, [notifications]);
 
+  useEffect(() => {
+    localStorage.setItem('wechat_v8_oa_screen', JSON.stringify(isOfficialAccount));
+  }, [isOfficialAccount]);
+
   // Toast helper
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({
@@ -94,13 +105,15 @@ export default function App() {
       role,
     }));
     setIsLoggedIn(true);
+    setIsOfficialAccount(false);
     setCurrentTab('home');
     setViewMode('main');
   };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
-    showToast('已安全退出并返回二维码校验页');
+    setIsOfficialAccount(true);
+    showToast('已安全退出工作台并返回“点点速豹”公众号');
   };
 
   const handleChangeRole = (newRole: UserRole) => {
@@ -494,6 +507,12 @@ export default function App() {
         reportPendingCount={reportPendingCount}
         onOpenActionSheet={() => setIsActionSheetOpen(true)}
         onResetDemoData={handleResetDemoData}
+        isOfficialAccount={isOfficialAccount}
+        onToggleOfficialAccount={() => setIsOfficialAccount((prev) => !prev)}
+        onCloseH5={() => {
+          setIsOfficialAccount(true);
+          showToast('已返回“点点速豹”公众号');
+        }}
         canGoBack={
           viewMode === 'notifications' ||
           isFormMode ||
@@ -521,9 +540,10 @@ export default function App() {
             setIsActivationDetail(false);
           }
         }}
-        pageTitle={getPageTitle()}
+        pageTitle={isOfficialAccount ? '点点速豹' : getPageTitle()}
         isLoggedIn={isLoggedIn}
         hideTabBar={
+          isOfficialAccount ||
           viewMode === 'notifications' ||
           isFormMode ||
           isCreatingNewReport ||
@@ -534,6 +554,7 @@ export default function App() {
           isActivationDetail
         }
         hideFAB={
+          isOfficialAccount ||
           viewMode === 'notifications' ||
           isFormMode ||
           isCreatingNewReport ||
@@ -558,10 +579,49 @@ export default function App() {
           </>
         }
       >
-        {!isLoggedIn ? (
+        {isOfficialAccount ? (
+          <OfficialAccountEntryView
+            onEnterReport={() => {
+              setIsOfficialAccount(false);
+              setIsLoggedIn(true);
+              setCurrentTab('report');
+              setIsCreatingNewReport(true);
+              setViewMode('main');
+              showToast('已进入“快速上报”通道');
+            }}
+            onEnterReportList={() => {
+              setIsOfficialAccount(false);
+              setIsLoggedIn(true);
+              setCurrentTab('report');
+              setIsCreatingNewReport(false);
+              setViewMode('main');
+              showToast('已打开速报列表');
+            }}
+            onEnterWorkbench={(targetRole) => {
+              if (targetRole) {
+                setUser((prev) => ({ ...prev, role: targetRole }));
+              }
+              setIsLoggedIn(true);
+              setIsOfficialAccount(false);
+              if (targetRole === '审核员') {
+                setCurrentTab('audit');
+              } else {
+                setCurrentTab('home');
+              }
+              setViewMode('main');
+              showToast(`已进入【${targetRole || user.role}】工作台`);
+            }}
+            onEnterLogin={() => {
+              setIsLoggedIn(false);
+              setIsOfficialAccount(false);
+            }}
+            onToast={showToast}
+          />
+        ) : !isLoggedIn ? (
           <LoginView
             onLoginSuccess={handleLoginSuccess}
             onToast={showToast}
+            onBackToOfficialAccount={() => setIsOfficialAccount(true)}
           />
         ) : viewMode === 'notifications' ? (
           <NotificationView

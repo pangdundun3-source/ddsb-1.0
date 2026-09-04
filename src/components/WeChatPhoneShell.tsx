@@ -31,6 +31,9 @@ interface WeChatPhoneShellProps {
   isLoggedIn: boolean;
   hideTabBar?: boolean;
   hideFAB?: boolean;
+  isOfficialAccount?: boolean;
+  onToggleOfficialAccount?: () => void;
+  onCloseH5?: () => void;
   overlay?: React.ReactNode;
   children: React.ReactNode;
 }
@@ -48,11 +51,14 @@ export const WeChatPhoneShell: React.FC<WeChatPhoneShellProps> = ({
   isLoggedIn,
   hideTabBar = false,
   hideFAB = false,
+  isOfficialAccount = false,
+  onToggleOfficialAccount,
+  onCloseH5,
   overlay,
   children,
 }) => {
   const [isMobileFrame, setIsMobileFrame] = useState<boolean>(true);
-  const currentTime = '09:41';
+  const currentTime = '09:31';
 
   return (
     <div className="min-h-screen bg-slate-200/80 text-slate-800 flex flex-col items-center justify-start p-2 sm:p-6 font-sans">
@@ -60,12 +66,44 @@ export const WeChatPhoneShell: React.FC<WeChatPhoneShellProps> = ({
       <header className="w-full max-w-5xl mb-4 flex flex-wrap items-center justify-between gap-3 px-4 py-2 bg-white/80 backdrop-blur-md rounded-2xl shadow-xs border border-slate-200/80 text-xs text-slate-600">
         <div className="flex items-center space-x-2">
           <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
-          <span className="font-semibold text-slate-800">微信公众号 H5 预览</span>
+          <span className="font-semibold text-slate-800">微信公众号与 H5 模拟器</span>
           <span className="text-slate-400">|</span>
-          <span className="text-slate-500">{isMobileFrame ? 'iPhone 外壳模拟器' : '全屏体验'}</span>
+          <span className="text-slate-500">{isMobileFrame ? 'iPhone 容器' : '全屏体验'}</span>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 flex-wrap gap-2">
+          {/* View mode toggle: Official Account Chat vs H5 Webview */}
+          {onToggleOfficialAccount && (
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isOfficialAccount) onToggleOfficialAccount();
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5 ${
+                  isOfficialAccount
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>💬 点点速豹公众号 (1:1)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isOfficialAccount) onToggleOfficialAccount();
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5 ${
+                  !isOfficialAccount
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>📱 H5 审核工作台</span>
+              </button>
+            </div>
+          )}
+
           {onResetDemoData && (
             <button
               onClick={onResetDemoData}
@@ -116,53 +154,82 @@ export const WeChatPhoneShell: React.FC<WeChatPhoneShellProps> = ({
           isMobileFrame ? 'rounded-[38px]' : 'rounded-none'
         }`}>
           
-          {/* iOS Status Bar */}
-          <div className="bg-slate-50 pt-2.5 px-6 pb-1 flex justify-between items-center text-[11px] font-semibold text-slate-800 select-none z-30">
-            <span>{currentTime}</span>
-            <div className="flex items-center space-x-1.5 text-slate-700">
-              <Signal className="w-3.5 h-3.5" />
-              <Wifi className="w-3.5 h-3.5" />
-              <Battery className="w-4 h-4 text-slate-800" />
+          {/* iOS Status Bar (rendered for H5 views) */}
+          {!isOfficialAccount && (
+            <div className="bg-slate-50 pt-2 px-6 pb-1 flex justify-between items-center text-[11.5px] font-semibold text-black select-none z-30 shrink-0">
+              <span className="font-bold tracking-tight text-[13px]">{currentTime}</span>
+              <div className="flex items-center space-x-1.5 text-black">
+                <div className="flex items-end space-x-[2px] h-[11px] pb-[0.5px]">
+                  <div className="w-[3px] h-[4px] bg-black rounded-[0.5px]"></div>
+                  <div className="w-[3px] h-[6px] bg-black rounded-[0.5px]"></div>
+                  <div className="w-[3px] h-[8.5px] bg-black rounded-[0.5px]"></div>
+                  <div className="w-[3px] h-[11px] bg-black rounded-[0.5px]"></div>
+                </div>
+                <svg className="w-[15px] h-[15px] text-black fill-current ml-0.5" viewBox="0 0 24 24">
+                  <path d="M12 4C7.31 4 3.07 5.9 0 8.98L12 21 24 8.98C20.93 5.9 16.69 4 12 4zm0 3.5c3.8 0 7.23 1.54 9.72 4.03L12 19.34 2.28 11.53C4.77 9.04 8.2 7.5 12 7.5z" />
+                </svg>
+                <div className="flex items-center ml-0.5">
+                  <div className="w-[25px] h-[12.5px] rounded-[4px] border border-black p-[0.8px] flex items-center justify-center relative bg-[#facc15] shadow-xs">
+                    <span className="text-[9px] font-black text-black leading-none font-sans scale-90 tracking-tighter">80</span>
+                  </div>
+                  <div className="w-[1.2px] h-[4.5px] bg-black rounded-r-[1px] -ml-[0.5px]"></div>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* WeChat H5 Top Navigation Bar */}
-          <div className="bg-slate-50 border-b border-slate-200/70 px-3 py-2 z-30 select-none">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1 justify-start shrink-0">
-                <button
-                  type="button"
-                  className="p-0.5 text-slate-700/90 hover:text-slate-900 transition-colors flex items-center justify-center"
-                  aria-label="关闭"
-                  title="关闭"
-                >
-                  <X className="w-4.5 h-4.5 stroke-[2.3]" />
-                </button>
-              </div>
+          {!isOfficialAccount && (
+            <div className="bg-slate-50 border-b border-slate-200/70 px-3 py-2 z-30 select-none shrink-0">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1 justify-start shrink-0">
+                  {canGoBack && onBack && (
+                    <button
+                      type="button"
+                      onClick={onBack}
+                      className="p-1 -ml-1 text-slate-700/90 hover:text-slate-900 transition-colors flex items-center justify-center"
+                      aria-label="返回上一页"
+                      title="返回上一页"
+                    >
+                      <ChevronLeft className="w-5 h-5 stroke-[2.3]" />
+                    </button>
+                  )}
 
-              <div className="text-center font-bold text-slate-800 text-sm tracking-tight truncate flex-1">
-                {pageTitle}
-              </div>
+                  <button
+                    type="button"
+                    onClick={onCloseH5}
+                    className="p-1 text-slate-700/90 hover:text-slate-900 transition-colors flex items-center justify-center"
+                    aria-label="关闭H5返回公众号"
+                    title="关闭H5返回“点点速豹”公众号"
+                  >
+                    <X className="w-4.5 h-4.5 stroke-[2.3]" />
+                  </button>
+                </div>
 
-              <div className="flex items-center justify-end space-x-1 shrink-0">
-                <button
-                  onClick={onOpenActionSheet}
-                  className="p-1.5 hover:bg-slate-200/60 rounded-full text-slate-700 transition-colors"
-                  title="微信菜单"
-                >
-                  <MoreHorizontal className="w-5 h-5" />
-                </button>
+                <div className="text-center font-bold text-slate-800 text-sm tracking-tight truncate flex-1">
+                  {pageTitle}
+                </div>
+
+                <div className="flex items-center justify-end space-x-1 shrink-0">
+                  <button
+                    onClick={onOpenActionSheet}
+                    className="p-1.5 hover:bg-slate-200/60 rounded-full text-slate-700 transition-colors"
+                    title="微信菜单"
+                  >
+                    <MoreHorizontal className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Page Body Viewport */}
           <div className="flex-1 overflow-y-auto relative bg-slate-100/70 flex flex-col">
             {children}
           </div>
 
-          {/* Bottom WeChat Tab Bar (Only when logged in) */}
-          {isLoggedIn && !hideTabBar && (
+          {/* Bottom WeChat Tab Bar (Only when logged in and in H5 mode) */}
+          {isLoggedIn && !hideTabBar && !isOfficialAccount && (
             <nav className="bg-white border-t border-slate-200 px-2 py-1 flex items-center justify-around z-30 select-none shadow-xs relative">
               <button
                 onClick={() => onSelectTab('home')}
