@@ -22,12 +22,29 @@ import {
 import { AuditRecordItem, LogItem, NewReportFormData, OrgItem, PageId, ReportItem } from '../types';
 
 export const useAppViewModel = () => {
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    try {
+      const savedAuth = localStorage.getItem('ddsb_is_logged_in');
+      return savedAuth === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [currentUser, setCurrentUser] = useState<string>(() => {
+    try {
+      return localStorage.getItem('ddsb_current_user') || '张三';
+    } catch {
+      return '张三';
+    }
+  });
   const [activePage, setActivePage] = useState<PageId>(() => {
     try {
+      const savedAuth = localStorage.getItem('ddsb_is_logged_in');
+      if (savedAuth !== 'true') return 'login';
       const saved = localStorage.getItem('ddsb_active_page');
-      return (saved as PageId) || 'org-management';
+      return (saved as PageId) || 'portal';
     } catch {
-      return 'org-management';
+      return 'login';
     }
   });
   const [businessConfigInitialModule, setBusinessConfigInitialModule] = useState('report_template');
@@ -61,7 +78,37 @@ export const useAppViewModel = () => {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  const handleLogin = (userName: string = '张三 (系统管理员)', targetPage: PageId = 'home') => {
+    setIsLoggedIn(true);
+    setCurrentUser(userName);
+    try {
+      localStorage.setItem('ddsb_is_logged_in', 'true');
+      localStorage.setItem('ddsb_current_user', userName);
+      localStorage.setItem('ddsb_active_page', targetPage);
+    } catch {
+      // Ignore storage failures
+    }
+    setActivePage(targetPage);
+    showToast(`欢迎登录点点速豹·网络生态治理系统，当前身份：${userName}`);
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    try {
+      localStorage.setItem('ddsb_is_logged_in', 'false');
+      localStorage.setItem('ddsb_active_page', 'login');
+    } catch {
+      // Ignore storage failures
+    }
+    setActivePage('login');
+    showToast('已安全退出系统');
+  };
+
   const handleNavigate = (page: PageId, extraModule?: string) => {
+    if (page === 'login') {
+      handleLogout();
+      return;
+    }
     setActivePage(page);
     try {
       localStorage.setItem('ddsb_active_page', page);
@@ -348,6 +395,10 @@ export const useAppViewModel = () => {
       setIsNewReportModalOpen(false);
       setEditingReport(null);
     },
+    isLoggedIn,
+    currentUser,
+    handleLogin,
+    handleLogout,
     handleNavigate,
     handleCreateReport,
     handleDeleteReport,

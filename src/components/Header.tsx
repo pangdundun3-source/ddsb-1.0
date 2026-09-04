@@ -1,31 +1,46 @@
 import React, { useState } from 'react';
-import { Calendar, Bell, Headphones, ChevronDown, User, LogOut, Settings, Building2, CheckCircle2, ArrowLeftRight, Check, X } from 'lucide-react';
+import {
+  Bell,
+  ChevronDown,
+  User,
+  LogOut,
+  Building2,
+  CheckCircle2,
+  ArrowLeftRight,
+  ShieldCheck,
+  Check,
+  X
+} from 'lucide-react';
 import { Logo } from './Logo';
+import sunsetBg from '../assets/images/sunset_grassland.jpg';
 
 interface HeaderProps {
   currentUser: string;
+  onLogout?: () => void;
+  onNavigate?: (page: any) => void;
 }
 
-const AVAILABLE_ORGS = [
-  { id: '1', name: '台中市网信办', role: '超级管理员', code: 'WX-001', type: '网安指挥' },
-  { id: '2', name: '市委宣传部', role: '舆情指导处', code: 'XC-002', type: '市级部门' },
-  { id: '3', name: '西区网络网信局', role: '区县管理员', code: 'XQ-003', type: '区县机构' },
-  { id: '4', name: '北区网络网信局', role: '审核人员', code: 'BQ-004', type: '区县机构' },
-  { id: '5', name: '市发展改革委', role: '综合填报员', code: 'FG-005', type: '直属部门' }
+const ORG_OPTIONS = [
+  { name: '台中市网信办', code: 'TC-WXB-01', desc: '直属综合网信治理中枢 · 指令流转总调中心' },
+  { name: '市委宣传部舆情监测科', code: 'TC-XCB-04', desc: '新闻舆情监测预警与网络研判分析' },
+  { name: '市公安局网安支队', code: 'TC-GA-WA02', desc: '涉网违法犯罪线索协查与处置打击' },
+  { name: '市网络应急指挥中心', code: 'TC-YJ-ZH01', desc: '重大网络舆情与安全突发事件应急联调' },
+  { name: '市互联网辟谣联动中心', code: 'TC-PY-001', desc: '涉台辟谣科普与涉假网络谣言溯源' },
 ];
 
-export const Header: React.FC<HeaderProps> = ({ currentUser }) => {
+export const Header: React.FC<HeaderProps> = ({ currentUser, onLogout, onNavigate }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
-  const [currentOrg, setCurrentOrg] = useState(AVAILABLE_ORGS[0]);
-  const [showOrgModal, setShowOrgModal] = useState(false);
+  const [currentOrg, setCurrentOrg] = useState('台中市网信办');
+  const [showUserProfileModal, setShowUserProfileModal] = useState(false);
+  const [showSwitchOrgModal, setShowSwitchOrgModal] = useState(false);
   const [switchToast, setSwitchToast] = useState<string | null>(null);
 
-  const handleSwitchOrg = (org: typeof AVAILABLE_ORGS[0]) => {
-    setCurrentOrg(org);
-    setShowOrgModal(false);
+  const handleSelectOrg = (orgName: string) => {
+    setCurrentOrg(orgName);
+    setShowSwitchOrgModal(false);
     setShowUserMenu(false);
-    setSwitchToast(`已成功切换当前管理机构为：${org.name}`);
+    setSwitchToast(`已成功切换当前管理机构为：${orgName}`);
     setTimeout(() => {
       setSwitchToast(null);
     }, 3000);
@@ -44,7 +59,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser }) => {
       {/* Left Logo Section - 点点速豹 System Branding */}
       <Logo variant="header" />
 
-      {/* Right Top Bar Tools & Avatar - Simplified */}
+      {/* Right Top Bar Tools & Avatar - Unified with Portal */}
       <div className="flex items-center space-x-3.5">
         {/* Bell Notifications */}
         <div className="relative">
@@ -78,137 +93,244 @@ export const Header: React.FC<HeaderProps> = ({ currentUser }) => {
 
         <div className="h-4 w-[1px] bg-gray-200 hidden sm:block"></div>
 
-        {/* User Profile Avatar dropdown */}
+        {/* User Profile Avatar dropdown (1:1 matching screenshot and PortalHome) */}
         <div className="relative">
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
-            className="flex items-center space-x-1.5 p-1 rounded-md hover:bg-gray-100 transition-colors cursor-pointer"
+            className="flex items-center space-x-1.5 px-2 py-1 rounded-md hover:bg-gray-100 transition-all cursor-pointer select-none"
           >
-            <div className="w-6 h-6 rounded-full bg-slate-700 text-white flex items-center justify-center font-bold text-[11px]">
-              {currentUser.slice(0, 1)}
+            {/* Circular Avatar matching sunset photo in screenshot */}
+            <div className="w-7 h-7 rounded-full overflow-hidden border border-gray-300 shadow-xs shrink-0">
+              <img
+                src={sunsetBg}
+                alt="User Avatar"
+                className="w-full h-full object-cover"
+              />
             </div>
-            <div className="text-left hidden sm:block">
-              <span className="text-xs font-bold text-gray-700 block leading-tight">{currentUser}</span>
-              <span className="text-[10px] text-gray-400 block leading-none">{currentOrg.name}</span>
-            </div>
-            <ChevronDown className="w-3 h-3 text-gray-400" />
+            <span className="text-[13px] font-bold text-gray-700 tracking-wider">
+              . w .
+            </span>
+            <ChevronDown className={`w-3 h-3 text-gray-500 transition-transform duration-200 ${showUserMenu ? 'rotate-180' : ''}`} />
           </button>
 
+          {/* Dropdown Menu (1:1 with screenshot) */}
           {showUserMenu && (
-            <div className="absolute right-0 mt-2 w-52 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-50 text-xs">
-              <div className="px-3 py-2 border-b border-gray-100 bg-gray-50">
-                <p className="font-bold text-gray-800">{currentUser}</p>
-                <p className="text-blue-700 font-medium text-[10px]">{currentOrg.name} · {currentOrg.role}</p>
-              </div>
-              <button
-                onClick={() => {
-                  setShowUserMenu(false);
-                  alert(`个人中心：当前用户 ${currentUser}，权限账户正常。`);
-                }}
-                className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center space-x-2 text-gray-700 cursor-pointer"
-              >
-                <User className="w-3.5 h-3.5 text-gray-500" />
-                <span>个人中心</span>
-              </button>
-              <button
-                onClick={() => {
-                  setShowUserMenu(false);
-                  setShowOrgModal(true);
-                }}
-                className="w-full text-left px-3 py-2 hover:bg-blue-50/60 flex items-center justify-between text-gray-700 cursor-pointer group"
-              >
-                <div className="flex items-center space-x-2 text-gray-700 group-hover:text-[#1E5ABB] font-medium">
-                  <Building2 className="w-3.5 h-3.5 text-blue-600" />
+            <>
+              {/* Backdrop to close on outside click */}
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setShowUserMenu(false)}
+              />
+
+              <div className="absolute right-0 top-full mt-1.5 w-36 bg-white rounded-md shadow-2xl border border-gray-100 py-1 z-50 text-slate-700 animate-in fade-in slide-in-from-top-1 duration-150">
+                {/* 1. 个人中心 */}
+                <button
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    setShowUserProfileModal(true);
+                  }}
+                  className="w-full text-left px-4 py-2.5 hover:bg-slate-50 hover:text-blue-600 flex items-center space-x-3 text-[13px] font-normal transition-colors cursor-pointer"
+                >
+                  <User className="w-4 h-4 text-slate-500 stroke-[1.8]" />
+                  <span>个人中心</span>
+                </button>
+
+                {/* 2. 切换机构 */}
+                <button
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    setShowSwitchOrgModal(true);
+                  }}
+                  className="w-full text-left px-4 py-2.5 hover:bg-slate-50 hover:text-blue-600 flex items-center space-x-3 text-[13px] font-normal transition-colors cursor-pointer"
+                >
+                  <ArrowLeftRight className="w-4 h-4 text-slate-500 stroke-[1.8]" />
                   <span>切换机构</span>
-                </div>
-                <span className="text-[10px] bg-blue-100 text-[#1E5ABB] px-1.5 py-0.2 rounded font-bold">
-                  {currentOrg.code}
-                </span>
-              </button>
-              <button
-                onClick={() => {
-                  setShowUserMenu(false);
-                  alert('退出登录成功，已清除当前登录凭证。');
-                }}
-                className="w-full text-left px-3 py-2 hover:bg-rose-50 flex items-center space-x-2 text-red-600 border-t border-gray-100 cursor-pointer"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>退出登录</span>
-              </button>
-            </div>
+                </button>
+
+                {/* 3. 退出登录 */}
+                <button
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    if (onLogout) {
+                      onLogout();
+                    }
+                  }}
+                  className="w-full text-left px-4 py-2.5 hover:bg-slate-50 hover:text-rose-600 flex items-center space-x-3 text-[13px] font-normal transition-colors cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4 text-slate-500 stroke-[1.8]" />
+                  <span>退出登录</span>
+                </button>
+              </div>
+            </>
           )}
         </div>
       </div>
 
-      {/* Switch Organization Modal */}
-      {showOrgModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="px-5 py-4 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <div className="p-1.5 bg-blue-600 rounded-lg">
-                  <Building2 className="w-4 h-4 text-white" />
+      {/* MODAL: 个人中心 */}
+      {showUserProfileModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 text-slate-800">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-gradient-to-r from-[#193B67] to-[#255594] text-white flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center">
+                  <User className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm">切换工作机构</h3>
-                  <p className="text-[11px] text-slate-300">选择要切换到的直属或辖区机构管理身份</p>
+                  <h3 className="font-bold text-sm leading-none">个人中心</h3>
+                  <p className="text-[11px] text-white/70 mt-1">管理员账号档案与安全鉴权凭据</p>
                 </div>
               </div>
               <button
-                onClick={() => setShowOrgModal(false)}
-                className="p-1 rounded-lg hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                onClick={() => setShowUserProfileModal(false)}
+                className="p-1 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="p-4 space-y-2 max-h-96 overflow-y-auto">
-              {AVAILABLE_ORGS.map((org) => {
-                const isSelected = org.id === currentOrg.id;
+            {/* Profile Content */}
+            <div className="p-6 space-y-5 text-xs">
+              {/* Profile Card Summary */}
+              <div className="flex items-center space-x-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-white shadow-md shrink-0">
+                  <img src={sunsetBg} alt="User" className="w-full h-full object-cover" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center space-x-2">
+                    <span className="font-bold text-slate-900 text-sm">. w .</span>
+                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 font-bold rounded-full text-[10px]">
+                      超级管理员
+                    </span>
+                  </div>
+                  <div className="text-slate-500 text-[11px] mt-1 flex items-center space-x-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                    <span>{currentOrg}</span>
+                  </div>
+                  <div className="text-slate-400 text-[10px] mt-0.5">
+                    工号：WX-20260904 · 职务：网信应急研判总调度
+                  </div>
+                </div>
+              </div>
+
+              {/* Detail fields */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-slate-50/70 rounded-lg border border-slate-100">
+                  <div className="text-slate-400 text-[10px]">绑定微信</div>
+                  <div className="font-bold text-slate-700 mt-0.5 flex items-center space-x-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>wxid_2991024</span>
+                  </div>
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-lg border border-slate-100">
+                  <div className="text-slate-400 text-[10px]">联系手机</div>
+                  <div className="font-bold text-slate-700 mt-0.5">138****8899</div>
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-lg border border-slate-100">
+                  <div className="text-slate-400 text-[10px]">上次登录时间</div>
+                  <div className="font-bold text-slate-700 mt-0.5">2026-09-04 16:52</div>
+                </div>
+                <div className="p-3 bg-slate-50/70 rounded-lg border border-slate-100">
+                  <div className="text-slate-400 text-[10px]">安全等级</div>
+                  <div className="font-bold text-emerald-600 mt-0.5 flex items-center space-x-1">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>国密三级鉴权已启用</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+              <span className="text-[11px] text-slate-400">系统已全面开启防泄露水印审计</span>
+              <button
+                onClick={() => setShowUserProfileModal(false)}
+                className="px-4 py-1.5 bg-[#193B67] hover:bg-[#204a80] text-white text-xs font-bold rounded-lg cursor-pointer transition-colors"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: 切换机构 */}
+      {showSwitchOrgModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 text-slate-800">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-gradient-to-r from-[#193B67] to-[#255594] text-white flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center">
+                  <ArrowLeftRight className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm leading-none">切换机构</h3>
+                  <p className="text-[11px] text-white/70 mt-1">选择您需协同办公的网信与治理业务主体</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSwitchOrgModal(false)}
+                className="p-1 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Organization Options List */}
+            <div className="p-6 space-y-2.5 text-xs">
+              {ORG_OPTIONS.map((org) => {
+                const isSelected = currentOrg === org.name;
                 return (
                   <div
-                    key={org.id}
-                    onClick={() => handleSwitchOrg(org)}
-                    className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                    key={org.code}
+                    onClick={() => handleSelectOrg(org.name)}
+                    className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
                       isSelected
-                        ? 'bg-blue-50/80 border-[#1E5ABB] ring-1 ring-[#1E5ABB]/30 shadow-2xs'
-                        : 'bg-white border-gray-200 hover:border-blue-300 hover:bg-slate-50'
+                        ? 'bg-blue-50/80 border-blue-300 shadow-xs'
+                        : 'bg-white border-slate-200 hover:bg-slate-50'
                     }`}
                   >
-                    <div className="space-y-1">
-                      <div className="flex items-center space-x-2">
-                        <span className="font-bold text-xs text-gray-900">{org.name}</span>
-                        <span className="text-[10px] px-2 py-0.2 rounded font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                          {org.type}
-                        </span>
+                    <div className="flex items-start space-x-3">
+                      <div
+                        className={`w-4 h-4 rounded-full border flex items-center justify-center mt-0.5 shrink-0 ${
+                          isSelected
+                            ? 'border-blue-600 bg-blue-600 text-white'
+                            : 'border-slate-300 bg-white'
+                        }`}
+                      >
+                        {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
                       </div>
-                      <p className="text-[11px] text-gray-500">
-                        当前身份: <span className="font-medium text-gray-700">{org.role}</span> (编号: {org.code})
-                      </p>
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <span className={`font-bold ${isSelected ? 'text-[#193B67]' : 'text-slate-800'}`}>
+                            {org.name}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">({org.code})</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5">{org.desc}</p>
+                      </div>
                     </div>
-
-                    {isSelected ? (
-                      <div className="w-6 h-6 rounded-full bg-[#1E5ABB] text-white flex items-center justify-center shrink-0">
-                        <Check className="w-3.5 h-3.5" />
-                      </div>
-                    ) : (
-                      <div className="px-2.5 py-1 text-[11px] bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-600 font-bold rounded-lg transition-colors flex items-center space-x-1 shrink-0">
-                        <ArrowLeftRight className="w-3 h-3" />
-                        <span>切换</span>
-                      </div>
+                    {isSelected && (
+                      <span className="px-2 py-0.5 bg-blue-600 text-white rounded text-[10px] font-bold shrink-0">
+                        当前
+                      </span>
                     )}
                   </div>
                 );
               })}
             </div>
 
-            <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 text-right flex justify-between items-center text-xs">
-              <span className="text-gray-400">切换后将即时更新页面数据权限范围</span>
+            {/* Footer */}
+            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+              <span className="text-[11px] text-slate-500">
+                当前选中：<strong className="text-slate-800">{currentOrg}</strong>
+              </span>
               <button
-                onClick={() => setShowOrgModal(false)}
-                className="px-4 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-lg transition-colors cursor-pointer"
+                onClick={() => setShowSwitchOrgModal(false)}
+                className="px-5 py-1.5 bg-[#193B67] hover:bg-[#204a80] text-white text-xs font-bold rounded-lg cursor-pointer transition-colors"
               >
-                取消
+                确认切换
               </button>
             </div>
           </div>
@@ -217,3 +339,4 @@ export const Header: React.FC<HeaderProps> = ({ currentUser }) => {
     </header>
   );
 };
+

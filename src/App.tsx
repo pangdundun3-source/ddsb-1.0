@@ -24,6 +24,8 @@ import { OrgManagement } from './pages/OrgManagement';
 import { RolePermission } from './pages/RolePermission';
 import { BusinessConfig } from './pages/BusinessConfig';
 import { SystemLogs } from './pages/SystemLogs';
+import { Login } from './pages/Login';
+import { PortalHome } from './pages/PortalHome';
 
 const SYSTEM_LOGS_VIEW_VERSION = 'system-logs-filter-risk-clean-20260814';
 
@@ -31,6 +33,10 @@ export default function App() {
   const viewModel = useAppViewModel();
   const {
     activePage,
+    isLoggedIn,
+    currentUser,
+    handleLogin,
+    handleLogout,
     businessConfigInitialModule,
     reports,
     auditRecords,
@@ -67,6 +73,42 @@ export default function App() {
     handleDeleteOrg
   } = viewModel;
 
+  // Show 1:1 Login Homepage if user is not logged in or activePage is 'login'
+  if (!isLoggedIn || activePage === 'login') {
+    return (
+      <div className="min-h-screen w-full font-sans antialiased selection:bg-blue-100 selection:text-blue-900">
+        {toastMessage && (
+          <div className="fixed top-4 right-4 z-50 bg-[#1E5ABB] text-white px-4 py-2.5 rounded-lg shadow-xl text-xs font-bold flex items-center space-x-2 animate-in fade-in slide-in-from-top-2">
+            <span>✓</span>
+            <span>{toastMessage}</span>
+          </div>
+        )}
+        <Login onLogin={handleLogin} />
+      </div>
+    );
+  }
+
+  // Show 1:1 Portal Desktop Homepage after login
+  if (activePage === 'portal') {
+    return (
+      <div className="min-h-screen w-full font-sans antialiased selection:bg-amber-100 selection:text-amber-900">
+        {toastMessage && (
+          <div className="fixed top-4 right-4 z-50 bg-[#1E5ABB] text-white px-4 py-2.5 rounded-lg shadow-xl text-xs font-bold flex items-center space-x-2 animate-in fade-in slide-in-from-top-2">
+            <span>✓</span>
+            <span>{toastMessage}</span>
+          </div>
+        )}
+        <PortalHome
+          currentUser={currentUser}
+          reports={reports}
+          onNavigate={handleNavigate}
+          onSelectReport={setSelectedReport}
+          onLogout={handleLogout}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-[#F0F4F8] text-gray-800 font-sans antialiased selection:bg-blue-100 selection:text-blue-900">
       {toastMessage && (
@@ -76,7 +118,7 @@ export default function App() {
         </div>
       )}
 
-      <Header currentUser="张三" />
+      <Header currentUser={currentUser} onLogout={handleLogout} onNavigate={handleNavigate} />
 
       <Navbar
         activePage={activePage}
