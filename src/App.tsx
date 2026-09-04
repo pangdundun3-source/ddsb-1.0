@@ -24,6 +24,7 @@ import { DetailModal } from './components/DetailModal';
 import { ActionSheet } from './components/ActionSheet';
 import { Toast, ToastMessage } from './components/Toast';
 import { OfficialAccountEntryView } from './components/OfficialAccountEntryView';
+import { ActivationH5View } from './components/ActivationH5View';
 
 export default function App() {
   // Application State with LocalStorage Persistence
@@ -62,6 +63,7 @@ export default function App() {
   const [isFormMode, setIsFormMode] = useState<boolean>(false);
   const [isProfileDetail, setIsProfileDetail] = useState<boolean>(false);
   const [isActivationDetail, setIsActivationDetail] = useState<boolean>(false);
+  const [isActivationH5View, setIsActivationH5View] = useState<boolean>(false);
   const [profileSubPage, setProfileSubPage] = useState<'report' | 'audit' | 'notifications' | null>(null);
   const [previousTab, setPreviousTab] = useState<AppTab | null>(null);
   const [isActionSheetOpen, setIsActionSheetOpen] = useState<boolean>(false);
@@ -507,9 +509,19 @@ export default function App() {
         reportPendingCount={reportPendingCount}
         onOpenActionSheet={() => setIsActionSheetOpen(true)}
         onResetDemoData={handleResetDemoData}
-        isOfficialAccount={isOfficialAccount}
-        onToggleOfficialAccount={() => setIsOfficialAccount((prev) => !prev)}
+        isOfficialAccount={!isActivationH5View && isOfficialAccount}
+        onToggleOfficialAccount={() => {
+          if (isActivationH5View) {
+            setIsActivationH5View(false);
+            setIsOfficialAccount(true);
+          } else {
+            setIsOfficialAccount((prev) => !prev);
+          }
+        }}
         onCloseH5={() => {
+          if (isActivationH5View) {
+            setIsActivationH5View(false);
+          }
           setIsOfficialAccount(true);
           showToast('已返回“点点速豹”公众号');
         }}
@@ -524,7 +536,10 @@ export default function App() {
           isActivationDetail
         }
         onBack={() => {
-          if (selectedReport) {
+          if (isActivationH5View) {
+            setIsActivationH5View(false);
+            setIsOfficialAccount(true);
+          } else if (selectedReport) {
             handleCloseReportDetail();
           } else if (viewMode === 'notifications') {
             setViewMode('main');
@@ -540,9 +555,10 @@ export default function App() {
             setIsActivationDetail(false);
           }
         }}
-        pageTitle={isOfficialAccount ? '点点速豹' : getPageTitle()}
+        pageTitle={isActivationH5View ? '账号激活与实名认证' : isOfficialAccount ? '点点速豹' : getPageTitle()}
         isLoggedIn={isLoggedIn}
         hideTabBar={
+          isActivationH5View ||
           isOfficialAccount ||
           viewMode === 'notifications' ||
           isFormMode ||
@@ -554,6 +570,7 @@ export default function App() {
           isActivationDetail
         }
         hideFAB={
+          isActivationH5View ||
           isOfficialAccount ||
           viewMode === 'notifications' ||
           isFormMode ||
@@ -579,7 +596,34 @@ export default function App() {
           </>
         }
       >
-        {isOfficialAccount ? (
+        {isActivationH5View ? (
+          <ActivationH5View
+            user={user}
+            onCompleteActivation={(activatedData, targetRole) => {
+              setUser((prev) => ({
+                ...prev,
+                ...activatedData,
+                role: targetRole,
+              }));
+              setIsActivationH5View(false);
+              setIsLoggedIn(true);
+              setIsOfficialAccount(false);
+              if (targetRole === '审核员') {
+                setCurrentTab('audit');
+              } else {
+                setCurrentTab('home');
+              }
+              setViewMode('main');
+              showToast(`🎉 激活成功！已为您进入【${targetRole}】工作台`, 'success');
+            }}
+            onCancel={() => {
+              setIsActivationH5View(false);
+              setIsOfficialAccount(true);
+              showToast('已取消激活并返回“点点速豹”公众号');
+            }}
+            onToast={showToast}
+          />
+        ) : isOfficialAccount ? (
           <OfficialAccountEntryView
             onEnterReport={() => {
               setIsOfficialAccount(false);
@@ -614,6 +658,9 @@ export default function App() {
             onEnterLogin={() => {
               setIsLoggedIn(false);
               setIsOfficialAccount(false);
+            }}
+            onEnterActivationH5={() => {
+              setIsActivationH5View(true);
             }}
             onToast={showToast}
           />

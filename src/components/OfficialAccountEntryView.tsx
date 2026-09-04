@@ -30,6 +30,7 @@ interface OfficialAccountEntryViewProps {
   onEnterReportList: () => void;
   onEnterWorkbench: (role?: UserRole) => void;
   onEnterLogin: () => void;
+  onEnterActivationH5?: () => void;
   onToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
 }
 
@@ -49,6 +50,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
   onEnterReportList,
   onEnterWorkbench,
   onEnterLogin,
+  onEnterActivationH5,
   onToast,
 }) => {
   // Mode: custom menu vs text chat input
@@ -65,6 +67,15 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
   useEffect(() => {
     localStorage.setItem('wechat_v8_user_activated', JSON.stringify(isActivated));
   }, [isActivated]);
+
+  // Open H5 Activation flow
+  const handleOpenActivation = () => {
+    if (onEnterActivationH5) {
+      onEnterActivationH5();
+    } else {
+      setShowActivationModal(true);
+    }
+  };
 
   // Chat conversation messages
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -118,8 +129,8 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
       } else if (userMsgText.includes('激活') || userMsgText.includes('开通') || userMsgText.includes('认证')) {
         replyText = '新关注用户须先完成微信账号激活，激活后即可正常使用平台所有功能：';
         cardAction = {
-          label: '立即激活微信账号',
-          action: () => setShowActivationModal(true),
+          label: '立即进入激活认证 H5',
+          action: () => handleOpenActivation(),
         };
       }
 
@@ -295,7 +306,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
           className="bg-white rounded-xl p-4 border border-black/[0.06] shadow-xs text-xs text-slate-700 mt-4 cursor-pointer hover:shadow-md transition-all active:scale-[0.99] group"
           onClick={() => {
             if (!isActivated) {
-              setShowActivationModal(true);
+              handleOpenActivation();
             } else {
               onToast('账号已激活，正在为您进入工作台...', 'success');
               onEnterWorkbench('综合网格员');
@@ -697,13 +708,13 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
               </button>
               <button
                 onClick={() => {
-                  setIsActivated(true);
                   setShowActivationModal(false);
-                  onToast('🎉 账号激活成功！平台全部功能现已向您开放', 'success');
+                  handleOpenActivation();
                 }}
-                className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-xs shadow-md shadow-blue-600/20 transition-all"
+                className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-xs shadow-md shadow-blue-600/20 transition-all flex items-center justify-center space-x-1"
               >
-                立即完成激活
+                <span>进入激活认证 H5</span>
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
 
