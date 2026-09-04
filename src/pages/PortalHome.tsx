@@ -59,6 +59,7 @@ export const PortalHome: React.FC<PortalHomeProps> = ({
   const [showSwitchOrgModal, setShowSwitchOrgModal] = useState(false);
   const [currentOrg, setCurrentOrg] = useState('台中市网信办');
   const [activeAppModal, setActiveAppModal] = useState<string | null>(null);
+  const [activePortalTab, setActivePortalTab] = useState<'grid' | 'profile' | 'notifications' | 'org-users' | 'org-apps'>('grid');
 
   // Search filter
   const filteredReports = searchQuery.trim()
@@ -232,7 +233,7 @@ export const PortalHome: React.FC<PortalHomeProps> = ({
                   <button
                     onClick={() => {
                       setShowUserMenu(false);
-                      setShowUserProfileModal(true);
+                      setActivePortalTab('profile');
                     }}
                     className="w-full text-left px-4 py-2.5 hover:bg-slate-50 hover:text-blue-600 flex items-center space-x-3 text-[13px] font-normal transition-colors cursor-pointer"
                   >
@@ -270,8 +271,65 @@ export const PortalHome: React.FC<PortalHomeProps> = ({
         </div>
       </header>
 
-      {/* 4. Center Main Section (Slogan + Search + 9 Application Cards) */}
-      <main className="relative z-10 flex-1 max-w-[1440px] w-full mx-auto px-6 sm:px-12 lg:px-16 flex flex-col justify-center py-6 sm:py-10">
+      {/* Sub-navigation bar when not on grid home */}
+      {activePortalTab !== 'grid' && (
+        <div className="relative z-20 w-full bg-[#18355E]/85 backdrop-blur-md border-b border-white/15 px-6 sm:px-10 lg:px-14 py-2.5 flex items-center space-x-6 text-sm shadow-md">
+          <button
+            onClick={() => setActivePortalTab('grid')}
+            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/25 text-white transition-colors cursor-pointer flex items-center justify-center shadow-xs"
+            title="返回应用门户首页"
+          >
+            <Layers className="w-4 h-4" />
+          </button>
+          
+          <div className="flex items-center space-x-1.5 overflow-x-auto">
+            <button
+              onClick={() => setActivePortalTab('profile')}
+              className={`px-4 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                activePortalTab === 'profile'
+                  ? 'bg-[#B8860B] text-white shadow-md'
+                  : 'text-white/80 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              基本信息
+            </button>
+            <button
+              onClick={() => setActivePortalTab('notifications')}
+              className={`px-4 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                activePortalTab === 'notifications'
+                  ? 'bg-[#B8860B] text-white shadow-md'
+                  : 'text-white/80 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              消息通知
+            </button>
+            <button
+              onClick={() => setActivePortalTab('org-users')}
+              className={`px-4 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                activePortalTab === 'org-users'
+                  ? 'bg-[#B8860B] text-white shadow-md'
+                  : 'text-white/80 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              机构用户
+            </button>
+            <button
+              onClick={() => setActivePortalTab('org-apps')}
+              className={`px-4 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                activePortalTab === 'org-apps'
+                  ? 'bg-[#B8860B] text-white shadow-md'
+                  : 'text-white/80 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              机构应用
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Center Main Section (Conditional: Grid Home vs Profile Tab vs Others) */}
+      {activePortalTab === 'grid' ? (
+        <main className="relative z-10 flex-1 max-w-[1440px] w-full mx-auto px-6 sm:px-12 lg:px-16 flex flex-col justify-center py-6 sm:py-10">
         {/* Center Slogan with Green Hand-Drawn Doodle */}
         <div className="text-center mb-7 sm:mb-8">
           <div className="inline-flex items-center justify-center flex-wrap text-[30px] sm:text-[36px] lg:text-[40px] font-black tracking-wider text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.6)]">
@@ -544,9 +602,151 @@ export const PortalHome: React.FC<PortalHomeProps> = ({
                 数解舆情
               </span>
             </div>
+
+            {/* 10. 点点速豹 (正式版 - Orange/Amber) */}
+            <div
+              onClick={() => handleAppClick('点点速豹')}
+              className="group flex flex-col items-center cursor-pointer transition-all active:scale-95"
+            >
+              <div className="relative w-20 h-20 sm:w-[92px] sm:h-[92px] bg-white rounded-[24px] shadow-[0_10px_25px_rgba(0,0,0,0.25)] flex items-center justify-center p-3 group-hover:-translate-y-1.5 transition-transform duration-300 ring-2 ring-amber-400/50">
+                {/* Badge: 正式版 */}
+                <div className="absolute -top-1.5 -right-1.5 bg-[#EA580C] text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm leading-none">
+                  正式版
+                </div>
+                {/* Cheetah / Speed Leopard Vector Emblem */}
+                <div className="w-12 h-12 flex items-center justify-center text-[#EA580C]">
+                  <svg viewBox="0 0 36 36" className="w-11 h-11" fill="none">
+                    <path
+                      d="M6,22 C9,17 14,14 20,14 C22.5,14 25,15 27,16.5 L31,13 L29,19 C31,21 32,23.5 32,26 C32,27 31,28 30,28 C26,28 23,24 20,24 C16,24 12,27 8,27 C6.5,27 6,25 6,22 Z"
+                      fill="#EA580C"
+                      opacity="0.2"
+                    />
+                    <path
+                      d="M7,20 C10,15 15,13 21,13 C24,13 27,14.5 29,16.5 L32,13 L30.5,19 C32,21 32.5,23 32,25 C31,26.5 29,26.5 27.5,25.5 C24.5,23.5 21.5,23 18.5,23 C14.5,23 11,26 7.5,26 C6,26 5.5,24 7,20 Z"
+                      stroke="#EA580C"
+                      strokeWidth="2.2"
+                      strokeLinejoin="round"
+                    />
+                    <circle cx="28" cy="18" r="1.8" fill="#EA580C" />
+                    <path
+                      d="M13,7 L7,15 L14,15 L10,22"
+                      stroke="#D97706"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </div>
+              </div>
+              <span className="mt-2.5 text-sm sm:text-[15px] font-medium text-white tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.7)] group-hover:text-amber-200 transition-colors">
+                点点速豹
+              </span>
+            </div>
           </div>
         </div>
       </main>
+      ) : activePortalTab === 'profile' ? (
+        <main className="relative z-10 flex-1 max-w-[1440px] w-full mx-auto px-6 sm:px-12 lg:px-16 py-8">
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-white/40 p-6 sm:p-10 text-slate-800 animate-in fade-in duration-200">
+            {/* Card Header & Tools */}
+            <div className="flex items-center justify-between pb-6 border-b border-slate-100">
+              <h2 className="text-lg font-extrabold text-[#193B67] tracking-wider">基本信息</h2>
+              <div className="flex items-center space-x-1.5 bg-slate-100/80 rounded-lg p-1 text-slate-600">
+                <button className="p-1.5 rounded hover:bg-white transition-colors cursor-pointer" title="翻译">
+                  <Globe className="w-4 h-4" />
+                </button>
+                <button className="p-1.5 rounded hover:bg-white transition-colors cursor-pointer" title="语音朗读">
+                  <Headphones className="w-4 h-4" />
+                </button>
+                <button className="p-1.5 rounded hover:bg-white transition-colors cursor-pointer" title="发送">
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                <button className="p-1.5 rounded hover:bg-white transition-colors cursor-pointer font-bold text-xs" title="字号">
+                  A
+                </button>
+              </div>
+            </div>
+
+            {/* Golden Gradient Banner matching screenshot */}
+            <div className="mt-6 bg-gradient-to-r from-amber-100/90 via-amber-50/70 to-amber-200/80 rounded-2xl p-6 sm:p-8 border border-amber-200/80 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+              <div className="flex items-center space-x-5">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-white shadow-md shrink-0">
+                  <img src={sunsetBg} alt="Avatar" className="w-full h-full object-cover" />
+                </div>
+                <div className="flex flex-col space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xl font-bold text-slate-900 tracking-wide">. w .</span>
+                    <button className="text-slate-400 hover:text-blue-600 transition-colors cursor-pointer">
+                      <span className="text-xs">✎</span>
+                    </button>
+                  </div>
+                  <div className="flex items-center space-x-4 text-xs sm:text-sm text-slate-700 flex-wrap gap-y-1">
+                    <div className="flex items-center space-x-1.5">
+                      <Phone className="w-3.5 h-3.5 text-amber-600" />
+                      <span>联系电话：178****9573</span>
+                      <button className="text-slate-400 hover:text-blue-600 transition-colors cursor-pointer ml-1">
+                        <span className="text-xs">✎</span>
+                      </button>
+                    </div>
+                    <div className="flex items-center space-x-1.5">
+                      <div className="w-3.5 h-3.5 rounded-full bg-emerald-600 flex items-center justify-center text-white text-[9px] font-bold">微</div>
+                      <span>微信昵称：· W ·</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Info Details Grid matching screenshot */}
+            <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-6 pt-6 border-t border-slate-100 text-sm">
+              <div className="flex items-start space-x-3">
+                <Building className="w-5 h-5 text-[#193B67] shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-xs text-slate-400 font-medium">机构名称</div>
+                  <div className="text-sm font-bold text-slate-900 mt-1">{currentOrg}</div>
+                </div>
+              </div>
+              <div className="flex items-start space-x-3">
+                <Building2 className="w-5 h-5 text-[#193B67] shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-xs text-slate-400 font-medium">机构简称</div>
+                  <div className="text-sm font-bold text-slate-900 mt-1">{currentOrg}</div>
+                </div>
+              </div>
+              <div className="flex items-start space-x-3">
+                <Shield className="w-5 h-5 text-[#193B67] shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-xs text-slate-400 font-medium">机构类型</div>
+                  <div className="text-sm font-bold text-slate-900 mt-1">网安部门</div>
+                </div>
+              </div>
+              <div className="flex items-start space-x-3 pt-4">
+                <Globe className="w-5 h-5 text-[#193B67] shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-xs text-slate-400 font-medium">所属地区</div>
+                  <div className="text-sm font-bold text-slate-900 mt-1">陕西</div>
+                </div>
+              </div>
+              <div className="flex items-start space-x-3 pt-4">
+                <Search className="w-5 h-5 text-[#193B67] shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-xs text-slate-400 font-medium">详细地址</div>
+                  <div className="text-sm font-bold text-slate-900 mt-1">--</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      ) : (
+        <main className="relative z-10 flex-1 max-w-[1440px] w-full mx-auto px-6 sm:px-12 lg:px-16 py-8">
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-white/40 p-8 text-slate-800 text-center">
+            <h3 className="text-lg font-bold text-[#193B67]">
+              {activePortalTab === 'notifications' ? '消息通知管理' : activePortalTab === 'org-users' ? '机构用户管理' : '机构应用管理'}
+            </h3>
+            <p className="text-xs text-slate-500 mt-2">当前机构 ({currentOrg}) 相关业务协同与权限配置区域。</p>
+          </div>
+        </main>
+      )}
 
       {/* 5. Bottom Right Floating Settings Button (1:1 with photo) */}
       <div className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-30">
