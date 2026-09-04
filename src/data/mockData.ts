@@ -3,6 +3,14 @@ import type { OrgAccount } from '../types';
 
 export const AVAILABLE_ORGS: OrgAccount[] = [
   {
+    id: '0',
+    name: '禁用-测试机构 (台湾省)',
+    role: '上报员 · 审核员',
+    roles: ['上报员', '审核员'],
+    code: 'TEST-000',
+    type: '测试机构'
+  },
+  {
     id: '1',
     name: '台中市网信办',
     role: '上报员 · 审核员',
@@ -12,35 +20,11 @@ export const AVAILABLE_ORGS: OrgAccount[] = [
   },
   {
     id: '2',
-    name: '市委宣传部',
-    role: '上报员 · 审核员',
-    roles: ['上报员', '审核员'],
-    code: 'XC-002',
-    type: '市级部门'
-  },
-  {
-    id: '3',
     name: '西区网络网信局',
     role: '上报员 · 审核员',
     roles: ['上报员', '审核员'],
-    code: 'XQ-003',
+    code: 'XQ-002',
     type: '区县机构'
-  },
-  {
-    id: '4',
-    name: '北区网络网信局',
-    role: '上报员 · 审核员',
-    roles: ['上报员', '审核员'],
-    code: 'BQ-004',
-    type: '区县机构'
-  },
-  {
-    id: '5',
-    name: '市发展改革委',
-    role: '上报员 · 审核员',
-    roles: ['上报员', '审核员'],
-    code: 'FG-005',
-    type: '直属部门'
   }
 ];
 
