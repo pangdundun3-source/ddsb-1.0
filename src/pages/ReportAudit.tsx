@@ -1,5 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { PaginationBar } from '../components/PaginationBar';
+import { OrgPathDisplay, getOrganizationPathText } from '../components/OrgPathDisplay';
+import { AuditStatusBadge } from '../components/AuditStatusBadge';
 import { ReportItem, PageId } from '../types';
+import { isFinalAuditStage } from '../auditStage';
 import {
   Search,
   RotateCcw,
@@ -29,9 +33,9 @@ interface ReportAuditProps {
   auditPendingList: ReportItem[];
   allReports?: ReportItem[];
   onSelectAudit: (report: ReportItem) => void;
-  onApproveAudit?: (id: number, score: number, isBatch?: boolean) => void;
+  onApproveAudit?: (id: number, score?: number, isBatch?: boolean) => void;
   onRejectAudit?: (id: number, reason: string, detail: string) => void;
-  onBatchApprove?: (ids: number[], score: number) => void;
+  onBatchApprove?: (ids: number[], score?: number) => void;
   onBatchReject?: (ids: number[], reason: string, detail: string) => void;
   onDeleteReport: (id: number) => void;
   onNavigate: (page: PageId) => void;
@@ -62,7 +66,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
   const [batchActionMode, setBatchActionMode] = useState<'reject' | 'pass'>('reject');
   const [batchRejectReason, setBatchRejectReason] = useState('内容重复/同源');
   const [batchRejectDetail, setBatchRejectDetail] = useState('属于相同来源链接/同地址重复表达，要素存在遗漏，批量予以驳回。');
-  const [batchScore, setBatchScore] = useState(95);
+  const [batchScore, setBatchScore] = useState(5);
 
   // URL Jump Live Preview Modal
   const [previewUrlItem, setPreviewUrlItem] = useState<ReportItem | null>(null);
@@ -70,7 +74,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
   // Single Quick Audit Modal
   const [quickAuditItem, setQuickAuditItem] = useState<ReportItem | null>(null);
   const [quickAuditMode, setQuickAuditMode] = useState<'pass' | 'reject'>('pass');
-  const [quickScore, setQuickScore] = useState(95);
+  const [quickScore, setQuickScore] = useState(5);
   const [quickRejectReason, setQuickRejectReason] = useState('信息不完整');
   const [quickRejectDetail, setQuickRejectDetail] = useState('');
 
@@ -105,8 +109,9 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
       const matchSummary = item.detailContent?.summary?.toLowerCase().includes(q);
       const matchSource = item.source?.toLowerCase().includes(q);
       const matchOrg = item.organization?.toLowerCase().includes(q);
+      const matchOrgPath = getOrganizationPathText(item.organization).toLowerCase().includes(q);
       const matchAddress = item.occurAddress?.toLowerCase().includes(q);
-      if (!matchTitle && !matchAuthor && !matchSummary && !matchSource && !matchOrg && !matchAddress) {
+      if (!matchTitle && !matchAuthor && !matchSummary && !matchSource && !matchOrg && !matchOrgPath && !matchAddress) {
         return false;
       }
     }
@@ -155,12 +160,24 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
     setIsBatchMatchActive(false);
   };
 
+  // Pagination (页码管理 + 每页条数设置)
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, keyword, selectedOrg, startDate, endDate, isBatchMatchActive]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedReports = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
   const openBatchModal = (cluster: { url: string; items: ReportItem[] }) => {
     setBatchModalGroup(cluster);
     setBatchActionMode('reject');
     setBatchRejectReason('内容重复/同源');
     setBatchRejectDetail('属于相同来源链接/同地址重复表达，要素存在遗漏，批量予以驳回。');
-    setBatchScore(95);
+    setBatchScore(5);
   };
 
   const handleExecuteBatchAudit = () => {
@@ -174,10 +191,14 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
         ids.forEach((id) => onRejectAudit(id, batchRejectReason, batchRejectDetail));
       }
     } else {
+      const canScore = batchModalGroup.items.every((item) => isFinalAuditStage(item));
       if (onBatchApprove) {
-        onBatchApprove(ids, batchScore);
+        onBatchApprove(ids, canScore ? batchScore : undefined);
       } else if (onApproveAudit) {
-        ids.forEach((id) => onApproveAudit(id, batchScore, true));
+        ids.forEach((id) => {
+          const item = batchModalGroup.items.find((candidate) => candidate.id === id);
+          onApproveAudit(id, item && isFinalAuditStage(item) ? batchScore : undefined, true);
+        });
       }
     }
     setBatchModalGroup(null);
@@ -186,7 +207,13 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
   const handleExecuteQuickAudit = () => {
     if (!quickAuditItem) return;
     if (quickAuditMode === 'pass') {
-      if (onApproveAudit) onApproveAudit(quickAuditItem.id, quickScore, false);
+      if (onApproveAudit) {
+        onApproveAudit(
+          quickAuditItem.id,
+          isFinalAuditStage(quickAuditItem) ? quickScore : undefined,
+          false
+        );
+      }
     } else {
       if (onRejectAudit) onRejectAudit(quickAuditItem.id, quickRejectReason, quickRejectDetail);
     }
@@ -209,7 +236,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
             </div>
             <p className="text-xs text-blue-100/80 mt-1 flex items-center space-x-1.5">
               <Calendar className="w-3.5 h-3.5" />
-              <span>默认显示近三个月的数据 · 审核工作台</span>
+              <span>集中处理审核待办、同源批量匹配及审核记录事项 · 审核待办</span>
             </p>
           </div>
 
@@ -326,9 +353,9 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
             </div>
           </div>
 
-          {/* 上报时间 */}
+          {/* 报送时间 */}
           <div className="flex items-center space-x-2 shrink-0">
-            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">上报时间</label>
+            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">报送时间</label>
             <div className="flex items-center space-x-1.5">
               <input
                 type="date"
@@ -450,8 +477,8 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                   <th className="py-3.5 px-4 min-w-[240px]">事件标题</th>
                   <th className="py-3.5 px-4 min-w-[200px]">内容描述</th>
                   <th className="py-3.5 px-4 min-w-[170px] whitespace-nowrap">上报人员 / 机构</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap">上报时间</th>
-                  <th className="py-3.5 px-4 text-center whitespace-nowrap">状态</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">报送时间</th>
+                  <th className="py-3.5 px-4 text-center whitespace-nowrap">审核状态</th>
                   <th className="py-3.5 px-4 text-center min-w-[140px] whitespace-nowrap">操作</th>
                 </tr>
               </thead>
@@ -533,9 +560,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                               </td>
                               <td className="py-3 px-4">
                                 <div className="font-semibold text-gray-900 leading-snug">{item.author}</div>
-                                <div className="text-gray-500 text-[11px] truncate max-w-[180px] mt-0.5" title={item.organization}>
-                                  {item.organization}
-                                </div>
+                                <OrgPathDisplay organization={item.organization} className="max-w-[220px]" />
                               </td>
                               <td className="py-3 px-4 font-mono text-gray-500 whitespace-nowrap text-xs">
                                 {item.submitTime}
@@ -576,7 +601,12 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                                 {isAdopted && (
                                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                    已采纳
+                                    {item.auditStatus}
+                                  </span>
+                                )}
+                                {!isPending && !isRejected && !isAdopted && (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                                    {item.auditStatus}
                                   </span>
                                 )}
                               </td>
@@ -592,17 +622,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                                     }}
                                     className="text-[#1E5ABB] hover:underline font-bold text-xs cursor-pointer"
                                   >
-                                    审核
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      if (confirm(`确定删除《${item.title}》吗？`)) {
-                                        onDeleteReport(item.id);
-                                      }
-                                    }}
-                                    className="text-rose-500 hover:text-rose-700 hover:underline text-xs cursor-pointer"
-                                  >
-                                    删除
+                                    {isPending ? '审核' : '详情'}
                                   </button>
                                 </div>
                               </td>
@@ -651,9 +671,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                           </td>
                           <td className="py-3 px-4">
                             <div className="font-semibold text-gray-900 leading-snug">{item.author}</div>
-                            <div className="text-gray-500 text-[11px] truncate max-w-[180px] mt-0.5" title={item.organization}>
-                              {item.organization}
-                            </div>
+                            <OrgPathDisplay organization={item.organization} className="max-w-[220px]" />
                           </td>
                           <td className="py-3 px-4 font-mono text-gray-500 whitespace-nowrap text-xs">
                             {item.submitTime}
@@ -694,7 +712,12 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                             {isAdopted && (
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                已采纳
+                                  {item.auditStatus}
+                              </span>
+                            )}
+                            {!isPending && !isRejected && !isAdopted && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                                {item.auditStatus}
                               </span>
                             )}
                           </td>
@@ -707,18 +730,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                                 }}
                                 className="text-[#1E5ABB] hover:text-[#134092] hover:underline font-bold text-xs cursor-pointer"
                               >
-                                审核
-                              </button>
-                              <span className="text-gray-300">|</span>
-                              <button
-                                onClick={() => {
-                                  if (confirm(`确定删除《${item.title}》吗？`)) {
-                                    onDeleteReport(item.id);
-                                  }
-                                }}
-                                className="text-rose-500 hover:text-rose-700 hover:underline text-xs cursor-pointer"
-                              >
-                                删除
+                                {isPending ? '审核' : '详情'}
                               </button>
                             </div>
                           </td>
@@ -728,14 +740,14 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                   </>
                 ) : (
                   /* Flat table when matching is disabled or no clusters */
-                  filtered.map((item, index) => {
+                  pagedReports.map((item, index) => {
                     const isPending = item.auditStatus === '待审核';
                     const isRejected = item.auditStatus === '被驳回' || item.auditStatus === '已驳回';
                     const isAdopted = item.auditStatus === '已采纳' || item.auditStatus === '已通过';
 
                     return (
                       <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
-                        <td className="py-3 px-4 text-center text-gray-400 font-mono text-xs">{index + 1}</td>
+                        <td className="py-3 px-4 text-center text-gray-400 font-mono text-xs">{(safePage - 1) * pageSize + index + 1}</td>
                         <td className="py-3 px-4">
                           <button
                             onClick={() => {
@@ -754,9 +766,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                         </td>
                         <td className="py-3 px-4">
                           <div className="font-semibold text-gray-900 leading-snug">{item.author}</div>
-                          <div className="text-gray-500 text-[11px] truncate max-w-[180px] mt-0.5" title={item.organization}>
-                            {item.organization}
-                          </div>
+                          <OrgPathDisplay organization={item.organization} className="max-w-[220px]" />
                         </td>
                         <td className="py-3 px-4 font-mono text-gray-500 whitespace-nowrap text-xs">
                           {item.submitTime}
@@ -797,7 +807,12 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                           {isAdopted && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                              已采纳
+                              {item.auditStatus}
+                            </span>
+                          )}
+                          {!isPending && !isRejected && !isAdopted && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                              {item.auditStatus}
                             </span>
                           )}
                         </td>
@@ -810,18 +825,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                               }}
                               className="text-[#1E5ABB] hover:text-[#134092] hover:underline font-bold text-xs cursor-pointer"
                             >
-                              审核
-                            </button>
-                            <span className="text-gray-300">|</span>
-                            <button
-                              onClick={() => {
-                                if (confirm(`确定删除《${item.title}》吗？`)) {
-                                  onDeleteReport(item.id);
-                                }
-                              }}
-                              className="text-rose-500 hover:text-rose-700 hover:underline text-xs cursor-pointer"
-                            >
-                              删除
+                                {isPending ? '审核' : '详情'}
                             </button>
                           </div>
                         </td>
@@ -834,19 +838,17 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
           </div>
 
           {/* Footer Pagination */}
-          <div className="px-6 py-3 bg-gray-50/60 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
-            <div>共 {filtered.length} 条记录</div>
-            <div className="flex items-center space-x-2">
-              <button className="px-2.5 py-1 border rounded bg-white hover:bg-gray-50 disabled:opacity-50 cursor-pointer">&lt;</button>
-              <span className="px-3 py-1 bg-[#1E5ABB] text-white rounded font-bold">1</span>
-              <button className="px-2.5 py-1 border rounded bg-white hover:bg-gray-50 disabled:opacity-50 cursor-pointer">&gt;</button>
-              <span className="ml-2 text-gray-400">跳转至</span>
-              <input
-                type="text"
-                defaultValue="1"
-                className="w-8 px-1.5 py-0.5 border border-gray-300 rounded text-center focus:outline-none"
-              />
-            </div>
+          <div className="bg-gray-50/80 border-t border-gray-100">
+            <PaginationBar
+              total={filtered.length}
+              page={safePage}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setCurrentPage(1);
+              }}
+            />
           </div>
         </div>
       ) : (
@@ -858,7 +860,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
               当前分类下暂无待处理记录
             </div>
           ) : (
-            filtered.map((item) => {
+            pagedReports.map((item) => {
               const isPending = item.auditStatus === '待审核';
               const isRejected = item.auditStatus === '被驳回' || item.auditStatus === '已驳回';
               const isAdopted = item.auditStatus === '已采纳' || item.auditStatus === '已通过';
@@ -880,17 +882,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                       >
                         {item.title}
                       </h4>
-                      <span
-                        className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                          isPending
-                            ? 'bg-amber-100 text-amber-800 border-amber-200'
-                            : isRejected
-                            ? 'bg-rose-100 text-rose-700 border-rose-200'
-                            : 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                        }`}
-                      >
-                        {item.auditStatus}
-                      </span>
+                      <AuditStatusBadge status={item.auditStatus} className="shrink-0" />
                     </div>
 
                     {/* Match URL Link tag */}
@@ -914,10 +906,13 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
 
                   {/* Footer */}
                   <div className="pt-3 mt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
-                    <div className="flex items-center space-x-1 text-[11px]">
-                      <span className="text-gray-800 font-medium">{item.author}</span>
-                      <span>·</span>
-                      <span className="font-mono">{item.submitTime.slice(5)}</span>
+                    <div className="flex min-w-0 flex-col text-[11px]">
+                      <div className="flex items-center space-x-1">
+                        <span className="text-gray-800 font-medium">{item.author}</span>
+                        <span>·</span>
+                        <span className="font-mono">{item.submitTime.slice(5)}</span>
+                      </div>
+                      <OrgPathDisplay organization={item.organization} compact className="max-w-[210px]" />
                     </div>
 
                     <button
@@ -935,6 +930,19 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
               );
             })
           )}
+          {/* Cards Footer / Pagination */}
+          <div className="col-span-full mt-4 rounded-xl border border-gray-200/90 shadow-2xs overflow-hidden bg-gray-50/80">
+            <PaginationBar
+              total={filtered.length}
+              page={safePage}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
         </div>
       )}
 
@@ -971,7 +979,9 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                   {batchModalGroup.items.map((item, idx) => (
                     <div key={item.id} className="p-2 bg-white rounded-lg border border-amber-100 flex items-center justify-between text-xs">
                       <span className="font-bold text-gray-800 truncate">{idx + 1}. {item.title}</span>
-                      <span className="text-[10px] text-gray-400 shrink-0 ml-2">{item.organization} · {item.author}</span>
+                      <span className="text-[10px] text-gray-400 shrink-0 ml-2" title={getOrganizationPathText(item.organization)}>
+                        {getOrganizationPathText(item.organization)} · {item.author}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -1015,30 +1025,32 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                 <div className="p-3.5 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-3 animate-in fade-in">
                   <div className="flex items-center space-x-1.5 text-emerald-700 font-bold">
                     <Check className="w-4 h-4" />
-                    <span>审核通过并采纳</span>
+                    <span>{batchModalGroup.items.every((item) => isFinalAuditStage(item)) ? '审核通过并评分' : '审核通过'}</span>
                   </div>
 
                   <p className="text-[11px] text-emerald-800 bg-white p-2.5 rounded-lg border border-emerald-100">
                     确认后将批量审核通过这 {batchModalGroup.items.length} 条速报，并合并流转进入下一处理节点。
                   </p>
 
-                  <div>
-                    <label className="block text-gray-700 font-semibold mb-1">评分考核分值</label>
-                    <div className="flex space-x-2">
-                      {[95, 90, 85, 80].map((score) => (
-                        <button
-                          key={score}
-                          type="button"
-                          onClick={() => setBatchScore(score)}
-                          className={`px-3 py-1 rounded-lg font-bold cursor-pointer ${
-                            batchScore === score ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700'
-                          }`}
-                        >
-                          {score}分
-                        </button>
-                      ))}
+                  {batchModalGroup.items.every((item) => isFinalAuditStage(item)) && (
+                    <div>
+                      <label className="block text-gray-700 font-semibold mb-1">终审评分</label>
+                      <div className="flex flex-wrap gap-2">
+                        {[5, 3, 1, 0.5, 0].map((score) => (
+                          <button
+                            key={score}
+                            type="button"
+                            onClick={() => setBatchScore(score)}
+                            className={`px-3 py-1 rounded-lg font-bold cursor-pointer ${
+                              batchScore === score ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700'
+                            }`}
+                          >
+                            {score}分
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
 
@@ -1131,7 +1143,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                     <span>{previewUrlItem.submitTime}</span>
                   </div>
                   <h4 className="text-sm font-bold text-gray-900 leading-snug">{previewUrlItem.title}</h4>
-                  <p className="text-gray-500 text-[11px]">{previewUrlItem.organization} · {previewUrlItem.author}</p>
+                  <p className="text-gray-500 text-[11px]">{getOrganizationPathText(previewUrlItem.organization)} · {previewUrlItem.author}</p>
                   <p className="text-gray-600 leading-relaxed pt-1 border-t border-gray-100">
                     {previewUrlItem.detailContent?.summary || previewUrlItem.title}
                   </p>
@@ -1182,21 +1194,29 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
 
             {quickAuditMode === 'pass' ? (
               <div className="space-y-3 text-xs">
-                <label className="block text-gray-600 font-medium">给予分值</label>
-                <div className="flex space-x-2">
-                  {[95, 90, 85, 80, 60].map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setQuickScore(s)}
-                      className={`px-3 py-1 rounded-lg font-bold cursor-pointer ${
-                        quickScore === s ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700'
-                      }`}
-                    >
-                      {s}分
-                    </button>
-                  ))}
-                </div>
+                {isFinalAuditStage(quickAuditItem) ? (
+                  <>
+                    <label className="block text-gray-600 font-medium">终审评分</label>
+                    <div className="flex flex-wrap gap-2">
+                      {[5, 3, 1, 0.5, 0].map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setQuickScore(s)}
+                          className={`px-3 py-1 rounded-lg font-bold cursor-pointer ${
+                            quickScore === s ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700'
+                          }`}
+                        >
+                          {s}分
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="rounded-lg border border-blue-100 bg-blue-50 p-2.5 text-blue-700">
+                    当前为前置审核，通过后进入下一审核节点。
+                  </p>
+                )}
               </div>
             ) : (
               <div className="space-y-3 text-xs">

@@ -97,6 +97,7 @@ export const Statistics: React.FC = () => {
     total: true,
     passed: true,
     rejected: true,
+    processRate: true,
     avgTime: true
   });
 
@@ -257,10 +258,10 @@ export const Statistics: React.FC = () => {
               avgTimeDiff: { personal: '7.2 分钟', orgAvg: '12.4 分钟', value: '-5.2 分钟', percentage: '-41.9%', status: 'better', text: '审核耗时比机构平均用时(12.4分)快 5.2 分钟' }
             },
             trend: [
-              { label: '08:00', total: 2, passed: 2, rejected: 0, avgTime: 6.5 },
-              { label: '11:00', total: 6, passed: 5, rejected: 1, avgTime: 7.0 },
-              { label: '14:00', total: 9, passed: 8, rejected: 1, avgTime: 7.5 },
-              { label: '17:00', total: 12, passed: 11, rejected: 1, avgTime: 7.2 }
+              { label: '08:00', total: 2, passed: 2, rejected: 0, processRate: 100, avgTime: 6.5 },
+              { label: '11:00', total: 6, passed: 5, rejected: 1, processRate: 85.7, avgTime: 7.0 },
+              { label: '14:00', total: 9, passed: 8, rejected: 1, processRate: 90, avgTime: 7.5 },
+              { label: '17:00', total: 12, passed: 11, rejected: 1, processRate: 80, avgTime: 7.2 }
             ]
           }
         };
@@ -394,13 +395,13 @@ export const Statistics: React.FC = () => {
               avgTimeDiff: { personal: '6.8 分钟', orgAvg: '14.5 分钟', value: '-7.7 分钟', percentage: '-53.1%', status: 'better', text: '优于机构平均审核用时 7.7 分钟 (机构平均 14.5 分钟)' }
             },
             trend: [
-              { label: '周一', total: 11, passed: 10, rejected: 1, avgTime: 6.2 },
-              { label: '周二', total: 14, passed: 13, rejected: 1, avgTime: 6.5 },
-              { label: '周三', total: 16, passed: 15, rejected: 1, avgTime: 6.8 },
-              { label: '周四', total: 10, passed: 9, rejected: 1, avgTime: 7.1 },
-              { label: '周五', total: 18, passed: 16, rejected: 2, avgTime: 6.9 },
-              { label: '周六', total: 7, passed: 6, rejected: 1, avgTime: 7.4 },
-              { label: '周日', total: 10, passed: 9, rejected: 1, avgTime: 6.8 }
+              { label: '周一', total: 11, passed: 10, rejected: 1, processRate: 100, avgTime: 6.2 },
+              { label: '周二', total: 14, passed: 13, rejected: 1, processRate: 93.3, avgTime: 6.5 },
+              { label: '周三', total: 16, passed: 15, rejected: 1, processRate: 94.1, avgTime: 6.8 },
+              { label: '周四', total: 10, passed: 9, rejected: 1, processRate: 90.9, avgTime: 7.1 },
+              { label: '周五', total: 18, passed: 16, rejected: 2, processRate: 94.7, avgTime: 6.9 },
+              { label: '周六', total: 7, passed: 6, rejected: 1, processRate: 87.5, avgTime: 7.4 },
+              { label: '周日', total: 10, passed: 9, rejected: 1, processRate: 100, avgTime: 6.8 }
             ]
           }
         };
@@ -514,10 +515,10 @@ export const Statistics: React.FC = () => {
               avgTimeDiff: { personal: '7.1 分钟', orgAvg: '15.0 分钟', value: '-7.9 分钟', percentage: '-52.6%', status: 'better', text: '耗时比机构平均值(15.0分)提速超 50%' }
             },
             trend: [
-              { label: '第1周', total: 75, passed: 70, rejected: 5, avgTime: 7.4 },
-              { label: '第2周', total: 84, passed: 78, rejected: 6, avgTime: 6.8 },
-              { label: '第3周', total: 88, passed: 82, rejected: 6, avgTime: 7.0 },
-              { label: '第4周', total: 79, passed: 74, rejected: 5, avgTime: 7.2 }
+              { label: '第1周', total: 75, passed: 70, rejected: 5, processRate: 96.2, avgTime: 7.4 },
+              { label: '第2周', total: 84, passed: 78, rejected: 6, processRate: 96.6, avgTime: 6.8 },
+              { label: '第3周', total: 88, passed: 82, rejected: 6, processRate: 96.7, avgTime: 7.0 },
+              { label: '第4周', total: 79, passed: 74, rejected: 5, processRate: 96.3, avgTime: 7.2 }
             ]
           }
         };
@@ -632,10 +633,10 @@ export const Statistics: React.FC = () => {
               avgTimeDiff: { personal: '6.9 分钟', orgAvg: '15.4 分钟', value: '-8.5 分钟', percentage: '-55.2%', status: 'better', text: '响应用时比机构平均用时(15.4分)缩短过半' }
             },
             trend: [
-              { label: '5月', total: 210, passed: 195, rejected: 15, avgTime: 7.2 },
-              { label: '6月', total: 245, passed: 230, rejected: 15, avgTime: 7.0 },
-              { label: '7月', total: 265, passed: 248, rejected: 17, avgTime: 6.8 },
-              { label: '8月', total: 260, passed: 242, rejected: 18, avgTime: 6.7 }
+              { label: '5月', total: 210, passed: 195, rejected: 15, processRate: 98.1, avgTime: 7.2 },
+              { label: '6月', total: 245, passed: 230, rejected: 15, processRate: 98.4, avgTime: 7.0 },
+              { label: '7月', total: 265, passed: 248, rejected: 17, processRate: 98.1, avgTime: 6.8 },
+              { label: '8月', total: 260, passed: 242, rejected: 18, processRate: 98.1, avgTime: 6.7 }
             ]
           }
         };
@@ -700,13 +701,7 @@ export const Statistics: React.FC = () => {
             <div>
               <div className="flex items-center space-x-2.5">
                 <h2 className="text-lg font-extrabold text-gray-900 tracking-tight">统计管理与效能分析</h2>
-                <span className="bg-blue-50 text-[#1E5ABB] text-xs font-bold px-2 py-0.5 rounded-md border border-blue-200/70">
-                  全指标量化与环比跟踪
-                </span>
               </div>
-              <p className="text-xs text-gray-500 mt-0.5">
-                全面量化报送质效、审核时效、一次性通过率、环比升降及智能风险对标预警
-              </p>
             </div>
           </div>
 
@@ -819,9 +814,6 @@ export const Statistics: React.FC = () => {
                     上报质效走势
                   </span>
                 </h3>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  涵盖上报总量、通过量、驳回量、一次性通过率、整体通过率及综合得分
-                </p>
               </div>
 
                 {/* Metric Checkboxes Filter */}
@@ -872,7 +864,7 @@ export const Statistics: React.FC = () => {
                       submitterTrendMetrics.score ? 'bg-orange-50 text-orange-700 border-orange-300' : 'bg-slate-50 text-gray-400 border-gray-200'
                     }`}
                   >
-                    ● 综合得分
+                    ● 平均得分
                   </button>
                 </div>
               </div>
@@ -906,7 +898,7 @@ export const Statistics: React.FC = () => {
                       <Line yAxisId="right" type="monotone" dataKey="totalRate" name="整体通过率(%)" stroke="#0D9488" strokeWidth={2} />
                     )}
                     {submitterTrendMetrics.score && (
-                      <Line yAxisId="right" type="monotone" dataKey="avgScore" name="综合得分" stroke="#EA580C" strokeDasharray="3 3" strokeWidth={2} dot={{ r: 3 }} />
+                      <Line yAxisId="right" type="monotone" dataKey="avgScore" name="平均得分" stroke="#EA580C" strokeDasharray="3 3" strokeWidth={2} dot={{ r: 3 }} />
                     )}
                   </LineChart>
                 </ResponsiveContainer>
@@ -922,8 +914,8 @@ export const Statistics: React.FC = () => {
                     <PieChartIcon className="w-4 h-4 text-[#1E5ABB]" />
                     <span>上报员报送统计</span>
                   </h3>
-                  <span className="text-xs text-gray-400">
-                    按上报任务统计
+                  <span className="text-xs font-semibold text-blue-600">
+                    统计时间段：{metricsData.timeLabel}
                   </span>
                 </div>
 
@@ -1033,9 +1025,6 @@ export const Statistics: React.FC = () => {
                     审核效能走势
                   </span>
                 </h3>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  审核总量、通过、驳回与平均时长趋势
-                </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-1.5 text-xs">
@@ -1064,6 +1053,14 @@ export const Statistics: React.FC = () => {
                   ● 驳回量
                 </button>
                 <button
+                  onClick={() => setAuditorTrendMetrics((p) => ({ ...p, processRate: !p.processRate }))}
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition-colors cursor-pointer ${
+                    auditorTrendMetrics.processRate ? 'bg-cyan-50 text-cyan-700 border-cyan-300' : 'bg-slate-50 text-gray-400 border-gray-200'
+                  }`}
+                >
+                  ● 审核处理率
+                </button>
+                <button
                   onClick={() => setAuditorTrendMetrics((p) => ({ ...p, avgTime: !p.avgTime }))}
                   className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition-colors cursor-pointer ${
                     auditorTrendMetrics.avgTime ? 'bg-purple-50 text-purple-700 border-purple-300' : 'bg-slate-50 text-gray-400 border-gray-200'
@@ -1080,7 +1077,7 @@ export const Statistics: React.FC = () => {
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                   <XAxis dataKey="label" stroke="#64748b" fontSize={11} />
                   <YAxis yAxisId="left" stroke="#64748b" fontSize={11} />
-                  <YAxis yAxisId="right" orientation="right" domain={[0, 20]} stroke="#64748b" fontSize={11} unit="分" />
+                  <YAxis yAxisId="right" orientation="right" domain={[0, 100]} stroke="#64748b" fontSize={11} unit="%" />
                   <Tooltip
                     contentStyle={{ backgroundColor: '#1e293b', borderRadius: '8px', color: '#fff', fontSize: '11px', border: 'none' }}
                   />
@@ -1094,8 +1091,11 @@ export const Statistics: React.FC = () => {
                   {auditorTrendMetrics.rejected && (
                     <Line yAxisId="left" type="monotone" dataKey="rejected" name="驳回量" stroke="#EF4444" strokeWidth={2} dot={{ r: 3 }} />
                   )}
+                  {auditorTrendMetrics.processRate && (
+                    <Line yAxisId="right" type="monotone" dataKey="processRate" name="审核处理率(%)" stroke="#06B6D4" strokeDasharray="4 4" strokeWidth={2} dot={{ r: 3 }} />
+                  )}
                   {auditorTrendMetrics.avgTime && (
-                    <Line yAxisId="right" type="monotone" dataKey="avgTime" name="平均时长(分)" stroke="#8B5CF6" strokeDasharray="4 4" strokeWidth={2} />
+                    <Line yAxisId="left" type="monotone" dataKey="avgTime" name="平均时长(分)" stroke="#8B5CF6" strokeDasharray="4 4" strokeWidth={2} />
                   )}
                 </LineChart>
               </ResponsiveContainer>
@@ -1107,13 +1107,13 @@ export const Statistics: React.FC = () => {
             <div className="space-y-4">
               {/* 标题区域: 包含角色名称与图标 */}
               <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                <h3 className="font-extrabold text-sm text-gray-900 tracking-tight flex items-center space-x-2">
-                  <PieChartIcon className="w-4 h-4 text-emerald-600" />
-                  <span>审核员审核统计</span>
-                </h3>
-                <span className="text-xs text-gray-400">
-                  按审核任务统计
-                </span>
+                  <h3 className="font-extrabold text-sm text-gray-900 tracking-tight flex items-center space-x-2">
+                    <PieChartIcon className="w-4 h-4 text-emerald-600" />
+                    <span>审核员审核统计</span>
+                  </h3>
+                  <span className="text-xs font-semibold text-emerald-600">
+                    统计时间段：{metricsData.timeLabel}
+                  </span>
               </div>
 
               {/* 环状图与3项状态列表卡片: 左环右列表 */}

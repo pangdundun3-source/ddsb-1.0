@@ -28,11 +28,13 @@ import {
   Eye
 } from 'lucide-react';
 import { AttachmentPreviewModal } from '../components/AttachmentPreviewModal';
+import { AuditFlowTimeline } from '../components/AuditFlowTimeline';
+import { getFinalAuditScore, isFinalAuditStage } from '../auditStage';
 
 interface AuditDetailProps {
   report: ReportItem | null;
   allReports?: ReportItem[];
-  onApprove: (id: number, score: number, isBatch?: boolean) => void;
+  onApprove: (id: number, score?: number, isBatch?: boolean) => void;
   onReject: (id: number, reason: string, detail: string) => void;
   onNavigate: (page: PageId) => void;
 }
@@ -48,7 +50,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
   const [matchUrl, setMatchUrl] = useState(defaultUrl);
   const [isUrlMatched, setIsUrlMatched] = useState(true);
   const [auditMode, setAuditMode] = useState<'pass' | 'reject'>('pass');
-  const [selectedScore, setSelectedScore] = useState<number>(95);
+  const [selectedScore, setSelectedScore] = useState<number>(5);
   const [rejectReason, setRejectReason] = useState('信息不完整');
   const [rejectDetail, setRejectDetail] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
@@ -72,11 +74,13 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
   const matchedCoReports = allReports.filter(
     (r) => r.id !== report.id && r.matchUrl && matchUrl && r.matchUrl.trim() === matchUrl.trim()
   );
+  const canScore = isFinalAuditStage(report);
+  const finalScore = getFinalAuditScore(report);
 
   const handleSubmitAudit = () => {
     const shouldBatch = isUrlMatched && matchedCoReports.length > 0;
     if (auditMode === 'pass') {
-      onApprove(report.id, selectedScore, shouldBatch);
+      onApprove(report.id, canScore ? selectedScore : undefined, shouldBatch);
     } else {
       onReject(report.id, rejectReason, rejectDetail);
     }
@@ -101,15 +105,18 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
   ];
 
   const handleCopySummary = () => {
-    const text = `【舆情速报】${report.title}\n上报时间：${report.submitTime}\n上报单位：${report.organization}（${report.author}）\n所属区域：${report.region} | 类型：${report.infoType}\n发生地址：${report.occurAddress || '未填'}\n\n【内容摘要】\n${detail.summary}\n\n【核心诉求】\n${detail.coreDemands || '无'}\n\n【处置建议】\n${Array.isArray(detail.recommendations) ? detail.recommendations.join('\n') : detail.recommendations || '暂无'}`;
+    const text = `【舆情速报】${report.title}\n报送时间：${report.submitTime}\n上报单位：${report.organization}（${report.author}）\n所属区域：${report.region} | 类型：${report.infoType}\n发生地址：${report.occurAddress || '未填'}\n\n【内容摘要】\n${detail.summary}\n\n【核心诉求】\n${detail.coreDemands || '无'}\n\n【处置建议】\n${Array.isArray(detail.recommendations) ? detail.recommendations.join('\n') : detail.recommendations || '暂无'}`;
     navigator.clipboard.writeText(text);
     setCopySuccess(true);
     setTimeout(() => setCopySuccess(false), 2000);
   };
 
   const isPending = report.auditStatus === '待审核';
+  const isInReview = report.auditStatus === '审核中';
   const isRejected = report.auditStatus === '被驳回' || report.auditStatus === '已驳回';
   const isAdopted = report.auditStatus === '已采纳' || report.auditStatus === '已通过';
+  const isWaitingTransfer = report.auditStatus === '待转办';
+  const isTransferred = report.auditStatus === '已转办';
 
   return (
     <div className="space-y-4" id="audit-detail-view">
@@ -155,7 +162,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
                 <span className="text-[11px] text-gray-400 font-normal">事件结果</span>
                 <span
                   className={`text-xs font-semibold px-3 py-1 rounded-md border ${
-                    report.auditStatus === '已采纳' || report.auditStatus === '已通过'
+                    report.auditStatus === '已采纳' || report.auditStatus === '已通过' || report.auditStatus === '待转办' || report.auditStatus === '已转办'
                       ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
                       : report.auditStatus === '被驳回' || report.auditStatus === '已驳回'
                       ? 'bg-rose-50 text-rose-600 border-rose-200'
@@ -179,9 +186,9 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
                 <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                 <span>{report.submitTime}</span>
               </div>
-              {report.score && report.score !== '--' && (
+              {finalScore !== undefined && (
                 <div className="flex items-center space-x-1 bg-amber-50 text-amber-800 px-2 py-0.5 rounded border border-amber-200 font-bold font-mono">
-                  <span>评分：{report.score} 分</span>
+                  <span>评分：{finalScore} 分</span>
                 </div>
               )}
             </div>
@@ -377,6 +384,8 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
               <h3 className="text-sm font-bold text-gray-900">审核操作</h3>
             </div>
 
+            {isPending ? (
+              <>
             {/* Precision Match by URL Section (1:1 with reference screenshot) */}
             <div className="bg-[#F4F8FD] border border-[#E2EEF9] rounded-2xl p-3.5 space-y-2.5">
               {/* Header */}
@@ -509,6 +518,30 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
             {/* Dynamic Form for Pass or Reject */}
             {auditMode === 'pass' ? (
               <div className="space-y-3 text-xs pt-1">
+                {canScore && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="block text-gray-700 font-semibold">终审评分</label>
+                      <span className="text-[11px] text-amber-700">仅终审可评分</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {[5, 3, 1, 0.5, 0].map((score) => (
+                        <button
+                          key={score}
+                          type="button"
+                          onClick={() => setSelectedScore(score)}
+                          className={`min-w-12 px-3 py-1.5 rounded-lg font-bold cursor-pointer transition-colors ${
+                            selectedScore === score
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-white text-gray-700 border border-amber-200 hover:bg-amber-100'
+                          }`}
+                        >
+                          {score}分
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={handleSubmitAudit}
@@ -517,8 +550,8 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
                   <Send className="w-3.5 h-3.5" />
                   <span>
                     {isUrlMatched && matchedCoReports.length > 0
-                      ? `确认批量通过 (${matchedCoReports.length + 1} 条)`
-                      : '确认批量通过'}
+                      ? `${canScore ? '确认批量通过并评分' : '确认批量通过'} (${matchedCoReports.length + 1} 条)`
+                      : canScore ? '确认通过并评分' : '确认通过'}
                   </span>
                 </button>
               </div>
@@ -564,9 +597,44 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
                 </button>
               </div>
             )}
+              </>
+            ) : (
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-xs text-gray-600">
+                <div className="flex items-start space-x-2">
+                  {isRejected ? (
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                  ) : (
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                  )}
+                  <div className="space-y-1">
+                    <p className="font-bold text-gray-900">
+                      {isRejected
+                        ? '当前记录已驳回'
+                        : isAdopted
+                          ? report.auditStatus === '已通过'
+                            ? '当前记录已通过初审'
+                            : '当前记录已完成审核'
+                          : isWaitingTransfer
+                            ? '当前记录待转办'
+                            : isTransferred
+                              ? '当前记录已转办'
+                              : isInReview
+                                ? '当前记录正在复核'
+                                : '当前记录正在流转中'}
+                    </p>
+                    <p className="leading-relaxed">
+                      该状态不需要当前账号继续审核。请在下方流转状态中查看具体处理节点、评分和驳回意见。
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Workflow Status Timeline (1:1 with reference screenshot) */}
+          <AuditFlowTimeline report={report} />
+
+          {false && (
           <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-2xs space-y-4">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
@@ -590,7 +658,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
                 {/* Content */}
                 <div className="space-y-2">
                   <div className="font-bold text-gray-900 text-xs">提交上报</div>
-                  
+
                   {/* First Submission Item */}
                   <div className="bg-[#F8FAFC] border border-[#EDF2F7] rounded-xl px-3.5 py-2.5 flex items-center justify-between text-xs gap-2">
                     <span className="text-gray-600 truncate">
@@ -620,7 +688,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
                 {/* Content */}
                 <div className="space-y-2">
                   <div className="font-bold text-gray-900 text-xs">审核处理</div>
-                  
+
                   {/* History Rejected Card */}
                   <div className="bg-[#F8FAFC] border border-[#EDF2F7] rounded-xl p-3 space-y-2 text-xs">
                     <div className="flex items-center justify-between gap-2">
@@ -711,6 +779,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
               </div>
             </div>
           </div>
+          )}
         </div>
       </div>
 

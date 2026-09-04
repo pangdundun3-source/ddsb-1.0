@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
+  AlertCircle,
   X,
   UploadCloud,
   Link as LinkIcon,
@@ -8,145 +9,70 @@ import {
   Clock,
   Trash2,
   CheckCircle2,
-  RotateCcw,
   Sparkles,
   Zap,
   ShieldAlert,
   HelpCircle,
   BookOpen,
   Check,
-  Info,
   SlidersHorizontal,
   MapPin,
   Eye,
   FileSpreadsheet,
   Plus
 } from 'lucide-react';
-import { ReportItem, DraftReport, Attachment } from '../types';
+import {
+  Attachment,
+  NewReportFormData,
+  DraftReport,
+  ReportTemplateDef,
+  ReportTemplateInput,
+  ReportItem
+} from '../types';
+import { PRESET_REPORT_TEMPLATES as PRESET_TEMPLATES } from '../data/mockData';
 import { AttachmentPreviewModal } from './AttachmentPreviewModal';
+import {
+  loadDrafts,
+  removeDraft,
+  REPORT_DRAFT_STORAGE_KEY,
+  upsertDraft
+} from '../services/reportDraftStorage';
 
-export interface ReportTemplateDef {
-  id: string;
-  name: string;
-  badge: string;
-  badgeColor: string;
-  iconName: 'zap' | 'file-text' | 'shield' | 'help' | 'book';
-  description: string;
-  recommendedFor: string;
-  defaultSource: string;
-  defaultRegion: string;
-  defaultInfoType: string;
-  defaultTitle: string;
-  summaryTemplate: string;
-  demandsTemplate: string;
-  recommendationsTemplate: string;
-}
-
-export const PRESET_TEMPLATES: ReportTemplateDef[] = [
+const DEFAULT_ATTACHMENTS: Attachment[] = [
   {
-    id: 'emergency',
-    name: '突发事件急报模板',
-    badge: '紧急快报',
-    badgeColor: 'bg-rose-50 text-rose-700 border-rose-200',
-    iconName: 'zap',
-    description: '适用于自然灾害、安全事故、公共卫生及突发社会治安事件的紧急快速报送',
-    recommendedFor: '第一发现人 / 网格员 / 应急指挥',
-    defaultSource: '网格巡查',
-    defaultRegion: '西屯区',
-    defaultInfoType: '突发事件',
-    defaultTitle: '【紧急】关于某路段突发管网故障抢修进展的快报',
-    summaryTemplate: `【突发时间】：${new Date().toLocaleDateString('zh-CN')} ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}\n【事发精准地点】：西屯区XX路与XX街交叉口\n【事件简述】：现场因市政施工突发管网渗漏，造成路面局部积水并影响早高峰通行。\n【伤亡及损失情况】：现场无人员伤亡，周边已设立安全警戒线。\n【当前处置进展】：抢修工程车辆及应急处置组已进场作业，正在进行分流抢修。`,
-    demandsTemplate: '周边居民及过往车主高度关注积水排除与恢复通行的预计时间。',
-    recommendationsTemplate: '1. 联动交警支队实施临时交通分流与道路交通疏导。\n2. 属地融媒体中心通过微信公众号发布临时通行提示，回应群众关切。'
+    id: 'att-upload-1',
+    name: '现场突发情况反馈核实材料.jpg',
+    size: '2.4 MB',
+    type: 'image',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=800&auto=format&fit=crop'
   },
   {
-    id: 'standard',
-    name: '标准图文报送模板',
-    badge: '常用推荐',
-    badgeColor: 'bg-blue-50 text-blue-700 border-blue-200',
-    iconName: 'file-text',
-    description: '适用于日常综合舆情、社情民意核查及一般性事件的标准图文规范上报',
-    recommendedFor: '各区县信息员 / 直属部门报送员',
-    defaultSource: '群众举报',
-    defaultRegion: '西屯区',
-    defaultInfoType: '舆情动态',
-    defaultTitle: '关于某社区居民集中反映公共设施老化问题的舆情动态',
-    summaryTemplate: `一、基本事实概述：\n近期多名市民在社交平台及微信群反映西屯区部分老旧住宅楼公共排污管道破损老化问题。\n\n二、网络舆情发酵态势：\n目前主要在社区业主群内传播讨论，暂无大规模负面舆情外溢。\n\n三、部门初步核实：\n属地街道与物业管理处已完成现场踏勘与登记。`,
-    demandsTemplate: '业主普遍希望明确排污管网彻底维修翻新的时间节点与出资方案。',
-    recommendationsTemplate: '1. 建议街道城管科联合物业召开现场业主代表沟通会。\n2. 在单元宣传栏公示维修进度与联系人电话。'
-  },
-  {
-    id: 'livelihood',
-    name: '民生诉求保障模板',
-    badge: '民生专报',
-    badgeColor: 'bg-amber-50 text-amber-700 border-amber-200',
-    iconName: 'help',
-    description: '针对教育、医疗、物业纠纷、交通出行等民生急难愁盼诉求的专项分析上报',
-    recommendedFor: '12345热线对接 / 综合服务专员',
-    defaultSource: '热线12345',
-    defaultRegion: '北屯区',
-    defaultInfoType: '民生诉求',
-    defaultTitle: '关于某小区业主反映物业擅自调高公摊费用的诉求专报',
-    summaryTemplate: `一、诉求来源与规模：\n12345热线近3日内累计收到相关工单12件，涉及业主超过50户。\n\n二、诉求核心事实：\n业主反映物业管理处未履行公示与表决程序，直接在月度物业费账单中增列地下车库公共能耗费用。\n\n三、初步调解情况：\n社区居委会已介入搭建沟通平台，督促物业做好账目核算。`,
-    demandsTemplate: '业主诉求要求暂缓收费、退回多扣费用，并公开公摊电量明细台账。',
-    recommendationsTemplate: '1. 建议住建局物业监管科指导街道综治办介入监督。\n2. 督促物业公司严格按《物业管理条例》进行账务核算与公示。'
-  },
-  {
-    id: 'rumor',
-    name: '网络辟谣与核查模板',
-    badge: '辟谣专报',
-    badgeColor: 'bg-purple-50 text-purple-700 border-purple-200',
-    iconName: 'shield',
-    description: '针对短视频、微信群恶意摆拍、造谣传谣及虚假宣传的信息取证与官方辟谣',
-    recommendedFor: '网信网安 / 辟谣专班',
-    defaultSource: '社交媒体',
-    defaultRegion: '全市',
-    defaultInfoType: '网络谣言',
-    defaultTitle: '关于短视频平台流传“某地突发重大事故”不实视频的核查与辟谣建议',
-    summaryTemplate: `【谣言核查情况】：\n1. 传播源头：抖音/快手个别账号发布标注为“本地突发大火”的短视频，引发部分网民点赞转发。\n2. 权威核实：经向市应急管理局及消防救援支队核实，当日全市无此类险情，视频实为外省数年前旧闻拼接剪辑。\n3. 危害评估：评论区存在误导性言论，容易引发公众恐慌。`,
-    demandsTemplate: '广大网民期待官方查明真相，澄清事实，并对恶意造谣账号依法处置。',
-    recommendationsTemplate: '1. 联合公安网安部门依法对首发账号及恶意推流者进行溯源固定证据。\n2. 由市网信办联合网警巡查执法账号发布权威辟谣声明。\n3. 协调各大平台对相关不实违规短视频进行限流与下架标记。'
-  },
-  {
-    id: 'policy',
-    name: '政策解读反馈模板',
-    badge: '政策调研',
-    badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    iconName: 'book',
-    description: '用于重大政策法规或惠民措施发布后，跟踪社会反响、焦点疑问与释疑引导',
-    recommendedFor: '宣传部 / 政策研究室',
-    defaultSource: '新闻网站',
-    defaultRegion: '全市',
-    defaultInfoType: '政策解读',
-    defaultTitle: '关于《新一轮老旧小区改造补贴政策》发布后的社会反响与舆情专报',
-    summaryTemplate: `一、政策发布背景与传播面：\n自政策正式公布以来，各级主流媒体及政务发布平台累计转载报道30余篇次。\n\n二、各方反馈焦点：\n1. 赞成声音占比约70%，普遍认可政府改善人居环境的普惠举措。\n2. 关切焦点集中在加装电梯出资比例及低楼层采光补偿指导标准（占比22%）。\n3. 申报具体流程及办理时效咨询占8%。`,
-    demandsTemplate: '希望出台更加细致的实操指引和问答手册（Q&A）。',
-    recommendationsTemplate: '1. 组织专家和政策起草人开展线上“一图读懂”宣传解读。\n2. 设置区级政策咨询专窗，专人专岗解答群众疑惑。'
+    id: 'att-upload-2',
+    name: '突发事件舆情监测研判专报(第一期).pdf',
+    size: '4.8 MB',
+    type: 'pdf'
   }
 ];
 
 interface NewReportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (newReport: Partial<ReportItem>) => void;
-  initialTemplate?: {
-    title?: string;
-    source?: string;
-    region?: string;
-    infoType?: string;
-    occurAddress?: string;
-    summary?: string;
-    demands?: string;
-    recommendations?: string;
-  } | null;
+  onSubmit: (newReport: NewReportFormData) => void;
+  initialTemplate?: ReportTemplateInput | null;
+  editingReport?: ReportItem | null;
+  onUpdate?: (report: ReportItem) => void;
 }
 
 export const NewReportModal: React.FC<NewReportModalProps> = ({
   isOpen,
   onClose,
   onSubmit,
-  initialTemplate
+  initialTemplate,
+  editingReport,
+  onUpdate
 }) => {
+  const isEditMode = !!editingReport;
+
   // Selected Template ID
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('standard');
 
@@ -169,21 +95,7 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
   const [toastNotice, setToastNotice] = useState<string | null>(null);
 
   // Attachments State
-  const [attachments, setAttachments] = useState<Attachment[]>([
-    {
-      id: 'att-upload-1',
-      name: '现场突发情况反馈核实材料.jpg',
-      size: '2.4 MB',
-      type: 'image',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=800&auto=format&fit=crop'
-    },
-    {
-      id: 'att-upload-2',
-      name: '突发事件舆情监测研判专报(第一期).pdf',
-      size: '4.8 MB',
-      type: 'pdf'
-    }
-  ]);
+  const [attachments, setAttachments] = useState<Attachment[]>(DEFAULT_ATTACHMENTS);
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
 
   // Apply a template definition to the form fields
@@ -210,41 +122,62 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
     triggerToast(`已切换至【${template.name}】`);
   };
 
-  // Load drafts or initial template on mount / open
+  // Load editing report, initial template, or default template on mount / open
   useEffect(() => {
-    if (isOpen) {
-      if (initialTemplate) {
-        setTitle(initialTemplate.title || '');
-        if (initialTemplate.source) setSource(initialTemplate.source);
-        if (initialTemplate.region) setRegion(initialTemplate.region);
-        if (initialTemplate.occurAddress) setOccurAddress(initialTemplate.occurAddress);
-        if (initialTemplate.infoType) setInfoType(initialTemplate.infoType);
-        if (initialTemplate.summary) setSummary(initialTemplate.summary);
-        if (initialTemplate.demands) setDemands(initialTemplate.demands);
-        if (initialTemplate.recommendations) setRecommendations(initialTemplate.recommendations);
-      } else {
-        // If no initial template, load default standard template
-        const defaultTpl = PRESET_TEMPLATES.find((t) => t.id === 'standard') || PRESET_TEMPLATES[0];
-        setSelectedTemplateId(defaultTpl.id);
-        setTitle(defaultTpl.defaultTitle);
-        setSource(defaultTpl.defaultSource);
-        setRegion(defaultTpl.defaultRegion);
-        setInfoType(defaultTpl.defaultInfoType);
-        setSummary(defaultTpl.summaryTemplate);
-        setDemands(defaultTpl.demandsTemplate);
-        setRecommendations(defaultTpl.recommendationsTemplate);
-      }
+    if (!isOpen) return;
 
-      try {
-        const saved = localStorage.getItem('ddsb_report_drafts');
-        if (saved) {
-          setDrafts(JSON.parse(saved));
-        }
-      } catch (e) {
-        // ignore
-      }
+    // Reset transient panel states on every open
+    setShowDraftBox(false);
+    setPreviewAttachment(null);
+    setActiveDraftId(null);
+
+    if (editingReport) {
+      // Edit mode: prefill from the existing draft / rejected report
+      setTitle(editingReport.title || '');
+      setSource(editingReport.source || '群众举报');
+      setRegion(editingReport.region || '西屯区');
+      setOccurAddress(editingReport.occurAddress || '');
+      setInfoType(editingReport.infoType || '突发事件');
+      setAuthor(editingReport.author || '张三');
+      setOrganization(editingReport.organization || '台中市网信办');
+      setSummary(editingReport.detailContent?.summary || '');
+      setDemands(editingReport.detailContent?.coreDemands || '');
+      const recommendations = editingReport.detailContent?.recommendations;
+      setRecommendations(
+        Array.isArray(recommendations) ? recommendations.join('\n') : recommendations || ''
+      );
+      setAttachments(editingReport.attachments || []);
+      setSelectedTemplateId('standard');
+    } else if (initialTemplate) {
+      setTitle(initialTemplate.title || '');
+      if (initialTemplate.source) setSource(initialTemplate.source);
+      if (initialTemplate.region) setRegion(initialTemplate.region);
+      if (initialTemplate.occurAddress) setOccurAddress(initialTemplate.occurAddress);
+      if (initialTemplate.infoType) setInfoType(initialTemplate.infoType);
+      if (initialTemplate.summary) setSummary(initialTemplate.summary);
+      if (initialTemplate.demands) setDemands(initialTemplate.demands);
+      if (initialTemplate.recommendations) setRecommendations(initialTemplate.recommendations);
+      setAttachments([...DEFAULT_ATTACHMENTS]);
+    } else {
+      // If no initial template, load default standard template
+      const defaultTpl = PRESET_TEMPLATES.find((t) => t.id === 'standard') || PRESET_TEMPLATES[0];
+      setSelectedTemplateId(defaultTpl.id);
+      setTitle(defaultTpl.defaultTitle);
+      setSource(defaultTpl.defaultSource);
+      setRegion(defaultTpl.defaultRegion);
+      setInfoType(defaultTpl.defaultInfoType);
+      setSummary(defaultTpl.summaryTemplate);
+      setDemands(defaultTpl.demandsTemplate);
+      setRecommendations(defaultTpl.recommendationsTemplate);
+      setAttachments([...DEFAULT_ATTACHMENTS]);
     }
-  }, [isOpen, initialTemplate]);
+
+    try {
+      setDrafts(loadDrafts(REPORT_DRAFT_STORAGE_KEY));
+    } catch (e) {
+      // ignore
+    }
+  }, [isOpen, editingReport, initialTemplate]);
 
   const triggerToast = (msg: string) => {
     setToastNotice(msg);
@@ -273,14 +206,9 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
       saveTime: new Date().toISOString().replace('T', ' ').substring(0, 16)
     };
 
-    const updated = [newDraft, ...drafts.filter((d) => d.id !== draftId)];
+    const updated = upsertDraft(newDraft, REPORT_DRAFT_STORAGE_KEY);
     setDrafts(updated);
     setActiveDraftId(draftId);
-    try {
-      localStorage.setItem('ddsb_report_drafts', JSON.stringify(updated));
-    } catch (e) {
-      // ignore
-    }
     triggerToast('草稿保存成功！随时可在草稿箱中恢复');
   };
 
@@ -303,64 +231,62 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
   // Delete draft
   const handleDeleteDraft = (draftId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const updated = drafts.filter((d) => d.id !== draftId);
+    const updated = removeDraft(draftId, REPORT_DRAFT_STORAGE_KEY);
     setDrafts(updated);
     if (activeDraftId === draftId) {
       setActiveDraftId(null);
-    }
-    try {
-      localStorage.setItem('ddsb_report_drafts', JSON.stringify(updated));
-    } catch (e) {
-      // ignore
     }
     triggerToast('草稿已删除');
   };
 
   if (!isOpen) return null;
 
-  const currentTemplate = PRESET_TEMPLATES.find((t) => t.id === selectedTemplateId) || PRESET_TEMPLATES[0];
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
 
-    onSubmit({
-      title,
-      source,
-      region,
-      occurAddress: occurAddress || `${region}相关涉事区域`,
-      infoType,
-      author,
-      organization,
-      submitTime: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      auditStatus: '待审核',
-      score: '--',
-      detailContent: {
-        summary: summary || '暂无详细摘要描述。',
-        coreDemands: demands || '网民核心诉求正在整理核实中。',
-        publicOpinionTrend: '话题关注度一般，总体舆情可控。',
-        recommendations: recommendations ? recommendations.split('\n') : ['建议相关责任部门持续监测关注。']
-      },
-      attachments: attachments.length > 0 ? attachments : [
-        { id: 'att-1', name: '速报凭证材料.jpg', size: '1.5 MB', type: 'image' }
-      ],
-      timeline: [
-        { title: '提交上报', operator: `${author}·${organization}`, time: new Date().toISOString().replace('T', ' ').substring(0, 16), status: 'completed' },
-        { title: '初审研判', operator: '市委宣传部舆情科', time: '待审核', status: 'current', note: '待审核' },
-        { title: '终审签批', operator: '市网信办领导', status: 'pending' },
-        { title: '办结归档', operator: '系统归档', status: 'pending' }
-      ]
-    });
+    if (isEditMode && editingReport && onUpdate) {
+      onUpdate({
+        ...editingReport,
+        title,
+        source,
+        region,
+        occurAddress,
+        infoType,
+        author,
+        organization,
+        detailContent: {
+          ...editingReport.detailContent,
+          summary: summary || '暂无详细摘要描述。',
+          coreDemands: demands || '',
+          publicOpinionTrend:
+            editingReport.detailContent?.publicOpinionTrend || '话题关注度一般，总体舆情可控。',
+          recommendations: recommendations
+            ? recommendations.split('\n').filter((line) => line.trim())
+            : []
+        },
+        attachments
+      });
+    } else {
+      onSubmit({
+        title,
+        source,
+        region,
+        occurAddress,
+        infoType,
+        author,
+        organization,
+        summary,
+        demands,
+        recommendations,
+        attachments
+      });
+    }
 
     // If submitted from a draft, remove it from drafts
     if (activeDraftId) {
-      const updated = drafts.filter((d) => d.id !== activeDraftId);
+      const updated = removeDraft(activeDraftId, REPORT_DRAFT_STORAGE_KEY);
       setDrafts(updated);
-      try {
-        localStorage.setItem('ddsb_report_drafts', JSON.stringify(updated));
-      } catch (e) {
-        // ignore
-      }
     }
 
     // Reset fields
@@ -409,12 +335,24 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h2 className="text-base font-bold tracking-tight">新建速报上报</h2>
-                <span className="text-[11px] bg-white/20 text-white px-2 py-0.5 rounded-full font-medium border border-white/30">
-                  支持多套智能模板
-                </span>
+                <h2 className="text-base font-bold tracking-tight">
+                  {isEditMode
+                    ? editingReport && (editingReport.auditStatus === '被驳回' || editingReport.auditStatus === '已驳回')
+                      ? '修改补充并重新提交'
+                      : '编辑草稿速报'
+                    : '新建速报上报'}
+                </h2>
+                {!isEditMode && (
+                  <span className="text-[11px] bg-white/20 text-white px-2 py-0.5 rounded-full font-medium border border-white/30">
+                    支持多套智能模板
+                  </span>
+                )}
               </div>
-              <p className="text-[11px] text-blue-100/80">根据业务场景快速套用标准化上报格式</p>
+              <p className="text-[11px] text-blue-100/80">
+                {isEditMode
+                  ? '已自动带入原报送内容，补充修正后重新提交送审'
+                  : '根据业务场景快速套用标准化上报格式'}
+              </p>
             </div>
           </div>
 
@@ -446,6 +384,17 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Reject Reason Banner (Edit Mode) */}
+        {isEditMode && editingReport?.rejectReason && (
+          <div className="shrink-0 px-6 py-3 bg-rose-50 border-b border-rose-200 text-xs text-rose-800">
+            <p className="font-bold flex items-center space-x-1.5">
+              <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+              <span>原审核驳回意见：</span>
+            </p>
+            <p className="mt-1 text-rose-700 leading-relaxed">{editingReport.rejectReason}</p>
+          </div>
+        )}
 
         {/* Draft List Panel Drawer */}
         {showDraftBox && (
@@ -552,28 +501,6 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
               })}
             </div>
 
-            {/* Active Template Description & Restore Hint */}
-            <div className="mt-3 pt-3 border-t border-blue-100/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-              <div className="flex items-start space-x-2">
-                <Info className="w-3.5 h-3.5 text-[#1E5ABB] shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold text-gray-800">当前模板：{currentTemplate.name}</span>
-                  <span className="text-gray-500 ml-1.5">（{currentTemplate.description}）</span>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => applyTemplate(currentTemplate, true)}
-                  className="text-[11px] text-[#1E5ABB] hover:underline font-semibold flex items-center space-x-1 bg-white px-2.5 py-1 rounded border border-blue-200 hover:bg-blue-50/50 cursor-pointer shadow-2xs"
-                  title="重新按当前模板填充格式框架"
-                >
-                  <RotateCcw className="w-3 h-3 text-blue-600" />
-                  <span>重置当前模板内容</span>
-                </button>
-              </div>
-            </div>
           </div>
 
           {/* SECTION 2: 报送核心表单 (Main Form) */}
@@ -865,4 +792,3 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
     </div>
   );
 };
-

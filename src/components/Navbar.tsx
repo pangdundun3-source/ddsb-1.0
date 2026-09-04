@@ -33,6 +33,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       'report-audit',
       'audit-detail',
       'audit-records',
+      'audit-record-detail',
       'negative-info',
       'negative-detail'
     ].includes(activePage) || isFromAudit;
@@ -146,11 +147,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setAuditMenuOpen(false);
                   }}
                   className={`w-full text-left px-3.5 py-2 hover:bg-blue-50 hover:text-[#1E5ABB] cursor-pointer flex items-center justify-between ${
-                    activePage === 'audit-records' || isFromAudit ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : ''
+                    activePage === 'audit-records' || activePage === 'audit-record-detail' || isFromAudit ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : ''
                   }`}
                 >
                   <span>审核记录</span>
-                  {(activePage === 'audit-records' || isFromAudit) && (
+                  {(activePage === 'audit-records' || activePage === 'audit-record-detail' || isFromAudit) && (
                     <span className="w-1.5 h-1.5 rounded-full bg-[#1E5ABB]"></span>
                   )}
                 </button>

@@ -44,7 +44,13 @@ import {
   UserCheck,
   CheckSquare
 } from 'lucide-react';
-import { ReportItem, AuditRecordItem, OrgItem, LogItem, DraftReport } from '../types';
+import { ReportItem, AuditRecordItem, OrgItem, DraftReport, NewReportFormData } from '../types';
+import {
+  H5_REPORT_DRAFT_STORAGE_KEY,
+  loadDrafts,
+  removeDraft,
+  upsertDraft
+} from '../services/reportDraftStorage';
 
 interface H5MobilePortalProps {
   isOpen: boolean;
@@ -53,8 +59,9 @@ interface H5MobilePortalProps {
   auditRecords: AuditRecordItem[];
   orgs: OrgItem[];
   currentUser: string;
-  onCreateReport: (newReport: Omit<ReportItem, 'id' | 'auditStatus'>) => void;
+  onCreateReport: (newReport: NewReportFormData) => void;
   onApproveAudit: (id: number, score: number) => void;
+  onBatchApprove: (ids: number[], score: number) => void;
   onRejectAudit: (id: number, reason: string, detail: string) => void;
   onTransferSubmit: (id: number, opinion: string) => void;
 }
@@ -120,11 +127,10 @@ export const H5MobilePortal: React.FC<H5MobilePortalProps> = ({
   currentUser,
   onCreateReport,
   onApproveAudit,
+  onBatchApprove,
   onRejectAudit,
   onTransferSubmit
 }) => {
-  if (!isOpen) return null;
-
   // Simulator Display Mode: 'device' (phone frame) or 'fullscreen' (full mobile preview)
   const [viewMode, setViewMode] = useState<'device' | 'fullscreen'>('device');
   const [showQrModal, setShowQrModal] = useState(false);
@@ -334,12 +340,7 @@ export const H5MobilePortal: React.FC<H5MobilePortalProps> = ({
 
   // Draft States
   const [h5Drafts, setH5Drafts] = useState<DraftReport[]>(() => {
-    try {
-      const saved = localStorage.getItem('ddsb_h5_report_drafts');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
+    return loadDrafts(H5_REPORT_DRAFT_STORAGE_KEY);
   });
   const [showH5DraftModal, setShowH5DraftModal] = useState(false);
   const [activeH5DraftId, setActiveH5DraftId] = useState<string | null>(null);
@@ -389,14 +390,9 @@ export const H5MobilePortal: React.FC<H5MobilePortalProps> = ({
       saveTime: new Date().toISOString().replace('T', ' ').substring(0, 16)
     };
 
-    const updated = [newDraft, ...h5Drafts.filter((d) => d.id !== draftId)];
+    const updated = upsertDraft(newDraft, H5_REPORT_DRAFT_STORAGE_KEY);
     setH5Drafts(updated);
     setActiveH5DraftId(draftId);
-    try {
-      localStorage.setItem('ddsb_h5_report_drafts', JSON.stringify(updated));
-    } catch {
-      // ignore
-    }
     triggerH5Toast('草稿已成功暂存至草稿箱！');
   };
 
@@ -417,14 +413,9 @@ export const H5MobilePortal: React.FC<H5MobilePortalProps> = ({
   // Delete Draft
   const handleDeleteH5Draft = (draftId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const updated = h5Drafts.filter((d) => d.id !== draftId);
+    const updated = removeDraft(draftId, H5_REPORT_DRAFT_STORAGE_KEY);
     setH5Drafts(updated);
     if (activeH5DraftId === draftId) setActiveH5DraftId(null);
-    try {
-      localStorage.setItem('ddsb_h5_report_drafts', JSON.stringify(updated));
-    } catch {
-      // ignore
-    }
     triggerH5Toast('草稿已删除');
   };
 
@@ -470,24 +461,15 @@ export const H5MobilePortal: React.FC<H5MobilePortalProps> = ({
       infoType: newInfoType,
       author: userProfile.name,
       organization: userProfile.orgName,
-      submitTime: new Date().toLocaleString('zh-CN', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }),
-      detailContent: {
-        summary: newSummary || `网民反映${newTitle}相关情况。`,
-        coreDemands: newDemands || '请相关部门核实处理并及时回应。',
-        publicOpinionTrend: '平稳传播中',
-        recommendations: ['安排专人跟踪', '准备权威回应']
-      }
+      summary: newSummary || `网民反映${newTitle}相关情况。`,
+      demands: newDemands || '请相关部门核实处理并及时回应。',
+      recommendations: ''
     });
 
     triggerH5Toast('🎉 移动速报提交成功！已进入审核队列');
     if (activeH5DraftId) {
-      const updated = h5Drafts.filter((d) => d.id !== activeH5DraftId);
+      const updated = removeDraft(activeH5DraftId, H5_REPORT_DRAFT_STORAGE_KEY);
       setH5Drafts(updated);
-      try {
-        localStorage.setItem('ddsb_h5_report_drafts', JSON.stringify(updated));
-      } catch {
-        // ignore
-      }
     }
     setNewTitle('');
     setNewSummary('');
@@ -500,9 +482,10 @@ export const H5MobilePortal: React.FC<H5MobilePortalProps> = ({
   const handleBatchAuditSubmit = () => {
     if (!batchAddressTarget) return;
     const targetItems = pendingReportsByRegion[batchAddressTarget] || [];
-    targetItems.forEach((item) => {
-      onApproveAudit(item.id, batchAuditScore);
-    });
+    onBatchApprove(
+      targetItems.map((item) => item.id),
+      batchAuditScore
+    );
     triggerH5Toast(`已成功对同地址【${batchAddressTarget}】下 ${targetItems.length} 条速报合并通过审核（打分: ${batchAuditScore}分）！`);
     setBatchAddressTarget(null);
   };
@@ -518,6 +501,8 @@ export const H5MobilePortal: React.FC<H5MobilePortalProps> = ({
   const pendingCount = reports.filter((r) => r.auditStatus === '待审核').length;
   const passedCount = reports.filter((r) => r.auditStatus === '已通过' || r.auditStatus === '已转办').length;
   const unreadMsgCount = h5Messages.filter((m) => !m.isRead).length + announcements.filter((a) => !a.isRead).length;
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-md flex flex-col items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">

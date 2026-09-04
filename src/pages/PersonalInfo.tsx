@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { PageId, UserProfileData } from '../types';
+import { loadUserProfile, saveUserProfile } from '../services/userProfileStorage';
 import {
   Building2,
   Smartphone,
@@ -43,15 +44,7 @@ export const PersonalInfo: React.FC<PersonalInfoProps> = ({
 }) => {
   // State for user profile data (with localStorage persistence)
   const [profile, setProfile] = useState<UserProfileData>(() => {
-    try {
-      const saved = localStorage.getItem('ddsb_user_personal_info');
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch {
-      // fallback
-    }
-    return {
+    return loadUserProfile({
       name: '张三',
       username: 'grid_zhangsan',
       avatarText: '张',
@@ -72,7 +65,7 @@ export const PersonalInfo: React.FC<PersonalInfoProps> = ({
       bankName: '中国工商银行台中西坝支行',
       verifiedStatus: '已实名认证',
       updateTime: '2026-08-13 09:15:00'
-    };
+    });
   });
 
   // UI States
@@ -144,12 +137,7 @@ export const PersonalInfo: React.FC<PersonalInfoProps> = ({
       updateTime: now
     };
 
-    setProfile(updatedProfile);
-    try {
-      localStorage.setItem('ddsb_user_personal_info', JSON.stringify(updatedProfile));
-    } catch {
-      // ignore
-    }
+    setProfile(saveUserProfile(updatedProfile));
 
     setIsEditModalOpen(false);
     showToast('个人基础信息修改保存成功！');
@@ -194,12 +182,7 @@ export const PersonalInfo: React.FC<PersonalInfoProps> = ({
       updateTime: now
     };
 
-    setProfile(updated);
-    try {
-      localStorage.setItem('ddsb_user_personal_info', JSON.stringify(updated));
-    } catch {
-      // ignore
-    }
+    setProfile(saveUserProfile(updated));
 
     setIsPhoneModalOpen(false);
     setNewPhone('');

@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { EvaluationItem, PageId } from '../types';
 import {
-  Search,
   RotateCcw,
   Calendar,
   Download,
@@ -60,6 +59,7 @@ interface EvaluationProps {
 
 export type EvaluationDimension = 'category' | 'org' | 'person';
 export type PersonSubRole = 'submitter' | 'auditor';
+export type EvaluationTimeDimension = 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
 
 export interface DetailedEvaluationRecord {
   id: string;
@@ -661,7 +661,9 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
   const [selectedPersonName, setSelectedPersonName] = useState<string>('张三');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRecord, setSelectedRecord] = useState<DetailedEvaluationRecord | null>(null);
-  const [timePeriod, setTimePeriod] = useState<'month' | 'quarter' | 'year'>('month');
+  const [timePeriod, setTimePeriod] = useState<EvaluationTimeDimension>('week');
+  const [startDate, setStartDate] = useState('2026-08-04');
+  const [endDate, setEndDate] = useState('2026-08-11');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const showToast = (text: string) => {
@@ -669,9 +671,121 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
     setTimeout(() => setToastMsg(null), 3000);
   };
 
+  const handleTimePeriodChange = (period: EvaluationTimeDimension) => {
+    setTimePeriod(period);
+    if (period === 'day') {
+      setStartDate('2026-08-11');
+      setEndDate('2026-08-11');
+    } else if (period === 'week') {
+      setStartDate('2026-08-04');
+      setEndDate('2026-08-11');
+    } else if (period === 'month') {
+      setStartDate('2026-08-01');
+      setEndDate('2026-08-31');
+    } else if (period === 'quarter') {
+      setStartDate('2026-07-01');
+      setEndDate('2026-09-30');
+    } else if (period === 'year') {
+      setStartDate('2026-01-01');
+      setEndDate('2026-12-31');
+    }
+  };
+
+  const handleResetFilters = () => {
+    setTimePeriod('week');
+    setStartDate('2026-08-04');
+    setEndDate('2026-08-11');
+    setSearchQuery('');
+  };
+
   // Submitter Evaluation Metrics by Time Period
   const submitterMetrics = useMemo(() => {
     switch (timePeriod) {
+      case 'day':
+        return {
+          personName: selectedPersonName === '张三' || selectedPersonName === '王五' || selectedPersonName === '赵六' ? selectedPersonName : '张三',
+          totalSubmit: 4,
+          totalSubmitMoM: '+33.3%',
+          breakdown: { adopted: 2, rejected: 1, pending: 1 },
+          submitRank: 2,
+          submitRankTotal: 28,
+          submitRankMoM: '↑ 提升 1 位',
+          oncePassNumerator: 3,
+          oncePassDenominator: 4,
+          oncePassRate: '75.0%',
+          oncePassRateMoM: '+12.5%',
+          oncePassRank: 2,
+          oncePassRankMoM: '↑ 提升 1 位',
+          overallPassNumerator: 3,
+          overallPassDenominator: 4,
+          overallPassRate: '75.0%',
+          overallPassRateMoM: '+8.3%',
+          overallPassRank: 2,
+          overallPassRankMoM: '↑ 提升 1 位',
+          rejectNumerator: 1,
+          rejectDenominator: 4,
+          rejectRate: '25.0%',
+          rejectRateMoM: '-8.3%',
+          rejectRank: 2,
+          rejectRankMoM: '↓ 优化 1 位',
+          totalScore: 364.8,
+          totalScoreMoM: '+88.5 分',
+          totalScoreRank: 2,
+          totalScoreRankMoM: '↑ 提升 1 位',
+          avgScore: 91.2,
+          avgScoreMoM: '+1.5 分',
+          avgScoreRank: 3,
+          avgScoreRankMoM: '↑ 提升 1 位',
+          warnings: {
+            submitTotalDiff: { personal: '4 件', orgAvg: '2 件', value: '+2 件', percentage: '+100%', text: '超出机构平均日均报送量 2 件 (机构平均 2 件)' },
+            passRateDiff: { personal: '75.0%', orgAvg: '66.7%', value: '+8.3%', percentage: '+8.3%', text: '高于机构平均整体通过率 8.3 个百分点 (机构平均 66.7%)' },
+            rejectRateDiff: { personal: '25.0%', orgAvg: '33.3%', value: '-8.3%', percentage: '-8.3%', text: '优于机构平均日均驳回率 8.3 个百分点 (机构平均 33.3%)' },
+            scoreDiff: { personal: '91.2 分', orgAvg: '87.7 分', value: '+3.5 分', percentage: '+4.0%', text: '优于机构平均得分 3.5 分 (机构平均 87.7 分)' }
+          }
+        };
+      case 'week':
+      case 'custom':
+        return {
+          personName: selectedPersonName === '张三' || selectedPersonName === '王五' || selectedPersonName === '赵六' ? selectedPersonName : '张三',
+          totalSubmit: 11,
+          totalSubmitMoM: '+15.8%',
+          breakdown: { adopted: 1, rejected: 2, pending: 8 },
+          submitRank: 3,
+          submitRankTotal: 28,
+          submitRankMoM: '↑ 提升 1 位',
+          oncePassNumerator: 9,
+          oncePassDenominator: 11,
+          oncePassRate: '81.8%',
+          oncePassRateMoM: '+6.5%',
+          oncePassRank: 2,
+          oncePassRankMoM: '↑ 提升 1 位',
+          overallPassNumerator: 10,
+          overallPassDenominator: 11,
+          overallPassRate: '90.9%',
+          overallPassRateMoM: '+4.2%',
+          overallPassRank: 1,
+          overallPassRankMoM: '↑ 提升 2 位',
+          rejectNumerator: 2,
+          rejectDenominator: 11,
+          rejectRate: '18.2%',
+          rejectRateMoM: '-4.5%',
+          rejectRank: 2,
+          rejectRankMoM: '↓ 优化 1 位',
+          totalScore: 1020.8,
+          totalScoreMoM: '+185.0 分',
+          totalScoreRank: 2,
+          totalScoreRankMoM: '↑ 提升 1 位',
+          avgScore: 92.8,
+          avgScoreMoM: '+1.6 分',
+          avgScoreRank: 3,
+          avgScoreRankMoM: '↑ 提升 1 位',
+          warnings: {
+            submitTotalDiff: { personal: '11 件', orgAvg: '6 件', value: '+5 件', percentage: '+83.3%', text: '大幅超出机构平均数 5 件 (机构平均 6 件)' },
+            passRateDiff: { personal: '90.9%', orgAvg: '80.0%', value: '+10.9%', percentage: '+10.9%', text: '高出机构平均整体通过率 10.9 个百分点 (机构平均 80.0%)' },
+            rejectRateDiff: { personal: '18.2%', orgAvg: '22.7%', value: '-4.5%', percentage: '-4.5%', text: '优于机构平均驳回率 4.5 个百分点 (机构平均 22.7%)' },
+            scoreDiff: { personal: '92.8 分', orgAvg: '88.6 分', value: '+4.2 分', percentage: '+4.7%', text: '优于机构平均得分 4.2 分 (机构平均 88.6 分)' }
+          }
+        };
       case 'year':
         return {
           personName: selectedPersonName === '张三' || selectedPersonName === '王五' || selectedPersonName === '赵六' ? selectedPersonName : '张三',
@@ -805,6 +919,59 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
   // Auditor Evaluation Metrics by Time Period
   const auditorMetrics = useMemo(() => {
     switch (timePeriod) {
+      case 'day':
+        return {
+          personName: selectedPersonName === '王主任' || selectedPersonName === '李明' || selectedPersonName === '孙七' ? selectedPersonName : '王主任',
+          auditTotal: 12,
+          auditTotalMoM: '+20.0%',
+          auditBreakdown: { passed: 11, rejected: 1 },
+          auditPendingCount: 3,
+          auditRank: 2,
+          auditRankTotal: 16,
+          auditRankMoM: '↑ 提升 1 位',
+          processRateNumerator: 12,
+          processRateDenominator: 15,
+          processRate: '80.0%',
+          processRateMoM: '+5.0%',
+          processRateRank: 2,
+          processRateRankMoM: '↑ 提升 1 位',
+          avgTimeMin: 7.2,
+          avgTimeMoM: '-10.0%',
+          avgTimeRank: 1,
+          avgTimeRankMoM: '↑ 提升 1 位',
+          warnings: {
+            auditTotalDiff: { personal: '12 件', orgAvg: '8 件', value: '+4 件', percentage: '+50.0%', text: '超出全市审核员平均数 4 件 (机构平均 8 件)' },
+            processRateDiff: { personal: '80.0%', orgAvg: '71.5%', value: '+8.5%', percentage: '+8.5%', text: '超出平均处理率 8.5 个百分点 (机构平均 71.5%)' },
+            avgTimeDiff: { personal: '7.2 分钟', orgAvg: '12.4 分钟', value: '-5.2 分钟', percentage: '-41.9%', text: '审核耗时比机构平均用时(12.4分)快 5.2 分钟' }
+          }
+        };
+      case 'week':
+      case 'custom':
+        return {
+          personName: selectedPersonName === '王主任' || selectedPersonName === '李明' || selectedPersonName === '孙七' ? selectedPersonName : '王主任',
+          auditTotal: 86,
+          auditTotalMoM: '+18.2%',
+          auditBreakdown: { passed: 78, rejected: 8 },
+          auditPendingCount: 5,
+          auditRank: 2,
+          auditRankTotal: 16,
+          auditRankMoM: '↑ 提升 1 位',
+          processRateNumerator: 86,
+          processRateDenominator: 91,
+          processRate: '94.5%',
+          processRateMoM: '+3.8%',
+          processRateRank: 1,
+          processRateRankMoM: '↑ 提升 1 位',
+          avgTimeMin: 6.8,
+          avgTimeMoM: '-17.1%',
+          avgTimeRank: 1,
+          avgTimeRankMoM: '↑ 提升 1 位',
+          warnings: {
+            auditTotalDiff: { personal: '86 件', orgAvg: '54 件', value: '+32 件', percentage: '+59.3%', text: '大幅超出机构平均数 32 件 (机构平均 54 件)' },
+            processRateDiff: { personal: '94.5%', orgAvg: '82.1%', value: '+12.4%', percentage: '+12.4%', text: '高出机构平均处理率 12.4 个百分点 (机构平均 82.1%)' },
+            avgTimeDiff: { personal: '6.8 分钟', orgAvg: '14.5 分钟', value: '-7.7 分钟', percentage: '-53.1%', text: '优于机构平均审核用时 7.7 分钟 (机构平均 14.5 分钟)' }
+          }
+        };
       case 'year':
         return {
           personName: selectedPersonName === '王主任' || selectedPersonName === '李明' || selectedPersonName === '孙七' ? selectedPersonName : '王主任',
@@ -938,13 +1105,7 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
             <div>
               <div className="flex items-center space-x-2.5">
                 <h2 className="text-lg font-extrabold text-gray-900 tracking-tight">绩效考核与对标评价中心</h2>
-                <span className="bg-amber-50 text-amber-900 text-xs font-bold px-2 py-0.5 rounded-md border border-amber-200">
-                  全指标量化考评体系
-                </span>
               </div>
-              <p className="text-xs text-gray-500 mt-0.5">
-                深度贯穿上报总量、一次性通过率、整体通过率、审核处理率、响应时长及环比对标指标
-              </p>
             </div>
           </div>
 
@@ -993,38 +1154,56 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
           <div className="flex flex-wrap items-center gap-2 text-xs">
             {/* Time Period */}
             <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl border border-slate-200/80 font-bold">
-              <span className="text-gray-400 px-1 text-[11px]">周期:</span>
-              <button
-                onClick={() => setTimePeriod('month')}
-                className={`px-2 py-1 rounded-lg ${timePeriod === 'month' ? 'bg-white text-blue-700 shadow-2xs' : 'text-gray-600'}`}
-              >
-                月度
-              </button>
-              <button
-                onClick={() => setTimePeriod('quarter')}
-                className={`px-2 py-1 rounded-lg ${timePeriod === 'quarter' ? 'bg-white text-blue-700 shadow-2xs' : 'text-gray-600'}`}
-              >
-                季度
-              </button>
-              <button
-                onClick={() => setTimePeriod('year')}
-                className={`px-2 py-1 rounded-lg ${timePeriod === 'year' ? 'bg-white text-blue-700 shadow-2xs' : 'text-gray-600'}`}
-              >
-                年度
-              </button>
+              <span className="text-gray-400 px-1.5 text-[11px] flex items-center space-x-1">
+                <Clock className="w-3.5 h-3.5 text-blue-600" />
+                <span>考核周期:</span>
+              </span>
+              {(['day', 'week', 'month', 'quarter', 'year', 'custom'] as EvaluationTimeDimension[]).map((period) => (
+                <button
+                  key={period}
+                  onClick={() => handleTimePeriodChange(period)}
+                  className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                    timePeriod === period
+                      ? 'bg-white text-[#1E5ABB] shadow-2xs'
+                      : 'text-gray-600 hover:text-blue-700'
+                  }`}
+                >
+                  {period === 'day' ? '日(今日)' : period === 'week' ? '周(本周)' : period === 'month' ? '月(本月)' : period === 'quarter' ? '季度' : period === 'year' ? '年度' : '自定义'}
+                </button>
+              ))}
             </div>
 
-            {/* Search Box */}
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
+            <div className="flex items-center space-x-1 bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 shadow-2xs">
+              <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
               <input
-                type="text"
-                placeholder="搜索被考核人 / 单位..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 pr-3 py-1.5 bg-slate-50 border border-gray-300 rounded-lg text-xs w-48 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white"
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setTimePeriod('custom');
+                }}
+                className="w-24 focus:outline-none text-gray-700 font-mono text-[11px]"
+              />
+              <span className="text-gray-400">至</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setTimePeriod('custom');
+                }}
+                className="w-24 focus:outline-none text-gray-700 font-mono text-[11px]"
               />
             </div>
+
+            <button
+              onClick={handleResetFilters}
+              className="p-1.5 bg-slate-100 hover:bg-slate-200 text-gray-600 font-bold rounded-lg border border-gray-200 cursor-pointer transition-colors"
+              title="重置筛选"
+              aria-label="重置筛选"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       </div>
@@ -1035,103 +1214,24 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
       {/* 3. 考评对象量化指标统计与机构效能对比 (上报员 / 审核员 统计卡片与行业对标) */}
       {/* ========================================================================= */}
       <div className="space-y-4">
-        {/* 控制与切换栏 */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex items-center space-x-2.5">
-            <div className="p-2 bg-blue-600 text-white rounded-xl shadow-2xs">
-              <Target className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <h3 className="font-extrabold text-sm text-gray-900">考评对象量化指标统计与机构效能对标</h3>
-                <span className="bg-blue-50 text-blue-800 text-[11px] font-bold px-2 py-0.5 rounded-full border border-blue-200">
-                  {effectiveCardPerspective === 'submitter' ? '上报员考评视角' : '审核员考评视角'}
-                </span>
-              </div>
-              <p className="text-xs text-gray-500 mt-0.5">
-                深度对标全套核心量化指标、榜单排名位次及机构人均基准偏离值
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            {/* 上报员 / 审核员 身份切换 */}
-            {personSubRole === 'all' && (
-              <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl border border-slate-200/80 font-bold">
-                <button
-                  onClick={() => {
-                    setCardPerspective('submitter');
-                    setSelectedPersonName('张三');
-                  }}
-                  className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center space-x-1 ${
-                    effectiveCardPerspective === 'submitter'
-                      ? 'bg-blue-600 text-white shadow-2xs'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <Send className="w-3 h-3" />
-                  <span>上报员指标</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setCardPerspective('auditor');
-                    setSelectedPersonName('王主任');
-                  }}
-                  className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center space-x-1 ${
-                    effectiveCardPerspective === 'auditor'
-                      ? 'bg-emerald-600 text-white shadow-2xs'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <ShieldCheck className="w-3 h-3" />
-                  <span>审核员指标</span>
-                </button>
-              </div>
-            )}
-
-            {/* 考评代表选择器 */}
-            <div className="flex items-center space-x-1 bg-slate-50 p-1 rounded-xl border border-slate-200 text-xs">
-              <span className="text-gray-400 px-1 text-[11px] font-medium">考评代表:</span>
-              {effectiveCardPerspective === 'submitter' ? (
-                <>
-                  {['张三', '王五', '赵六'].map((pName) => (
-                    <button
-                      key={pName}
-                      onClick={() => setSelectedPersonName(pName)}
-                      className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                        selectedPersonName === pName
-                          ? 'bg-blue-600 text-white shadow-2xs'
-                          : 'text-gray-600 hover:bg-white'
-                      }`}
-                    >
-                      {pName} {pName === '张三' && '🥇'}
-                    </button>
-                  ))}
-                </>
-              ) : (
-                <>
-                  {['王主任', '李明', '孙七'].map((pName) => (
-                    <button
-                      key={pName}
-                      onClick={() => setSelectedPersonName(pName)}
-                      className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                        selectedPersonName === pName
-                          ? 'bg-emerald-600 text-white shadow-2xs'
-                          : 'text-gray-600 hover:bg-white'
-                      }`}
-                    >
-                      {pName} {pName === '王主任' && '🥇'}
-                    </button>
-                  ))}
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-
         {/* 3.1 上报员考评卡片组 */}
         {effectiveCardPerspective === 'submitter' && (
-          <div className="space-y-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-4 sm:p-5 space-y-4 animate-in fade-in duration-200">
+            {/* 模块一：考评效能指标 */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 bg-blue-600 text-white rounded-xl shadow-2xs">
+                  <Target className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-gray-900">考评效能指标</h3>
+                </div>
+              </div>
+              <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100">
+                {submitterMetrics.personName}
+              </span>
+            </div>
+
             {/* 5 张核心指标卡片 */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
               {/* 卡片 1: 本期累计上报 */}
@@ -1178,7 +1278,7 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
                       <span>一次性通过率</span>
                     </span>
                     <span className="text-[11px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md font-bold">
-                      环比 {submitterMetrics.oncePassRateMoM}
+                      环比 {submitterMetrics.overallPassRateMoM}
                     </span>
                   </div>
                   <div className="flex items-baseline justify-between mb-3">
@@ -1194,7 +1294,7 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
                   <span className="text-slate-600">
                     第 <b className="text-emerald-700 font-mono font-bold">{submitterMetrics.oncePassRank}</b> 名 <span className="text-slate-400 font-normal">/ {submitterMetrics.submitRankTotal}人</span>
                   </span>
-                  <span className="text-emerald-600 font-medium">{submitterMetrics.oncePassRankMoM}</span>
+                  <span className="text-emerald-600 font-medium">无驳回重修</span>
                 </div>
               </div>
 
@@ -1288,120 +1388,60 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
               </div>
             </div>
 
-            {/* 机构人均效能对比 (行业平均值对标卡片) */}
-            <div className="bg-gradient-to-br from-amber-50/80 via-white to-amber-50/40 rounded-2xl p-5 border border-amber-200/90 shadow-2xs space-y-3.5 flex flex-col justify-between">
-              <div className="space-y-3.5">
-                <div className="flex items-center justify-between border-b border-amber-100 pb-3">
-                  <div className="flex items-center space-x-2">
-                    <div className="p-2 bg-amber-500 text-white rounded-xl shadow-2xs">
-                      <AlertTriangle className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h3 className="font-extrabold text-sm text-gray-900 flex items-center space-x-2">
-                        <span>机构人均效能对比</span>
-                        <span className="bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                          行业平均值对标 · {submitterMetrics.personName}
-                        </span>
-                      </h3>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        比对上报总数、通过率、综合得分与机构人均基准值偏离程度
-                      </p>
-                    </div>
+            {/* 平均效能对比 (简化内嵌) */}
+            <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-3.5 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center space-x-2">
+                  <div className="p-1.5 bg-amber-500 text-white rounded-lg shadow-xs">
+                    <AlertTriangle className="w-3.5 h-3.5" />
                   </div>
+                  <h3 className="text-xs font-extrabold text-gray-900">平均效能对比</h3>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {/* 预警 1: 上报总数 */}
-                  <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs space-y-2.5 flex flex-col justify-between hover:border-emerald-200 transition-colors">
-                    {/* 第一行: 左上角标题 + 右上角领跑均分幅度 */}
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-xs text-gray-800">上报总数</span>
-                      <span className="text-xs font-mono font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
-                        {submitterMetrics.warnings.submitTotalDiff.value} ({submitterMetrics.warnings.submitTotalDiff.percentage})
-                      </span>
-                    </div>
-
-                    {/* 第二行: 个人得分 与 机构平均分 */}
-                    <div className="bg-slate-50/80 rounded-lg p-2.5 flex items-center justify-between text-xs border border-slate-100">
-                      <div className="flex items-baseline space-x-1.5">
-                        <span className="text-gray-500 text-[11px]">个人:</span>
-                        <strong className="text-emerald-700 font-mono font-bold text-sm">{submitterMetrics.warnings.submitTotalDiff.personal}</strong>
-                      </div>
-                      <div className="h-3 w-px bg-slate-200"></div>
-                      <div className="flex items-baseline space-x-1.5">
-                        <span className="text-gray-500 text-[11px]">机构平均:</span>
-                        <strong className="text-gray-700 font-mono font-bold text-sm">{submitterMetrics.warnings.submitTotalDiff.orgAvg}</strong>
-                      </div>
-                    </div>
-
-                    {/* 第三行: 描述 */}
-                    <p className="text-[11px] text-gray-500 leading-snug pt-1 border-t border-slate-100">
-                      {submitterMetrics.warnings.submitTotalDiff.text}，贡献度显著。
-                    </p>
-                  </div>
-
-                  {/* 预警 2: 整体通过率 */}
-                  <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs space-y-2.5 flex flex-col justify-between hover:border-blue-200 transition-colors">
-                    {/* 第一行: 左上角标题 + 右上角领跑均分幅度 */}
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-xs text-gray-800">整体通过率</span>
-                      <span className="text-xs font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
-                        {submitterMetrics.warnings.passRateDiff.value} (大幅领先)
-                      </span>
-                    </div>
-
-                    {/* 第二行: 个人得分 与 机构平均分 */}
-                    <div className="bg-slate-50/80 rounded-lg p-2.5 flex items-center justify-between text-xs border border-slate-100">
-                      <div className="flex items-baseline space-x-1.5">
-                        <span className="text-gray-500 text-[11px]">个人:</span>
-                        <strong className="text-blue-700 font-mono font-bold text-sm">{submitterMetrics.warnings.passRateDiff.personal}</strong>
-                      </div>
-                      <div className="h-3 w-px bg-slate-200"></div>
-                      <div className="flex items-baseline space-x-1.5">
-                        <span className="text-gray-500 text-[11px]">机构平均:</span>
-                        <strong className="text-gray-700 font-mono font-bold text-sm">{submitterMetrics.warnings.passRateDiff.orgAvg}</strong>
-                      </div>
-                    </div>
-
-                    {/* 第三行: 描述 */}
-                    <p className="text-[11px] text-gray-500 leading-snug pt-1 border-t border-slate-100">
-                      {submitterMetrics.warnings.passRateDiff.text}，报送质量过硬。
-                    </p>
-                  </div>
-
-                  {/* 预警 3: 综合得分 */}
-                  <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs space-y-2.5 flex flex-col justify-between hover:border-purple-200 transition-colors">
-                    {/* 第一行: 左上角标题 + 右上角领跑均分幅度 */}
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-xs text-gray-800">综合得分</span>
-                      <span className="text-xs font-mono font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-100">
-                        {submitterMetrics.warnings.scoreDiff.value} ({submitterMetrics.warnings.scoreDiff.percentage})
-                      </span>
-                    </div>
-
-                    {/* 第二行: 个人得分 与 机构平均分 */}
-                    <div className="bg-slate-50/80 rounded-lg p-2.5 flex items-center justify-between text-xs border border-slate-100">
-                      <div className="flex items-baseline space-x-1.5">
-                        <span className="text-gray-500 text-[11px]">个人:</span>
-                        <strong className="text-purple-700 font-mono font-bold text-sm">{submitterMetrics.warnings.scoreDiff.personal}</strong>
-                      </div>
-                      <div className="h-3 w-px bg-slate-200"></div>
-                      <div className="flex items-baseline space-x-1.5">
-                        <span className="text-gray-500 text-[11px]">机构平均:</span>
-                        <strong className="text-gray-700 font-mono font-bold text-sm">{submitterMetrics.warnings.scoreDiff.orgAvg}</strong>
-                      </div>
-                    </div>
-
-                    {/* 第三行: 描述 */}
-                    <p className="text-[11px] text-gray-500 leading-snug pt-1 border-t border-slate-100">
-                      {submitterMetrics.warnings.scoreDiff.text}，综合表现突出。
-                    </p>
-                  </div>
-                </div>
+                <span className="text-[10px] font-semibold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full shrink-0">
+                  个人 vs 机构平均 · {submitterMetrics.personName}
+                </span>
               </div>
 
-              <div className="bg-amber-100/60 p-2.5 rounded-xl border border-amber-200/80 text-[11px] text-amber-900 flex items-center justify-between">
-                <span className="font-medium">📌 当前上报质效全面优于机构人均基准线，建议继续保持高质量首发初采机制。</span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="bg-white/80 rounded-lg px-3 py-2 border border-amber-100 text-xs space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-gray-700">上报总数</span>
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">
+                      {submitterMetrics.warnings.submitTotalDiff.value}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-gray-500 flex items-center justify-between gap-2">
+                    <span>个人 <b className="text-emerald-700">{submitterMetrics.warnings.submitTotalDiff.personal}</b></span>
+                    <span className="text-gray-300">|</span>
+                    <span>机构平均 <b className="text-gray-700">{submitterMetrics.warnings.submitTotalDiff.orgAvg}</b></span>
+                  </div>
+                </div>
+                <div className="bg-white/80 rounded-lg px-3 py-2 border border-amber-100 text-xs space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-gray-700">整体通过率</span>
+                    <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
+                      {submitterMetrics.warnings.passRateDiff.value}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-gray-500 flex items-center justify-between gap-2">
+                    <span>个人 <b className="text-blue-700">{submitterMetrics.warnings.passRateDiff.personal}</b></span>
+                    <span className="text-gray-300">|</span>
+                    <span>机构平均 <b className="text-gray-700">{submitterMetrics.warnings.passRateDiff.orgAvg}</b></span>
+                  </div>
+                </div>
+                <div className="bg-white/80 rounded-lg px-3 py-2 border border-amber-100 text-xs space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-gray-700">平均得分</span>
+                    <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-md">
+                      {submitterMetrics.warnings.scoreDiff.value}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-gray-500 flex items-center justify-between gap-2">
+                    <span>个人 <b className="text-purple-700">{submitterMetrics.warnings.scoreDiff.personal}</b></span>
+                    <span className="text-gray-300">|</span>
+                    <span>机构平均 <b className="text-gray-700">{submitterMetrics.warnings.scoreDiff.orgAvg}</b></span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1409,7 +1449,22 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
 
         {/* 3.2 审核员考评卡片组 */}
         {effectiveCardPerspective === 'auditor' && (
-          <div className="space-y-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-4 sm:p-5 space-y-4 animate-in fade-in duration-200">
+            {/* 模块一：考评效能指标 */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 bg-emerald-600 text-white rounded-xl shadow-2xs">
+                  <Target className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-gray-900">考评效能指标</h3>
+                </div>
+              </div>
+              <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
+                {auditorMetrics.personName}
+              </span>
+            </div>
+
             {/* 3 张核心指标卡片 */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
               {/* 卡片 1: 累计审核总数 */}
@@ -1431,11 +1486,11 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
                       <span className="text-xs font-normal text-slate-400 ml-1">件</span>
                     </div>
                     <div className="text-[11px] text-slate-500 font-mono flex items-center space-x-1.5">
-                      <span className="text-emerald-600 font-semibold">采纳 {auditorMetrics.auditBreakdown.passed}</span>
+                      <span className="text-blue-600 font-semibold">已办 {auditorMetrics.auditTotal}</span>
+                      <span className="text-slate-300">/</span>
+                      <span className="text-emerald-600 font-semibold">通过 {auditorMetrics.auditBreakdown.passed}</span>
                       <span className="text-slate-300">/</span>
                       <span className="text-rose-500 font-semibold">驳回 {auditorMetrics.auditBreakdown.rejected}</span>
-                      <span className="text-slate-300">/</span>
-                      <span className="text-amber-500 font-semibold">待审 {auditorMetrics.auditPendingCount}</span>
                     </div>
                   </div>
                 </div>
@@ -1513,120 +1568,60 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
               </div>
             </div>
 
-            {/* 机构人均效能对比 (行业平均值对标卡片) */}
-            <div className="bg-gradient-to-br from-amber-50/80 via-white to-amber-50/40 rounded-2xl p-5 border border-amber-200/90 shadow-2xs space-y-3.5 flex flex-col justify-between">
-              <div className="space-y-3.5">
-                <div className="flex items-center justify-between border-b border-amber-100 pb-3">
-                  <div className="flex items-center space-x-2">
-                    <div className="p-2 bg-amber-500 text-white rounded-xl shadow-2xs">
-                      <AlertTriangle className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h3 className="font-extrabold text-sm text-gray-900 flex items-center space-x-2">
-                        <span>机构人均效能对比</span>
-                        <span className="bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                          行业平均值对标 · {auditorMetrics.personName}
-                        </span>
-                      </h3>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        比对审核总数、处理率、时长与机构人均基准值偏离程度
-                      </p>
-                    </div>
+            {/* 平均效能对比 (简化内嵌) */}
+            <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-3.5 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center space-x-2">
+                  <div className="p-1.5 bg-amber-500 text-white rounded-lg shadow-xs">
+                    <AlertTriangle className="w-3.5 h-3.5" />
                   </div>
+                  <h3 className="text-xs font-extrabold text-gray-900">平均效能对比</h3>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {/* 预警 1: 审核总数 */}
-                  <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs space-y-2.5 flex flex-col justify-between hover:border-emerald-200 transition-colors">
-                    {/* 第一行: 左上角标题 + 右上角领跑均分幅度 */}
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-xs text-gray-800">审核总数</span>
-                      <span className="text-xs font-mono font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
-                        {auditorMetrics.warnings.auditTotalDiff.value} ({auditorMetrics.warnings.auditTotalDiff.percentage})
-                      </span>
-                    </div>
-
-                    {/* 第二行: 个人得分 与 机构平均分 */}
-                    <div className="bg-slate-50/80 rounded-lg p-2.5 flex items-center justify-between text-xs border border-slate-100">
-                      <div className="flex items-baseline space-x-1.5">
-                        <span className="text-gray-500 text-[11px]">个人:</span>
-                        <strong className="text-emerald-700 font-mono font-bold text-sm">{auditorMetrics.warnings.auditTotalDiff.personal}</strong>
-                      </div>
-                      <div className="h-3 w-px bg-slate-200"></div>
-                      <div className="flex items-baseline space-x-1.5">
-                        <span className="text-gray-500 text-[11px]">机构平均:</span>
-                        <strong className="text-gray-700 font-mono font-bold text-sm">{auditorMetrics.warnings.auditTotalDiff.orgAvg}</strong>
-                      </div>
-                    </div>
-
-                    {/* 第三行: 描述 */}
-                    <p className="text-[11px] text-gray-500 leading-snug pt-1 border-t border-slate-100">
-                      {auditorMetrics.warnings.auditTotalDiff.text}，经办审批负荷充足。
-                    </p>
-                  </div>
-
-                  {/* 预警 2: 审核处理率 */}
-                  <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs space-y-2.5 flex flex-col justify-between hover:border-blue-200 transition-colors">
-                    {/* 第一行: 左上角标题 + 右上角领跑均分幅度 */}
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-xs text-gray-800">审核处理率</span>
-                      <span className="text-xs font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
-                        {auditorMetrics.warnings.processRateDiff.value} (达标满额)
-                      </span>
-                    </div>
-
-                    {/* 第二行: 个人得分 与 机构平均分 */}
-                    <div className="bg-slate-50/80 rounded-lg p-2.5 flex items-center justify-between text-xs border border-slate-100">
-                      <div className="flex items-baseline space-x-1.5">
-                        <span className="text-gray-500 text-[11px]">个人:</span>
-                        <strong className="text-blue-700 font-mono font-bold text-sm">{auditorMetrics.warnings.processRateDiff.personal}</strong>
-                      </div>
-                      <div className="h-3 w-px bg-slate-200"></div>
-                      <div className="flex items-baseline space-x-1.5">
-                        <span className="text-gray-500 text-[11px]">机构平均:</span>
-                        <strong className="text-gray-700 font-mono font-bold text-sm">{auditorMetrics.warnings.processRateDiff.orgAvg}</strong>
-                      </div>
-                    </div>
-
-                    {/* 第三行: 描述 */}
-                    <p className="text-[11px] text-gray-500 leading-snug pt-1 border-t border-slate-100">
-                      {auditorMetrics.warnings.processRateDiff.text}，工单积压风险低。
-                    </p>
-                  </div>
-
-                  {/* 预警 3: 审核时长 */}
-                  <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs space-y-2.5 flex flex-col justify-between hover:border-purple-200 transition-colors">
-                    {/* 第一行: 左上角标题 + 右上角领跑均分幅度 */}
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-xs text-gray-800">审核时长</span>
-                      <span className="text-xs font-mono font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-100">
-                        {auditorMetrics.warnings.avgTimeDiff.value} ({auditorMetrics.warnings.avgTimeDiff.percentage})
-                      </span>
-                    </div>
-
-                    {/* 第二行: 个人得分 与 机构平均分 */}
-                    <div className="bg-slate-50/80 rounded-lg p-2.5 flex items-center justify-between text-xs border border-slate-100">
-                      <div className="flex items-baseline space-x-1.5">
-                        <span className="text-gray-500 text-[11px]">个人:</span>
-                        <strong className="text-purple-700 font-mono font-bold text-sm">{auditorMetrics.warnings.avgTimeDiff.personal}</strong>
-                      </div>
-                      <div className="h-3 w-px bg-slate-200"></div>
-                      <div className="flex items-baseline space-x-1.5">
-                        <span className="text-gray-500 text-[11px]">机构平均:</span>
-                        <strong className="text-gray-700 font-mono font-bold text-sm">{auditorMetrics.warnings.avgTimeDiff.orgAvg}</strong>
-                      </div>
-                    </div>
-
-                    {/* 第三行: 描述 */}
-                    <p className="text-[11px] text-gray-500 leading-snug pt-1 border-t border-slate-100">
-                      {auditorMetrics.warnings.avgTimeDiff.text}，达到示范标杆。
-                    </p>
-                  </div>
-                </div>
+                <span className="text-[10px] font-semibold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full shrink-0">
+                  个人 vs 机构平均 · {auditorMetrics.personName}
+                </span>
               </div>
 
-              <div className="bg-amber-100/60 p-2.5 rounded-xl border border-amber-200/80 text-[11px] text-amber-900 flex items-center justify-between">
-                <span className="font-medium">📌 当前审核效能全面优于机构人均基准线，建议继续保持快速初核机制。</span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="bg-white/80 rounded-lg px-3 py-2 border border-amber-100 text-xs space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-gray-700">审核总数</span>
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">
+                      {auditorMetrics.warnings.auditTotalDiff.value}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-gray-500 flex items-center justify-between gap-2">
+                    <span>个人 <b className="text-emerald-700">{auditorMetrics.warnings.auditTotalDiff.personal}</b></span>
+                    <span className="text-gray-300">|</span>
+                    <span>机构平均 <b className="text-gray-700">{auditorMetrics.warnings.auditTotalDiff.orgAvg}</b></span>
+                  </div>
+                </div>
+                <div className="bg-white/80 rounded-lg px-3 py-2 border border-amber-100 text-xs space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-gray-700">审核处理率</span>
+                    <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md">
+                      {auditorMetrics.warnings.processRateDiff.value}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-gray-500 flex items-center justify-between gap-2">
+                    <span>个人 <b className="text-blue-700">{auditorMetrics.warnings.processRateDiff.personal}</b></span>
+                    <span className="text-gray-300">|</span>
+                    <span>机构平均 <b className="text-gray-700">{auditorMetrics.warnings.processRateDiff.orgAvg}</b></span>
+                  </div>
+                </div>
+                <div className="bg-white/80 rounded-lg px-3 py-2 border border-amber-100 text-xs space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-gray-700">审核时长</span>
+                    <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-md">
+                      {auditorMetrics.warnings.avgTimeDiff.value}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-gray-500 flex items-center justify-between gap-2">
+                    <span>个人 <b className="text-purple-700">{auditorMetrics.warnings.avgTimeDiff.personal}</b></span>
+                    <span className="text-gray-300">|</span>
+                    <span>机构平均 <b className="text-gray-700">{auditorMetrics.warnings.avgTimeDiff.orgAvg}</b></span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1652,28 +1647,6 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
                     : '各业务分类量化考核明细总表'}
                 </span>
               </h3>
-              {activeDimension === 'person' && (
-                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md border ${
-                  personSubRole === 'submitter'
-                    ? 'bg-blue-50 text-blue-700 border-blue-200'
-                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                }`}>
-                  {personSubRole === 'submitter' ? '上报员视角' : '审核员视角'}
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-gray-400">
-              {activeDimension === 'person' && personSubRole === 'submitter'
-                ? '深度贯穿上报员核心量化指标：累计上报(采纳/驳回/待审)、一次性通过率、整体通过率、驳回率、综合得分、平均得分与等次'
-                : activeDimension === 'person' && personSubRole === 'auditor'
-                ? '深度贯穿审核员核心量化指标：累计审核(已办/驳回/待审)、审核处理率、平均响应时长与环比效能'
-                : '支持按上报量、通过率(一次性/整体)、驳回率、审核处理率、平均时长、总分及环比排序对标'}
-            </p>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <div className="text-xs text-gray-500 font-bold bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
-              当前展示参评对象 <strong className="text-blue-600 font-mono">{filteredList.length}</strong> 席
             </div>
           </div>
         </div>
@@ -1689,6 +1662,8 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
                   <th className="py-3 px-3 text-center">累计上报量 (采纳/驳回/待审)</th>
                   <th className="py-3 px-3 text-center">一次性通过率 (通过/总件数)</th>
                   <th className="py-3 px-3 text-center">整体通过率 (通过/总件数)</th>
+                  <th className="py-3 px-3 text-center">综合得分</th>
+                  <th className="py-3 px-3 text-center">平均得分</th>
                   <th className="py-3 px-3 text-center">考评等次</th>
                   <th className="py-3 px-3 text-center">操作</th>
                 </tr>
@@ -1696,12 +1671,9 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
                 <tr className="bg-slate-50 text-gray-700 font-bold border-b border-gray-200 text-[11px]">
                   <th className="py-3 px-3 text-center">排名</th>
                   <th className="py-3 px-4">审核员 / 所属机构</th>
-                  <th className="py-3 px-3 text-center">累计审核量 (采纳/驳回/待审)</th>
+                  <th className="py-3 px-3 text-center">累计审核量 (已办/通过/驳回)</th>
                   <th className="py-3 px-3 text-center">审核处理率 (已办/分母)</th>
                   <th className="py-3 px-3 text-center">平均审核响应时长</th>
-                  <th className="py-3 px-3 text-center">综合总分</th>
-                  <th className="py-3 px-3 text-center">平均得分</th>
-                  <th className="py-3 px-3 text-center">较上期环比</th>
                   <th className="py-3 px-3 text-center">考评等次</th>
                   <th className="py-3 px-3 text-center">操作</th>
                 </tr>
@@ -1794,6 +1766,24 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
                         </div>
                       </td>
 
+                      {/* 4. 综合得分 */}
+                      <td className="py-3.5 px-3 text-center">
+                        <div className="font-mono font-black text-amber-600 text-sm">
+                          {row.totalScore.toLocaleString('zh-CN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                          <span className="text-[10px] font-normal text-slate-400 ml-0.5">分</span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">累加得分</div>
+                      </td>
+
+                      {/* 5. 平均得分 */}
+                      <td className="py-3.5 px-3 text-center">
+                        <div className="font-mono font-black text-gray-800 text-sm">
+                          {row.avgScore}
+                          <span className="text-[10px] font-normal text-slate-400 ml-0.5">分</span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">每条均分</div>
+                      </td>
+
                       {/* 考评等次 */}
                       <td className="py-3.5 px-3 text-center">
                         <span
@@ -1824,9 +1814,11 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
 
                 // 审核员专属行展示
                 if (activeDimension === 'person' && personSubRole === 'auditor') {
-                  const passed = row.auditBreakdown?.passed ?? Math.round(row.auditTotal * 0.9);
-                  const rejected = row.auditBreakdown?.rejected ?? Math.round(row.auditTotal * 0.07);
-                  const pending = row.auditBreakdown?.pending ?? Math.max(0, row.auditTotal - passed - rejected);
+                  const completed = row.auditTotal;
+                  const passed = row.auditBreakdown?.passed ?? Math.round(completed * 0.9);
+                  const rejected = Math.max(0, completed - passed);
+                  const pending = row.auditBreakdown?.pending ?? 0;
+                  const processTotal = completed + pending;
 
                   return (
                     <tr key={row.id} className="hover:bg-blue-50/40 transition-colors">
@@ -1848,33 +1840,24 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
                       </td>
                       <td className="py-3.5 px-3 text-center">
                         <div className="font-mono font-black text-slate-900 text-sm">
-                          {row.auditTotal} <span className="text-[11px] font-normal text-slate-400">件</span>
+                          {completed} <span className="text-[11px] font-normal text-slate-400">件</span>
                         </div>
                         <div className="text-[10px] font-mono flex items-center justify-center space-x-1 mt-0.5">
-                          <span className="text-emerald-700 font-bold">已办 {passed}</span>
+                          <span className="text-blue-700 font-bold">已办 {completed}</span>
+                          <span className="text-slate-300">/</span>
+                          <span className="text-emerald-700 font-bold">通过 {passed}</span>
                           <span className="text-slate-300">/</span>
                           <span className="text-rose-600 font-bold">驳回 {rejected}</span>
-                          <span className="text-slate-300">/</span>
-                          <span className="text-amber-600 font-bold">待审 {pending}</span>
                         </div>
                       </td>
                       <td className="py-3.5 px-3 text-center">
                         <div className="font-mono font-black text-teal-700 text-sm">{row.auditProcessRate}%</div>
                         <div className="text-[10px] font-mono text-slate-500">
-                          已办 {passed}/{row.auditTotal} 件
+                          已办 {completed}/{processTotal} 件
                         </div>
                       </td>
                       <td className="py-3.5 px-3 text-center font-mono font-bold text-purple-700 text-sm">
                         {row.avgAuditTimeMin} <span className="text-[11px] font-normal text-purple-600">分钟</span>
-                      </td>
-                      <td className="py-3.5 px-3 text-center font-mono font-black text-amber-600 text-sm">
-                        {row.totalScore.toLocaleString('zh-CN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}分
-                      </td>
-                      <td className="py-3.5 px-3 text-center font-mono font-bold text-purple-600 text-sm">
-                        {row.avgScore.toFixed(1)}分
-                      </td>
-                      <td className="py-3.5 px-3 text-center font-mono font-bold text-emerald-700">
-                        {row.momDelta}
                       </td>
                       <td className="py-3.5 px-3 text-center">
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
@@ -2093,11 +2076,6 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
                     <div className="font-mono font-black text-purple-600 text-sm mt-0.5">{selectedRecord.avgScore.toFixed(1)} 分</div>
                     <div className="text-[10px] text-purple-700/80 mt-1">质效均分领先</div>
                   </div>
-                  <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-200 col-span-2 sm:col-span-1 lg:col-span-2">
-                    <span className="text-blue-800 text-[11px] font-bold">位次升降与环比</span>
-                    <div className="font-mono font-black text-blue-700 text-sm mt-0.5">{selectedRecord.rankChange}</div>
-                    <div className="text-[10px] text-blue-700/80 font-mono mt-1">环比变动 {selectedRecord.momDelta}</div>
-                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
@@ -2113,41 +2091,9 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
                     <span className="text-gray-500 text-[11px]">平均审核时长</span>
                     <div className="font-mono font-bold text-purple-700 text-sm mt-0.5">{selectedRecord.avgAuditTimeMin ? `${selectedRecord.avgAuditTimeMin} 分钟` : '--'}</div>
                   </div>
-                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                    <span className="text-gray-500 text-[11px]">综合得分</span>
-                    <div className="font-mono font-bold text-amber-600 text-sm mt-0.5">{selectedRecord.totalScore.toLocaleString('zh-CN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} 分</div>
-                  </div>
-                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                    <span className="text-gray-500 text-[11px]">平均得分</span>
-                    <div className="font-mono font-bold text-purple-600 text-sm mt-0.5">{selectedRecord.avgScore} 分</div>
-                  </div>
-                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                    <span className="text-gray-500 text-[11px]">位次变动与环比</span>
-                    <div className="font-mono font-bold text-blue-700 text-sm mt-0.5">{selectedRecord.rankChange} ({selectedRecord.momDelta})</div>
-                  </div>
                 </div>
               )}
 
-              {/* Suggestions / Warnings Note */}
-              {selectedRecord.auditWarningDiff && (
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 space-y-1">
-                  <strong className="flex items-center space-x-1">
-                    <ShieldCheck className="w-3.5 h-3.5 text-blue-700" />
-                    <span>审核效能对标分析：</span>
-                  </strong>
-                  <p className="text-[11px] leading-relaxed">{selectedRecord.auditWarningDiff}</p>
-                </div>
-              )}
-
-              {selectedRecord.mainRejectReason && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 space-y-1">
-                  <strong className="flex items-center space-x-1">
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-700" />
-                    <span>报送短板与整改建议：</span>
-                  </strong>
-                  <p className="text-[11px] leading-relaxed">主要退回原因：{selectedRecord.mainRejectReason}。建议强化第一信源佐证链。</p>
-                </div>
-              )}
             </div>
 
             {/* Modal Footer */}

@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ReportItem, PageId } from '../types';
+import { PaginationBar } from '../components/PaginationBar';
+import { getOrganizationPathText, OrgPathDisplay } from '../components/OrgPathDisplay';
+import { AuditStatusBadge } from '../components/AuditStatusBadge';
 import {
   Search,
   RotateCcw,
@@ -11,11 +14,9 @@ import {
   FileEdit,
   Trash2,
   Undo2,
-  Copy,
   MapPin,
   LayoutGrid,
   List,
-  Check,
   Building2,
   Calendar,
   Layers,
@@ -29,7 +30,7 @@ interface ReportSummaryProps {
   onSelectReport: (report: ReportItem) => void;
   onDeleteReport?: (id: number) => void;
   onWithdrawReport?: (id: number) => void;
-  onResubmitReport?: (report: ReportItem) => void;
+  onOpenEditReport?: (report: ReportItem) => void;
   onOpenNewReport?: (templateData?: any) => void;
   onNavigate: (page: PageId) => void;
 }
@@ -39,37 +40,27 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   onSelectReport,
   onDeleteReport,
   onWithdrawReport,
-  onResubmitReport,
+  onOpenEditReport,
   onOpenNewReport,
   onNavigate
 }) => {
   // Filter States
-  const [activeTab, setActiveTab] = useState<'待审核' | '已驳回' | '草稿' | '已采纳'>('待审核');
+  const [activeTab, setActiveTab] = useState<'待审核' | '审核中' | '已驳回' | '草稿' | '已采纳'>('待审核');
   const [keyword, setKeyword] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
-  const [copiedId, setCopiedId] = useState<number | null>(null);
 
   // Modals
   const [withdrawTarget, setWithdrawTarget] = useState<ReportItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ReportItem | null>(null);
-  const [editTarget, setEditTarget] = useState<ReportItem | null>(null);
-
-  // Edit form state
-  const [editTitle, setEditTitle] = useState('');
-  const [editAddress, setEditAddress] = useState('');
-  const [editSummary, setEditSummary] = useState('');
-  const [editCoreDemands, setEditCoreDemands] = useState('');
-  const [editSource, setEditSource] = useState('');
-  const [editRegion, setEditRegion] = useState('');
-  const [editInfoType, setEditInfoType] = useState('');
 
   // Statistics calculation
   const totalCount = reports.length;
   const draftCount = reports.filter((r) => r.auditStatus === '草稿').length;
   const rejectedCount = reports.filter((r) => r.auditStatus === '被驳回' || r.auditStatus === '已驳回').length;
   const pendingCount = reports.filter((r) => r.auditStatus === '待审核').length;
+  const inReviewCount = reports.filter((r) => r.auditStatus === '审核中').length;
   const adoptedCount = reports.filter((r) => r.auditStatus === '已采纳' || r.auditStatus === '已通过').length;
   const todoCount = draftCount + rejectedCount;
   const passRate = totalCount > 0 ? Math.round((adoptedCount / totalCount) * 100) : 0;
@@ -80,7 +71,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   const filtered = reports.filter((item) => {
     // Tab filter
     if (activeTab === '待审核' && item.auditStatus !== '待审核') return false;
-    if (activeTab === '已采纳' && item.auditStatus !== '已采纳' && item.auditStatus !== '已通过') return false;
+    if (activeTab === '审核中' && item.auditStatus !== '审核中') return false;
     if (activeTab === '已驳回' && item.auditStatus !== '被驳回' && item.auditStatus !== '已驳回') return false;
     if (activeTab === '草稿' && item.auditStatus !== '草稿') return false;
 
@@ -91,6 +82,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
       const matchAuthor = item.author?.toLowerCase().includes(q);
       const matchSource = item.source?.toLowerCase().includes(q);
       const matchOrg = item.organization?.toLowerCase().includes(q);
+      const matchOrgPath = getOrganizationPathText(item.organization).toLowerCase().includes(q);
       const matchAddress = item.occurAddress?.toLowerCase().includes(q);
       const matchRegion = item.region?.toLowerCase().includes(q);
       const matchInfoType = item.infoType?.toLowerCase().includes(q);
@@ -101,6 +93,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
         !matchAuthor &&
         !matchSource &&
         !matchOrg &&
+        !matchOrgPath &&
         !matchAddress &&
         !matchRegion &&
         !matchInfoType &&
@@ -123,49 +116,17 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
     setActiveTab('全部');
   };
 
-  const handleCopySummary = (item: ReportItem) => {
-    const text = `【速报内容】${item.title}\n【发生地址】${item.occurAddress || item.region}\n【信息类型】${item.infoType} | ${item.source}\n【详情摘要】${item.detailContent?.summary || item.title}\n【核心诉求】${item.detailContent?.coreDemands || '无'}\n【上报机构】${item.organization} (${item.author})`;
-    navigator.clipboard.writeText(text);
-    setCopiedId(item.id);
-    setTimeout(() => setCopiedId(null), 2500);
-  };
+  // Pagination (页码管理 + 每页条数设置)
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
 
-  const openEditModal = (item: ReportItem) => {
-    setEditTarget(item);
-    setEditTitle(item.title);
-    setEditAddress(item.occurAddress || '');
-    setEditSummary(item.detailContent?.summary || '');
-    setEditCoreDemands(item.detailContent?.coreDemands || '');
-    setEditSource(item.source);
-    setEditRegion(item.region);
-    setEditInfoType(item.infoType);
-  };
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, keyword, startDate, endDate]);
 
-  const handleSaveAndResubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editTarget) return;
-
-    const updated: ReportItem = {
-      ...editTarget,
-      title: editTitle,
-      occurAddress: editAddress,
-      source: editSource,
-      region: editRegion,
-      infoType: editInfoType,
-      detailContent: {
-        ...editTarget.detailContent,
-        summary: editSummary,
-        coreDemands: editCoreDemands,
-        publicOpinionTrend: editTarget.detailContent?.publicOpinionTrend || '暂无明显外溢',
-        recommendations: editTarget.detailContent?.recommendations || []
-      }
-    };
-
-    if (onResubmitReport) {
-      onResubmitReport(updated);
-    }
-    setEditTarget(null);
-  };
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedReports = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   return (
     <div className="space-y-5" id="report-summary-view">
@@ -236,7 +197,6 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-blue-100">累计上报</span>
-              <span className="text-[11px] text-blue-200 font-medium group-hover:underline">查看台账 &gt;</span>
             </div>
             <div className="mt-2 flex items-baseline justify-between">
               <span className="text-2xl font-bold font-mono text-white">{totalCount}</span>
@@ -267,13 +227,13 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-blue-100">一次性通过率</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-400/30 text-cyan-200 font-bold border border-cyan-400/40">
-                无驳回重修
+                {adoptedCount}/{totalCount}
               </span>
             </div>
             <div className="mt-2 flex items-baseline justify-between">
               <span className="text-2xl font-bold font-mono text-cyan-300">{firstTimePassRate}%</span>
               <span className="text-xs text-blue-200">
-                速报质量评级优秀
+                无驳回重修
               </span>
             </div>
           </div>
@@ -285,9 +245,9 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
         <div className="flex items-center space-x-1.5 overflow-x-auto">
           {[
             { id: '待审核', label: '待审核', count: pendingCount, color: 'text-amber-600 bg-amber-50' },
-            { id: '已驳回', label: '已驳回', count: rejectedCount, color: 'text-rose-600 bg-rose-50' },
-            { id: '草稿', label: '草稿', count: draftCount, color: 'text-gray-600 bg-gray-100' },
-            { id: '已采纳', label: '已采纳', count: adoptedCount, color: 'text-emerald-700 bg-emerald-50' }
+            { id: '审核中', label: '审核中', count: inReviewCount, color: 'text-blue-600 bg-blue-50' },
+            { id: '已驳回', label: '被驳回', count: rejectedCount, color: 'text-rose-600 bg-rose-50' },
+            { id: '草稿', label: '草稿', count: draftCount, color: 'text-gray-600 bg-gray-100' }
           ].map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -363,9 +323,9 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
             )}
           </div>
 
-          {/* 上报时间区间 */}
+          {/* 报送时间区间 */}
           <div className="flex items-center space-x-2 text-xs shrink-0">
-            <span className="text-gray-500 whitespace-nowrap hidden sm:inline">上报时间:</span>
+            <span className="text-gray-500 whitespace-nowrap hidden sm:inline">报送时间:</span>
             <div className="flex items-center space-x-1.5">
               <input
                 type="date"
@@ -414,9 +374,9 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                   <th className="py-3.5 px-4 w-12 text-center">序号</th>
                   <th className="py-3.5 px-4 min-w-[220px]">事件标题</th>
                   <th className="py-3.5 px-4 min-w-[280px]">内容描述</th>
-                  <th className="py-3.5 px-4 min-w-[160px]">上报人员 / 机构</th>
-                  <th className="py-3.5 px-4">上报时间</th>
-                  <th className="py-3.5 px-4 text-center">状态</th>
+                  <th className="py-3.5 px-4 min-w-[180px]">报送人员 / 机构</th>
+                  <th className="py-3.5 px-4">报送时间</th>
+                  <th className="py-3.5 px-4 text-center">审核状态</th>
                   <th className="py-3.5 px-4 text-center min-w-[160px]">操作</th>
                 </tr>
               </thead>
@@ -429,15 +389,14 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                     </td>
                   </tr>
                 ) : (
-                  filtered.map((item, index) => {
+                  pagedReports.map((item, index) => {
                     const isDraft = item.auditStatus === '草稿';
                     const isPending = item.auditStatus === '待审核';
                     const isRejected = item.auditStatus === '被驳回' || item.auditStatus === '已驳回';
-                    const isAdopted = item.auditStatus === '已采纳' || item.auditStatus === '已通过';
 
                     return (
                       <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
-                        <td className="py-3.5 px-4 text-center text-gray-400 font-mono">{index + 1}</td>
+                        <td className="py-3.5 px-4 text-center text-gray-400 font-mono">{(safePage - 1) * pageSize + index + 1}</td>
                         <td className="py-3.5 px-4">
                           <button
                             onClick={() => {
@@ -458,33 +417,19 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                           </div>
                         </td>
                         <td className="py-3.5 px-4">
-                          <div className="font-semibold text-gray-900 leading-snug">{item.author}</div>
-                          <div className="text-gray-500 text-[11px] truncate max-w-[200px] mt-0.5" title={item.organization}>
-                            {item.organization}
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold text-gray-800">{item.author || '—'}</div>
+                            <OrgPathDisplay organization={item.organization} className="max-w-[190px]" />
                           </div>
                         </td>
                         <td className="py-3.5 px-4 font-mono text-gray-500 whitespace-nowrap text-xs">
                           {item.submitTime}
                         </td>
                         <td className="py-3.5 px-4 text-center">
-                          {isDraft && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-                              草稿
-                            </span>
-                          )}
-                          {isPending && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                              待审核
-                            </span>
-                          )}
+                          {!isRejected && <AuditStatusBadge status={item.auditStatus} />}
                           {isRejected && (
                             <div className="inline-flex flex-col items-center gap-1 group relative">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
-                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                                已驳回
-                              </span>
+                              <AuditStatusBadge status={item.auditStatus} />
                               <div
                                 className="inline-flex items-center gap-1 max-w-[130px] px-1.5 py-0.5 rounded bg-rose-50/80 hover:bg-rose-100 text-rose-600 border border-rose-200/70 text-[11px] cursor-help transition-colors"
                                 title={`驳回原因：${item.rejectReason || '信息不完整，请补充相关佐证材料'}`}
@@ -505,25 +450,21 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                               </div>
                             </div>
                           )}
-                          {isAdopted && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                              已采纳
-                            </span>
-                          )}
                         </td>
                         <td className="py-3.5 px-4 text-center whitespace-nowrap">
                           <div className="flex items-center justify-center space-x-2">
                             {/* View Detail */}
-                            <button
-                              onClick={() => {
-                                onSelectReport(item);
-                                onNavigate('report-detail');
-                              }}
-                              className="text-[#1E5ABB] hover:underline font-semibold cursor-pointer text-xs"
-                            >
-                              详情
-                            </button>
+                            {!isDraft && (
+                              <button
+                                onClick={() => {
+                                  onSelectReport(item);
+                                  onNavigate('report-detail');
+                                }}
+                                className="text-[#1E5ABB] hover:underline font-semibold cursor-pointer text-xs"
+                              >
+                                详情
+                              </button>
+                            )}
 
                             {/* Withdraw (if Pending) */}
                             {isPending && onWithdrawReport && (
@@ -540,23 +481,11 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                             {/* Edit / Resubmit (if Draft or Rejected) */}
                             {(isDraft || isRejected) && (
                               <button
-                                onClick={() => openEditModal(item)}
+                                onClick={() => onOpenEditReport && onOpenEditReport(item)}
                                 className="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold cursor-pointer flex items-center space-x-0.5 text-xs"
                               >
                                 <FileEdit className="w-3 h-3" />
-                                <span>{isRejected ? '修改重报' : '编辑'}</span>
-                              </button>
-                            )}
-
-                            {/* Copy Summary (if Adopted or any) */}
-                            {isAdopted && (
-                              <button
-                                onClick={() => handleCopySummary(item)}
-                                className="text-emerald-700 hover:text-emerald-900 hover:underline font-medium cursor-pointer flex items-center space-x-0.5 text-xs"
-                                title="复制标准化通报文稿"
-                              >
-                                {copiedId === item.id ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                                <span>{copiedId === item.id ? '已复制' : '复制'}</span>
+                                <span>编辑</span>
                               </button>
                             )}
 
@@ -581,19 +510,17 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
           </div>
 
           {/* Table Footer / Pagination */}
-          <div className="px-6 py-3 bg-gray-50/60 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
-            <div>共 {filtered.length} 条记录</div>
-            <div className="flex items-center space-x-2">
-              <button className="px-2.5 py-1 border rounded bg-white hover:bg-gray-50 disabled:opacity-50">&lt;</button>
-              <span className="px-3 py-1 bg-[#1E5ABB] text-white rounded font-bold">1</span>
-              <button className="px-2.5 py-1 border rounded bg-white hover:bg-gray-50 disabled:opacity-50">&gt;</button>
-              <span className="ml-2 text-gray-400">跳转至</span>
-              <input
-                type="text"
-                defaultValue="1"
-                className="w-8 px-1.5 py-0.5 border border-gray-300 rounded text-center focus:outline-none"
-              />
-            </div>
+          <div className="bg-gray-50/80 border-t border-gray-100">
+            <PaginationBar
+              total={filtered.length}
+              page={safePage}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setCurrentPage(1);
+              }}
+            />
           </div>
         </div>
       ) : (
@@ -605,11 +532,10 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
               未查找到匹配的上报记录
             </div>
           ) : (
-            filtered.map((item) => {
+            pagedReports.map((item) => {
               const isDraft = item.auditStatus === '草稿';
               const isPending = item.auditStatus === '待审核';
               const isRejected = item.auditStatus === '被驳回' || item.auditStatus === '已驳回';
-              const isAdopted = item.auditStatus === '已采纳' || item.auditStatus === '已通过';
 
               return (
                 <div
@@ -628,20 +554,16 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                       >
                         {item.title}
                       </h4>
-                      <span
-                        className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                          isDraft
-                            ? 'bg-gray-100 text-gray-700 border-gray-300'
-                            : isPending
-                            ? 'bg-amber-100 text-amber-800 border-amber-200'
-                            : isRejected
-                            ? 'bg-rose-100 text-rose-700 border-rose-200'
-                            : 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                        }`}
-                      >
-                        {item.auditStatus}
-                      </span>
+                      <AuditStatusBadge status={item.auditStatus} className="shrink-0" />
                     </div>
+
+                    {/* Content description */}
+                    <p
+                      className="line-clamp-2 rounded bg-gray-50/60 p-2 text-xs leading-relaxed text-gray-600"
+                      title={item.detailContent?.summary || item.occurAddress || '暂无详细描述'}
+                    >
+                      {item.detailContent?.summary || item.occurAddress || '暂无详细描述'}
+                    </p>
 
                     {/* Rejection Banner */}
                     {isRejected && (
@@ -654,23 +576,17 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                       </div>
                     )}
 
-                    {/* Content snippet */}
-                    {item.detailContent?.summary && (
-                      <p className="text-xs text-gray-600 line-clamp-3 leading-relaxed bg-gray-50/50 p-2 rounded">
-                        {item.detailContent.summary}
-                      </p>
-                    )}
+                    {/* Author & Org */}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-gray-700 truncate text-[11px]">{item.author || '—'}</span>
+                      <OrgPathDisplay organization={item.organization} compact className="max-w-[170px] text-right" />
+                    </div>
                   </div>
 
                   {/* Footer */}
                   <div className="pt-3 mt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
-                    <div className="flex flex-col text-[11px]">
-                      <div className="flex items-center space-x-1">
-                        <span className="text-gray-900 font-semibold">{item.author}</span>
-                        <span>·</span>
-                        <span className="font-mono text-gray-500">{item.submitTime.slice(5)}</span>
-                      </div>
-                      <span className="text-[10px] text-gray-400 truncate max-w-[170px]">{item.organization}</span>
+                    <div className="font-mono text-[11px] text-gray-500">
+                      {item.submitTime.slice(5)}
                     </div>
 
                     <div className="flex items-center space-x-2">
@@ -684,35 +600,50 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                       )}
                       {(isDraft || isRejected) && (
                         <button
-                          onClick={() => openEditModal(item)}
+                          onClick={() => onOpenEditReport && onOpenEditReport(item)}
                           className="text-indigo-600 hover:underline font-semibold cursor-pointer"
                         >
-                          {isRejected ? '修改重报' : '编辑'}
+                          编辑
                         </button>
                       )}
-                      {isAdopted && (
+                      {(isDraft || isRejected) && onDeleteReport && (
                         <button
-                          onClick={() => handleCopySummary(item)}
-                          className="text-emerald-700 hover:underline font-semibold cursor-pointer"
+                          onClick={() => setDeleteTarget(item)}
+                          className="text-rose-600 hover:underline font-semibold cursor-pointer"
                         >
-                          {copiedId === item.id ? '已复制' : '复制文稿'}
+                          删除
                         </button>
                       )}
-                      <button
-                        onClick={() => {
-                          onSelectReport(item);
-                          onNavigate('report-detail');
-                        }}
-                        className="text-[#1E5ABB] hover:underline font-semibold cursor-pointer"
-                      >
-                        详情 &gt;
-                      </button>
+                      {!isDraft && (
+                        <button
+                          onClick={() => {
+                            onSelectReport(item);
+                            onNavigate('report-detail');
+                          }}
+                          className="text-[#1E5ABB] hover:underline font-semibold cursor-pointer"
+                        >
+                          详情 &gt;
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
               );
             })
           )}
+          {/* Cards Footer / Pagination */}
+          <div className="col-span-full mt-4 rounded-xl border border-gray-200/90 shadow-2xs overflow-hidden bg-gray-50/80">
+            <PaginationBar
+              total={filtered.length}
+              page={safePage}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
         </div>
       )}
 
@@ -784,129 +715,6 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
         </div>
       )}
 
-      {/* Re-edit & Resubmit Modal */}
-      {editTarget && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 space-y-4 border border-gray-200 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <div className="flex items-center space-x-2">
-                <FileEdit className="w-5 h-5 text-[#1E5ABB]" />
-                <h3 className="text-base font-bold text-gray-900">
-                  {editTarget.auditStatus === '被驳回' || editTarget.auditStatus === '已驳回' ? '修改补充并重新提交' : '编辑草稿速报'}
-                </h3>
-              </div>
-              <button
-                onClick={() => setEditTarget(null)}
-                className="text-gray-400 hover:text-gray-600 text-lg cursor-pointer font-mono"
-              >
-                ✕
-              </button>
-            </div>
-
-            {editTarget.rejectReason && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">
-                <p className="font-bold flex items-center space-x-1">
-                  <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
-                  <span>原审核驳回意见：</span>
-                </p>
-                <p className="mt-1 pl-4.5">{editTarget.rejectReason}</p>
-              </div>
-            )}
-
-            <form onSubmit={handleSaveAndResubmit} className="space-y-4 text-xs">
-              <div>
-                <label className="block text-gray-700 font-semibold mb-1">事件标题 *</label>
-                <input
-                  type="text"
-                  required
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#1E5ABB] outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-gray-700 font-semibold mb-1">发生地址 *</label>
-                  <input
-                    type="text"
-                    required
-                    value={editAddress}
-                    onChange={(e) => setEditAddress(e.target.value)}
-                    placeholder="如：西坝区建设路38号"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#1E5ABB] outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-700 font-semibold mb-1">涉及区域 *</label>
-                  <select
-                    value={editRegion}
-                    onChange={(e) => setEditRegion(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white outline-none"
-                  >
-                    <option value="西坝区">西坝区</option>
-                    <option value="南坝区">南坝区</option>
-                    <option value="北屯区">北屯区</option>
-                    <option value="全市">全市</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-gray-700 font-semibold mb-1">信息类型 *</label>
-                  <select
-                    value={editInfoType}
-                    onChange={(e) => setEditInfoType(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white outline-none"
-                  >
-                    <option value="突发事件">突发事件</option>
-                    <option value="舆情动态">舆情动态</option>
-                    <option value="政策解读">政策解读</option>
-                    <option value="民生诉求">民生诉求</option>
-                    <option value="网络谣言">网络谣言</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-semibold mb-1">内容摘要 *</label>
-                <textarea
-                  rows={3}
-                  required
-                  value={editSummary}
-                  onChange={(e) => setEditSummary(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#1E5ABB] outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-semibold mb-1">核心诉求 / 关键信息</label>
-                <textarea
-                  rows={2}
-                  value={editCoreDemands}
-                  onChange={(e) => setEditCoreDemands(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#1E5ABB] outline-none"
-                />
-              </div>
-
-              <div className="flex justify-end space-x-3 pt-3 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => setEditTarget(null)}
-                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-semibold"
-                >
-                  取消
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg font-semibold shadow-sm flex items-center space-x-1.5"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>提交审核</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

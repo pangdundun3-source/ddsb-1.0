@@ -1,18 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuditRecordItem, PageId, ReportItem } from '../types';
 import { Search, RotateCcw, X, AlertCircle } from 'lucide-react';
+import { PaginationBar } from '../components/PaginationBar';
+import { OrgPathDisplay, getOrganizationPathText } from '../components/OrgPathDisplay';
 
 interface AuditRecordsProps {
   records: AuditRecordItem[];
   allReports: ReportItem[];
-  onSelectReport: (report: ReportItem) => void;
+  onSelectAuditRecord: (record: AuditRecordItem) => void;
   onNavigate: (page: PageId) => void;
 }
 
 export const AuditRecords: React.FC<AuditRecordsProps> = ({
   records,
   allReports,
-  onSelectReport,
+  onSelectAuditRecord,
   onNavigate
 }) => {
   const [keyword, setKeyword] = useState('');
@@ -40,8 +42,10 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
       const submitterName = rec.submitter || allReports.find((r) => r.id === rec.reportId)?.author;
       const matchSubmitter = submitterName?.toLowerCase().includes(q);
       const matchOrg = rec.organization?.toLowerCase().includes(q);
+      const matchOrgPath = getOrganizationPathText(rec.organization).toLowerCase().includes(q);
+      const matchAuditorOrgPath = getOrganizationPathText(rec.auditorOrg, '市委网信办').toLowerCase().includes(q);
       const matchReason = rec.rejectReason?.toLowerCase().includes(q);
-      if (!matchTitle && !matchAuditor && !matchSubmitter && !matchOrg && !matchReason) return false;
+      if (!matchTitle && !matchAuditor && !matchSubmitter && !matchOrg && !matchOrgPath && !matchAuditorOrgPath && !matchReason) return false;
     }
     if (selectedOrg !== '全部机构' && rec.organization !== selectedOrg) {
       return false;
@@ -69,38 +73,21 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
     setSelectedResult('全部');
   };
 
+  // Pagination (页码管理 + 每页条数设置)
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [keyword, selectedOrg, selectedResult, startDate, endDate]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedReports = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
   const handleDetail = (record: AuditRecordItem) => {
-    const found = allReports.find((r) => r.id === record.reportId || r.title === record.title);
-    if (found) {
-      onSelectReport(found);
-    } else {
-      const fallbackReport: ReportItem = {
-        id: record.reportId || record.id,
-        title: record.title,
-        source: '热线12345',
-        region: '全市',
-        infoType: '舆情动态',
-        author: record.submitter || '王五',
-        organization: record.organization || '市大数据中心',
-        submitTime: record.submitTime || '2026-08-12 16:45',
-        occurAddress: '全市范围',
-        auditStatus: record.auditResult === '已通过' ? '已采纳' : '已驳回',
-        score: record.auditResult === '已通过' ? 95 : '--',
-        rejectReason: record.rejectReason,
-        rejectDetail: record.rejectDetail,
-        detailContent: {
-          summary: `${record.title}的相关情况核查与市民诉求反馈。`,
-          coreDemands: '建议优化相关流程，加强联动响应与便民服务。',
-          publicOpinionTrend: '整体态势平稳可控。',
-          recommendations: [
-            '1. 持续关注舆情动向，落实整改措施。',
-            '2. 针对群众反馈诉求及时答复处置，形成闭环管理。'
-          ]
-        }
-      };
-      onSelectReport(fallbackReport);
-    }
-    onNavigate('report-detail');
+    onSelectAuditRecord(record);
+    onNavigate('audit-record-detail');
   };
 
   return (
@@ -179,9 +166,9 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
             </select>
           </div>
 
-          {/* 审核结论 */}
+          {/* 审核状态 */}
           <div className="flex items-center space-x-2 shrink-0 min-w-[160px]">
-            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">审核结论</label>
+            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">审核状态</label>
             <select
               value={selectedResult}
               onChange={(e) => setSelectedResult(e.target.value)}
@@ -189,7 +176,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
             >
               <option value="全部">全部结论</option>
               <option value="通过">已通过</option>
-              <option value="驳回">被驳回</option>
+              <option value="驳回">已驳回</option>
             </select>
           </div>
         </div>
@@ -227,24 +214,28 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
                 <th className="py-3.5 px-4 w-12 text-center">序号</th>
                 <th className="py-3.5 px-4 min-w-[220px]">事件标题</th>
                 <th className="py-3.5 px-4 min-w-[160px]">上报人员 / 机构</th>
-                <th className="py-3.5 px-4">上报时间</th>
+                <th className="py-3.5 px-4">报送时间</th>
                 <th className="py-3.5 px-4 min-w-[160px]">审核人员 / 机构</th>
-                <th className="py-3.5 px-4 text-center">审核结论</th>
+                <th className="py-3.5 px-4 text-center">审核状态</th>
                 <th className="py-3.5 px-4">审核时间</th>
                 <th className="py-3.5 px-4 text-center">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 text-gray-700">
-              {filtered.map((item, index) => {
+              {pagedReports.map((item, index) => {
                 const reportMatch = allReports.find((r) => r.id === item.reportId);
                 const submitterName = item.submitter || reportMatch?.author || '网格员';
                 const submitTimeStr = item.submitTime || reportMatch?.submitTime || '--';
                 const auditorName = item.auditor || '王主任';
                 const auditorOrgStr = item.auditorOrg || '市委网信办';
+                // 评分只在该条审核记录本身是最后一轮（终审）时写入；中间环节不展示评分
+                const recordScore = item.score;
+                const rejectReasonText = item.rejectReason || reportMatch?.rejectReason || '信息不完整';
+                const rejectDetailText = item.rejectDetail || reportMatch?.rejectDetail;
 
                 return (
                   <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
-                    <td className="py-3.5 px-4 text-center text-gray-400 font-mono">{index + 1}</td>
+                    <td className="py-3.5 px-4 text-center text-gray-400 font-mono">{(safePage - 1) * pageSize + index + 1}</td>
                     <td className="py-3.5 px-4">
                       <button
                         onClick={() => handleDetail(item)}
@@ -255,39 +246,45 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
                     </td>
                     <td className="py-3.5 px-4">
                       <div className="font-semibold text-gray-900 leading-snug">{submitterName}</div>
-                      <div className="text-gray-500 text-[11px] truncate max-w-[190px] mt-0.5" title={item.organization}>
-                        {item.organization}
-                      </div>
+                      <OrgPathDisplay organization={item.organization} className="max-w-[220px]" />
                     </td>
                     <td className="py-3.5 px-4 font-mono text-gray-500 whitespace-nowrap text-[11px]">
                       {submitTimeStr}
                     </td>
                     <td className="py-3.5 px-4">
                       <div className="font-semibold text-gray-900 leading-snug">{auditorName}</div>
-                      <div className="text-gray-500 text-[11px] truncate max-w-[190px] mt-0.5" title={auditorOrgStr}>
-                        {auditorOrgStr}
-                      </div>
+                      <OrgPathDisplay organization={auditorOrgStr} className="max-w-[220px]" />
                     </td>
                     <td className="py-3.5 px-4 text-center">
                       {item.auditResult === '已通过' ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                          已通过
-                        </span>
+                        <div className="inline-flex flex-col items-center gap-1">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            已通过
+                          </span>
+                          {recordScore !== undefined && recordScore !== null && (
+                            <span
+                              className="inline-flex items-center gap-1 max-w-[150px] px-1.5 py-0.5 rounded bg-amber-50/90 hover:bg-amber-100 text-amber-700 border border-amber-200/70 text-[11px] font-semibold cursor-default transition-colors"
+                              title={`本次审核评分：${recordScore} 分`}
+                            >
+                              <span className="truncate">评分：{recordScore} 分</span>
+                            </span>
+                          )}
+                        </div>
                       ) : (
                         <div className="inline-flex flex-col items-center gap-1 group relative">
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
                             <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                            被驳回
+                            已驳回
                           </span>
-                          {item.rejectReason && (
+                          {rejectReasonText && (
                             <>
                               <div
                                 className="inline-flex items-center gap-1 max-w-[130px] px-1.5 py-0.5 rounded bg-rose-50/80 hover:bg-rose-100 text-rose-600 border border-rose-200/70 text-[11px] cursor-help transition-colors"
-                                title={`驳回原因：${item.rejectReason}${item.rejectDetail ? ` (${item.rejectDetail})` : ''}`}
+                                title={`驳回原因：${rejectReasonText}${rejectDetailText ? ` (${rejectDetailText})` : ''}`}
                               >
                                 <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
-                                <span className="truncate">{item.rejectReason}</span>
+                                <span className="truncate">{rejectReasonText}</span>
                               </div>
                               {/* Hover Floating Tooltip */}
                               <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block z-50 w-56 p-2.5 bg-slate-900 text-white text-xs rounded-lg shadow-xl border border-slate-800 text-left">
@@ -296,7 +293,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
                                   <span>驳回具体原因</span>
                                 </div>
                                 <p className="text-[11px] text-slate-200 leading-relaxed break-words font-normal">
-                                  {item.rejectReason}{item.rejectDetail ? ` - ${item.rejectDetail}` : ''}
+                                  {rejectReasonText}{rejectDetailText ? ` - ${rejectDetailText}` : ''}
                                 </p>
                                 <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900"></div>
                               </div>
@@ -324,15 +321,17 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
         </div>
 
         {/* Footer Pagination */}
-        <div className="px-6 py-3 bg-gray-50/50 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
-          <div>共 {filtered.length} 条记录</div>
-          <div className="flex items-center space-x-2">
-            <button className="px-2 py-1 border rounded bg-white hover:bg-gray-50 disabled:opacity-50">&lt;</button>
-            <span className="px-2.5 py-1 bg-[#1E5ABB] text-white rounded font-bold">1</span>
-            <button className="px-2 py-1 border rounded bg-white hover:bg-gray-50 disabled:opacity-50">&gt;</button>
-            <span className="ml-2 text-gray-400">跳转至</span>
-            <input type="text" defaultValue="1" className="w-8 px-1.5 py-0.5 border border-gray-300 rounded text-center" />
-          </div>
+        <div className="bg-gray-50/80 border-t border-gray-100">
+          <PaginationBar
+            total={filtered.length}
+            page={safePage}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setCurrentPage(1);
+            }}
+          />
         </div>
       </div>
     </div>

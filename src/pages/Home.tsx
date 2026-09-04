@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PageId, ReportItem, OrgItem } from '../types';
+import { PageId, ReportItem, OrgItem, ReportTemplateDef, ReportTemplateInput } from '../types';
 import {
   Sparkles,
   ChevronRight,
@@ -9,7 +9,6 @@ import {
   FileEdit,
   Inbox,
   CheckCircle2,
-  Check,
   PlusCircle,
   ChevronLeft,
   AlertCircle,
@@ -26,7 +25,9 @@ import {
   MessageSquare,
   Radio
 } from 'lucide-react';
-import { PRESET_TEMPLATES, ReportTemplateDef } from '../components/NewReportModal';
+import { PRESET_REPORT_TEMPLATES as PRESET_TEMPLATES } from '../data/mockData';
+import { AuditStatusBadge } from '../components/AuditStatusBadge';
+import { OrgPathDisplay } from '../components/OrgPathDisplay';
 
 export type SystemRoleMode = 'all' | 'reporter' | 'auditor';
 
@@ -39,93 +40,13 @@ interface HomeProps {
   currentUser?: string;
   currentRoleTitle?: string;
   userRole?: SystemRoleMode;
-  onOpenNewReport?: (templateData?: {
-    title?: string;
-    source?: string;
-    region?: string;
-    infoType?: string;
-    summary?: string;
-    demands?: string;
-    recommendations?: string;
-  }) => void;
+  onOpenNewReport?: (templateData?: ReportTemplateInput) => void;
+  onOpenEditReport?: (report: ReportItem) => void;
+  onDeleteReport?: (id: number) => void;
 }
 
 type TimeRange = '本周' | '本月' | '本季度' | '本年' | '自定义区间';
 
-interface DraftOrRejectedItem {
-  id: string;
-  title: string;
-  summary: string;
-  time: string;
-  status: '草稿' | '已驳回';
-  type: string;
-  source?: string;
-  region?: string;
-  demands?: string;
-  recommendations?: string;
-  rejectReason?: string;
-}
-
-const INITIAL_SUBMIT_TODOS: DraftOrRejectedItem[] = [
-  {
-    id: 'draft-1',
-    title: '公办幼儿园托育服务收费民意调查',
-    summary: '家长群中出现关于托育服务收费标准的咨询和争议，正在补充政策依据与周边私立园对比数据。',
-    time: '2026-08-13 07:50',
-    status: '草稿',
-    type: '民生诉求',
-    source: '群众举报',
-    region: '西屯区',
-    demands: '建议联合物价局与教育局适时公布公办托育收费公示明细。',
-    recommendations: '安排社区幼教联络员在家长群予以政策释疑。'
-  },
-  {
-    id: 'draft-2',
-    title: '关于辖区内老旧电梯故障频发的专项排查草稿',
-    summary: '金地家园居民反映4号楼客梯近一月困人3次，物业维修后仍频繁停运，正在补充特种设备安检报告。',
-    time: '2026-08-13 10:40',
-    status: '草稿',
-    type: '突发事件',
-    source: '网格巡查',
-    region: '北屯区',
-    demands: '督促市场监管局特种设备科协调电梯原厂维保单位进场彻查。',
-    recommendations: '在各单元公示维保日志与检修方案，消除恐慌。'
-  },
-  {
-    id: 'rejected-1',
-    title: '老旧小区改造政策解读及反馈收集',
-    summary: '老旧小区加装电梯政策解读发布后，居民对出资比例和采光补偿提出疑问。',
-    time: '2026-08-12 10:20',
-    status: '已驳回',
-    type: '民生诉求',
-    source: '群众举报',
-    region: '西屯区',
-    rejectReason: '信息要素不完整，缺少加装电梯出资比例官方细则及低楼层补偿依据，请补充佐证材料后重新报送。',
-    demands: '需补充加装电梯采光与低楼层补偿官方参考计算细则。',
-    recommendations: '建议补充相关物权法条文依据后重新提交审核。'
-  },
-  {
-    id: 'draft-3',
-    title: '关于南坝商业街夜市噪音扰民的网格排查记录',
-    summary: '周边小区业主多次拨打12345热线反映烧烤摊占道经营与音响扰民，拟补充城管执法队联合巡查处置方案。',
-    time: '2026-08-11 18:30',
-    status: '草稿',
-    type: '民生诉求',
-    source: '网格巡查',
-    region: '南屯区'
-  },
-  {
-    id: 'rejected-2',
-    title: '关于主干道早高峰红绿灯配时优化的建议报送',
-    summary: '交警支队反馈需补充早晚高峰车流量测算图与路口监控实录佐证，已退回重新核实后提交。',
-    time: '2026-08-10 14:15',
-    status: '已驳回',
-    type: '政策解读',
-    source: '群众举报',
-    region: '西屯区',
-    rejectReason: '缺少早晚高峰实测车流量比对数据与路口监控实录佐证，请核实后补充提交。'
-  }
-];
 
 const INITIAL_PENDING_AUDITS = [
   {
@@ -206,13 +127,14 @@ export const Home: React.FC<HomeProps> = ({
   onSelectReport,
   onSelectAudit,
   onOpenNewReport,
+  onOpenEditReport,
+  onDeleteReport,
   currentUser = '张三',
   currentRoleTitle = '超级管理员',
   userRole
 }) => {
   const [timeRange, setTimeRange] = useState<TimeRange>('本周');
-  const [submitTodos, setSubmitTodos] = useState<DraftOrRejectedItem[]>(INITIAL_SUBMIT_TODOS);
-  const [actionToast, setActionToast] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ReportItem | null>(null);
 
   // Pagination states for fixed regions (3 items per page)
   const [submitPageIndex, setSubmitPageIndex] = useState(1);
@@ -243,12 +165,21 @@ export const Home: React.FC<HomeProps> = ({
   const showReporter = effectiveRoleMode === 'all' || effectiveRoleMode === 'reporter';
   const showAuditor = effectiveRoleMode === 'all' || effectiveRoleMode === 'auditor';
 
+  // 草稿与被驳回速报列表：与“报送管理-报送待办”使用同一批真实速报数据
+  const draftReports = reports.filter((r) => r.auditStatus === '草稿');
+  const rejectedReports = reports.filter(
+    (r) => r.auditStatus === '被驳回' || r.auditStatus === '已驳回'
+  );
+  const submitTodos: ReportItem[] = [...draftReports, ...rejectedReports];
+  const draftCount = draftReports.length;
+  const rejectedCount = rejectedReports.length;
+
   // Multi-range stats configuration
   const statsConfig = {
     本周: {
       submitWait: submitTodos.length,
-      submitDraft: submitTodos.filter((t) => t.status === '草稿').length,
-      submitReject: submitTodos.filter((t) => t.status === '已驳回').length,
+      submitDraft: draftCount,
+      submitReject: rejectedCount,
       submitTotal: 11,
       submitPassed: 1,
       submitPending: 9,
@@ -371,43 +302,121 @@ export const Home: React.FC<HomeProps> = ({
     auditPageIndex * PAGE_SIZE
   );
 
-  const handleDeleteSubmitTodo = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setSubmitTodos((prev) => {
-      const next = prev.filter((item) => item.id !== id);
-      const newTotalPages = Math.ceil(next.length / PAGE_SIZE) || 1;
-      if (submitPageIndex > newTotalPages) {
-        setSubmitPageIndex(newTotalPages);
-      }
-      return next;
-    });
-    setActionToast('已成功删除该记录');
-    setTimeout(() => setActionToast(null), 2500);
-  };
-
-  const handleOpenDraftEdit = (item: DraftOrRejectedItem) => {
-    onOpenNewReport?.({
-      title: item.title,
-      source: item.source || '群众举报',
-      region: item.region || '西屯区',
-      infoType: item.type || '民生诉求',
-      summary: item.summary,
-      demands: item.demands || '',
-      recommendations: item.recommendations || ''
-    });
-  };
-
   return (
     <div className="space-y-6 pb-12 max-w-[1720px] mx-auto">
-      {/* Toast Notification */}
-      {actionToast && (
-        <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-2xl text-xs font-semibold flex items-center space-x-2 border border-slate-700 animate-in fade-in slide-in-from-top-2">
-          <Check className="w-4 h-4 text-emerald-400" />
-          <span>{actionToast}</span>
+      {/* ================= 1. 标准化上报模板专区（快捷上报入口） ================= */}
+      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/90 shadow-2xs space-y-4">
+        {/* Section Header */}
+        <div className="flex items-center space-x-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+            <Sparkles className="w-4.5 h-4.5 text-blue-600" />
+          </div>
+          <div>
+            <h3 className="font-extrabold text-sm sm:text-base text-slate-900 tracking-tight">标准化上报模板专区</h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              选择适用业务场景预置模板，一键快速填报
+            </p>
+          </div>
         </div>
-      )}
 
-      {/* ================= 1. 顶部双重视角指标概览卡片 (上报员 + 审核员 并存) ================= */}
+        {/* 3 列标准化模板卡片网格 */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-4">
+          {/* 卡片 1: 突发事件速报模板 */}
+          <div
+            onClick={() => {
+              onOpenNewReport?.({
+                title: '【紧急】关于某路段突发管网故障抢修进展的快报',
+                source: '网格巡查',
+                region: '西屯区',
+                infoType: '突发事件',
+                summary: `【突发时间】：${new Date().toLocaleDateString('zh-CN')} ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}\n【事发精准地点】：西屯区XX路与XX街交叉口\n【事件简述】：现场因市政施工突发管网渗漏，造成路面局部积水并影响早高峰通行。\n【伤亡及损失情况】：现场无人员伤亡，周边已设立安全警戒线。\n【当前处置进展】：抢修工程车辆及应急处置组已进场作业，正在进行分流抢修。`,
+                demands: '周边居民及过往车主高度关注积水排除与恢复通行的预计时间。',
+                recommendations: '1. 联动交警支队实施临时交通分流与道路交通疏导。\n2. 属地融媒体中心通过微信公众号发布临时通行提示，回应群众关切。'
+              });
+            }}
+            className="bg-white rounded-xl border border-slate-200/90 p-4 flex items-center justify-between hover:border-rose-300 hover:shadow-xs transition-all cursor-pointer group"
+          >
+            <div className="flex items-center space-x-3.5 min-w-0">
+              <div className="w-10 h-10 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-500 shrink-0 group-hover:scale-105 transition-transform">
+                <Flame className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="font-bold text-sm text-slate-800 group-hover:text-rose-600 transition-colors truncate">
+                  突发事件速报模板
+                </h4>
+                <p className="text-[11px] text-slate-400 mt-0.5 truncate">
+                  现场秩序、安全事故、应急研判
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-rose-500 group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
+          </div>
+
+          {/* 卡片 2: 民生诉求核查模板 */}
+          <div
+            onClick={() => {
+              onOpenNewReport?.({
+                title: '关于某小区业主反映物业擅自调高公摊费用的诉求专报',
+                source: '热线12345',
+                region: '北屯区',
+                infoType: '民生诉求',
+                summary: `一、诉求来源与规模：\n12345热线近3日内累计收到相关工单12件，涉及业主超过50户。\n\n二、诉求核心事实：\n业主反映物业管理处未履行公示与表决程序，直接在月度物业费账单中增列地下车库公共能耗费用。\n\n三、初步调解情况：\n社区居委会已介入搭建沟通平台，督促物业做好账目核算。`,
+                demands: '业主普遍要求物业撤回不合理收费项目，退还已代扣款项，并公开年度公摊水电账目。',
+                recommendations: '1. 建议街道城管科联合房管局约谈物业负责人，限期3日内自查自纠并出具整改说明。\n2. 社区居委会指导业主委员会依法召开业主代表沟通会。'
+              });
+            }}
+            className="bg-white rounded-xl border border-slate-200/90 p-4 flex items-center justify-between hover:border-amber-300 hover:shadow-xs transition-all cursor-pointer group"
+          >
+            <div className="flex items-center space-x-3.5 min-w-0">
+              <div className="w-10 h-10 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-500 shrink-0 group-hover:scale-105 transition-transform">
+                <MessageSquare className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="font-bold text-sm text-slate-800 group-hover:text-amber-600 transition-colors truncate">
+                  民生诉求核查模板
+                </h4>
+                <p className="text-[11px] text-slate-400 mt-0.5 truncate">
+                  物业维修、水电气热、市政诉求
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-amber-500 group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
+          </div>
+
+          {/* 卡片 3: 网络谣言线索模板 */}
+          <div
+            onClick={() => {
+              onOpenNewReport?.({
+                title: '关于短视频平台流传“某小区突发不明气体泄漏”虚假信息的核查澄清报送',
+                source: '网络巡查',
+                region: '南屯区',
+                infoType: '网络谣言',
+                summary: `一、谣言源头与传播特征：\n抖音账号“XX市民热心事”于今晨发布15秒短视频，配文称“某小区疑似发生危化品气体泄漏”，截至目前点赞量达1.2万次，转发3500余次。\n\n二、官方部门实地核查：\n属地应急管理局与生态环境执法大队第一时间赶赴现场排查，实为周边市政自来水管道例行冲洗排放水雾，未检出任何有害气体。\n\n三、当前发酵态势：\n评论区存在个别恐慌情绪蔓延，急需权威声音辟谣。`,
+                demands: '网民关注官方权威调查结论与是否存在安全隐患。',
+                recommendations: '1. 建议网信办联合应急管理局在官方微博与抖音号发布权威辟谣通报。\n2. 对首发造谣账号予以限流并固定电子证据，移交公安部门进一步处理。'
+              });
+            }}
+            className="bg-white rounded-xl border border-slate-200/90 p-4 flex items-center justify-between hover:border-emerald-300 hover:shadow-xs transition-all cursor-pointer group"
+          >
+            <div className="flex items-center space-x-3.5 min-w-0">
+              <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-500 shrink-0 group-hover:scale-105 transition-transform">
+                <Radio className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="font-bold text-sm text-slate-800 group-hover:text-emerald-600 transition-colors truncate">
+                  网络谣言线索模板
+                </h4>
+                <p className="text-[11px] text-slate-400 mt-0.5 truncate">
+                  网络不实信息、虚假炒作辟谣
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-emerald-500 group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
+          </div>
+        </div>
+      </div>
+
+      {/* ================= 2. 顶部双重视角指标概览卡片 (上报员 + 审核员 并存) ================= */}
       <div
         className={`grid gap-5 ${
           showReporter && showAuditor ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'
@@ -427,7 +436,7 @@ export const Home: React.FC<HomeProps> = ({
                   <div>
                     <div className="flex items-center space-x-2">
                       <span className="font-extrabold text-xs sm:text-sm text-slate-900 tracking-tight">
-                        今日报送待办：共有 <strong className="text-blue-600 font-mono font-black text-sm sm:text-base">{submitTodos.length || 5}</strong> 项待处理
+                        今日报送待办：共有 <strong className="text-blue-600 font-mono font-black text-sm sm:text-base">{submitTodos.length}</strong> 项待处理
                       </span>
                       <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
                         上报员
@@ -436,11 +445,11 @@ export const Home: React.FC<HomeProps> = ({
                     <div className="text-[11px] text-slate-600 mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 font-medium">
                       <span className="flex items-center space-x-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block"></span>
-                        <span>草稿: <strong className="text-slate-800 font-bold font-mono">{submitTodos.filter(t => t.status === '草稿').length || 3}</strong></span>
+                        <span>草稿: <strong className="text-slate-800 font-bold font-mono">{draftCount}</strong></span>
                       </span>
                       <span className="flex items-center space-x-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block"></span>
-                        <span>驳回: <strong className="text-rose-600 font-bold font-mono">{submitTodos.filter(t => t.status === '已驳回').length || 2}</strong></span>
+                        <span>驳回: <strong className="text-rose-600 font-bold font-mono">{rejectedCount}</strong></span>
                       </span>
                       <span className="flex items-center space-x-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
@@ -462,7 +471,7 @@ export const Home: React.FC<HomeProps> = ({
                     }}
                     className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#1E5ABB] font-bold text-xs rounded-lg border border-blue-200 shadow-2xs hover:shadow-xs flex items-center space-x-1 transition-all cursor-pointer group"
                   >
-                    <span>立即处理 ({submitTodos.length || 5})</span>
+                    <span>立即处理 ({submitTodos.length})</span>
                     <ChevronRight className="w-3.5 h-3.5 text-[#1E5ABB] group-hover:translate-x-0.5 transition-transform" />
                   </button>
                 </div>
@@ -479,10 +488,10 @@ export const Home: React.FC<HomeProps> = ({
                 >
                   <div className="text-xs text-white/80 font-medium mb-0.5">报送待办</div>
                   <div className="text-2xl sm:text-3xl font-black text-white leading-tight group-hover:scale-105 transition-transform">
-                    {currentStats.submitWait}
+                    {submitTodos.length}
                   </div>
                   <div className="text-[11px] text-white/75 mt-0.5 truncate">
-                    草稿 {currentStats.submitDraft} · 驳回 {currentStats.submitReject}
+                    草稿 {draftCount} · 驳回 {rejectedCount}
                   </div>
                 </div>
 
@@ -639,118 +648,6 @@ export const Home: React.FC<HomeProps> = ({
         )}
       </div>
 
-      {/* ================= 2. 各模版快捷上报入口 (标准化上报模板专区) ================= */}
-      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/90 shadow-2xs space-y-4">
-        {/* Section Header */}
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-            <Sparkles className="w-4.5 h-4.5 text-blue-600" />
-          </div>
-          <div>
-            <h3 className="font-extrabold text-sm sm:text-base text-slate-900 tracking-tight">标准化上报模板专区</h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              选择适用业务场景预置模板，一键快速填报
-            </p>
-          </div>
-        </div>
-
-        {/* 3 列标准化模板卡片网格 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-4">
-          {/* 卡片 1: 突发事件速报模板 */}
-          <div
-            onClick={() => {
-              onOpenNewReport?.({
-                title: '【紧急】关于某路段突发管网故障抢修进展的快报',
-                source: '网格巡查',
-                region: '西屯区',
-                infoType: '突发事件',
-                summary: `【突发时间】：${new Date().toLocaleDateString('zh-CN')} ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}\n【事发精准地点】：西屯区XX路与XX街交叉口\n【事件简述】：现场因市政施工突发管网渗漏，造成路面局部积水并影响早高峰通行。\n【伤亡及损失情况】：现场无人员伤亡，周边已设立安全警戒线。\n【当前处置进展】：抢修工程车辆及应急处置组已进场作业，正在进行分流抢修。`,
-                demands: '周边居民及过往车主高度关注积水排除与恢复通行的预计时间。',
-                recommendations: '1. 联动交警支队实施临时交通分流与道路交通疏导。\n2. 属地融媒体中心通过微信公众号发布临时通行提示，回应群众关切。'
-              });
-            }}
-            className="bg-white rounded-xl border border-slate-200/90 p-4 flex items-center justify-between hover:border-rose-300 hover:shadow-xs transition-all cursor-pointer group"
-          >
-            <div className="flex items-center space-x-3.5 min-w-0">
-              <div className="w-10 h-10 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-500 shrink-0 group-hover:scale-105 transition-transform">
-                <Flame className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <h4 className="font-bold text-sm text-slate-800 group-hover:text-rose-600 transition-colors truncate">
-                  突发事件速报模板
-                </h4>
-                <p className="text-[11px] text-slate-400 mt-0.5 truncate">
-                  现场秩序、安全事故、应急研判
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-rose-500 group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
-          </div>
-
-          {/* 卡片 2: 民生诉求核查模板 */}
-          <div
-            onClick={() => {
-              onOpenNewReport?.({
-                title: '关于某小区业主反映物业擅自调高公摊费用的诉求专报',
-                source: '热线12345',
-                region: '北屯区',
-                infoType: '民生诉求',
-                summary: `一、诉求来源与规模：\n12345热线近3日内累计收到相关工单12件，涉及业主超过50户。\n\n二、诉求核心事实：\n业主反映物业管理处未履行公示与表决程序，直接在月度物业费账单中增列地下车库公共能耗费用。\n\n三、初步调解情况：\n社区居委会已介入搭建沟通平台，督促物业做好账目核算。`,
-                demands: '业主普遍要求物业撤回不合理收费项目，退还已代扣款项，并公开年度公摊水电账目。',
-                recommendations: '1. 建议街道城管科联合房管局约谈物业负责人，限期3日内自查自纠并出具整改说明。\n2. 社区居委会指导业主委员会依法召开业主代表沟通会。'
-              });
-            }}
-            className="bg-white rounded-xl border border-slate-200/90 p-4 flex items-center justify-between hover:border-amber-300 hover:shadow-xs transition-all cursor-pointer group"
-          >
-            <div className="flex items-center space-x-3.5 min-w-0">
-              <div className="w-10 h-10 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-500 shrink-0 group-hover:scale-105 transition-transform">
-                <MessageSquare className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <h4 className="font-bold text-sm text-slate-800 group-hover:text-amber-600 transition-colors truncate">
-                  民生诉求核查模板
-                </h4>
-                <p className="text-[11px] text-slate-400 mt-0.5 truncate">
-                  物业维修、水电气热、市政诉求
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-amber-500 group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
-          </div>
-
-          {/* 卡片 3: 网络谣言线索模板 */}
-          <div
-            onClick={() => {
-              onOpenNewReport?.({
-                title: '关于短视频平台流传“某小区突发不明气体泄漏”虚假信息的核查澄清报送',
-                source: '网络巡查',
-                region: '南屯区',
-                infoType: '网络谣言',
-                summary: `一、谣言源头与传播特征：\n抖音账号“XX市民热心事”于今晨发布15秒短视频，配文称“某小区疑似发生危化品气体泄漏”，截至目前点赞量达1.2万次，转发3500余次。\n\n二、官方部门实地核查：\n属地应急管理局与生态环境执法大队第一时间赶赴现场排查，实为周边市政自来水管道例行冲洗排放水雾，未检出任何有害气体。\n\n三、当前发酵态势：\n评论区存在个别恐慌情绪蔓延，急需权威声音辟谣。`,
-                demands: '网民关注官方权威调查结论与是否存在安全隐患。',
-                recommendations: '1. 建议网信办联合应急管理局在官方微博与抖音号发布权威辟谣通报。\n2. 对首发造谣账号予以限流并固定电子证据，移交公安部门进一步处理。'
-              });
-            }}
-            className="bg-white rounded-xl border border-slate-200/90 p-4 flex items-center justify-between hover:border-emerald-300 hover:shadow-xs transition-all cursor-pointer group"
-          >
-            <div className="flex items-center space-x-3.5 min-w-0">
-              <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-500 shrink-0 group-hover:scale-105 transition-transform">
-                <Radio className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <h4 className="font-bold text-sm text-slate-800 group-hover:text-emerald-600 transition-colors truncate">
-                  网络谣言线索模板
-                </h4>
-                <p className="text-[11px] text-slate-400 mt-0.5 truncate">
-                  网络不实信息、虚假炒作辟谣
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-emerald-500 group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
-          </div>
-        </div>
-      </div>
-
       {/* ================= 3. 待办任务专区 (固定区域展示 · 支持翻页与滚动) ================= */}
       <div
         className={`grid gap-5 ${
@@ -789,58 +686,82 @@ export const Home: React.FC<HomeProps> = ({
                   </div>
                 ) : (
                   currentSubmitTodos.map((item) => {
-                    const isDraft = item.status === '草稿';
-                    const isRejected = item.status === '已驳回';
+                    const isDraft = item.auditStatus === '草稿';
+                    const isRejected = item.auditStatus === '被驳回' || item.auditStatus === '已驳回';
+                    const openDetail = () => {
+                      if (onSelectReport) onSelectReport(item);
+                      onNavigate('report-detail');
+                    };
                     return (
                       <div
                         key={item.id}
-                        onClick={() => handleOpenDraftEdit(item)}
-                        className="bg-slate-50/80 hover:bg-blue-50/40 border border-slate-200/80 hover:border-blue-300 rounded-xl p-3.5 transition-all duration-150 cursor-pointer group space-y-2"
+                        className="bg-slate-50/80 hover:bg-blue-50/40 border border-slate-200/80 hover:border-blue-300 rounded-xl p-3.5 transition-all duration-150 group space-y-2"
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <h4 className="font-bold text-sm text-slate-800 group-hover:text-[#1E5ABB] transition-colors leading-snug truncate">
-                            {item.title}
-                          </h4>
-                          <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 ${
-                              isDraft
-                                ? 'bg-slate-200/80 text-slate-700 border border-slate-300/80'
-                                : 'bg-rose-100/90 text-rose-700 border border-rose-200'
-                            }`}
+                          <button
+                            onClick={openDetail}
+                            className="font-bold text-sm text-slate-800 group-hover:text-[#1E5ABB] transition-colors leading-snug truncate text-left cursor-pointer"
                           >
-                            {item.status}
-                          </span>
+                            {item.title}
+                          </button>
+                          <AuditStatusBadge status={item.auditStatus} className="shrink-0" />
                         </div>
+
+                        <p
+                          className="line-clamp-2 text-xs leading-relaxed text-slate-600"
+                          title={item.detailContent?.summary || item.occurAddress || '暂无详细描述'}
+                        >
+                          {item.detailContent?.summary || item.occurAddress || '暂无详细描述'}
+                        </p>
 
                         {/* Rejection notice */}
                         {isRejected && (
                           <div className="p-2 bg-rose-50/90 border border-rose-200 rounded-lg text-xs text-rose-800 flex items-start space-x-1.5">
                             <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
-                            <div className="leading-tight">
+                            <div className="leading-tight min-w-0">
                               <span className="font-bold text-rose-900">驳回原因：</span>
-                              <span>{item.rejectReason || '信息要素不完整，请补充相关佐证材料后重新提交。'}</span>
+                              <span className="line-clamp-2">{item.rejectReason || '信息要素不完整，请补充相关佐证材料后重新提交。'}</span>
                             </div>
                           </div>
                         )}
 
-                        <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">
-                          {item.summary}
-                        </p>
-
                         <div className="flex items-center justify-between pt-1 text-xs text-slate-400 border-t border-slate-100/80">
-                          <span className="text-[11px]">{item.time}</span>
-                          <div className="flex items-center space-x-2.5">
-                            <button
-                              onClick={(e) => handleDeleteSubmitTodo(item.id, e)}
-                              title="删除记录"
-                              className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded transition-colors cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                            <span className="text-[#1E5ABB] font-bold text-xs flex items-center space-x-0.5 group-hover:translate-x-0.5 transition-transform">
-                              <span>详情</span>
-                              <ChevronRight className="w-3 h-3" />
-                            </span>
+                          <div className="flex items-center space-x-1.5 truncate min-w-0 text-[11px]">
+                            <span className="font-semibold text-slate-700 truncate">{item.author || '—'}</span>
+                            <span>·</span>
+                            <OrgPathDisplay organization={item.organization} compact className="max-w-[130px]" />
+                            <span>·</span>
+                            <span className="font-mono text-[11px] text-slate-400 whitespace-nowrap">{item.submitTime}</span>
+                          </div>
+
+                          <div className="flex items-center gap-2.5 shrink-0 text-xs">
+                            {(isDraft || isRejected) && (
+                              <button
+                                onClick={() => onOpenEditReport && onOpenEditReport(item)}
+                                className="inline-flex items-center space-x-0.5 text-indigo-600 hover:text-indigo-800 hover:underline font-semibold cursor-pointer text-[11px]"
+                              >
+                                <FileEdit className="w-3 h-3" />
+                                <span>编辑</span>
+                              </button>
+                            )}
+                            {(isDraft || isRejected) && onDeleteReport && (
+                              <button
+                                onClick={() => setDeleteTarget(item)}
+                                className="inline-flex items-center space-x-0.5 text-rose-600 hover:text-rose-800 hover:underline font-medium cursor-pointer text-[11px]"
+                                title="删除此记录"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                <span>删除</span>
+                              </button>
+                            )}
+                            {!isDraft && (
+                              <button
+                                onClick={openDetail}
+                                className="text-[#1E5ABB] hover:underline font-semibold cursor-pointer text-[11px]"
+                              >
+                                详情
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -983,6 +904,40 @@ export const Home: React.FC<HomeProps> = ({
           </div>
         )}
       </div>
+
+      {/* Delete Modal（与报送管理-报送待办保持一致） */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-gray-200">
+            <div className="flex items-center space-x-3 text-rose-600">
+              <AlertCircle className="w-6 h-6 shrink-0" />
+              <h3 className="text-base font-bold text-gray-900">确认删除记录？</h3>
+            </div>
+            <p className="text-xs text-gray-600 leading-relaxed">
+              确定要删除《<strong className="text-gray-900">{deleteTarget.title}</strong>》吗？此操作无法撤销。
+            </p>
+            <div className="flex justify-end space-x-3 pt-2">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => {
+                  if (onDeleteReport) {
+                    onDeleteReport(deleteTarget.id);
+                  }
+                  setDeleteTarget(null);
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold shadow-sm"
+              >
+                确认删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

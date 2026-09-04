@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { ReportItem, PageId, Attachment } from '../types';
-import { getFinalAuditScore } from '../auditStage';
+import { AuditRecordItem, ReportItem, PageId, Attachment, TimelineNode } from '../types';
 import {
   Info,
   FileText,
@@ -25,43 +24,107 @@ import {
   Share2,
   Download,
   History,
-  Eye,
-  Sparkles
+  Eye
 } from 'lucide-react';
 import { AttachmentPreviewModal } from '../components/AttachmentPreviewModal';
 import { AuditFlowTimeline } from '../components/AuditFlowTimeline';
+import { getFinalAuditScore } from '../auditStage';
 
-interface ReportDetailProps {
-  report: ReportItem | null;
+interface AuditRecordDetailProps {
+  record: AuditRecordItem | null;
+  allReports?: ReportItem[];
   sourcePage?: PageId;
   onNavigate: (page: PageId) => void;
   onWithdrawReport?: (id: number) => void;
-  onOpenEditReport?: (report: ReportItem) => void;
+  onResubmitReport?: (report: ReportItem) => void;
   onDeleteReport?: (id: number) => void;
 }
 
-export const ReportDetail: React.FC<ReportDetailProps> = ({
-  report,
-  sourcePage = 'report-summary',
+export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
+  record,
+  allReports = [],
+  sourcePage = 'audit-records',
   onNavigate,
   onWithdrawReport,
-  onOpenEditReport,
+  onResubmitReport,
   onDeleteReport
 }) => {
+  const report: ReportItem | null = record
+    ? (() => {
+        const found = allReports.find((r) => r.id === record.reportId || r.title === record.title);
+
+        // 优先使用速报实时对象：整体状态与流转时间线随速报当前进度展示。
+        // 本条审核记录只代表“某个审核节点当时”的结论，不覆盖速报整体状态。
+        if (found) {
+          return {
+            ...found,
+            auditor: record.auditor || found.auditor,
+            auditTime: record.auditTime || found.auditTime,
+            rejectReason: record.rejectReason ?? found.rejectReason,
+            rejectDetail: record.rejectDetail ?? found.rejectDetail
+          };
+        }
+
+        const base: ReportItem = {
+          id: record.reportId || record.id,
+          title: record.title,
+          source: '群众举报',
+          region: '全市',
+          infoType: '舆情动态',
+          author: record.submitter || '王五',
+          organization: record.organization || '市大数据中心',
+          submitTime: record.submitTime || record.auditTime,
+          occurAddress: '全市范围',
+          auditStatus: record.auditResult === '已通过' ? '已采纳' : '已驳回',
+          ...(record.score !== undefined ? { score: record.score } : {}),
+          matchUrl: 'https://news.example.com/',
+          detailContent: {
+            summary: `${record.title}的相关情况核查与市民诉求反馈。`,
+            coreDemands: '建议优化相关流程，加强联动响应与便民服务。',
+            publicOpinionTrend: '整体态势平稳可控。',
+            recommendations: [
+              '1. 持续关注舆情动向，落实整改措施。',
+              '2. 针对群众反馈诉求及时答复处置，形成闭环管理。'
+            ]
+          }
+        };
+        return {
+          ...base,
+          ...(record.score !== undefined ? { score: record.score } : { score: undefined }),
+          rejectReason: record.rejectReason ?? base.rejectReason,
+          rejectDetail: record.rejectDetail ?? base.rejectDetail,
+          auditor: record.auditor || base.auditor,
+          auditTime: record.auditTime || base.auditTime,
+          // 未找到实时速报对象时，退化为按记录结论渲染完整流程
+          timeline: undefined
+        };
+      })()
+    : null;
+
   const [copied, setCopied] = useState(false);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
+
+  // Edit form state
+  const [editTitle, setEditTitle] = useState(report?.title || '');
+  const [editAddress, setEditAddress] = useState(report?.occurAddress || '');
+  const [editSummary, setEditSummary] = useState(report?.detailContent?.summary || '');
+  const [editCoreDemands, setEditCoreDemands] = useState(report?.detailContent?.coreDemands || '');
+  const [editSource, setEditSource] = useState(report?.source || '群众举报');
+  const [editRegion, setEditRegion] = useState(report?.region || '西坝区');
+  const [editInfoType, setEditInfoType] = useState(report?.infoType || '突发事件');
 
   if (!report) {
     return (
       <div className="p-12 text-center text-gray-500 bg-white rounded-xl border border-gray-200">
-        <p className="text-sm">未选择速报记录，请返回报送管理列表选择。</p>
+        <p className="text-sm">未选择审核记录，请返回审核记录列表选择。</p>
         <button
-          onClick={() => onNavigate(sourcePage === 'report-records' ? 'report-records' : 'report-summary')}
+          onClick={() => onNavigate(sourcePage === 'audit-records' ? 'audit-records' : 'report-summary')}
           className="mt-4 px-4 py-2 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg text-xs font-semibold cursor-pointer"
         >
-          返回{sourcePage === 'report-records' ? '报送记录' : '报送管理'}
+          返回{sourcePage === 'audit-records' ? '审核记录' : '报送管理'}
         </button>
       </div>
     );
@@ -69,14 +132,64 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
 
   const isDraft = report.auditStatus === '草稿';
   const isPending = report.auditStatus === '待审核';
-  const isInReview = report.auditStatus === '审核中';
   const isRejected = report.auditStatus === '被驳回' || report.auditStatus === '已驳回';
   const isAdopted = report.auditStatus === '已采纳' || report.auditStatus === '已通过';
-  const isWaitingTransfer = report.auditStatus === '待转办';
-  const isTransferred = report.auditStatus === '已转办';
-  const rejectReasonText = report.rejectReason || '信息不完整，请补充政策原文链接和现场排查核实依据后重新提交。';
-  const rejectFollowUpText = '请点击右上角【修改补充并重新提交】按钮补充修正后再次送审。';
-  const finalScore = getFinalAuditScore(report);
+  const isFinalPassedRecord =
+    record?.auditResult === '已通过' && record.score !== undefined && record.score !== null;
+  const auditCompletedStatuses = ['已通过', '已采纳', '待转办', '已转办'];
+  // 指定演示记录：台中市秋季旅游推广媒体传播分析
+  const isTourismFlowRecord = record.title === '台中市秋季旅游推广媒体传播分析';
+  const tourismFlowTimeline: TimelineNode[] = [
+    { title: '提交上报', operator: '李四·台中市网信办', time: '2026-08-12 09:15', status: 'completed' },
+    {
+      title: '审核处理',
+      operator: '王主任·市委宣传部舆情科',
+      time: '2026-08-12 10:30',
+      status: 'rejected',
+      note: '材料不完整：缺少权威媒体报道链接与传播数据截图，请补充后重新提交。'
+    },
+    { title: '提交上报（重新提交）', operator: '李四·台中市网信办', time: '2026-08-13 09:10', status: 'completed' },
+    {
+      title: '审核处理',
+      operator: '王主任·市委宣传部舆情科',
+      time: '2026-08-13 11:20',
+      status: 'completed',
+      note: '补充材料符合要求，审核通过，进入下一节点。'
+    },
+    { title: '审核处理', operator: '李明·市网信办复核组', status: 'current', note: '待审核' },
+    { title: '审核处理', operator: '赵宁·市网信办终审组', status: 'pending', note: '等待处理' },
+    { title: '结束', operator: '流程结束', status: 'pending', note: '等待结论' }
+  ];
+  // 右侧流转状态展示所使用的“实时状态”
+  const flowAuditStatus =
+    isTourismFlowRecord
+      ? '审核中'
+      : isFinalPassedRecord || auditCompletedStatuses.includes(report.auditStatus)
+        ? '已采纳'
+        : report.auditStatus;
+  // 本条记录即终审通过记录时，流转按“完整审核 → 已采纳”展示，保证最后一个审核环节带评分
+  // 速报审核已完成（已通过/已采纳/待转办/已转办）时，状态统一收口为“已采纳”
+  // 标题旁状态与右侧流转状态保持一致：
+  // 流转收口为“已采纳”则显示已采纳；驳回显示“已驳回”；其余按流转实时状态显示
+  const titleStatusText = (() => {
+    if (flowAuditStatus === '被驳回') return '已驳回';
+    return flowAuditStatus;
+  })();
+  const conclusionScore = record?.score ?? '--';
+  // 评分以“终审/最后一轮审核”为准：优先取流程真实终审分，
+  // 若速报实时对象暂无分，则取本条审核记录自带的通过评分（保证流转末环节显示评分）。
+  const resolvedFinalScore =
+    getFinalAuditScore(report) ??
+    (record?.auditResult === '已通过' && record.score !== undefined ? record.score : undefined);
+  const finalScore = resolvedFinalScore;
+  // 流转状态固定按“提交 → 各级审核 → 结束”的完整节点链展示，
+  // 以速报当前实时状态推导，避免残缺历史时间线导致节点缺失。
+  const flowReport: ReportItem = {
+    ...report,
+    timeline: isTourismFlowRecord ? tourismFlowTimeline : undefined,
+    auditStatus: flowAuditStatus,
+    score: resolvedFinalScore !== undefined ? resolvedFinalScore : report.score
+  };
 
   const detail = report.detailContent || {
     summary: '多名网民在微信群和短视频平台反映西坝区阳光花园一期、明月居等小区突发停水。经初步核查，受影响范围涉及居民约3万人。',
@@ -101,6 +214,30 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
     setTimeout(() => setCopied(false), 2500);
   };
 
+  const handleSaveAndResubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const updated: ReportItem = {
+      ...report,
+      title: editTitle,
+      occurAddress: editAddress,
+      source: editSource,
+      region: editRegion,
+      infoType: editInfoType,
+      detailContent: {
+        ...report.detailContent,
+        summary: editSummary,
+        coreDemands: editCoreDemands,
+        publicOpinionTrend: report.detailContent?.publicOpinionTrend || '平稳',
+        recommendations: report.detailContent?.recommendations || []
+      }
+    };
+
+    if (onResubmitReport) {
+      onResubmitReport(updated);
+    }
+    setIsEditModalOpen(false);
+  };
+
   return (
     <div className="space-y-4 w-full" id="report-detail-view">
       {/* 1. Breadcrumbs & Top Navigation Bar */}
@@ -119,19 +256,6 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
               <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
               <span className="text-gray-900 font-bold">审核详情</span>
             </>
-          ) : sourcePage === 'report-records' ? (
-            <>
-              <span className="text-gray-500 font-medium">报送管理</span>
-              <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
-              <button
-                onClick={() => onNavigate('report-records')}
-                className="text-gray-600 hover:text-[#1E5ABB] hover:underline font-medium flex items-center space-x-1 cursor-pointer transition-colors"
-              >
-                <span>报送记录</span>
-              </button>
-              <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
-              <span className="text-gray-900 font-bold">速报详情</span>
-            </>
           ) : (
             <>
               <span className="text-gray-500 font-medium">报送管理</span>
@@ -140,7 +264,7 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
                 onClick={() => onNavigate('report-summary')}
                 className="text-gray-600 hover:text-[#1E5ABB] hover:underline font-medium flex items-center space-x-1 cursor-pointer transition-colors"
               >
-                <span>报送待办</span>
+                <span>报送记录</span>
               </button>
               <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
               <span className="text-gray-900 font-bold">报送详情</span>
@@ -153,7 +277,7 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
           {/* If from Report Management and Draft or Rejected: Edit / Resubmit */}
           {sourcePage !== 'audit-records' && (isDraft || isRejected) && (
             <button
-              onClick={() => onOpenEditReport && onOpenEditReport(report)}
+              onClick={() => setIsEditModalOpen(true)}
               className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg text-xs font-semibold shadow-2xs flex items-center space-x-1 cursor-pointer"
             >
               <FileEdit className="w-3.5 h-3.5" />
@@ -208,16 +332,18 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
               </h1>
               <span
                 className={`shrink-0 text-xs font-semibold px-3 py-1 rounded-md border ${
-                  isDraft
-                    ? 'bg-gray-100 text-gray-700 border-gray-300'
-                    : isPending
-                    ? 'bg-amber-50 text-amber-600 border-amber-200'
-                    : isRejected
+                  titleStatusText === '已驳回'
                     ? 'bg-rose-50 text-rose-600 border-rose-200'
-                    : 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                    : titleStatusText === '已采纳'
+                      ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                      : titleStatusText === '待审核' || titleStatusText === '审核中'
+                        ? 'bg-amber-50 text-amber-600 border-amber-200'
+                        : isDraft
+                          ? 'bg-gray-100 text-gray-700 border-gray-300'
+                          : 'bg-emerald-50 text-emerald-600 border-emerald-200'
                 }`}
               >
-                {report.auditStatus}
+                {titleStatusText}
               </span>
             </div>
 
@@ -236,12 +362,6 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
               {finalScore !== undefined && (
                 <div className="flex items-center space-x-1 bg-amber-50 text-amber-800 px-2 py-0.5 rounded border border-amber-200 font-bold font-mono">
                   <span>评分：{finalScore} 分</span>
-                </div>
-              )}
-              {report.templateName && (
-                <div className="flex items-center space-x-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100 font-semibold">
-                  <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                  <span>模板：{report.templateName}</span>
                 </div>
               )}
             </div>
@@ -430,95 +550,74 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
 
         {/* Right 1 Column: Audit Workflow & Timeline (5-Stage Lifecycle from mobile design) */}
         <div className="space-y-5">
-          {/* Audit Status Summary */}
-          <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-2xs space-y-4">
-            <div className="flex items-center space-x-2 border-b border-gray-100 pb-3">
-              <CheckSquare className="w-4 h-4 text-[#1E5ABB]" />
-              <h3 className="text-sm font-bold text-gray-800">审核结论</h3>
+          {/* 1. 本节点审核结论（固定为当前审核记录当时的结果） */}
+          <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-2xs space-y-3">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center space-x-2">
+                <CheckSquare className="w-4 h-4 text-[#1E5ABB]" />
+                <h3 className="text-sm font-bold text-gray-800">本节点审核结论</h3>
+              </div>
+              <span className="shrink-0 rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-600">
+                节点记录
+              </span>
             </div>
 
-            {isAdopted ? (
-              <div className="p-3.5 bg-emerald-50 rounded-xl border border-emerald-200 flex items-start space-x-3">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold text-emerald-900 text-xs">
-                    {report.auditStatus === '已通过' ? '审核通过 · 待采纳' : '审核通过 · 已采纳'}
+            {record?.auditResult === '已通过' ? (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="flex items-center space-x-1.5 text-xs font-bold text-emerald-900">
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                    <span>已通过</span>
                   </p>
-                  <p className="text-[11px] text-emerald-700 mt-1 leading-normal">
-                    {report.auditStatus === '已通过'
-                      ? '初审已通过，等待后续复核和采纳节点完成。'
-                      : '本条速报已完成全部三级审核流转，已进入全市速报汇编库。'}
-                  </p>
+                  {record.score !== undefined && record.score !== null && (
+                    <span className="shrink-0 rounded-lg border border-emerald-200 bg-white px-2 py-0.5 font-mono text-[11px] font-bold text-emerald-700">
+                      评分：{record.score}分
+                    </span>
+                  )}
                 </div>
-              </div>
-            ) : isRejected ? (
-              <div className="relative p-3.5 pr-10 bg-rose-50 rounded-xl border border-rose-200 flex items-start space-x-3">
-                <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold text-rose-900 text-xs">被驳回</p>
-                  <p className="text-[11px] text-rose-700 mt-1 leading-normal">
-                    <strong>驳回原因：</strong>{rejectReasonText}
-                  </p>
-                  <p className="text-[11px] text-rose-500 mt-1 leading-normal">
-                    {rejectFollowUpText}
-                  </p>
-                </div>
-              </div>
-            ) : isPending ? (
-              <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200 flex items-start space-x-3">
-                <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold text-amber-900 text-xs">审核中 · 待宣传部/网信办初审</p>
-                  <p className="text-[11px] text-amber-700 mt-1 leading-normal">
-                    材料已提交送审，审核人员正在核验信息真实性与处置建议。
-                  </p>
-                </div>
-              </div>
-            ) : isInReview ? (
-              <div className="p-3.5 bg-blue-50 rounded-xl border border-blue-200 flex items-start space-x-3">
-                <Clock className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold text-blue-900 text-xs">审核中 · 正在复核</p>
-                  <p className="text-[11px] text-blue-700 mt-1 leading-normal">
-                    初审已完成，当前由复核组继续处理，暂不可编辑或撤回。
-                  </p>
-                </div>
-              </div>
-            ) : isWaitingTransfer ? (
-              <div className="p-3.5 bg-orange-50 rounded-xl border border-orange-200 flex items-start space-x-3">
-                <Share2 className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold text-orange-900 text-xs">待转办 · 已进入不良信息库</p>
-                  <p className="text-[11px] text-orange-700 mt-1 leading-normal">
-                    审核链路已完成，等待责任单位确认并提交转办意见。
-                  </p>
-                </div>
-              </div>
-            ) : isTransferred ? (
-              <div className="p-3.5 bg-indigo-50 rounded-xl border border-indigo-200 flex items-start space-x-3">
-                <CheckCircle2 className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold text-indigo-900 text-xs">已转办 · 流程结束</p>
-                  <p className="text-[11px] text-indigo-700 mt-1 leading-normal">
-                    已提交责任单位处理，当前无需重复操作。
-                  </p>
-                </div>
+                <p className="mt-2 text-[11px] text-emerald-700">
+                  审核人：{record.auditor || '—'} · {record.auditTime || '—'}
+                </p>
               </div>
             ) : (
-              <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 flex items-start space-x-3">
-                <FileEdit className="w-5 h-5 text-gray-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold text-gray-900 text-xs">草稿保存</p>
-                  <p className="text-[11px] text-gray-600 mt-1 leading-normal">
-                    尚未提交送审，随时可继续补充编辑。
-                  </p>
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3.5">
+                <p className="flex items-center space-x-1.5 text-xs font-bold text-rose-900">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span>已驳回</span>
+                </p>
+                <p className="mt-2 text-[11px] text-rose-700">
+                  审核人：{record.auditor || '—'} · {record.auditTime || '—'}
+                </p>
+                <div className="mt-2 rounded-lg border border-rose-200/80 bg-white/70 px-3 py-2 text-[11px] leading-relaxed text-rose-800">
+                  <strong>驳回原因：</strong>{record.rejectReason || '信息不完整，请补充相关证明材料后重新提交。'}
+                  {record.rejectDetail && (
+                    <p className="mt-1 text-rose-700">{record.rejectDetail}</p>
+                  )}
                 </div>
               </div>
             )}
+
+            <p className="text-[10px] leading-relaxed text-gray-400">
+              仅代表该审核节点当时的结论；速报当前的实时整体进度请见下方流转状态。
+            </p>
           </div>
 
-          <AuditFlowTimeline report={report} />
-
+          {/* 2. 实时整体流转状态 */}
+          <AuditFlowTimeline
+            report={flowReport}
+            headerNote="实时 · 整体流程"
+            rejectedLabel="已驳回"
+            myRejectedNode={
+              record?.auditResult === '被驳回'
+                ? {
+                    auditor: record.auditor || '—',
+                    org: record.auditorOrg || record.organization || '—',
+                    time: record.auditTime,
+                    comment: record.rejectDetail || record.rejectReason || ''
+                  }
+                : null
+            }
+          />
           {false && (
           /* Streamlined Flow Timeline (Aligned with AuditDetail & Screenshot) */
           <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-2xs space-y-4">
@@ -528,7 +627,7 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
                 <h3 className="text-sm font-bold text-gray-900">流转状态</h3>
               </div>
               {isAdopted && (
-                <span className="text-[11px] text-gray-400 font-normal">完整审核链路</span>
+                <span className="text-[11px] text-gray-400 font-normal">实时 · 整体流程</span>
               )}
             </div>
 
@@ -549,7 +648,7 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
                   {/* Submission Card */}
                   <div className="bg-[#F8FAFC] border border-[#EDF2F7] rounded-xl px-3.5 py-2.5 flex items-center justify-between text-xs gap-2">
                     <span className="text-gray-600 truncate">
-                      {isAdopted ? '王五 · 市大数据中心 · 2026-08-12 16:45' : `${report.author} · ${report.organization} · ${report.submitTime}`}
+                      {report.author} · {report.organization} · {report.submitTime}
                     </span>
                     <span className="text-[#059669] font-bold text-xs shrink-0">已提交</span>
                   </div>
@@ -587,12 +686,12 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
                     <div className="bg-[#F8FAFC] border border-[#EDF2F7] rounded-xl p-3 space-y-2 text-xs">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-gray-700 font-medium truncate">
-                          王主任 · 市委宣传部舆情科 · 2026-08-12 18:00
+                          {report.auditor || '王主任'} · {report.organization || '市委宣传部舆情科'} · {report.auditTime || '--'}
                         </span>
                         <span className="text-[#059669] font-bold text-xs shrink-0">已通过</span>
                       </div>
                       <div className="bg-[#F0FDF4] border border-[#DCFCE7] text-[#15803D] rounded-lg px-3 py-2 text-xs font-bold font-mono">
-                        评分：95分
+                        评分：{conclusionScore}分
                       </div>
                     </div>
                   ) : (
@@ -611,9 +710,9 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
                           <span className="text-[#059669] font-bold text-xs shrink-0">已通过</span>
                         )}
                       </div>
-                      {isRejected && report.rejectReason && (
+                      {isRejected && (
                         <div className="bg-[#FFF1F2] border border-[#FFE4E6] text-[#BE123C] rounded-lg p-2.5 text-xs leading-relaxed">
-                          <strong>驳回原因：</strong>{report.rejectReason}
+                          <strong>驳回原因：</strong>{report.rejectReason || '信息不完整，请补充相关证明材料后重新提交。'}
                         </div>
                       )}
                     </div>
@@ -674,12 +773,12 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
                     <div className="bg-[#F8FAFC] border border-[#EDF2F7] rounded-xl p-3 space-y-2 text-xs">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-gray-700 font-medium truncate">
-                          赵宁 · 市网信办终审组 · 2026-08-12 18:00
+                          终审员 · 市网信办终审组 · {report.auditTime || '--'}
                         </span>
                         <span className="text-[#059669] font-bold text-xs shrink-0">已通过</span>
                       </div>
                       <div className="bg-[#F0FDF4] border border-[#DCFCE7] text-[#15803D] rounded-lg px-3 py-2 text-xs font-bold font-mono">
-                        评分：95分
+                        评分：{conclusionScore}分
                       </div>
                     </div>
                   ) : (
@@ -789,6 +888,129 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
                 确认删除
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Re-edit Modal */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 space-y-4 border border-gray-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center space-x-2">
+                <FileEdit className="w-5 h-5 text-[#1E5ABB]" />
+                <h3 className="text-base font-bold text-gray-900">
+                  {isRejected ? '修改补充并重新提交' : '编辑草稿速报'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsEditModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 text-lg cursor-pointer font-mono"
+              >
+                ✕
+              </button>
+            </div>
+
+            {report.rejectReason && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">
+                <p className="font-bold flex items-center space-x-1">
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                  <span>原审核驳回意见：</span>
+                </p>
+                <p className="mt-1 pl-4.5">{report.rejectReason}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveAndResubmit} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-gray-700 font-semibold mb-1">事件标题 *</label>
+                <input
+                  type="text"
+                  required
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#1E5ABB] outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-gray-700 font-semibold mb-1">发生地址 *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editAddress}
+                    onChange={(e) => setEditAddress(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#1E5ABB] outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-semibold mb-1">涉及区域 *</label>
+                  <select
+                    value={editRegion}
+                    onChange={(e) => setEditRegion(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white outline-none"
+                  >
+                    <option value="西坝区">西坝区</option>
+                    <option value="南坝区">南坝区</option>
+                    <option value="北屯区">北屯区</option>
+                    <option value="全市">全市</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-semibold mb-1">信息类型 *</label>
+                  <select
+                    value={editInfoType}
+                    onChange={(e) => setEditInfoType(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white outline-none"
+                  >
+                    <option value="突发事件">突发事件</option>
+                    <option value="舆情动态">舆情动态</option>
+                    <option value="政策解读">政策解读</option>
+                    <option value="民生诉求">民生诉求</option>
+                    <option value="网络谣言">网络谣言</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-1">内容摘要 *</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={editSummary}
+                  onChange={(e) => setEditSummary(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#1E5ABB] outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-1">核心诉求</label>
+                <textarea
+                  rows={2}
+                  value={editCoreDemands}
+                  onChange={(e) => setEditCoreDemands(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#1E5ABB] outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-semibold"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg font-semibold shadow-sm flex items-center space-x-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>提交重新送审</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

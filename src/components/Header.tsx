@@ -1,52 +1,31 @@
 import React, { useState } from 'react';
 import { Calendar, Bell, Headphones, ChevronDown, User, LogOut, Settings, Building2, CheckCircle2, ArrowLeftRight, Check, X } from 'lucide-react';
 import { Logo } from './Logo';
-
-export interface OrgAccount {
-  id: string;
-  name: string;
-  role: string;
-  code: string;
-  type: string;
-  roles?: string[];
-}
+import { AVAILABLE_ORGS } from '../data/mockData';
+import type { OrgAccount } from '../types';
 
 interface HeaderProps {
   onNewReportClick: () => void;
   currentUser: string;
-  currentOrg?: OrgAccount;
-  onSwitchOrg?: (org: OrgAccount) => void;
+  currentOrg: OrgAccount;
+  onSwitchOrg: (org: OrgAccount) => void;
   onNavigate?: (page: any) => void;
 }
-
-export const AVAILABLE_ORGS: OrgAccount[] = [
-  { id: '1', name: '台中市网信办', role: '上报员 · 审核员', roles: ['上报员', '审核员'], code: 'WX-001', type: '网安指挥' },
-  { id: '2', name: '市委宣传部', role: '上报员 · 审核员', roles: ['上报员', '审核员'], code: 'XC-002', type: '市级部门' },
-  { id: '3', name: '西区网络网信局', role: '上报员 · 审核员', roles: ['上报员', '审核员'], code: 'XQ-003', type: '区县机构' },
-  { id: '4', name: '北区网络网信局', role: '上报员 · 审核员', roles: ['上报员', '审核员'], code: 'BQ-004', type: '区县机构' },
-  { id: '5', name: '市发展改革委', role: '上报员 · 审核员', roles: ['上报员', '审核员'], code: 'FG-005', type: '直属部门' }
-];
 
 export const Header: React.FC<HeaderProps> = ({
   onNewReportClick,
   currentUser,
-  currentOrg: propCurrentOrg,
-  onSwitchOrg: propOnSwitchOrg,
+  currentOrg,
+  onSwitchOrg,
   onNavigate
 }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
-  const [internalOrg, setInternalOrg] = useState(AVAILABLE_ORGS[0]);
-  const currentOrg = propCurrentOrg || internalOrg;
   const [showOrgModal, setShowOrgModal] = useState(false);
   const [switchToast, setSwitchToast] = useState<string | null>(null);
 
   const handleSwitchOrg = (org: OrgAccount) => {
-    if (propOnSwitchOrg) {
-      propOnSwitchOrg(org);
-    } else {
-      setInternalOrg(org);
-    }
+    onSwitchOrg(org);
     setShowOrgModal(false);
     setShowUserMenu(false);
     setSwitchToast(`已成功切换当前管理机构为：${org.name}（身份：${org.role}）`);
@@ -274,5 +253,3 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
-
-

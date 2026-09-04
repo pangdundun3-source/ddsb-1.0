@@ -6,6 +6,7 @@ export type PageId =
   | 'report-audit'
   | 'audit-detail'
   | 'audit-records'
+  | 'audit-record-detail'
   | 'negative-info'
   | 'negative-detail'
   | 'statistics'
@@ -15,6 +16,15 @@ export type PageId =
   | 'role-permission'
   | 'business-config'
   | 'system-logs';
+
+export interface OrgAccount {
+  id: string;
+  name: string;
+  role: string;
+  code: string;
+  type: string;
+  roles?: string[];
+}
 
 export interface UserProfileData {
   name: string;
@@ -34,7 +44,8 @@ export interface UserProfileData {
   updateTime: string;
 }
 
-export type AuditStatus = '待审核' | '已通过' | '已采纳' | '已驳回' | '被驳回' | '草稿' | '待转办' | '已转办';
+export type AuditStatus = '待审核' | '审核中' | '已通过' | '已采纳' | '已驳回' | '被驳回' | '草稿' | '待转办' | '已转办';
+export type AuditStage = '初审' | '复核' | '终审';
 
 export interface Attachment {
   id: string;
@@ -68,6 +79,58 @@ export interface DraftReport {
   saveTime: string;
 }
 
+export interface NewReportFormData {
+  title: string;
+  source: string;
+  region: string;
+  occurAddress?: string;
+  infoType: string;
+  author: string;
+  organization: string;
+  summary: string;
+  demands: string;
+  recommendations: string;
+  attachments?: Attachment[];
+}
+
+export interface ReportTemplateDef {
+  id: string;
+  name: string;
+  badge: string;
+  badgeColor: string;
+  iconName: 'zap' | 'file-text' | 'shield' | 'help' | 'book';
+  description: string;
+  recommendedFor: string;
+  defaultSource: string;
+  defaultRegion: string;
+  defaultInfoType: string;
+  defaultTitle: string;
+  summaryTemplate: string;
+  demandsTemplate: string;
+  recommendationsTemplate: string;
+}
+
+export interface ReportTemplateInput {
+  title?: string;
+  source?: string;
+  region?: string;
+  infoType?: string;
+  occurAddress?: string;
+  summary?: string;
+  demands?: string;
+  recommendations?: string;
+}
+
+export interface ReportEditInput {
+  title: string;
+  occurAddress: string;
+  source: string;
+  region: string;
+  infoType: string;
+  summary: string;
+  coreDemands: string;
+}
+
 export interface ReportItem {
   id: number;
   title: string;
@@ -78,7 +141,10 @@ export interface ReportItem {
   organization: string; // e.g. 台中市网信办, XX市委宣传部舆情科, 西坝区教育局
   submitTime: string; // e.g. 2026-08-13 14:30
   auditStatus: AuditStatus;
+  auditStage?: AuditStage;
   score?: number | string; // e.g. 85, 95, '--'
+  templateId?: string;
+  templateName?: string;
   occurAddress?: string; // 发生地址
   rejectReason?: string; // 驳回原因
   rejectDetail?: string; // 详细驳回意见
