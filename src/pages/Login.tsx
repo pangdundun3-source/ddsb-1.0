@@ -19,6 +19,21 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [showContactModal, setShowContactModal] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
+  // Close product matrix when clicking anywhere on the page
+  useEffect(() => {
+    const handleGlobalClick = () => {
+      if (showProductMatrix) {
+        setShowProductMatrix(false);
+      }
+    };
+    if (showProductMatrix) {
+      window.addEventListener('click', handleGlobalClick);
+    }
+    return () => {
+      window.removeEventListener('click', handleGlobalClick);
+    };
+  }, [showProductMatrix]);
+
   useEffect(() => {
     const timer = setInterval(() => {
       setCountdown((prev) => {
@@ -218,7 +233,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       </div>
 
       {/* Top Header Bar: 1:1 match */}
-      <header className="relative z-20 w-full px-6 sm:px-12 pt-6 sm:pt-7 flex items-center justify-between">
+      <header className="relative z-40 w-full px-6 sm:px-12 pt-6 sm:pt-7 flex items-center justify-between overflow-visible">
         {/* Left Double Branding: KN 康奈网络 | 点点速豹 subao.cn */}
         <div className="flex items-center space-x-6 sm:space-x-8">
           {/* Brand 1: KN 康奈网络 knwl.cn */}
@@ -303,7 +318,10 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           {/* 产品矩阵 Popover Trigger & Dropdown Menu */}
           <div className="relative">
             <button
-              onClick={() => setShowProductMatrix(!showProductMatrix)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowProductMatrix(!showProductMatrix);
+              }}
               className={`px-3 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                 showProductMatrix
                   ? 'bg-[#dce7f5] text-[#15386a]'
@@ -313,17 +331,12 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               产品矩阵
             </button>
 
-            {/* Click outside overlay */}
-            {showProductMatrix && (
-              <div
-                className="fixed inset-0 z-40 cursor-default"
-                onClick={() => setShowProductMatrix(false)}
-              />
-            )}
-
             {/* 1:1 Product Matrix Popover Menu */}
             {showProductMatrix && (
-              <div className="absolute right-0 top-full mt-2 w-[210px] bg-white rounded-2xl shadow-[0_12px_40px_rgba(20,50,90,0.14)] border border-slate-100/90 py-2.5 px-2 z-50 flex flex-col space-y-0.5 animate-in fade-in zoom-in-95 duration-150">
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="absolute right-0 top-full mt-2 w-[210px] bg-white rounded-2xl shadow-[0_16px_48px_rgba(20,50,90,0.2)] border border-slate-100/90 py-2.5 px-2 z-[100] flex flex-col space-y-0.5 animate-in fade-in zoom-in-95 duration-150"
+              >
                 {/* 1. 正管用 V8 */}
                 <div
                   onClick={() => {
