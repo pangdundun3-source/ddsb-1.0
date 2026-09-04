@@ -1,4 +1,5 @@
 export type PageId =
+  | 'login'
   | 'home'
   | 'report-summary'
   | 'report-records'

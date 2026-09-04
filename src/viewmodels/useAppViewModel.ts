@@ -42,10 +42,16 @@ export const useAppViewModel = () => {
   });
   const [activePage, setActivePage] = useState<PageId>(() => {
     try {
+      const isLoginTested = localStorage.getItem('ddsb_login_v1_shown');
+      if (!isLoginTested) {
+        localStorage.setItem('ddsb_login_v1_shown', 'true');
+        localStorage.setItem('ddsb_active_page', 'login');
+        return 'login';
+      }
       const saved = localStorage.getItem('ddsb_active_page');
-      return (saved as PageId) || 'home';
+      return (saved as PageId) || 'login';
     } catch {
-      return 'home';
+      return 'login';
     }
   });
   const [businessConfigInitialModule, setBusinessConfigInitialModule] = useState('report_template');

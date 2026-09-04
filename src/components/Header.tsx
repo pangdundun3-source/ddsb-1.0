@@ -154,7 +154,9 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 onClick={() => {
                   setShowUserMenu(false);
-                  alert('退出登录成功，已清除当前登录凭证。');
+                  if (onNavigate) {
+                    onNavigate('login');
+                  }
                 }}
                 className="w-full text-left px-3 py-2 hover:bg-rose-50 flex items-center space-x-2 text-red-600 border-t border-gray-100 cursor-pointer"
               >

@@ -1,6 +1,6 @@
 {
   "name": "Remix Remix subao-v8-shsb.PC",
-  "description": "Imported from GitHub: pangdundun3-source/subao-v8-shsb.PC",
+  "description": "点点速豹 · 清朗净网鉴谣速报系统，提供基层网格鸣哨示警、微信扫码登录与速报审核处置协同中枢。",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
