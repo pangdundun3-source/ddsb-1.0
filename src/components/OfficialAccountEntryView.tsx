@@ -29,6 +29,8 @@ interface OfficialAccountEntryViewProps {
   onEnterReport: () => void;
   onEnterReportList: () => void;
   onEnterWorkbench: (role?: UserRole) => void;
+  onEnterAuditList: () => void;
+  onEnterProfile: () => void;
   onEnterLogin: () => void;
   onEnterActivationH5?: () => void;
   onToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
@@ -49,6 +51,8 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
   onEnterReport,
   onEnterReportList,
   onEnterWorkbench,
+  onEnterAuditList,
+  onEnterProfile,
   onEnterLogin,
   onEnterActivationH5,
   onToast,
@@ -56,7 +60,6 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
   // Mode: custom menu vs text chat input
   const [inputMode, setInputMode] = useState<'menu' | 'chat'>('menu');
   const [inputText, setInputText] = useState<string>('');
-  const [showSubMenu, setShowSubMenu] = useState<boolean>(false);
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [showPlusDrawer, setShowPlusDrawer] = useState<boolean>(false);
   const [showActivationModal, setShowActivationModal] = useState<boolean>(false);
@@ -82,7 +85,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     {
       id: 'msg_welcome',
       sender: 'account',
-      text: '欢迎关注微信公众号！',
+      text: '欢迎关注“点点速报”微信公众号！',
     },
   ]);
 
@@ -105,31 +108,37 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
 
     // Automated smart reply
     setTimeout(() => {
-      let replyText = '您好！我是“点点速豹”智能助手。您可以点击底部菜单快速上报事件，或进入瞭望员工作台。';
+      let replyText = '您好！我是“点点速报”智能助手。您可以点击底部菜单直接进入【工作台】、【快速上报】、【快速审核】或【个人中心】。';
       let cardAction: { label: string; action: () => void } | undefined = undefined;
 
-      if (userMsgText.includes('上报') || userMsgText.includes('快报') || userMsgText.includes('事件')) {
-        replyText = '已为您匹配【快速上报】入口，点击下方卡片即可立即填写速报：';
+      if (userMsgText.includes('工作台') || userMsgText.includes('首页') || userMsgText.includes('瞭望')) {
+        replyText = '您可以直接进入工作台首页：';
         cardAction = {
-          label: '立即前往 快速上报',
-          action: () => onEnterReport(),
+          label: '进入 工作台首页',
+          action: () => onEnterWorkbench(),
         };
-      } else if (userMsgText.includes('列表') || userMsgText.includes('查看') || userMsgText.includes('进度')) {
-        replyText = '您可以查看辖区最新速报列表与流转处置进度：';
+      } else if (userMsgText.includes('上报') || userMsgText.includes('快报') || userMsgText.includes('事件') || userMsgText.includes('列表')) {
+        replyText = '已为您匹配【快速上报】入口，点击下方卡片即可进入上报列表：';
         cardAction = {
-          label: '查看 上报列表',
+          label: '进入 快速上报 (上报列表)',
           action: () => onEnterReportList(),
         };
-      } else if (userMsgText.includes('登录') || userMsgText.includes('审核') || userMsgText.includes('瞭望')) {
-        replyText = '请选择您的身份进入瞭望员与审核工作台：';
+      } else if (userMsgText.includes('审核') || userMsgText.includes('审查') || userMsgText.includes('批复')) {
+        replyText = '已为您匹配【快速审核】入口，点击下方卡片即可进入审核列表：';
         cardAction = {
-          label: '进入 瞭望员工作台',
-          action: () => onEnterWorkbench('综合网格员'),
+          label: '进入 快速审核 (审核列表)',
+          action: () => onEnterAuditList(),
+        };
+      } else if (userMsgText.includes('个人') || userMsgText.includes('中心') || userMsgText.includes('我的') || userMsgText.includes('资料') || userMsgText.includes('账号')) {
+        replyText = '已为您匹配【个人中心】入口，点击下方卡片即可进入我的列表主页：';
+        cardAction = {
+          label: '进入 个人中心 (我的)',
+          action: () => onEnterProfile(),
         };
       } else if (userMsgText.includes('激活') || userMsgText.includes('开通') || userMsgText.includes('认证')) {
-        replyText = '新关注用户须先完成微信账号激活，激活后即可正常使用平台所有功能：';
+        replyText = '当前账号激活页面作为未激活实验数据，点击下方卡片即可体验激活认证流程：';
         cardAction = {
-          label: '立即进入激活认证 H5',
+          label: '体验 账号激活认证 H5',
           action: () => handleOpenActivation(),
         };
       }
@@ -177,7 +186,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
       <div className="bg-[#ededed] px-3 py-2 flex items-center justify-between z-20 shrink-0 border-b border-black/[0.04]">
         {/* Left: Back chevron button */}
         <button
-          onClick={() => onToast('您已在“点点速豹”公众号主会话窗口', 'info')}
+          onClick={() => onToast('您已在“点点速报”公众号主会话窗口', 'info')}
           className="p-1 -ml-1 text-slate-800 hover:text-black active:opacity-60 transition-opacity"
           title="返回微信"
         >
@@ -186,7 +195,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
 
         {/* Center: Official Account Title */}
         <div className="text-center font-medium text-slate-900 text-[17px] tracking-tight">
-          点点速豹
+          点点速报
         </div>
 
         {/* Right: Contact / Official Account Profile Icon */}
@@ -203,7 +212,6 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
       <div
         className="flex-1 overflow-y-auto px-3.5 py-4 space-y-4"
         onClick={() => {
-          if (showSubMenu) setShowSubMenu(false);
           if (showPlusDrawer) setShowPlusDrawer(false);
         }}
       >
@@ -300,23 +308,19 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
           </div>
         ))}
 
-        {/* 激活通知 - 微信公众号新关注用户服务通知/模板卡片 */}
+        {/* 激活通知 - 微信公众号新关注用户服务通知/模板卡片 (实验数据) */}
         <div
           id="activation-login-notification-card"
           className="bg-white rounded-xl p-4 border border-black/[0.06] shadow-xs text-xs text-slate-700 mt-4 cursor-pointer hover:shadow-md transition-all active:scale-[0.99] group"
           onClick={() => {
-            if (!isActivated) {
-              handleOpenActivation();
-            } else {
-              onToast('账号已激活，正在为您进入工作台...', 'success');
-              onEnterWorkbench('综合网格员');
-            }
+            handleOpenActivation();
           }}
         >
           {/* Card Header */}
           <div className="flex items-start justify-between mb-1">
-            <h3 className="text-[16px] font-semibold text-slate-900 tracking-tight">
-              激活通知
+            <h3 className="text-[16px] font-semibold text-slate-900 tracking-tight flex items-center gap-1.5">
+              <span>激活通知</span>
+              <span className="text-[10px] font-normal text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">实验数据</span>
             </h3>
             <span
               className={`text-[10.5px] font-semibold px-2 py-0.5 rounded-full border ${
@@ -334,72 +338,23 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
 
           {/* Intro description */}
           <p className="text-[13px] text-slate-700 leading-relaxed mb-3">
-            欢迎关注“点点速豹”官方公众号！为了保障系统安全与服务规范，新关注的微信用户须先进行账号激活，激活后方可正常使用平台功能。
+            欢迎关注“点点速报”官方公众号！当前账号激活页面先作为未激活实验数据展示。您可点击本通知体验账号实名认证与激活流程，底部菜单【工作台】、【快速上报】、【快速审核】均可直接正常使用。
           </p>
 
           {/* Card Action Footer */}
           <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-slate-800 font-medium text-[13px]">
-            <span className={`font-medium flex items-center ${isActivated ? 'text-emerald-600' : 'text-blue-600 group-hover:text-blue-700'}`}>
-              {isActivated ? '账号已激活 · 进入工作台' : '立即激活平台功能'}
+            <span className="font-medium flex items-center text-blue-600 group-hover:text-blue-700">
+              {isActivated ? '账号激活设置 · 查看实验数据' : '账号激活设置 · 体验激活认证流程'}
             </span>
             <div className="flex items-center text-slate-400 text-xs group-hover:text-blue-600 transition-colors">
-              <span className="mr-0.5">{isActivated ? '进入' : '去激活'}</span>
+              <span className="mr-0.5">{isActivated ? '查看' : '去激活'}</span>
               <ChevronRight className="w-4 h-4" />
             </div>
           </div>
         </div>
       </div>
 
-      {/* 4. Popover Sub-Menu for "瞭望员" */}
-      {showSubMenu && (
-        <div className="absolute bottom-[56px] right-2 w-44 bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-40 animate-in fade-in zoom-in-95 duration-150">
-          <div className="px-3 py-1.5 text-[10px] text-slate-400 font-medium border-b border-slate-100">
-            瞭望员服务中心
-          </div>
-          <button
-            onClick={() => {
-              setShowSubMenu(false);
-              if (!isActivated) {
-                onToast('新关注用户需先进行激活，激活后才能进入工作台！', 'error');
-                setShowActivationModal(true);
-                return;
-              }
-              onEnterWorkbench('综合网格员');
-            }}
-            className="w-full px-3 py-2 text-left text-xs text-slate-800 hover:bg-slate-50 flex items-center space-x-2 transition-colors"
-          >
-            <ShieldCheck className="w-4 h-4 text-blue-600" />
-            <span className="font-medium">综合网格工作台</span>
-          </button>
-          <button
-            onClick={() => {
-              setShowSubMenu(false);
-              if (!isActivated) {
-                onToast('新关注用户需先进行激活，激活后才能进入审核中心！', 'error');
-                setShowActivationModal(true);
-                return;
-              }
-              onEnterWorkbench('审核员');
-            }}
-            className="w-full px-3 py-2 text-left text-xs text-slate-800 hover:bg-slate-50 flex items-center space-x-2 transition-colors"
-          >
-            <CheckSquare className="w-4 h-4 text-amber-600" />
-            <span className="font-medium">审核认证中心</span>
-          </button>
-          <button
-            onClick={() => {
-              setShowSubMenu(false);
-              onEnterLogin();
-            }}
-            className="w-full px-3 py-2 text-left text-xs text-slate-800 hover:bg-slate-50 flex items-center space-x-2 border-t border-slate-100 transition-colors"
-          >
-            <LogIn className="w-4 h-4 text-slate-600" />
-            <span>账号与扫码校验</span>
-          </button>
-        </div>
-      )}
-
-      {/* 5. WeChat Bottom Bar - Custom Menu or Chat Input Mode */}
+      {/* 4. WeChat Bottom Bar - Custom Menu or Chat Input Mode */}
       {inputMode === 'menu' ? (
         /* 1:1 Authentic WeChat Custom Menu Bar */
         <div className="bg-[#f7f7f7] border-t border-[#dcdcdc] h-[52px] flex items-stretch z-30 shrink-0 select-none">
@@ -407,13 +362,12 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
           <button
             onClick={() => {
               setInputMode('chat');
-              setShowSubMenu(false);
             }}
-            className="w-[50px] flex items-center justify-center text-slate-700 hover:bg-black/5 active:bg-black/10 transition-colors shrink-0"
+            className="w-[42px] flex items-center justify-center text-slate-700 hover:bg-black/5 active:bg-black/10 transition-colors shrink-0"
             title="切换为输入法键盘"
           >
-            <div className="w-[30px] h-[30px] rounded-full border-[1.5px] border-slate-800 flex items-center justify-center">
-              <svg className="w-[17px] h-[17px] text-slate-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <div className="w-[28px] h-[28px] rounded-full border-[1.5px] border-slate-800 flex items-center justify-center">
+              <svg className="w-[15px] h-[15px] text-slate-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="3" y="5" width="18" height="14" rx="2" />
                 <circle cx="7" cy="9" r="0.8" fill="currentColor" />
                 <circle cx="12" cy="9" r="0.8" fill="currentColor" />
@@ -426,54 +380,57 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
             </div>
           </button>
 
-          {/* Menu Button 1: 快速上报 🔗 */}
+          {/* Menu Button 1: 工作台 🔗 */}
           <button
-            onClick={() => {
-              if (!isActivated) {
-                onToast('新关注用户需先进行激活，激活后才能正常使用快速上报！', 'error');
-                setShowActivationModal(true);
-                return;
-              }
-              onEnterReport();
-            }}
-            className="flex-1 flex items-center justify-center space-x-1 border-l border-[#e5e5e5] text-[#222222] text-[14.5px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-1"
+            id="menu-btn-workbench"
+            onClick={() => onEnterWorkbench()}
+            className="flex-1 flex items-center justify-center space-x-0.5 border-l border-[#e5e5e5] text-[#222222] text-[13.5px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-0.5 whitespace-nowrap overflow-hidden"
+            title="进入工作台首页"
+          >
+            <span>工作台</span>
+            <svg className="w-3 h-3 text-[#9e9e9e] inline-block -mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg>
+          </button>
+
+          {/* Menu Button 2: 快速上报 🔗 */}
+          <button
+            id="menu-btn-fast-report"
+            onClick={() => onEnterReportList()}
+            className="flex-1 flex items-center justify-center space-x-0.5 border-l border-[#e5e5e5] text-[#222222] text-[13.5px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-0.5 whitespace-nowrap overflow-hidden"
+            title="进入上报列表"
           >
             <span>快速上报</span>
-            {/* Small WeChat link chain icon */}
-            <svg className="w-3.5 h-3.5 text-[#9e9e9e] inline-block -mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-3 h-3 text-[#9e9e9e] inline-block -mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
               <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
             </svg>
           </button>
 
-          {/* Menu Button 2: 上报列表 🔗 */}
+          {/* Menu Button 3: 快速审核 🔗 */}
           <button
-            onClick={() => {
-              if (!isActivated) {
-                onToast('新关注用户需先进行激活，激活后才能正常使用上报列表！', 'error');
-                setShowActivationModal(true);
-                return;
-              }
-              onEnterReportList();
-            }}
-            className="flex-1 flex items-center justify-center space-x-1 border-l border-[#e5e5e5] text-[#222222] text-[14.5px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-1"
+            id="menu-btn-fast-audit"
+            onClick={() => onEnterAuditList()}
+            className="flex-1 flex items-center justify-center space-x-0.5 border-l border-[#e5e5e5] text-[#222222] text-[13.5px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-0.5 whitespace-nowrap overflow-hidden"
+            title="进入审核列表"
           >
-            <span>上报列表</span>
-            <svg className="w-3.5 h-3.5 text-[#9e9e9e] inline-block -mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <span>快速审核</span>
+            <svg className="w-3 h-3 text-[#9e9e9e] inline-block -mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
               <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
             </svg>
           </button>
 
-          {/* Menu Button 3: 瞭望员 🔗 (with popover menu) */}
+          {/* Menu Button 4: 个人中心 🔗 */}
           <button
-            onClick={() => setShowSubMenu(!showSubMenu)}
-            className={`flex-1 flex items-center justify-center space-x-1 border-l border-[#e5e5e5] text-[#222222] text-[14.5px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-1 ${
-              showSubMenu ? 'bg-black/10' : ''
-            }`}
+            id="menu-btn-profile"
+            onClick={() => onEnterProfile()}
+            className="flex-1 flex items-center justify-center space-x-0.5 border-l border-[#e5e5e5] text-[#222222] text-[13.5px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-0.5 whitespace-nowrap overflow-hidden"
+            title="进入个人中心（我的列表页）"
           >
-            <span>瞭望员</span>
-            <svg className="w-3.5 h-3.5 text-[#9e9e9e] inline-block -mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <span>个人中心</span>
+            <svg className="w-3 h-3 text-[#9e9e9e] inline-block -mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
               <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
             </svg>
@@ -607,7 +564,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">点点速豹</h3>
+                  <h3 className="text-lg font-bold text-slate-900">点点速报</h3>
                   <p className="text-xs text-slate-500 font-mono">微信号：diandian_subao_h5</p>
                   <div className="flex items-center space-x-1 text-[11px] text-emerald-600 mt-0.5">
                     <CheckCircle2 className="w-3.5 h-3.5" />
@@ -679,7 +636,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
               新关注用户账号激活
             </h4>
             <p className="text-[12px] text-slate-500 mb-4 px-1 leading-relaxed">
-              欢迎关注“点点速豹”官方公众号！新关注微信用户须先完成身份激活，激活后方可正常使用平台所有功能。
+              欢迎关注“点点速报”官方公众号！新关注微信用户须先完成身份激活，激活后方可正常使用平台所有功能。
             </p>
 
             {/* Unlocked Capabilities Preview */}

@@ -523,7 +523,7 @@ export default function App() {
             setIsActivationH5View(false);
           }
           setIsOfficialAccount(true);
-          showToast('已返回“点点速豹”公众号');
+          showToast('已返回“点点速报”公众号');
         }}
         canGoBack={
           viewMode === 'notifications' ||
@@ -555,7 +555,7 @@ export default function App() {
             setIsActivationDetail(false);
           }
         }}
-        pageTitle={isActivationH5View ? '账号激活与实名认证' : isOfficialAccount ? '点点速豹' : getPageTitle()}
+        pageTitle={isActivationH5View ? '账号激活与实名认证' : isOfficialAccount ? '点点速报' : getPageTitle()}
         isLoggedIn={isLoggedIn}
         hideTabBar={
           isActivationH5View ||
@@ -619,7 +619,7 @@ export default function App() {
             onCancel={() => {
               setIsActivationH5View(false);
               setIsOfficialAccount(true);
-              showToast('已取消激活并返回“点点速豹”公众号');
+              showToast('已取消激活并返回“点点速报”公众号');
             }}
             onToast={showToast}
           />
@@ -639,7 +639,7 @@ export default function App() {
               setCurrentTab('report');
               setIsCreatingNewReport(false);
               setViewMode('main');
-              showToast('已打开速报列表');
+              showToast('已打开快速上报列表');
             }}
             onEnterWorkbench={(targetRole) => {
               if (targetRole) {
@@ -647,13 +647,26 @@ export default function App() {
               }
               setIsLoggedIn(true);
               setIsOfficialAccount(false);
-              if (targetRole === '审核员') {
-                setCurrentTab('audit');
-              } else {
-                setCurrentTab('home');
-              }
+              setCurrentTab('home');
               setViewMode('main');
-              showToast(`已进入【${targetRole || user.role}】工作台`);
+              showToast('已进入工作台首页');
+            }}
+            onEnterAuditList={() => {
+              setIsLoggedIn(true);
+              setIsOfficialAccount(false);
+              setCurrentTab('audit');
+              setViewMode('main');
+              showToast('已打开快速审核列表');
+            }}
+            onEnterProfile={() => {
+              setIsLoggedIn(true);
+              setIsOfficialAccount(false);
+              setCurrentTab('profile');
+              setViewMode('main');
+              setProfileSubPage(null);
+              setIsProfileDetail(false);
+              setIsActivationDetail(false);
+              showToast('已进入个人中心（我的）');
             }}
             onEnterLogin={() => {
               setIsLoggedIn(false);

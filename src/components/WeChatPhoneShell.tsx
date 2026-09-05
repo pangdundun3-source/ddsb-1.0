@@ -86,7 +86,7 @@ export const WeChatPhoneShell: React.FC<WeChatPhoneShellProps> = ({
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <span>💬 点点速豹公众号 (1:1)</span>
+                <span>💬 点点速报公众号 (1:1)</span>
               </button>
               <button
                 type="button"
@@ -200,7 +200,7 @@ export const WeChatPhoneShell: React.FC<WeChatPhoneShellProps> = ({
                     onClick={onCloseH5}
                     className="p-1 text-slate-700/90 hover:text-slate-900 transition-colors flex items-center justify-center"
                     aria-label="关闭H5返回公众号"
-                    title="关闭H5返回“点点速豹”公众号"
+                    title="关闭H5返回“点点速报”公众号"
                   >
                     <X className="w-4.5 h-4.5 stroke-[2.3]" />
                   </button>
