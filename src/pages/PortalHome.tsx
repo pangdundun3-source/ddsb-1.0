@@ -17,6 +17,7 @@ import {
   Check,
   Sparkles,
   ArrowRight,
+  Home,
   LogOut,
   User,
   Building,
@@ -28,7 +29,27 @@ import {
   ArrowLeftRight,
   ShieldCheck,
   Phone,
-  CheckCircle2
+  CheckCircle2,
+  LayoutGrid,
+  SquarePen,
+  CreditCard,
+  BookOpen,
+  MapPin,
+  MessageSquare,
+  RefreshCw,
+  SlidersHorizontal,
+  CheckCheck,
+  Download,
+  Upload,
+  UserPlus,
+  KeyRound,
+  Trash2,
+  Plus,
+  Filter,
+  Power,
+  ChevronLeft,
+  ChevronRight,
+  UserCheck
 } from 'lucide-react';
 import { PageId, ReportItem } from '../types';
 import sunsetBg from '../assets/images/sunset_grassland.jpg';
@@ -39,14 +60,314 @@ interface PortalHomeProps {
   onNavigate: (page: PageId, extraModule?: string) => void;
   onSelectReport: (report: ReportItem) => void;
   onLogout: () => void;
+  currentOrg?: string;
+  onSwitchOrg?: (org: string) => void;
+  userName?: string;
+  onUpdateUserName?: (name: string) => void;
+  userPhone?: string;
+  onUpdateUserPhone?: (phone: string) => void;
+  initialTab?: 'grid' | 'profile' | 'notifications' | 'org-users' | 'org-apps';
+  onTabChange?: (tab: 'grid' | 'profile' | 'notifications' | 'org-users' | 'org-apps') => void;
 }
+
+const ORG_OPTIONS = [
+  { name: '禁用-测试机构 (台湾省)', code: 'TEST-TW-01' },
+  { name: '台中市网信办', code: 'TC-WXB-01' },
+  { name: '西区网络网信局', code: 'TC-XQ-01' },
+];
+
+// Initial mock data for Notifications Table
+interface SystemNotification {
+  id: string;
+  title: string;
+  category: '特急处置' | '预警督办' | '机构动态' | '系统维护';
+  sourceOrg: string;
+  time: string;
+  isRead: boolean;
+  content: string;
+}
+
+const INITIAL_NOTIFICATIONS: SystemNotification[] = [
+  {
+    id: 'NOTIF-01',
+    title: '【特急处置】关于涉台突发涉稳虚假舆情多级流转与快速核处通报',
+    category: '特急处置',
+    sourceOrg: '台中市网信办',
+    time: '2026-09-04 16:30',
+    isRead: false,
+    content: '监测发现部分境外社媒账号发布涉台民生领域不实煽动言论，已完成首轮事实核验与矩阵阻断，请各联动单位持续跟踪落地核处。'
+  },
+  {
+    id: 'NOTIF-02',
+    title: '【预警督办】境外虚假账号定向炒作涉农补贴谣言处置研判报告已下发',
+    category: '预警督办',
+    sourceOrg: '省委宣传部',
+    time: '2026-09-04 14:15',
+    isRead: false,
+    content: '指令编号 ZL-20260904-001 已流转至台中市网信办处置专班，需于2小时内完成初审与辟谣口径上报。'
+  },
+  {
+    id: 'NOTIF-03',
+    title: '【机构动态】西区网络网信局正式接入“点点速豹”多级协同处置专网',
+    category: '机构动态',
+    sourceOrg: '运维调度中心',
+    time: '2026-09-04 11:20',
+    isRead: true,
+    content: '西区网络网信局已完成专网CA证书颁发与国密三级鉴权互联，支持全量指令一键跨级直办。'
+  },
+  {
+    id: 'NOTIF-04',
+    title: '【系统维护】网络生态治理平台国密鉴权证书月度例行安全轮换提醒',
+    category: '系统维护',
+    sourceOrg: '系统安全中心',
+    time: '2026-09-03 09:00',
+    isRead: true,
+    content: '平台将于2026年9月5日凌晨02:00-04:00进行网信CA数字证书升级，期间单点登录通道将保持双轨冗余备用。'
+  },
+  {
+    id: 'NOTIF-05',
+    title: '【预警督办】关于涉及“食安谣言”线索移送市场监管部门联合协查进展',
+    category: '预警督办',
+    sourceOrg: '市应急指挥中心',
+    time: '2026-09-02 17:40',
+    isRead: true,
+    content: '协同协查函已转送市场监管与公安网安大队，经查涉事视频为移花接木剪辑，已生成官方辟谣澄清文稿。'
+  },
+  {
+    id: 'NOTIF-06',
+    title: '【机构动态】本季度舆情处置特急响应平均时效缩短至12.5分钟通报表扬',
+    category: '机构动态',
+    sourceOrg: '台中市网信办',
+    time: '2026-09-01 10:00',
+    isRead: true,
+    content: '各部门通过“点点速豹”流转审核效率大幅提升，应急直报与多级研判闭环率达到99.2%。'
+  }
+];
+
+// Initial mock data for Organization Users Table
+interface OrgUser {
+  id: string;
+  name: string;
+  phone: string;
+  dept: string;
+  role: string;
+  authLevel: string;
+  status: '正常' | '停用';
+  lastLogin: string;
+}
+
+const INITIAL_ORG_USERS: OrgUser[] = [
+  {
+    id: 'USR-01',
+    name: '张三 (. w .)',
+    phone: '178****9573',
+    dept: '舆情速报与研判处置科',
+    role: '平台超级管理员',
+    authLevel: '国密三级鉴权',
+    status: '正常',
+    lastLogin: '2026-09-04 16:52'
+  },
+  {
+    id: 'USR-02',
+    name: '李四 (李科长)',
+    phone: '139****1122',
+    dept: '应急处置联络专班',
+    role: '终审签发员',
+    authLevel: '国密三级鉴权',
+    status: '正常',
+    lastLogin: '2026-09-04 15:30'
+  },
+  {
+    id: 'USR-03',
+    name: '王五 (监测专员)',
+    phone: '137****3344',
+    dept: '涉网舆情巡查一室',
+    role: '舆情速报员',
+    authLevel: '动态令牌认证',
+    status: '正常',
+    lastLogin: '2026-09-04 14:10'
+  },
+  {
+    id: 'USR-04',
+    name: '赵六 (网安协查)',
+    phone: '186****5566',
+    dept: '警网联合督办组',
+    role: '跨机构协查专员',
+    authLevel: '专网CA证书',
+    status: '正常',
+    lastLogin: '2026-09-03 18:20'
+  },
+  {
+    id: 'USR-05',
+    name: '钱七 (辟谣中心)',
+    phone: '150****7788',
+    dept: '涉台网络辟谣专班',
+    role: '辟谣发布专员',
+    authLevel: '动态令牌认证',
+    status: '正常',
+    lastLogin: '2026-09-02 16:45'
+  },
+  {
+    id: 'USR-06',
+    name: '孙八 (技术测试)',
+    phone: '135****9900',
+    dept: '综合技术运维科',
+    role: '系统安全审计员',
+    authLevel: '专网CA证书',
+    status: '停用',
+    lastLogin: '2026-08-28 10:12'
+  }
+];
+
+// Initial mock data for Organization Apps Table
+interface OrgAppItem {
+  id: string;
+  name: string;
+  code: string;
+  version: string;
+  badge: '正式版' | '试用版' | '已停用' | '未开通';
+  badgeColor: string;
+  desc: string;
+  authorizedDepts: string;
+  authUsersCount: number;
+  runStatus: '运行正常' | '试用中 (剩25天)' | '暂停维护' | '待开通审批';
+  isCore: boolean;
+}
+
+const INITIAL_ORG_APPS: OrgAppItem[] = [
+  {
+    id: 'APP-01',
+    name: '点点速豹',
+    code: 'DDSB-SPEED',
+    version: 'V8.6.2',
+    badge: '正式版',
+    badgeColor: 'bg-[#EA580C]',
+    desc: '舆情极速直报、多级跨域审核、处置指令实时下达与全链条闭环调度',
+    authorizedDepts: '台中市网信办全员、应急指挥中心',
+    authUsersCount: 38,
+    runStatus: '运行正常',
+    isCore: true
+  },
+  {
+    id: 'APP-02',
+    name: '指令流转',
+    code: 'ZL-DISPATCH',
+    version: 'V5.1.0',
+    badge: '正式版',
+    badgeColor: 'bg-[#1E5ABB]',
+    desc: '涉网高危突发线索专项研判、督办处置与部门协同办结中枢',
+    authorizedDepts: '涉网应急值班室、联络专班',
+    authUsersCount: 26,
+    runStatus: '运行正常',
+    isCore: true
+  },
+  {
+    id: 'APP-03',
+    name: '线索排查',
+    code: 'XS-TRACE',
+    version: 'V3.2.0',
+    badge: '正式版',
+    badgeColor: 'bg-[#1B7EF2]',
+    desc: '全网涉不良信息及虚假有害线索多维筛查、证据保全与溯源分析',
+    authorizedDepts: '网安巡查室、法制核查专班',
+    authUsersCount: 24,
+    runStatus: '运行正常',
+    isCore: true
+  },
+  {
+    id: 'APP-04',
+    name: '全网搜',
+    code: 'QWS-SEARCH',
+    version: 'V2.0.1',
+    badge: '试用版',
+    badgeColor: 'bg-[#C59265]',
+    desc: '跨域全网多源网络生态社情民意聚合检索与语义聚类分析',
+    authorizedDepts: '综合调研科、舆情监测室',
+    authUsersCount: 15,
+    runStatus: '试用中 (剩25天)',
+    isCore: false
+  },
+  {
+    id: 'APP-05',
+    name: '谛听预警',
+    code: 'DT-LISTEN',
+    version: 'V1.8.0',
+    badge: '已停用',
+    badgeColor: 'bg-[#EB4444]',
+    desc: '社情声量异动波动听诊感知模型（正进行全国产化信创架构重构升级）',
+    authorizedDepts: '系统运维保障组',
+    authUsersCount: 0,
+    runStatus: '暂停维护',
+    isCore: false
+  },
+  {
+    id: 'APP-06',
+    name: '点点密信',
+    code: 'DDMX-SECRET',
+    version: 'V1.0.0',
+    badge: '未开通',
+    badgeColor: 'bg-[#8FA1B4]',
+    desc: '政务内网量子防泄密端到端高安全加密协同工作通信组件',
+    authorizedDepts: '机要保密室',
+    authUsersCount: 0,
+    runStatus: '待开通审批',
+    isCore: false
+  },
+  {
+    id: 'APP-07',
+    name: '全球眼',
+    code: 'QQY-EYE',
+    version: 'V1.0.0',
+    badge: '未开通',
+    badgeColor: 'bg-[#8FA1B4]',
+    desc: '境外主流社交网络平台涉台重点话题态势感知看板',
+    authorizedDepts: '涉外网信调研室',
+    authUsersCount: 0,
+    runStatus: '待开通审批',
+    isCore: false
+  },
+  {
+    id: 'APP-08',
+    name: '属地系统',
+    code: 'SD-TERRITORY',
+    version: 'V1.0.0',
+    badge: '未开通',
+    badgeColor: 'bg-[#8FA1B4]',
+    desc: '区县级网信机构纵向贯通专线、属地化网格快速联处终端',
+    authorizedDepts: '属地区县联络办',
+    authUsersCount: 0,
+    runStatus: '待开通审批',
+    isCore: false
+  },
+  {
+    id: 'APP-09',
+    name: '数解舆情',
+    code: 'SJ-ANALYTICS',
+    version: 'V1.0.0',
+    badge: '未开通',
+    badgeColor: 'bg-[#8FA1B4]',
+    desc: 'AI大模型辅助舆情走势多阶段态势推演与量化评估系统',
+    authorizedDepts: '数据智能研判实验室',
+    authUsersCount: 0,
+    runStatus: '待开通审批',
+    isCore: false
+  }
+];
 
 export const PortalHome: React.FC<PortalHomeProps> = ({
   currentUser,
   reports,
   onNavigate,
   onSelectReport,
-  onLogout
+  onLogout,
+  currentOrg: propCurrentOrg,
+  onSwitchOrg,
+  userName: propUserName,
+  onUpdateUserName,
+  userPhone: propUserPhone,
+  onUpdateUserPhone,
+  initialTab,
+  onTabChange
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
@@ -55,13 +376,175 @@ export const PortalHome: React.FC<PortalHomeProps> = ({
   const [showNotifModal, setShowNotifModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [showUserProfileModal, setShowUserProfileModal] = useState(false);
   const [showSwitchOrgModal, setShowSwitchOrgModal] = useState(false);
-  const [currentOrg, setCurrentOrg] = useState('台中市网信办');
+  const [currentOrg, setCurrentOrg] = useState(propCurrentOrg || '台中市网信办');
+  const [selectedTempOrg, setSelectedTempOrg] = useState(propCurrentOrg || '台中市网信办');
+  const [switchToast, setSwitchToast] = useState<string | null>(null);
   const [activeAppModal, setActiveAppModal] = useState<string | null>(null);
-  const [activePortalTab, setActivePortalTab] = useState<'grid' | 'profile' | 'notifications' | 'org-users' | 'org-apps'>('grid');
+  const [activePortalTab, setActivePortalTab] = useState<'grid' | 'profile' | 'notifications' | 'org-users' | 'org-apps'>(initialTab || 'grid');
+  const [showAppNavPopover, setShowAppNavPopover] = useState(false);
 
-  // Search filter
+  // User Profile Basic Info editable states (matching screenshot)
+  const [userName, setUserName] = useState(propUserName || '. w .');
+  const [userPhone, setUserPhone] = useState(propUserPhone || '178****9573');
+  const [userWechat] = useState('· W ·');
+  const [editFieldModal, setEditFieldModal] = useState<'name' | 'phone' | null>(null);
+  const [editInputValue, setEditInputValue] = useState('');
+
+  // Synchronize incoming props
+  React.useEffect(() => {
+    if (propCurrentOrg) {
+      setCurrentOrg(propCurrentOrg);
+      setSelectedTempOrg(propCurrentOrg);
+    }
+  }, [propCurrentOrg]);
+
+  React.useEffect(() => {
+    if (propUserName) {
+      setUserName(propUserName);
+    }
+  }, [propUserName]);
+
+  React.useEffect(() => {
+    if (propUserPhone) {
+      setUserPhone(propUserPhone);
+    }
+  }, [propUserPhone]);
+
+  React.useEffect(() => {
+    if (initialTab) {
+      setActivePortalTab(initialTab);
+    }
+  }, [initialTab]);
+
+  const handleTabSelect = (tab: 'grid' | 'profile' | 'notifications' | 'org-users' | 'org-apps') => {
+    setShowAppNavPopover(false);
+    setActivePortalTab(tab);
+    if (onTabChange) {
+      onTabChange(tab);
+    }
+  };
+
+  // Notifications State & Filters
+  const [notifications, setNotifications] = useState<SystemNotification[]>(INITIAL_NOTIFICATIONS);
+  const [notifSearch, setNotifSearch] = useState('');
+  const [notifCategoryFilter, setNotifCategoryFilter] = useState('全部');
+  const [notifStatusFilter, setNotifStatusFilter] = useState('全部');
+  const [selectedNotifDetail, setSelectedNotifDetail] = useState<SystemNotification | null>(null);
+
+  // Organization Users State & Filters
+  const [orgUsers, setOrgUsers] = useState<OrgUser[]>(INITIAL_ORG_USERS);
+  const [userSearch, setUserSearch] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState('全部');
+  const [userStatusFilter, setUserStatusFilter] = useState('全部');
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [newUserData, setNewUserData] = useState({ name: '', phone: '', dept: '舆情速报与研判处置科', role: '舆情速报员' });
+
+  // Organization Apps State & Filters
+  const [orgApps, setOrgApps] = useState<OrgAppItem[]>(INITIAL_ORG_APPS);
+  const [appSearch, setAppSearch] = useState('');
+  const [appBadgeFilter, setAppBadgeFilter] = useState('全部');
+
+  const handleConfirmSwitchOrg = () => {
+    setCurrentOrg(selectedTempOrg);
+    if (onSwitchOrg) {
+      onSwitchOrg(selectedTempOrg);
+    }
+    setShowSwitchOrgModal(false);
+    setShowUserMenu(false);
+    setSwitchToast(`已成功切换当前管理机构为：${selectedTempOrg}`);
+    setTimeout(() => {
+      setSwitchToast(null);
+    }, 3000);
+  };
+
+  // Profile Edit Save
+  const handleSaveProfileEdit = () => {
+    if (editFieldModal === 'name') {
+      if (editInputValue.trim()) {
+        const val = editInputValue.trim();
+        setUserName(val);
+        if (onUpdateUserName) {
+          onUpdateUserName(val);
+        }
+        setSwitchToast('个人昵称修改成功');
+      }
+    } else if (editFieldModal === 'phone') {
+      if (editInputValue.trim()) {
+        const val = editInputValue.trim();
+        setUserPhone(val);
+        if (onUpdateUserPhone) {
+          onUpdateUserPhone(val);
+        }
+        setSwitchToast('联系电话修改成功');
+      }
+    }
+    setEditFieldModal(null);
+    setTimeout(() => setSwitchToast(null), 2500);
+  };
+
+  // Notification actions
+  const handleMarkAllRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    setSwitchToast('已全部标记为已读');
+    setTimeout(() => setSwitchToast(null), 2500);
+  };
+
+  const handleToggleRead = (id: string) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, isRead: !n.isRead } : n))
+    );
+  };
+
+  const handleDeleteNotif = (id: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    setSwitchToast('通知已删除');
+    setTimeout(() => setSwitchToast(null), 2000);
+  };
+
+  // Org Users actions
+  const handleToggleUserStatus = (id: string) => {
+    setOrgUsers((prev) =>
+      prev.map((u) =>
+        u.id === id ? { ...u, status: u.status === '正常' ? '停用' : '正常' } : u
+      )
+    );
+    setSwitchToast('用户状态已更新');
+    setTimeout(() => setSwitchToast(null), 2000);
+  };
+
+  const handleAddUserSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUserData.name || !newUserData.phone) return;
+    const newUser: OrgUser = {
+      id: `USR-${Date.now().toString().slice(-4)}`,
+      name: newUserData.name,
+      phone: newUserData.phone,
+      dept: newUserData.dept,
+      role: newUserData.role,
+      authLevel: '动态令牌认证',
+      status: '正常',
+      lastLogin: '刚刚'
+    };
+    setOrgUsers([newUser, ...orgUsers]);
+    setShowAddUserModal(false);
+    setNewUserData({ name: '', phone: '', dept: '舆情速报与研判处置科', role: '舆情速报员' });
+    setSwitchToast(`已成功添加机构用户：${newUserData.name}`);
+    setTimeout(() => setSwitchToast(null), 2500);
+  };
+
+  // App Matrix Launch
+  const handleAppLaunch = (appName: string) => {
+    if (appName === '点点速豹' || appName === '指令流转') {
+      onNavigate('home');
+    } else if (appName === '线索排查') {
+      onNavigate('negative-info');
+    } else {
+      setActiveAppModal(appName);
+    }
+  };
+
+  // Search filter for 9-grid
   const filteredReports = searchQuery.trim()
     ? reports.filter(
         (r) =>
@@ -93,40 +576,63 @@ export const PortalHome: React.FC<PortalHomeProps> = ({
   const watermarks = Array.from({ length: 48 });
 
   return (
-    <div className="relative min-h-screen w-full select-none overflow-x-hidden font-sans text-white bg-slate-900 flex flex-col justify-between">
-      {/* 1. Full-bleed Sunset Grassland Landscape Wallpaper */}
-      <div className="absolute inset-0 z-0">
-        <img
-          src={sunsetBg}
-          alt="Sunset Grassland"
-          className="w-full h-full object-cover object-center scale-[1.01]"
-        />
-        {/* Soft atmospheric sunset gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/20 to-black/60 pointer-events-none" />
-        <div className="absolute inset-0 bg-radial from-transparent via-black/10 to-black/40 pointer-events-none" />
-      </div>
+    <div className={`relative min-h-screen w-full select-none overflow-x-hidden font-sans flex flex-col justify-between ${
+      activePortalTab === 'grid' ? 'text-white bg-slate-900' : 'text-slate-800 bg-[#F8F6F2]'
+    }`}>
+      {/* 1. Full-bleed Sunset Grassland Landscape Wallpaper (Shown on 9-Grid Portal Home) */}
+      {activePortalTab === 'grid' && (
+        <div className="absolute inset-0 z-0">
+          <img
+            src={sunsetBg}
+            alt="Sunset Grassland"
+            className="w-full h-full object-cover object-center scale-[1.01]"
+          />
+          {/* Soft atmospheric sunset gradient overlay */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/20 to-black/60 pointer-events-none" />
+          <div className="absolute inset-0 bg-radial from-transparent via-black/10 to-black/40 pointer-events-none" />
+        </div>
+      )}
 
-      {/* 2. Security Floating Watermark Grid (1:1 with photo: "w . 9573 2026-09-04 16:03") */}
+      {/* 2. Security Floating Watermark Grid (1:1 with photo: ". w . 9573 2026-09-05 12:47") */}
       <div className="absolute inset-0 z-1 pointer-events-none overflow-hidden select-none">
-        <div className="w-[140%] h-[140%] -top-[20%] -left-[20%] absolute grid grid-cols-4 sm:grid-cols-6 gap-x-12 gap-y-24 -rotate-[22deg]">
+        <div className="w-[140%] h-[140%] -top-[20%] -left-[20%] absolute grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 gap-x-12 gap-y-24 -rotate-[22deg]">
           {watermarks.map((_, i) => (
             <div
               key={i}
-              className="text-[13px] font-mono tracking-widest text-white/10 whitespace-nowrap"
+              className={`text-[13px] font-mono tracking-widest whitespace-nowrap ${
+                activePortalTab === 'grid' ? 'text-white/10' : 'text-[#5C3D23]/[0.07]'
+              }`}
             >
-              w . 9573 2026-09-04 16:03
+              <div>. w . 9573</div>
+              <div className="text-[11px] opacity-80">2026-09-05 12:47</div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* 3. Top Navigation Bar (Header) */}
-      <header className="relative z-20 w-full px-6 sm:px-10 lg:px-14 pt-4 pb-3 flex items-center justify-between">
+      {/* 3. Top Navigation Bar (Header) - 1:1 Adaptive: White background on Profile/Subtabs, Glassmorphism on Grid */}
+      <header
+        className={`relative z-40 w-full px-6 sm:px-10 lg:px-12 py-3 flex items-center justify-between transition-colors ${
+          activePortalTab === 'grid'
+            ? 'pt-4 pb-3'
+            : 'bg-white border-b border-gray-200 shadow-2xs'
+        }`}
+      >
         {/* Left Brand Area */}
         <div className="flex items-center space-x-4">
-          {/* Logo box with network nodes */}
-          <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded-lg border border-white/80 bg-white/10 backdrop-blur-xs p-1 flex items-center justify-center">
+          {/* Logo box with network nodes (1:1 with photo) */}
+          <div
+            onClick={() => setActivePortalTab('grid')}
+            className="flex items-center space-x-2.5 cursor-pointer select-none"
+            title="点击返回应用门户"
+          >
+            <div
+              className={`w-8 h-8 rounded-lg p-1 flex items-center justify-center shadow-xs transition-all ${
+                activePortalTab === 'grid'
+                  ? 'border border-white/80 bg-white/10 backdrop-blur-xs'
+                  : 'border border-[#7A4B23] bg-[#5C3D23]'
+              }`}
+            >
               <svg viewBox="0 0 32 32" className="w-full h-full text-white" fill="none">
                 <rect x="2" y="2" width="28" height="28" rx="6" stroke="currentColor" strokeWidth="2" />
                 <circle cx="16" cy="8" r="2.5" fill="currentColor" />
@@ -140,12 +646,28 @@ export const PortalHome: React.FC<PortalHomeProps> = ({
             </div>
             <div className="flex flex-col">
               <div className="flex items-center space-x-1.5 leading-none">
-                <span className="text-[14px] font-extrabold tracking-wide text-white">正管用</span>
-                <span className="px-1 py-[1px] rounded bg-white/20 backdrop-blur-xs text-white text-[9px] font-bold leading-none border border-white/40">
+                <span
+                  className={`text-[15px] font-extrabold tracking-wide ${
+                    activePortalTab === 'grid' ? 'text-white' : 'text-slate-900'
+                  }`}
+                >
+                  正管用
+                </span>
+                <span
+                  className={`px-1 py-[1px] rounded text-[9px] font-bold leading-none border ${
+                    activePortalTab === 'grid'
+                      ? 'bg-white/20 backdrop-blur-xs text-white border-white/40'
+                      : 'bg-slate-100 text-slate-700 border-slate-300'
+                  }`}
+                >
                   V8
                 </span>
               </div>
-              <span className="text-[10px] font-normal leading-tight text-white/80 tracking-tight mt-0.5">
+              <span
+                className={`text-[10px] font-normal leading-tight tracking-tight mt-0.5 ${
+                  activePortalTab === 'grid' ? 'text-white/80' : 'text-slate-400'
+                }`}
+              >
                 wxb.cn
               </span>
             </div>
@@ -153,28 +675,50 @@ export const PortalHome: React.FC<PortalHomeProps> = ({
 
           {/* Title and Org tag */}
           <div className="flex items-center space-x-3">
-            <h1 className="text-[20px] sm:text-[22px] font-extrabold text-white tracking-wider drop-shadow-md">
+            <h1
+              className={`text-[19px] sm:text-[21px] font-bold tracking-wide ${
+                activePortalTab === 'grid'
+                  ? 'text-white drop-shadow-md'
+                  : 'text-slate-900'
+              }`}
+            >
               网络生态综合治理平台
             </h1>
-            <div className="h-4 w-[1.5px] bg-white/40" />
+            <div
+              className={`h-4 w-[1px] ${
+                activePortalTab === 'grid' ? 'bg-white/40' : 'bg-slate-300'
+              }`}
+            />
             <div className="flex items-center space-x-2.5">
-              <span className="text-[14px] font-normal text-white/90 tracking-wide drop-shadow-xs">
+              <span
+                className={`text-[13px] sm:text-[14px] font-normal tracking-wide ${
+                  activePortalTab === 'grid'
+                    ? 'text-white/90 drop-shadow-xs'
+                    : 'text-slate-500'
+                }`}
+              >
                 {currentOrg}
               </span>
-              <div className="flex items-center space-x-1 bg-white/10 backdrop-blur-md px-2 py-0.5 rounded border border-white/20 text-[11px]">
-                <span className="px-1.5 py-0.2 bg-[#1E5ABB] text-white font-bold rounded-xs text-[10px]">正式版</span>
-                <span className="text-white/90 font-mono text-[10px]">2026-09-29</span>
-              </div>
+              {activePortalTab === 'grid' && (
+                <div className="flex items-center space-x-1 bg-white/10 backdrop-blur-md px-2 py-0.5 rounded border border-white/20 text-[11px]">
+                  <span className="px-1.5 py-0.2 bg-[#1E5ABB] text-white font-bold rounded-xs text-[10px]">正式版</span>
+                  <span className="text-white/90 font-mono text-[10px]">2026-09-29</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Right Tools Area */}
+        {/* Right Tools Area (1:1 with photo) */}
         <div className="flex items-center space-x-3">
           {/* 1. Calendar Icon Button */}
           <button
             onClick={() => setShowCalendarModal(true)}
-            className="w-8 h-8 rounded-full border border-white/50 bg-white/10 hover:bg-white/25 backdrop-blur-md flex items-center justify-center text-white transition-all cursor-pointer shadow-xs"
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-2xs ${
+              activePortalTab === 'grid'
+                ? 'border border-white/50 bg-white/10 hover:bg-white/25 backdrop-blur-md text-white'
+                : 'border border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
+            }`}
             title="查看系统工作日程"
           >
             <CalendarIcon className="w-4 h-4" />
@@ -182,18 +726,34 @@ export const PortalHome: React.FC<PortalHomeProps> = ({
 
           {/* 2. Notification Bell Icon Button */}
           <button
-            onClick={() => setShowNotifModal(true)}
-            className="relative w-8 h-8 rounded-full border border-white/50 bg-white/10 hover:bg-white/25 backdrop-blur-md flex items-center justify-center text-white transition-all cursor-pointer shadow-xs"
+            onClick={() => {
+              if (activePortalTab !== 'notifications') {
+                setActivePortalTab('notifications');
+              } else {
+                setShowNotifModal(true);
+              }
+            }}
+            className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-2xs ${
+              activePortalTab === 'grid'
+                ? 'border border-white/50 bg-white/10 hover:bg-white/25 backdrop-blur-md text-white'
+                : 'border border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
+            }`}
             title="通知中心"
           >
             <Bell className="w-4 h-4" />
-            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white/60 animate-pulse" />
+            {notifications.some((n) => !n.isRead) && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white animate-pulse" />
+            )}
           </button>
 
           {/* 3. Customer Service Headphone Icon Button */}
           <button
             onClick={() => setShowContactModal(true)}
-            className="w-8 h-8 rounded-full border border-white/50 bg-white/10 hover:bg-white/25 backdrop-blur-md flex items-center justify-center text-white transition-all cursor-pointer shadow-xs"
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-2xs ${
+              activePortalTab === 'grid'
+                ? 'border border-white/50 bg-white/10 hover:bg-white/25 backdrop-blur-md text-white'
+                : 'border border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
+            }`}
             title="技术支持 / 客服专线"
           >
             <Headphones className="w-4 h-4" />
@@ -203,20 +763,24 @@ export const PortalHome: React.FC<PortalHomeProps> = ({
           <div className="relative">
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center space-x-1.5 px-1.5 py-1 rounded-md hover:bg-white/10 transition-all cursor-pointer select-none"
+              className={`flex items-center space-x-1.5 px-2 py-1 rounded-md transition-all cursor-pointer select-none ${
+                activePortalTab === 'grid'
+                  ? 'hover:bg-white/10 text-white'
+                  : 'hover:bg-slate-100 text-slate-800'
+              }`}
             >
               {/* Circular Avatar matching sunset photo in screenshot */}
-              <div className="w-7 h-7 rounded-full overflow-hidden border border-white/90 shadow-xs shrink-0">
+              <div className="w-7 h-7 rounded-full overflow-hidden border border-amber-300/80 shadow-2xs shrink-0">
                 <img
                   src={sunsetBg}
                   alt="User Avatar"
                   className="w-full h-full object-cover"
                 />
               </div>
-              <span className="text-[14px] font-bold text-white tracking-wider drop-shadow-xs">
-                . w .
+              <span className="text-[14px] font-bold tracking-wider">
+                {userName}
               </span>
-              <ChevronDown className={`w-3 h-3 text-white/90 transition-transform duration-200 ${showUserMenu ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-3.5 h-3.5 opacity-75 transition-transform duration-200 ${showUserMenu ? 'rotate-180' : ''}`} />
             </button>
 
             {/* Dropdown Menu (1:1 with screenshot) */}
@@ -228,14 +792,18 @@ export const PortalHome: React.FC<PortalHomeProps> = ({
                   onClick={() => setShowUserMenu(false)}
                 />
 
-                <div className="absolute right-0 top-full mt-1.5 w-36 bg-white rounded-md shadow-2xl border border-gray-100 py-1 z-50 text-slate-700 animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="absolute right-0 top-full mt-1.5 w-40 bg-white rounded-md shadow-2xl border border-gray-100 py-1 z-50 text-slate-700 animate-in fade-in slide-in-from-top-1 duration-150">
                   {/* 1. 个人中心 */}
                   <button
                     onClick={() => {
                       setShowUserMenu(false);
-                      setActivePortalTab('profile');
+                      handleTabSelect('profile');
                     }}
-                    className="w-full text-left px-4 py-2.5 hover:bg-slate-50 hover:text-blue-600 flex items-center space-x-3 text-[13px] font-normal transition-colors cursor-pointer"
+                    className={`w-full text-left px-4 py-2.5 flex items-center space-x-3 text-[13px] font-normal transition-colors cursor-pointer ${
+                      activePortalTab === 'profile'
+                        ? 'bg-amber-50 text-[#5C3D23] font-bold'
+                        : 'hover:bg-slate-50 hover:text-blue-600'
+                    }`}
                   >
                     <User className="w-4 h-4 text-slate-500 stroke-[1.8]" />
                     <span>个人中心</span>
@@ -245,6 +813,7 @@ export const PortalHome: React.FC<PortalHomeProps> = ({
                   <button
                     onClick={() => {
                       setShowUserMenu(false);
+                      setSelectedTempOrg(currentOrg);
                       setShowSwitchOrgModal(true);
                     }}
                     className="w-full text-left px-4 py-2.5 hover:bg-slate-50 hover:text-blue-600 flex items-center space-x-3 text-[13px] font-normal transition-colors cursor-pointer"
@@ -259,7 +828,7 @@ export const PortalHome: React.FC<PortalHomeProps> = ({
                       setShowUserMenu(false);
                       onLogout();
                     }}
-                    className="w-full text-left px-4 py-2.5 hover:bg-slate-50 hover:text-rose-600 flex items-center space-x-3 text-[13px] font-normal transition-colors cursor-pointer"
+                    className="w-full text-left px-4 py-2.5 hover:bg-slate-50 hover:text-rose-600 flex items-center space-x-3 text-[13px] font-normal transition-colors cursor-pointer border-t border-slate-100"
                   >
                     <LogOut className="w-4 h-4 text-slate-500 stroke-[1.8]" />
                     <span>退出登录</span>
@@ -267,67 +836,258 @@ export const PortalHome: React.FC<PortalHomeProps> = ({
                 </div>
               </>
             )}
+
+            {/* SWITCH ORG POPOVER (exact 1:1 matching Header.tsx in 点点速豹) */}
+            {showSwitchOrgModal && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowSwitchOrgModal(false)}
+                />
+                <div className="absolute right-0 top-full mt-2 w-[310px] bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 overflow-hidden">
+                  {/* Header */}
+                  <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                    <h3 className="font-bold text-slate-900 text-sm">切换机构</h3>
+                    <button
+                      onClick={() => setShowSwitchOrgModal(false)}
+                      className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Organization Options List */}
+                  <div className="p-5 space-y-2.5">
+                    {ORG_OPTIONS.map((org) => {
+                      const isSelected = selectedTempOrg === org.name;
+                      return (
+                        <div
+                          key={org.code}
+                          onClick={() => setSelectedTempOrg(org.name)}
+                          className={`p-3.5 rounded-xl border transition-all cursor-pointer relative overflow-hidden ${
+                            isSelected
+                              ? 'border-[#1E5ABB] bg-blue-50/10 shadow-2xs'
+                              : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="font-bold text-slate-900 text-xs sm:text-sm">{org.name}</div>
+                          
+                          {/* Bottom-right blue checkmark badge matching screenshot & Header.tsx */}
+                          {isSelected && (
+                            <div className="absolute bottom-0 right-0 w-6 h-6 bg-[#1E5ABB] text-white rounded-tl-xl flex items-center justify-center">
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Footer Buttons matching screenshot & Header.tsx */}
+                  <div className="px-5 py-3.5 bg-slate-50/70 border-t border-slate-100 flex items-center justify-end space-x-2.5">
+                    <button
+                      onClick={() => setShowSwitchOrgModal(false)}
+                      className="px-3.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-lg cursor-pointer transition-colors"
+                    >
+                      取消
+                    </button>
+                    <button
+                      onClick={handleConfirmSwitchOrg}
+                      className="px-4 py-1.5 bg-[#1E5ABB] hover:bg-blue-700 text-white text-xs font-bold rounded-lg cursor-pointer transition-colors shadow-2xs"
+                    >
+                      确定
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </header>
 
-      {/* Sub-navigation bar when not on grid home */}
+      {/* Sub-navigation bar: Brown bar with 4 Tabs: 基本信息 | 消息通知 | 机构用户 | 机构应用 */}
       {activePortalTab !== 'grid' && (
-        <div className="relative z-20 w-full bg-[#18355E]/85 backdrop-blur-md border-b border-white/15 px-6 sm:px-10 lg:px-14 py-2.5 flex items-center space-x-6 text-sm shadow-md">
-          <button
-            onClick={() => setActivePortalTab('grid')}
-            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/25 text-white transition-colors cursor-pointer flex items-center justify-center shadow-xs"
-            title="返回应用门户首页"
-          >
-            <Layers className="w-4 h-4" />
-          </button>
-          
-          <div className="flex items-center space-x-1.5 overflow-x-auto">
+        <div className="relative z-30 w-full bg-[#5D3D22] border-b border-[#4A301A] px-6 sm:px-10 lg:px-12 flex items-center text-sm shadow-md">
+          <div className="flex items-center overflow-x-auto">
+            {/* 4-Grid Navigation Icon Button (1:1 with user screenshot: directly left of 基本信息) */}
             <button
-              onClick={() => setActivePortalTab('profile')}
-              className={`px-4 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+              onClick={() => setShowAppNavPopover(!showAppNavPopover)}
+              className={`px-3.5 py-2.5 transition-colors cursor-pointer select-none flex items-center justify-center shrink-0 ${
+                showAppNavPopover
+                  ? 'bg-[#3A2312] text-white shadow-inner'
+                  : 'text-[#EAD8C7] hover:text-white hover:bg-white/5'
+              }`}
+              title="应用导航与返回工作台"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => handleTabSelect('profile')}
+              className={`px-6 py-2.5 font-bold text-xs sm:text-[13px] transition-colors cursor-pointer select-none ${
                 activePortalTab === 'profile'
-                  ? 'bg-[#B8860B] text-white shadow-md'
-                  : 'text-white/80 hover:bg-white/10 hover:text-white'
+                  ? 'bg-[#3A2312] text-white shadow-inner'
+                  : 'text-[#EAD8C7] hover:text-white hover:bg-white/5'
               }`}
             >
               基本信息
             </button>
             <button
-              onClick={() => setActivePortalTab('notifications')}
-              className={`px-4 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+              onClick={() => handleTabSelect('notifications')}
+              className={`px-6 py-2.5 font-bold text-xs sm:text-[13px] transition-colors cursor-pointer select-none flex items-center space-x-1.5 ${
                 activePortalTab === 'notifications'
-                  ? 'bg-[#B8860B] text-white shadow-md'
-                  : 'text-white/80 hover:bg-white/10 hover:text-white'
+                  ? 'bg-[#3A2312] text-white shadow-inner'
+                  : 'text-[#EAD8C7] hover:text-white hover:bg-white/5'
               }`}
             >
-              消息通知
+              <span>消息通知</span>
+              {notifications.some((n) => !n.isRead) && (
+                <span className="px-1.5 py-0.2 bg-rose-500 text-white text-[10px] rounded-full font-bold">
+                  {notifications.filter((n) => !n.isRead).length}
+                </span>
+              )}
             </button>
             <button
-              onClick={() => setActivePortalTab('org-users')}
-              className={`px-4 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+              onClick={() => handleTabSelect('org-users')}
+              className={`px-6 py-2.5 font-bold text-xs sm:text-[13px] transition-colors cursor-pointer select-none ${
                 activePortalTab === 'org-users'
-                  ? 'bg-[#B8860B] text-white shadow-md'
-                  : 'text-white/80 hover:bg-white/10 hover:text-white'
+                  ? 'bg-[#3A2312] text-white shadow-inner'
+                  : 'text-[#EAD8C7] hover:text-white hover:bg-white/5'
               }`}
             >
               机构用户
             </button>
             <button
-              onClick={() => setActivePortalTab('org-apps')}
-              className={`px-4 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+              onClick={() => handleTabSelect('org-apps')}
+              className={`px-6 py-2.5 font-bold text-xs sm:text-[13px] transition-colors cursor-pointer select-none ${
                 activePortalTab === 'org-apps'
-                  ? 'bg-[#B8860B] text-white shadow-md'
-                  : 'text-white/80 hover:bg-white/10 hover:text-white'
+                  ? 'bg-[#3A2312] text-white shadow-inner'
+                  : 'text-[#EAD8C7] hover:text-white hover:bg-white/5'
               }`}
             >
               机构应用
             </button>
           </div>
+
+          {/* Dropdown Popover Panel: 1:1 with user screenshot */}
+          {showAppNavPopover && (
+            <>
+              {/* Invisible backdrop to dismiss popover when clicking outside */}
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setShowAppNavPopover(false)}
+              />
+
+              {/* Popover Card floating over the page */}
+              <div className="absolute left-6 sm:left-10 lg:left-12 top-full mt-0 w-[calc(100vw-3rem)] sm:w-[calc(100vw-5rem)] lg:w-[calc(100%-6rem)] max-w-[1240px] bg-white text-slate-800 rounded-b-2xl shadow-2xl border-x border-b border-slate-200/90 p-6 sm:p-7 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                {/* 1. Top left action button: 返回工作台 */}
+                <div className="flex items-center justify-start pb-5">
+                  <button
+                    onClick={() => {
+                      setShowAppNavPopover(false);
+                      handleTabSelect('grid');
+                    }}
+                    className="flex items-center space-x-2 px-3.5 py-1.5 bg-[#F2F4F7] hover:bg-[#E4E7EC] text-[#344054] hover:text-slate-900 rounded-md font-medium text-xs sm:text-[13px] transition-colors cursor-pointer border border-[#E4E7EC] shadow-2xs"
+                  >
+                    <Home className="w-3.5 h-3.5 text-[#475467]" />
+                    <span>返回工作台</span>
+                  </button>
+                </div>
+
+                {/* 2. 3-Column Applications Grid (1:1 with user screenshot) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-12 gap-y-7 pt-1">
+                  {/* Item 1: 指令流转 */}
+                  <div
+                    onClick={() => {
+                      setShowAppNavPopover(false);
+                      onNavigate('home');
+                    }}
+                    className="flex items-center justify-between py-1.5 px-2 hover:bg-slate-50/90 rounded-xl transition-all cursor-pointer group select-none"
+                  >
+                    <div className="flex items-center space-x-3.5">
+                      {/* Teal-cyan badge with '正管' & network branches */}
+                      <div className="w-11 h-11 rounded-lg bg-[#E6F4F2] border border-[#B2E2DB] text-[#00897B] flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                        <Radio className="w-5 h-5 stroke-[2.2]" />
+                      </div>
+                      <span className="font-bold text-slate-900 text-[15px] group-hover:text-[#1E5ABB] transition-colors">
+                        指令流转
+                      </span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#1E5ABB] group-hover:translate-x-0.5 transition-all" />
+                  </div>
+
+                  {/* Item 2: 河图融媒体 */}
+                  <div
+                    onClick={() => {
+                      setShowAppNavPopover(false);
+                      setActiveAppModal('河图融媒体');
+                    }}
+                    className="flex items-center justify-between py-1.5 px-2 hover:bg-slate-50/90 rounded-xl transition-all cursor-pointer group select-none"
+                  >
+                    <div className="flex items-center space-x-3.5">
+                      {/* Red circular badge with swirl / Globe */}
+                      <div className="w-11 h-11 rounded-full bg-[#FEE4E2] border border-[#FECDCA] text-[#D92D20] flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                        <Globe className="w-5 h-5 stroke-[2]" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-900 text-[15px] group-hover:text-[#1E5ABB] transition-colors leading-tight">
+                          河图融媒体
+                        </div>
+                        <div className="text-[11px] text-slate-400 mt-0.5 font-normal tracking-tight">
+                          新闻资讯 | 分析方案 | 人员管理
+                        </div>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#1E5ABB] group-hover:translate-x-0.5 transition-all" />
+                  </div>
+
+                  {/* Item 3: 线索排查 */}
+                  <div
+                    onClick={() => {
+                      setShowAppNavPopover(false);
+                      onNavigate('negative-info');
+                    }}
+                    className="flex items-center justify-between py-1.5 px-2 hover:bg-slate-50/90 rounded-xl transition-all cursor-pointer group select-none"
+                  >
+                    <div className="flex items-center space-x-3.5">
+                      {/* Orange/Red circular badge */}
+                      <div className="w-11 h-11 rounded-full bg-[#FFECE5] border border-[#FFCCB8] text-[#E04F16] flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                        <Shield className="w-5 h-5 stroke-[2.2]" />
+                      </div>
+                      <span className="font-bold text-slate-900 text-[15px] group-hover:text-[#1E5ABB] transition-colors">
+                        线索排查
+                      </span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#1E5ABB] group-hover:translate-x-0.5 transition-all" />
+                  </div>
+
+                  {/* Item 4: 全网搜 */}
+                  <div
+                    onClick={() => {
+                      setShowAppNavPopover(false);
+                      setActiveAppModal('全网搜');
+                    }}
+                    className="flex items-center justify-between py-1.5 px-2 hover:bg-slate-50/90 rounded-xl transition-all cursor-pointer group select-none"
+                  >
+                    <div className="flex items-center space-x-3.5">
+                      {/* Purple circular icon with search */}
+                      <div className="w-11 h-11 rounded-full bg-[#F4EBFF] border border-[#E9D7FE] text-[#7F56D9] flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                        <Search className="w-5 h-5 stroke-[2.2]" />
+                      </div>
+                      <span className="font-bold text-slate-900 text-[15px] group-hover:text-[#1E5ABB] transition-colors">
+                        全网搜
+                      </span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#1E5ABB] group-hover:translate-x-0.5 transition-all" />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 
-      {/* 4. Center Main Section (Conditional: Grid Home vs Profile Tab vs Others) */}
+      {/* 4. Center Main Section */}
       {activePortalTab === 'grid' ? (
         <main className="relative z-10 flex-1 max-w-[1440px] w-full mx-auto px-6 sm:px-12 lg:px-16 flex flex-col justify-center py-6 sm:py-10">
         {/* Center Slogan with Green Hand-Drawn Doodle */}
@@ -646,104 +1406,800 @@ export const PortalHome: React.FC<PortalHomeProps> = ({
         </div>
       </main>
       ) : activePortalTab === 'profile' ? (
-        <main className="relative z-10 flex-1 max-w-[1440px] w-full mx-auto px-6 sm:px-12 lg:px-16 py-8">
-          <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-white/40 p-6 sm:p-10 text-slate-800 animate-in fade-in duration-200">
-            {/* Card Header & Tools */}
-            <div className="flex items-center justify-between pb-6 border-b border-slate-100">
-              <h2 className="text-lg font-extrabold text-[#193B67] tracking-wider">基本信息</h2>
-              <div className="flex items-center space-x-1.5 bg-slate-100/80 rounded-lg p-1 text-slate-600">
-                <button className="p-1.5 rounded hover:bg-white transition-colors cursor-pointer" title="翻译">
-                  <Globe className="w-4 h-4" />
-                </button>
-                <button className="p-1.5 rounded hover:bg-white transition-colors cursor-pointer" title="语音朗读">
-                  <Headphones className="w-4 h-4" />
-                </button>
-                <button className="p-1.5 rounded hover:bg-white transition-colors cursor-pointer" title="发送">
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-                <button className="p-1.5 rounded hover:bg-white transition-colors cursor-pointer font-bold text-xs" title="字号">
-                  A
-                </button>
-              </div>
+        <main className="relative z-10 flex-1 max-w-[1240px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="bg-white rounded-xl shadow-[0_1px_4px_rgba(0,0,0,0.06)] border border-[#E9E4DE] p-6 sm:p-10 text-slate-800 animate-in fade-in duration-200">
+            {/* 1:1 Title matching photo */}
+            <div className="text-[16px] font-bold text-slate-800 mb-6 tracking-wide">
+              基本信息
             </div>
 
-            {/* Golden Gradient Banner matching screenshot */}
-            <div className="mt-6 bg-gradient-to-r from-amber-100/90 via-amber-50/70 to-amber-200/80 rounded-2xl p-6 sm:p-8 border border-amber-200/80 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-              <div className="flex items-center space-x-5">
-                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-white shadow-md shrink-0">
-                  <img src={sunsetBg} alt="Avatar" className="w-full h-full object-cover" />
+            {/* 1:1 Golden Gradient Banner matching photo */}
+            <div className="rounded-xl p-6 sm:p-8 bg-gradient-to-r from-[#FDE8B5] via-[#FCE3A1] to-[#FCEECB] border border-[#F4D994] relative overflow-hidden shadow-2xs flex flex-col sm:flex-row items-start sm:items-center space-y-4 sm:space-y-0 sm:space-x-6">
+              {/* Circular Avatar matching sunset photo */}
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-white shadow-md shrink-0">
+                <img src={sunsetBg} alt="User Avatar" className="w-full h-full object-cover" />
+              </div>
+
+              {/* Text info inside banner */}
+              <div className="flex flex-col space-y-2.5">
+                {/* User Name + Edit icon button */}
+                <div className="flex items-center space-x-2">
+                  <span className="text-[22px] sm:text-[24px] font-bold text-slate-900 tracking-wide">
+                    {userName}
+                  </span>
+                  <button
+                    onClick={() => {
+                      setEditFieldModal('name');
+                      setEditInputValue(userName);
+                    }}
+                    className="text-[#5D3D22]/80 hover:text-[#5D3D22] transition-colors cursor-pointer p-0.5"
+                    title="修改个人昵称"
+                  >
+                    <SquarePen className="w-4 h-4" />
+                  </button>
                 </div>
-                <div className="flex flex-col space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xl font-bold text-slate-900 tracking-wide">. w .</span>
-                    <button className="text-slate-400 hover:text-blue-600 transition-colors cursor-pointer">
-                      <span className="text-xs">✎</span>
+
+                {/* Phone & WeChat info row with icons and divider */}
+                <div className="flex items-center space-x-4 text-[13px] text-[#4E341E] flex-wrap gap-y-2">
+                  <div className="flex items-center space-x-1.5">
+                    <div className="w-4 h-4 rounded bg-[#4E341E] text-white flex items-center justify-center shrink-0">
+                      <Phone className="w-2.5 h-2.5 fill-white" />
+                    </div>
+                    <span>联系电话：{userPhone}</span>
+                    <button
+                      onClick={() => {
+                        setEditFieldModal('phone');
+                        setEditInputValue(userPhone);
+                      }}
+                      className="text-[#4E341E]/70 hover:text-[#4E341E] transition-colors cursor-pointer ml-0.5 p-0.5"
+                      title="修改联系电话"
+                    >
+                      <SquarePen className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                  <div className="flex items-center space-x-4 text-xs sm:text-sm text-slate-700 flex-wrap gap-y-1">
-                    <div className="flex items-center space-x-1.5">
-                      <Phone className="w-3.5 h-3.5 text-amber-600" />
-                      <span>联系电话：178****9573</span>
-                      <button className="text-slate-400 hover:text-blue-600 transition-colors cursor-pointer ml-1">
-                        <span className="text-xs">✎</span>
-                      </button>
+                  <span className="text-[#8C6D55]/60">|</span>
+                  <div className="flex items-center space-x-1.5">
+                    <div className="w-4 h-4 rounded bg-[#4E341E] text-white flex items-center justify-center shrink-0">
+                      <MessageSquare className="w-2.5 h-2.5 fill-white" />
                     </div>
-                    <div className="flex items-center space-x-1.5">
-                      <div className="w-3.5 h-3.5 rounded-full bg-emerald-600 flex items-center justify-center text-white text-[9px] font-bold">微</div>
-                      <span>微信昵称：· W ·</span>
-                    </div>
+                    <span>微信昵称：{userWechat}</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Info Details Grid matching screenshot */}
-            <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-6 pt-6 border-t border-slate-100 text-sm">
-              <div className="flex items-start space-x-3">
-                <Building className="w-5 h-5 text-[#193B67] shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-xs text-slate-400 font-medium">机构名称</div>
-                  <div className="text-sm font-bold text-slate-900 mt-1">{currentOrg}</div>
+            {/* 1:1 Info Details Grid (2 rows x 3 columns matching photo) */}
+            <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-y-8 gap-x-12">
+              {/* Row 1 Col 1: 机构名称 */}
+              <div>
+                <div className="flex items-center space-x-2 text-[13px] text-[#5D3D22] font-medium">
+                  <Building2 className="w-4 h-4 text-[#5D3D22]" />
+                  <span>机构名称</span>
+                </div>
+                <div className="mt-2 text-[14px] font-bold text-slate-900">
+                  {currentOrg}
                 </div>
               </div>
-              <div className="flex items-start space-x-3">
-                <Building2 className="w-5 h-5 text-[#193B67] shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-xs text-slate-400 font-medium">机构简称</div>
-                  <div className="text-sm font-bold text-slate-900 mt-1">{currentOrg}</div>
+
+              {/* Row 1 Col 2: 机构简称 */}
+              <div>
+                <div className="flex items-center space-x-2 text-[13px] text-[#5D3D22] font-medium">
+                  <CreditCard className="w-4 h-4 text-[#5D3D22]" />
+                  <span>机构简称</span>
+                </div>
+                <div className="mt-2 text-[14px] font-bold text-slate-900">
+                  {currentOrg}
                 </div>
               </div>
-              <div className="flex items-start space-x-3">
-                <Shield className="w-5 h-5 text-[#193B67] shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-xs text-slate-400 font-medium">机构类型</div>
-                  <div className="text-sm font-bold text-slate-900 mt-1">网安部门</div>
+
+              {/* Row 1 Col 3: 机构类型 */}
+              <div>
+                <div className="flex items-center space-x-2 text-[13px] text-[#5D3D22] font-medium">
+                  <Shield className="w-4 h-4 text-[#5D3D22]" />
+                  <span>机构类型</span>
+                </div>
+                <div className="mt-2 text-[14px] font-bold text-slate-900">
+                  网安部门
                 </div>
               </div>
-              <div className="flex items-start space-x-3 pt-4">
-                <Globe className="w-5 h-5 text-[#193B67] shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-xs text-slate-400 font-medium">所属地区</div>
-                  <div className="text-sm font-bold text-slate-900 mt-1">陕西</div>
+
+              {/* Row 2 Col 1: 所属地区 */}
+              <div>
+                <div className="flex items-center space-x-2 text-[13px] text-[#5D3D22] font-medium">
+                  <BookOpen className="w-4 h-4 text-[#5D3D22]" />
+                  <span>所属地区</span>
+                </div>
+                <div className="mt-2 text-[14px] font-bold text-slate-900">
+                  陕西
                 </div>
               </div>
-              <div className="flex items-start space-x-3 pt-4">
-                <Search className="w-5 h-5 text-[#193B67] shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-xs text-slate-400 font-medium">详细地址</div>
-                  <div className="text-sm font-bold text-slate-900 mt-1">--</div>
+
+              {/* Row 2 Col 2: 详细地址 */}
+              <div>
+                <div className="flex items-center space-x-2 text-[13px] text-[#5D3D22] font-medium">
+                  <MapPin className="w-4 h-4 text-[#5D3D22]" />
+                  <span>详细地址</span>
+                </div>
+                <div className="mt-2 text-[14px] font-bold text-slate-900 min-h-[20px]">
+                  &nbsp;
                 </div>
               </div>
+
+              {/* Row 2 Col 3: Empty space matching photo */}
+              <div />
+            </div>
+
+            {/* Bottom Copyright Text (1:1 with photo) */}
+            <div className="mt-24 pt-6 text-center text-[12px] text-slate-400">
+              © 2013–2026 康奈网络. 保留所有权利
+            </div>
+          </div>
+        </main>
+      ) : activePortalTab === 'notifications' ? (
+        <main className="relative z-10 flex-1 max-w-[1360px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="bg-white rounded-xl shadow-[0_1px_4px_rgba(0,0,0,0.06)] border border-[#E9E4DE] p-6 sm:p-8 text-slate-800 animate-in fade-in duration-200">
+            {/* Table Header & Toolbar */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-100">
+              <div className="flex items-center space-x-3">
+                <h2 className="text-[16px] font-bold text-slate-900 tracking-wide">
+                  消息通知中心
+                </h2>
+                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-[#5D3D22] border border-amber-200">
+                  共 {notifications.length} 条
+                </span>
+                {notifications.some((n) => !n.isRead) && (
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-600 border border-rose-200">
+                    {notifications.filter((n) => !n.isRead).length} 条未读
+                  </span>
+                )}
+              </div>
+
+              {/* Toolbar Action Icons */}
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={handleMarkAllRead}
+                  className="px-3 py-1.5 bg-[#5D3D22] hover:bg-[#4E341E] text-white rounded-lg text-xs font-bold flex items-center space-x-1.5 shadow-2xs transition-colors cursor-pointer"
+                  title="标记全部通知为已读"
+                >
+                  <CheckCheck className="w-3.5 h-3.5" />
+                  <span>全部标为已读</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setNotifications([...notifications]);
+                    setSwitchToast('已刷新通知列表');
+                    setTimeout(() => setSwitchToast(null), 2000);
+                  }}
+                  className="p-1.5 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg transition-colors cursor-pointer"
+                  title="刷新"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    setSwitchToast('通知清单导出就绪');
+                    setTimeout(() => setSwitchToast(null), 2000);
+                  }}
+                  className="p-1.5 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg transition-colors cursor-pointer"
+                  title="导出列表"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+                <button
+                  className="p-1.5 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg transition-colors cursor-pointer"
+                  title="自定义表格列"
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Filter & Search Bar */}
+            <div className="py-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center space-x-2">
+                <div className="relative w-64 sm:w-72">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    value={notifSearch}
+                    onChange={(e) => setNotifSearch(e.target.value)}
+                    placeholder="检索通知标题 / 来源机构..."
+                    className="w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-[#5D3D22] bg-slate-50/50"
+                  />
+                </div>
+              </div>
+
+              {/* Category Filter Pills */}
+              <div className="flex items-center space-x-1.5 overflow-x-auto text-xs">
+                {['全部', '特急处置', '预警督办', '机构动态', '系统维护'].map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setNotifCategoryFilter(cat)}
+                    className={`px-3 py-1 rounded-full font-medium transition-all cursor-pointer ${
+                      notifCategoryFilter === cat
+                        ? 'bg-[#5D3D22] text-white shadow-2xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Notifications Table */}
+            <div className="overflow-x-auto border border-slate-200 rounded-lg mt-2">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold">
+                    <th className="py-3 px-3 w-10 text-center">
+                      <input type="checkbox" className="rounded border-slate-300 text-[#5D3D22]" />
+                    </th>
+                    <th className="py-3 px-3 w-12 text-center">序号</th>
+                    <th className="py-3 px-4 min-w-[280px]">通知标题</th>
+                    <th className="py-3 px-3 w-28">分类</th>
+                    <th className="py-3 px-3 w-32">来源机构</th>
+                    <th className="py-3 px-3 w-36">接收时间</th>
+                    <th className="py-3 px-3 w-20 text-center">状态</th>
+                    <th className="py-3 px-4 w-32 text-center">操作</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {notifications
+                    .filter((n) => {
+                      if (notifCategoryFilter !== '全部' && n.category !== notifCategoryFilter) return false;
+                      if (notifStatusFilter === '未读' && n.isRead) return false;
+                      if (notifStatusFilter === '已读' && !n.isRead) return false;
+                      if (
+                        notifSearch &&
+                        !n.title.toLowerCase().includes(notifSearch.toLowerCase()) &&
+                        !n.sourceOrg.toLowerCase().includes(notifSearch.toLowerCase())
+                      ) {
+                        return false;
+                      }
+                      return true;
+                    })
+                    .map((notif, index) => (
+                      <tr
+                        key={notif.id}
+                        className={`hover:bg-slate-50/80 transition-colors ${
+                          !notif.isRead ? 'bg-amber-50/20 font-medium' : ''
+                        }`}
+                      >
+                        <td className="py-3 px-3 text-center">
+                          <input type="checkbox" className="rounded border-slate-300 text-[#5D3D22]" />
+                        </td>
+                        <td className="py-3 px-3 text-center text-slate-400 font-mono">
+                          {String(index + 1).padStart(2, '0')}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center space-x-2">
+                            {!notif.isRead && (
+                              <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                            )}
+                            <button
+                              onClick={() => setSelectedNotifDetail(notif)}
+                              className="text-slate-800 hover:text-[#5D3D22] text-left hover:underline line-clamp-1 cursor-pointer"
+                            >
+                              {notif.title}
+                            </button>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                              notif.category === '特急处置'
+                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                : notif.category === '预警督办'
+                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                : notif.category === '机构动态'
+                                ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                : 'bg-slate-100 text-slate-700 border border-slate-200'
+                            }`}
+                          >
+                            {notif.category}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-slate-600 font-medium">{notif.sourceOrg}</td>
+                        <td className="py-3 px-3 text-slate-400 font-mono text-[11px]">
+                          {notif.time}
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              notif.isRead
+                                ? 'bg-slate-100 text-slate-500'
+                                : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            }`}
+                          >
+                            {notif.isRead ? '已读' : '未读'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <div className="flex items-center justify-center space-x-2">
+                            <button
+                              onClick={() => setSelectedNotifDetail(notif)}
+                              className="text-[#5D3D22] hover:underline font-bold cursor-pointer"
+                            >
+                              详情
+                            </button>
+                            <span className="text-slate-300">|</span>
+                            <button
+                              onClick={() => handleToggleRead(notif.id)}
+                              className="text-slate-500 hover:text-slate-800 cursor-pointer"
+                            >
+                              {notif.isRead ? '标为未读' : '标为已读'}
+                            </button>
+                            <span className="text-slate-300">|</span>
+                            <button
+                              onClick={() => handleDeleteNotif(notif.id)}
+                              className="text-rose-500 hover:text-rose-700 cursor-pointer"
+                            >
+                              删除
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination & Footer */}
+            <div className="flex items-center justify-between pt-4 text-xs text-slate-500">
+              <div>显示第 1 至 {notifications.length} 项，共 {notifications.length} 条记录</div>
+              <div className="flex items-center space-x-1">
+                <button className="px-2.5 py-1 border border-slate-200 rounded hover:bg-slate-50 cursor-pointer disabled:opacity-40" disabled>
+                  上一页
+                </button>
+                <button className="px-2.5 py-1 bg-[#5D3D22] text-white rounded font-bold">1</button>
+                <button className="px-2.5 py-1 border border-slate-200 rounded hover:bg-slate-50 cursor-pointer disabled:opacity-40" disabled>
+                  下一页
+                </button>
+              </div>
+            </div>
+
+            {/* Bottom Copyright Text */}
+            <div className="mt-16 pt-6 text-center text-[12px] text-slate-400">
+              © 2013–2026 康奈网络. 保留所有权利
+            </div>
+          </div>
+        </main>
+      ) : activePortalTab === 'org-users' ? (
+        <main className="relative z-10 flex-1 max-w-[1360px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="bg-white rounded-xl shadow-[0_1px_4px_rgba(0,0,0,0.06)] border border-[#E9E4DE] p-6 sm:p-8 text-slate-800 animate-in fade-in duration-200">
+            {/* Table Header & Toolbar */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-100">
+              <div className="flex items-center space-x-3">
+                <h2 className="text-[16px] font-bold text-slate-900 tracking-wide">
+                  机构用户管理
+                </h2>
+                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-[#5D3D22] border border-amber-200">
+                  当前机构：{currentOrg}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600">
+                  在册成员 {orgUsers.length} 人
+                </span>
+              </div>
+
+              {/* Toolbar Action Icons */}
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setShowAddUserModal(true)}
+                  className="px-3.5 py-1.5 bg-[#5D3D22] hover:bg-[#4E341E] text-white rounded-lg text-xs font-bold flex items-center space-x-1.5 shadow-2xs transition-colors cursor-pointer"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>添加用户</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setSwitchToast('支持导入政务微信/统一身份认证通讯录');
+                    setTimeout(() => setSwitchToast(null), 2500);
+                  }}
+                  className="p-1.5 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg transition-colors cursor-pointer"
+                  title="批量导入通讯录"
+                >
+                  <Upload className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    setSwitchToast('用户权限花名册已导出');
+                    setTimeout(() => setSwitchToast(null), 2000);
+                  }}
+                  className="p-1.5 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg transition-colors cursor-pointer"
+                  title="导出用户列表"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    setOrgUsers([...orgUsers]);
+                    setSwitchToast('已同步最新机构鉴权状态');
+                    setTimeout(() => setSwitchToast(null), 2000);
+                  }}
+                  className="p-1.5 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg transition-colors cursor-pointer"
+                  title="刷新"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+                <button
+                  className="p-1.5 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg transition-colors cursor-pointer"
+                  title="批量分配权限"
+                >
+                  <KeyRound className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Filter & Search Bar */}
+            <div className="py-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="relative w-64 sm:w-80">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  placeholder="检索姓名 / 手机 / 科室 / 角色..."
+                  className="w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-[#5D3D22] bg-slate-50/50"
+                />
+              </div>
+
+              {/* Role filter */}
+              <div className="flex items-center space-x-1.5 overflow-x-auto text-xs">
+                {['全部', '平台超级管理员', '终审签发员', '舆情速报员', '跨机构协查专员'].map((role) => (
+                  <button
+                    key={role}
+                    onClick={() => setUserRoleFilter(role)}
+                    className={`px-3 py-1 rounded-full font-medium transition-all cursor-pointer ${
+                      userRoleFilter === role
+                        ? 'bg-[#5D3D22] text-white shadow-2xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {role}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Users Table */}
+            <div className="overflow-x-auto border border-slate-200 rounded-lg mt-2">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold">
+                    <th className="py-3 px-3 w-10 text-center">
+                      <input type="checkbox" className="rounded border-slate-300 text-[#5D3D22]" />
+                    </th>
+                    <th className="py-3 px-3 w-12 text-center">序号</th>
+                    <th className="py-3 px-4 min-w-[160px]">用户姓名</th>
+                    <th className="py-3 px-3 w-32">登录手机 / 账号</th>
+                    <th className="py-3 px-4 min-w-[180px]">所属科室</th>
+                    <th className="py-3 px-3 w-32">系统角色</th>
+                    <th className="py-3 px-3 w-32">鉴权认证</th>
+                    <th className="py-3 px-3 w-20 text-center">状态</th>
+                    <th className="py-3 px-3 w-32">最近登录</th>
+                    <th className="py-3 px-4 w-36 text-center">操作</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {orgUsers
+                    .filter((u) => {
+                      if (userRoleFilter !== '全部' && u.role !== userRoleFilter) return false;
+                      if (userStatusFilter !== '全部' && u.status !== userStatusFilter) return false;
+                      if (
+                        userSearch &&
+                        !u.name.toLowerCase().includes(userSearch.toLowerCase()) &&
+                        !u.phone.includes(userSearch) &&
+                        !u.dept.toLowerCase().includes(userSearch.toLowerCase()) &&
+                        !u.role.toLowerCase().includes(userSearch.toLowerCase())
+                      ) {
+                        return false;
+                      }
+                      return true;
+                    })
+                    .map((user, index) => (
+                      <tr key={user.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3 px-3 text-center">
+                          <input type="checkbox" className="rounded border-slate-300 text-[#5D3D22]" />
+                        </td>
+                        <td className="py-3 px-3 text-center text-slate-400 font-mono">
+                          {String(index + 1).padStart(2, '0')}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center space-x-2.5">
+                            <div className="w-7 h-7 rounded-full bg-[#5D3D22]/15 text-[#5D3D22] font-bold flex items-center justify-center shrink-0 text-xs">
+                              {user.name.slice(0, 1)}
+                            </div>
+                            <span className="font-bold text-slate-900">{user.name}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 text-slate-600 font-mono">{user.phone}</td>
+                        <td className="py-3 px-4 text-slate-700">{user.dept}</td>
+                        <td className="py-3 px-3">
+                          <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-bold text-[11px]">
+                            {user.role}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-slate-500 flex items-center space-x-1">
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>{user.authLevel}</span>
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          <button
+                            onClick={() => handleToggleUserStatus(user.id)}
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold cursor-pointer transition-colors ${
+                              user.status === '正常'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                                : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                            }`}
+                          >
+                            {user.status}
+                          </button>
+                        </td>
+                        <td className="py-3 px-3 text-slate-400 font-mono text-[11px]">
+                          {user.lastLogin}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <div className="flex items-center justify-center space-x-2">
+                            <button
+                              onClick={() => {
+                                setSwitchToast(`已打开用户「${user.name}」权限面板`);
+                                setTimeout(() => setSwitchToast(null), 2000);
+                              }}
+                              className="text-[#5D3D22] hover:underline font-bold cursor-pointer"
+                            >
+                              权限
+                            </button>
+                            <span className="text-slate-300">|</span>
+                            <button
+                              onClick={() => {
+                                setSwitchToast(`已向「${user.name}」重置并下发临时密码`);
+                                setTimeout(() => setSwitchToast(null), 2500);
+                              }}
+                              className="text-slate-500 hover:text-slate-800 cursor-pointer"
+                            >
+                              重置
+                            </button>
+                            <span className="text-slate-300">|</span>
+                            <button
+                              onClick={() => handleToggleUserStatus(user.id)}
+                              className={user.status === '正常' ? 'text-amber-600 hover:text-amber-800' : 'text-emerald-600 hover:text-emerald-800'}
+                            >
+                              {user.status === '正常' ? '停用' : '启用'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination & Footer */}
+            <div className="flex items-center justify-between pt-4 text-xs text-slate-500">
+              <div>显示第 1 至 {orgUsers.length} 项，共 {orgUsers.length} 位在册用户</div>
+              <div className="flex items-center space-x-1">
+                <button className="px-2.5 py-1 border border-slate-200 rounded hover:bg-slate-50 cursor-pointer disabled:opacity-40" disabled>
+                  上一页
+                </button>
+                <button className="px-2.5 py-1 bg-[#5D3D22] text-white rounded font-bold">1</button>
+                <button className="px-2.5 py-1 border border-slate-200 rounded hover:bg-slate-50 cursor-pointer disabled:opacity-40" disabled>
+                  下一页
+                </button>
+              </div>
+            </div>
+
+            {/* Bottom Copyright Text */}
+            <div className="mt-16 pt-6 text-center text-[12px] text-slate-400">
+              © 2013–2026 康奈网络. 保留所有权利
             </div>
           </div>
         </main>
       ) : (
-        <main className="relative z-10 flex-1 max-w-[1440px] w-full mx-auto px-6 sm:px-12 lg:px-16 py-8">
-          <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-white/40 p-8 text-slate-800 text-center">
-            <h3 className="text-lg font-bold text-[#193B67]">
-              {activePortalTab === 'notifications' ? '消息通知管理' : activePortalTab === 'org-users' ? '机构用户管理' : '机构应用管理'}
-            </h3>
-            <p className="text-xs text-slate-500 mt-2">当前机构 ({currentOrg}) 相关业务协同与权限配置区域。</p>
+        /* activePortalTab === 'org-apps' */
+        <main className="relative z-10 flex-1 max-w-[1360px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="bg-white rounded-xl shadow-[0_1px_4px_rgba(0,0,0,0.06)] border border-[#E9E4DE] p-6 sm:p-8 text-slate-800 animate-in fade-in duration-200">
+            {/* Table Header & Toolbar */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-100">
+              <div className="flex items-center space-x-3">
+                <h2 className="text-[16px] font-bold text-slate-900 tracking-wide">
+                  机构应用矩阵与授权清单
+                </h2>
+                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-[#5D3D22] border border-amber-200">
+                  已部署 {orgApps.length} 款治理系统
+                </span>
+              </div>
+
+              {/* Toolbar Action Icons */}
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => {
+                    setSwitchToast('请联系网信上级或平台管理员提交新应用接入申请');
+                    setTimeout(() => setSwitchToast(null), 3000);
+                  }}
+                  className="px-3.5 py-1.5 bg-[#5D3D22] hover:bg-[#4E341E] text-white rounded-lg text-xs font-bold flex items-center space-x-1.5 shadow-2xs transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>接入新应用</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setSwitchToast('已同步全量应用接口与CA网关健康度');
+                    setTimeout(() => setSwitchToast(null), 2000);
+                  }}
+                  className="p-1.5 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg transition-colors cursor-pointer"
+                  title="同步应用状态"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    setSwitchToast('应用矩阵授权清单已导出');
+                    setTimeout(() => setSwitchToast(null), 2000);
+                  }}
+                  className="p-1.5 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg transition-colors cursor-pointer"
+                  title="导出清单"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+                <button
+                  className="p-1.5 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg transition-colors cursor-pointer"
+                  title="权限拓扑"
+                >
+                  <Layers className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Filter & Search Bar */}
+            <div className="py-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="relative w-64 sm:w-80">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={appSearch}
+                  onChange={(e) => setAppSearch(e.target.value)}
+                  placeholder="检索应用名称 / 代码 / 授权科室..."
+                  className="w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-[#5D3D22] bg-slate-50/50"
+                />
+              </div>
+
+              {/* Version filter */}
+              <div className="flex items-center space-x-1.5 overflow-x-auto text-xs">
+                {['全部', '正式版', '试用版', '已停用', '未开通'].map((badge) => (
+                  <button
+                    key={badge}
+                    onClick={() => setAppBadgeFilter(badge)}
+                    className={`px-3 py-1 rounded-full font-medium transition-all cursor-pointer ${
+                      appBadgeFilter === badge
+                        ? 'bg-[#5D3D22] text-white shadow-2xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {badge}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Apps Table */}
+            <div className="overflow-x-auto border border-slate-200 rounded-lg mt-2">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold">
+                    <th className="py-3 px-3 w-12 text-center">序号</th>
+                    <th className="py-3 px-4 min-w-[200px]">应用系统名称</th>
+                    <th className="py-3 px-3 w-28">系统标识代码</th>
+                    <th className="py-3 px-3 w-24">版本</th>
+                    <th className="py-3 px-4 min-w-[240px]">授权使用科室</th>
+                    <th className="py-3 px-3 w-24 text-center">授权人数</th>
+                    <th className="py-3 px-3 w-32 text-center">运行状态</th>
+                    <th className="py-3 px-4 w-36 text-center">快捷操作</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {orgApps
+                    .filter((a) => {
+                      if (appBadgeFilter !== '全部' && a.badge !== appBadgeFilter) return false;
+                      if (
+                        appSearch &&
+                        !a.name.toLowerCase().includes(appSearch.toLowerCase()) &&
+                        !a.code.toLowerCase().includes(appSearch.toLowerCase()) &&
+                        !a.authorizedDepts.toLowerCase().includes(appSearch.toLowerCase())
+                      ) {
+                        return false;
+                      }
+                      return true;
+                    })
+                    .map((app, index) => (
+                      <tr key={app.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3.5 px-3 text-center text-slate-400 font-mono">
+                          {String(index + 1).padStart(2, '0')}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200/80 flex items-center justify-center font-bold text-[#5D3D22] text-sm shrink-0">
+                              {app.name.slice(0, 1)}
+                            </div>
+                            <div>
+                              <div className="font-bold text-slate-900 flex items-center space-x-1.5">
+                                <span>{app.name}</span>
+                                <span
+                                  className={`px-1.5 py-0.2 rounded text-[10px] font-bold text-white ${app.badgeColor}`}
+                                >
+                                  {app.badge}
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">
+                                {app.desc}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-3 font-mono text-slate-600">{app.code}</td>
+                        <td className="py-3.5 px-3 font-mono font-bold text-slate-700">{app.version}</td>
+                        <td className="py-3.5 px-4 text-slate-600">{app.authorizedDepts}</td>
+                        <td className="py-3.5 px-3 text-center font-mono font-bold text-slate-800">
+                          {app.authUsersCount} 人
+                        </td>
+                        <td className="py-3.5 px-3 text-center">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              app.runStatus === '运行正常'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : app.runStatus.includes('试用中')
+                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                : app.runStatus === '暂停维护'
+                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                : 'bg-slate-100 text-slate-500'
+                            }`}
+                          >
+                            {app.runStatus}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <div className="flex items-center justify-center space-x-2">
+                            <button
+                              onClick={() => handleAppLaunch(app.name)}
+                              className="px-2.5 py-1 bg-[#5D3D22] hover:bg-[#4E341E] text-white rounded font-bold text-[11px] transition-colors cursor-pointer shadow-2xs"
+                            >
+                              进入系统
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSwitchToast(`已打开「${app.name}」授权矩阵设置`);
+                                setTimeout(() => setSwitchToast(null), 2000);
+                              }}
+                              className="text-slate-500 hover:text-slate-800 font-medium text-[11px] cursor-pointer"
+                            >
+                              配置
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination & Footer */}
+            <div className="flex items-center justify-between pt-4 text-xs text-slate-500">
+              <div>显示第 1 至 {orgApps.length} 项，共 {orgApps.length} 款业务应用</div>
+              <div className="flex items-center space-x-1">
+                <button className="px-2.5 py-1 border border-slate-200 rounded hover:bg-slate-50 cursor-pointer disabled:opacity-40" disabled>
+                  上一页
+                </button>
+                <button className="px-2.5 py-1 bg-[#5D3D22] text-white rounded font-bold">1</button>
+                <button className="px-2.5 py-1 border border-slate-200 rounded hover:bg-slate-50 cursor-pointer disabled:opacity-40" disabled>
+                  下一页
+                </button>
+              </div>
+            </div>
+
+            {/* Bottom Copyright Text */}
+            <div className="mt-16 pt-6 text-center text-[12px] text-slate-400">
+              © 2013–2026 康奈网络. 保留所有权利
+            </div>
           </div>
         </main>
       )}
@@ -1147,182 +2603,189 @@ export const PortalHome: React.FC<PortalHomeProps> = ({
         </div>
       )}
 
-      {/* MODAL 7: 个人中心 */}
-      {showUserProfileModal && (
+      {/* MODAL: 修改个人信息 (昵称 / 手机) */}
+      {editFieldModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 text-slate-800">
-            {/* Modal Header */}
-            <div className="px-6 py-4 bg-gradient-to-r from-[#193B67] to-[#255594] text-white flex items-center justify-between">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center">
-                  <User className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm leading-none">个人中心</h3>
-                  <p className="text-[11px] text-white/70 mt-1">管理员账号档案与安全鉴权凭据</p>
-                </div>
-              </div>
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-sm overflow-hidden animate-in zoom-in-95 text-slate-800">
+            <div className="px-5 py-4 bg-[#5D3D22] text-white flex items-center justify-between">
+              <h3 className="font-bold text-sm">
+                {editFieldModal === 'name' ? '修改个人昵称' : '修改联系电话'}
+              </h3>
               <button
-                onClick={() => setShowUserProfileModal(false)}
-                className="p-1 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors cursor-pointer"
+                onClick={() => setEditFieldModal(null)}
+                className="p-1 rounded hover:bg-white/10 text-white transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-
-            {/* Profile Content */}
-            <div className="p-6 space-y-5 text-xs">
-              {/* Profile Card Summary */}
-              <div className="flex items-center space-x-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-white shadow-md shrink-0">
-                  <img src={sunsetBg} alt="User" className="w-full h-full object-cover" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-bold text-slate-900 text-sm">. w .</span>
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 font-bold rounded-full text-[10px]">
-                      超级管理员
-                    </span>
-                  </div>
-                  <div className="text-slate-500 text-[11px] mt-1 flex items-center space-x-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                    <span>{currentOrg}</span>
-                  </div>
-                  <div className="text-slate-400 text-[10px] mt-0.5">
-                    工号：WX-20260904 · 职务：网信应急研判总调度
-                  </div>
-                </div>
-              </div>
-
-              {/* Detail fields */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-slate-50/70 rounded-lg border border-slate-100">
-                  <div className="text-slate-400 text-[10px]">绑定微信</div>
-                  <div className="font-bold text-slate-700 mt-0.5 flex items-center space-x-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>wxid_2991024</span>
-                  </div>
-                </div>
-                <div className="p-3 bg-slate-50/70 rounded-lg border border-slate-100">
-                  <div className="text-slate-400 text-[10px]">联系手机</div>
-                  <div className="font-bold text-slate-700 mt-0.5">138****8899</div>
-                </div>
-                <div className="p-3 bg-slate-50/70 rounded-lg border border-slate-100">
-                  <div className="text-slate-400 text-[10px]">上次登录时间</div>
-                  <div className="font-bold text-slate-700 mt-0.5">2026-09-04 16:52</div>
-                </div>
-                <div className="p-3 bg-slate-50/70 rounded-lg border border-slate-100">
-                  <div className="text-slate-400 text-[10px]">安全等级</div>
-                  <div className="font-bold text-emerald-600 mt-0.5 flex items-center space-x-1">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>国密三级鉴权已启用</span>
-                  </div>
-                </div>
+            <div className="p-5 space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-600 font-bold mb-1.5">
+                  {editFieldModal === 'name' ? '用户昵称' : '联系手机'}
+                </label>
+                <input
+                  type="text"
+                  value={editInputValue}
+                  onChange={(e) => setEditInputValue(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-[#5D3D22] bg-slate-50"
+                  placeholder={editFieldModal === 'name' ? '请输入个人昵称' : '请输入11位手机号码'}
+                />
               </div>
             </div>
-
-            {/* Footer */}
-            <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-[11px] text-slate-400">系统已全面开启防泄露水印审计</span>
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-end space-x-2">
               <button
-                onClick={() => setShowUserProfileModal(false)}
-                className="px-4 py-1.5 bg-[#193B67] hover:bg-[#204a80] text-white text-xs font-bold rounded-lg cursor-pointer transition-colors"
+                onClick={() => setEditFieldModal(null)}
+                className="px-3.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-lg cursor-pointer"
               >
-                关闭
+                取消
+              </button>
+              <button
+                onClick={handleSaveProfileEdit}
+                className="px-4 py-1.5 bg-[#5D3D22] hover:bg-[#4E341E] text-white text-xs font-bold rounded-lg cursor-pointer shadow-2xs"
+              >
+                保存变更
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL 8: 切换机构 */}
-      {showSwitchOrgModal && (
+      {/* MODAL: 消息通知详情 */}
+      {selectedNotifDetail && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 text-slate-800">
-            {/* Modal Header */}
-            <div className="px-6 py-4 bg-gradient-to-r from-[#193B67] to-[#255594] text-white flex items-center justify-between">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center">
-                  <ArrowLeftRight className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm leading-none">切换机构</h3>
-                  <p className="text-[11px] text-white/70 mt-1">选择您需协同办公的网信与治理业务主体</p>
-                </div>
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 text-slate-800">
+            <div className="px-6 py-4 bg-[#5D3D22] text-white flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Bell className="w-4 h-4" />
+                <h3 className="font-bold text-sm">通知详情</h3>
               </div>
               <button
-                onClick={() => setShowSwitchOrgModal(false)}
-                className="p-1 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors cursor-pointer"
+                onClick={() => setSelectedNotifDetail(null)}
+                className="p-1 rounded hover:bg-white/10 text-white transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-
-            {/* Organization Options List */}
-            <div className="p-6 space-y-2.5 text-xs">
-              {[
-                { name: '台中市网信办', code: 'TC-WXB-01', desc: '直属综合网信治理中枢 · 指令流转总调中心' },
-                { name: '市委宣传部舆情监测科', code: 'TC-XCB-04', desc: '新闻舆情监测预警与网络研判分析' },
-                { name: '市公安局网安支队', code: 'TC-GA-WA02', desc: '涉网违法犯罪线索协查与处置打击' },
-                { name: '市网络应急指挥中心', code: 'TC-YJ-ZH01', desc: '重大网络舆情与安全突发事件应急联调' },
-                { name: '市互联网辟谣联动中心', code: 'TC-PY-001', desc: '涉台辟谣科普与涉假网络谣言溯源' },
-              ].map((org) => {
-                const isSelected = currentOrg === org.name;
-                return (
-                  <div
-                    key={org.code}
-                    onClick={() => {
-                      setCurrentOrg(org.name);
-                    }}
-                    className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
-                      isSelected
-                        ? 'bg-blue-50/80 border-blue-300 shadow-xs'
-                        : 'bg-white border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="flex items-start space-x-3">
-                      <div
-                        className={`w-4 h-4 rounded-full border flex items-center justify-center mt-0.5 shrink-0 ${
-                          isSelected
-                            ? 'border-blue-600 bg-blue-600 text-white'
-                            : 'border-slate-300 bg-white'
-                        }`}
-                      >
-                        {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
-                      </div>
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <span className={`font-bold ${isSelected ? 'text-[#193B67]' : 'text-slate-800'}`}>
-                            {org.name}
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-mono">({org.code})</span>
-                        </div>
-                        <p className="text-[11px] text-slate-500 mt-0.5">{org.desc}</p>
-                      </div>
-                    </div>
-                    {isSelected && (
-                      <span className="px-2 py-0.5 bg-blue-600 text-white rounded text-[10px] font-bold shrink-0">
-                        当前
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
+            <div className="p-6 space-y-4 text-xs">
+              <div>
+                <h4 className="text-base font-bold text-slate-900 leading-snug">
+                  {selectedNotifDetail.title}
+                </h4>
+                <div className="flex items-center space-x-3 mt-2 text-slate-500 text-[11px]">
+                  <span className="px-2 py-0.5 rounded bg-amber-50 text-[#5D3D22] font-bold border border-amber-200">
+                    {selectedNotifDetail.category}
+                  </span>
+                  <span>来源：{selectedNotifDetail.sourceOrg}</span>
+                  <span className="font-mono">{selectedNotifDetail.time}</span>
+                </div>
+              </div>
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-slate-700 leading-relaxed text-sm">
+                {selectedNotifDetail.content}
+              </div>
             </div>
-
-            {/* Footer */}
             <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-[11px] text-slate-500">
-                当前选中：<strong className="text-slate-800">{currentOrg}</strong>
-              </span>
+              <span className="text-[11px] text-slate-400">网络生态综合治理平台 · 安全督办流</span>
               <button
-                onClick={() => setShowSwitchOrgModal(false)}
-                className="px-5 py-1.5 bg-[#193B67] hover:bg-[#204a80] text-white text-xs font-bold rounded-lg cursor-pointer transition-colors"
+                onClick={() => setSelectedNotifDetail(null)}
+                className="px-4 py-1.5 bg-[#5D3D22] hover:bg-[#4E341E] text-white text-xs font-bold rounded-lg cursor-pointer"
               >
-                确认切换
+                知道了
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* MODAL: 添加机构用户 */}
+      {showAddUserModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 text-slate-800">
+            <div className="px-6 py-4 bg-[#5D3D22] text-white flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <UserPlus className="w-4 h-4" />
+                <h3 className="font-bold text-sm">新增机构在册人员</h3>
+              </div>
+              <button
+                onClick={() => setShowAddUserModal(false)}
+                className="p-1 rounded hover:bg-white/10 text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleAddUserSubmit}>
+              <div className="p-6 space-y-3.5 text-xs">
+                <div>
+                  <label className="block text-slate-600 font-bold mb-1">姓名 *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newUserData.name}
+                    onChange={(e) => setNewUserData({ ...newUserData, name: e.target.value })}
+                    placeholder="请输入真实姓名"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-[#5D3D22]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-bold mb-1">手机号码 *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newUserData.phone}
+                    onChange={(e) => setNewUserData({ ...newUserData, phone: e.target.value })}
+                    placeholder="请输入11位手机号"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-[#5D3D22]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-bold mb-1">所属科室 *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newUserData.dept}
+                    onChange={(e) => setNewUserData({ ...newUserData, dept: e.target.value })}
+                    placeholder="如：台中市网信办·综合科"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-[#5D3D22]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-bold mb-1">系统角色 *</label>
+                  <select
+                    value={newUserData.role}
+                    onChange={(e) => setNewUserData({ ...newUserData, role: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-[#5D3D22] bg-white"
+                  >
+                    <option value="舆情速报员">舆情速报员</option>
+                    <option value="跨机构协查专员">跨机构协查专员</option>
+                    <option value="终审签发员">终审签发员</option>
+                    <option value="平台超级管理员">平台超级管理员</option>
+                  </select>
+                </div>
+              </div>
+              <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddUserModal(false)}
+                  className="px-3.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-lg cursor-pointer"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-[#5D3D22] hover:bg-[#4E341E] text-white text-xs font-bold rounded-lg cursor-pointer shadow-2xs"
+                >
+                  确认添加
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Switch Toast Notification */}
+      {switchToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900/90 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 text-xs backdrop-blur-md animate-in fade-in slide-in-from-bottom-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{switchToast}</span>
         </div>
       )}
     </div>

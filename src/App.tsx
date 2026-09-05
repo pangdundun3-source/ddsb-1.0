@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAppViewModel } from './viewmodels/useAppViewModel';
 
 import { Header } from './components/Header';
@@ -73,6 +73,59 @@ export default function App() {
     handleDeleteOrg
   } = viewModel;
 
+  // Global synchronization between 点点速豹 and 正管用网络生态治理平台
+  const [currentOrg, setCurrentOrg] = useState<string>(() => {
+    try {
+      return localStorage.getItem('ddsb_current_org') || '台中市网信办';
+    } catch {
+      return '台中市网信办';
+    }
+  });
+
+  const [userName, setUserName] = useState<string>(() => {
+    try {
+      return localStorage.getItem('ddsb_user_name') || '. w .';
+    } catch {
+      return '. w .';
+    }
+  });
+
+  const [userPhone, setUserPhone] = useState<string>(() => {
+    try {
+      return localStorage.getItem('ddsb_user_phone') || '178****9573';
+    } catch {
+      return '178****9573';
+    }
+  });
+
+  const [portalTab, setPortalTab] = useState<'grid' | 'profile' | 'notifications' | 'org-users' | 'org-apps'>('grid');
+
+  const handleSwitchOrg = (newOrg: string) => {
+    setCurrentOrg(newOrg);
+    try {
+      localStorage.setItem('ddsb_current_org', newOrg);
+    } catch {}
+  };
+
+  const handleUpdateUserName = (newName: string) => {
+    setUserName(newName);
+    try {
+      localStorage.setItem('ddsb_user_name', newName);
+    } catch {}
+  };
+
+  const handleUpdateUserPhone = (newPhone: string) => {
+    setUserPhone(newPhone);
+    try {
+      localStorage.setItem('ddsb_user_phone', newPhone);
+    } catch {}
+  };
+
+  const handleNavigateToProfile = () => {
+    setPortalTab('profile');
+    handleNavigate('portal');
+  };
+
   // Show 1:1 Login Homepage if user is not logged in or activePage is 'login'
   if (!isLoggedIn || activePage === 'login') {
     return (
@@ -104,6 +157,14 @@ export default function App() {
           onNavigate={handleNavigate}
           onSelectReport={setSelectedReport}
           onLogout={handleLogout}
+          currentOrg={currentOrg}
+          onSwitchOrg={handleSwitchOrg}
+          userName={userName}
+          onUpdateUserName={handleUpdateUserName}
+          userPhone={userPhone}
+          onUpdateUserPhone={handleUpdateUserPhone}
+          initialTab={portalTab}
+          onTabChange={setPortalTab}
         />
       </div>
     );
@@ -118,7 +179,15 @@ export default function App() {
         </div>
       )}
 
-      <Header currentUser={currentUser} onLogout={handleLogout} onNavigate={handleNavigate} />
+      <Header
+        currentUser={currentUser}
+        userName={userName}
+        currentOrg={currentOrg}
+        onSwitchOrg={handleSwitchOrg}
+        onLogout={handleLogout}
+        onNavigate={handleNavigate}
+        onNavigateToProfile={handleNavigateToProfile}
+      />
 
       <Navbar
         activePage={activePage}

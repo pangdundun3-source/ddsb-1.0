@@ -1,13 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Bell,
   ChevronDown,
   User,
   LogOut,
-  Building2,
-  CheckCircle2,
   ArrowLeftRight,
-  ShieldCheck,
   Check,
   X
 } from 'lucide-react';
@@ -16,8 +13,12 @@ import sunsetBg from '../assets/images/sunset_grassland.jpg';
 
 interface HeaderProps {
   currentUser: string;
+  currentOrg?: string;
+  onSwitchOrg?: (orgName: string) => void;
+  userName?: string;
   onLogout?: () => void;
   onNavigate?: (page: any) => void;
+  onNavigateToProfile?: () => void;
 }
 
 const ORG_OPTIONS = [
@@ -26,17 +27,31 @@ const ORG_OPTIONS = [
   { name: '西区网络网信局', code: 'TC-XQ-01' },
 ];
 
-export const Header: React.FC<HeaderProps> = ({ currentUser, onLogout, onNavigate }) => {
+export const Header: React.FC<HeaderProps> = ({
+  currentUser,
+  currentOrg = '台中市网信办',
+  onSwitchOrg,
+  userName = '. w .',
+  onLogout,
+  onNavigate,
+  onNavigateToProfile
+}) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
-  const [currentOrg, setCurrentOrg] = useState('台中市网信办');
-  const [selectedTempOrg, setSelectedTempOrg] = useState('台中市网信办');
-  const [showUserProfileModal, setShowUserProfileModal] = useState(false);
+  const [selectedTempOrg, setSelectedTempOrg] = useState(currentOrg);
   const [showSwitchOrgModal, setShowSwitchOrgModal] = useState(false);
   const [switchToast, setSwitchToast] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (currentOrg) {
+      setSelectedTempOrg(currentOrg);
+    }
+  }, [currentOrg]);
+
   const handleConfirmSwitch = () => {
-    setCurrentOrg(selectedTempOrg);
+    if (onSwitchOrg) {
+      onSwitchOrg(selectedTempOrg);
+    }
     setShowSwitchOrgModal(false);
     setShowUserMenu(false);
     setSwitchToast(`已成功切换当前管理机构为：${selectedTempOrg}`);
@@ -58,7 +73,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, onLogout, onNavigat
       {/* Left Logo Section - 点点速豹 System Branding */}
       <Logo variant="header" />
 
-      {/* Right Top Bar Tools & Avatar - Unified with Portal */}
+      {/* Right Top Bar Tools & Avatar - Exact 1:1 Unified with Portal */}
       <div className="flex items-center space-x-3.5">
         {/* Bell Notifications */}
         <div className="relative">
@@ -92,27 +107,28 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, onLogout, onNavigat
 
         <div className="h-4 w-[1px] bg-gray-200 hidden sm:block"></div>
 
-        {/* User Profile Avatar dropdown (1:1 matching screenshot and PortalHome) */}
+        {/* User Profile Avatar dropdown (1:1 with Portal: sunset circular avatar + .w. + ChevronDown) */}
         <div className="relative">
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
-            className="flex items-center space-x-1.5 px-2 py-1 rounded-md hover:bg-gray-100 transition-all cursor-pointer select-none"
+            className="flex items-center space-x-1.5 px-2 py-1 rounded-md hover:bg-slate-100 text-slate-800 transition-all cursor-pointer select-none"
+            title="点击查看个人中心与操作菜单"
           >
             {/* Circular Avatar matching sunset photo in screenshot */}
-            <div className="w-7 h-7 rounded-full overflow-hidden border border-gray-300 shadow-xs shrink-0">
+            <div className="w-7 h-7 rounded-full overflow-hidden border border-amber-300/80 shadow-2xs shrink-0">
               <img
                 src={sunsetBg}
                 alt="User Avatar"
                 className="w-full h-full object-cover"
               />
             </div>
-            <span className="text-[13px] font-bold text-gray-700 tracking-wider">
-              . w .
+            <span className="text-[14px] font-bold tracking-wider">
+              {userName}
             </span>
-            <ChevronDown className={`w-3 h-3 text-gray-500 transition-transform duration-200 ${showUserMenu ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-3.5 h-3.5 opacity-75 text-slate-500 transition-transform duration-200 ${showUserMenu ? 'rotate-180' : ''}`} />
           </button>
 
-          {/* Dropdown Menu (1:1 with screenshot) */}
+          {/* Dropdown Menu (Exact 1:1 with Portal) */}
           {showUserMenu && (
             <>
               {/* Backdrop to close on outside click */}
@@ -121,12 +137,16 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, onLogout, onNavigat
                 onClick={() => setShowUserMenu(false)}
               />
 
-              <div className="absolute right-0 top-full mt-1.5 w-36 bg-white rounded-md shadow-2xl border border-gray-100 py-1 z-50 text-slate-700 animate-in fade-in slide-in-from-top-1 duration-150">
+              <div className="absolute right-0 top-full mt-1.5 w-40 bg-white rounded-md shadow-2xl border border-gray-100 py-1 z-50 text-slate-700 animate-in fade-in slide-in-from-top-1 duration-150">
                 {/* 1. 个人中心 */}
                 <button
                   onClick={() => {
                     setShowUserMenu(false);
-                    setShowUserProfileModal(true);
+                    if (onNavigateToProfile) {
+                      onNavigateToProfile();
+                    } else if (onNavigate) {
+                      onNavigate('portal');
+                    }
                   }}
                   className="w-full text-left px-4 py-2.5 hover:bg-slate-50 hover:text-blue-600 flex items-center space-x-3 text-[13px] font-normal transition-colors cursor-pointer"
                 >
@@ -155,7 +175,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, onLogout, onNavigat
                       onLogout();
                     }
                   }}
-                  className="w-full text-left px-4 py-2.5 hover:bg-slate-50 hover:text-rose-600 flex items-center space-x-3 text-[13px] font-normal transition-colors cursor-pointer"
+                  className="w-full text-left px-4 py-2.5 hover:bg-slate-50 hover:text-rose-600 flex items-center space-x-3 text-[13px] font-normal transition-colors cursor-pointer border-t border-slate-100"
                 >
                   <LogOut className="w-4 h-4 text-slate-500 stroke-[1.8]" />
                   <span>退出登录</span>
@@ -166,102 +186,14 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, onLogout, onNavigat
         </div>
       </div>
 
-      {/* MODAL: 个人中心 */}
-      {showUserProfileModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 text-slate-800">
-            {/* Modal Header */}
-            <div className="px-6 py-4 bg-gradient-to-r from-[#193B67] to-[#255594] text-white flex items-center justify-between">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center">
-                  <User className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm leading-none">个人中心</h3>
-                  <p className="text-[11px] text-white/70 mt-1">管理员账号档案与安全鉴权凭据</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowUserProfileModal(false)}
-                className="p-1 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Profile Content */}
-            <div className="p-6 space-y-5 text-xs">
-              {/* Profile Card Summary */}
-              <div className="flex items-center space-x-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-white shadow-md shrink-0">
-                  <img src={sunsetBg} alt="User" className="w-full h-full object-cover" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-bold text-slate-900 text-sm">. w .</span>
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 font-bold rounded-full text-[10px]">
-                      超级管理员
-                    </span>
-                  </div>
-                  <div className="text-slate-500 text-[11px] mt-1 flex items-center space-x-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                    <span>{currentOrg}</span>
-                  </div>
-                  <div className="text-slate-400 text-[10px] mt-0.5">
-                    工号：WX-20260904 · 职务：网信应急研判总调度
-                  </div>
-                </div>
-              </div>
-
-              {/* Detail fields */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-slate-50/70 rounded-lg border border-slate-100">
-                  <div className="text-slate-400 text-[10px]">绑定微信</div>
-                  <div className="font-bold text-slate-700 mt-0.5 flex items-center space-x-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>wxid_2991024</span>
-                  </div>
-                </div>
-                <div className="p-3 bg-slate-50/70 rounded-lg border border-slate-100">
-                  <div className="text-slate-400 text-[10px]">联系手机</div>
-                  <div className="font-bold text-slate-700 mt-0.5">138****8899</div>
-                </div>
-                <div className="p-3 bg-slate-50/70 rounded-lg border border-slate-100">
-                  <div className="text-slate-400 text-[10px]">上次登录时间</div>
-                  <div className="font-bold text-slate-700 mt-0.5">2026-09-04 16:52</div>
-                </div>
-                <div className="p-3 bg-slate-50/70 rounded-lg border border-slate-100">
-                  <div className="text-slate-400 text-[10px]">安全等级</div>
-                  <div className="font-bold text-emerald-600 mt-0.5 flex items-center space-x-1">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>国密三级鉴权已启用</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-[11px] text-slate-400">系统已全面开启防泄露水印审计</span>
-              <button
-                onClick={() => setShowUserProfileModal(false)}
-                className="px-4 py-1.5 bg-[#193B67] hover:bg-[#204a80] text-white text-xs font-bold rounded-lg cursor-pointer transition-colors"
-              >
-                关闭
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* SWITCH ORG POPOVER (dropdown form matching user screenshot) */}
+      {/* SWITCH ORG POPOVER (1:1 identical to PortalHome switch modal) */}
       {showSwitchOrgModal && (
         <>
           <div
             className="fixed inset-0 z-40"
             onClick={() => setShowSwitchOrgModal(false)}
           />
-          <div className="absolute right-2 top-full mt-2 w-[310px] bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 overflow-hidden">
+          <div className="absolute right-4 top-full mt-2 w-[310px] bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 overflow-hidden">
             {/* Header */}
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
               <h3 className="font-bold text-slate-900 text-sm">切换机构</h3>
@@ -289,7 +221,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, onLogout, onNavigat
                   >
                     <div className="font-bold text-slate-900 text-xs sm:text-sm">{org.name}</div>
                     
-                    {/* Bottom-right blue checkmark badge matching screenshot */}
+                    {/* Bottom-right blue checkmark badge */}
                     {isSelected && (
                       <div className="absolute bottom-0 right-0 w-6 h-6 bg-[#1E5ABB] text-white rounded-tl-xl flex items-center justify-center">
                         <Check className="w-3.5 h-3.5 stroke-[3]" />
@@ -300,7 +232,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, onLogout, onNavigat
               })}
             </div>
 
-            {/* Footer Buttons matching screenshot */}
+            {/* Footer Buttons */}
             <div className="px-5 py-3.5 bg-slate-50/70 border-t border-slate-100 flex items-center justify-end space-x-2.5">
               <button
                 onClick={() => setShowSwitchOrgModal(false)}
@@ -321,4 +253,3 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, onLogout, onNavigat
     </header>
   );
 };
-
