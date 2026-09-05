@@ -28,6 +28,7 @@ interface WeChatPhoneShellProps {
   onBack?: () => void;
   canGoBack?: boolean;
   pageTitle?: string;
+  pageSubtitle?: string;
   isLoggedIn: boolean;
   hideTabBar?: boolean;
   hideFAB?: boolean;
@@ -48,6 +49,7 @@ export const WeChatPhoneShell: React.FC<WeChatPhoneShellProps> = ({
   onBack,
   canGoBack = false,
   pageTitle = '台中市网信办工作台',
+  pageSubtitle,
   isLoggedIn,
   hideTabBar = false,
   hideFAB = false,
@@ -206,8 +208,15 @@ export const WeChatPhoneShell: React.FC<WeChatPhoneShellProps> = ({
                   </button>
                 </div>
 
-                <div className="text-center font-bold text-slate-800 text-sm tracking-tight truncate flex-1">
-                  {pageTitle}
+                <div className="text-center min-w-0 flex-1 flex flex-col items-center justify-center px-1">
+                  <div className="font-bold text-slate-900 text-[14px] leading-tight tracking-tight truncate max-w-[220px]">
+                    {pageTitle}
+                  </div>
+                  {pageSubtitle && (
+                    <div className="text-[10px] text-slate-500 font-normal leading-tight mt-0.5 truncate max-w-[250px] select-text">
+                      {pageSubtitle}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-end space-x-1 shrink-0">

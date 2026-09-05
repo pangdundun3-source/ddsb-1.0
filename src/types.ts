@@ -21,6 +21,13 @@ export type ReportSource =
   | '部门转办'
   | '热线12345';
 
+export type IdentificationTag =
+  | 'identifying'      // 识别中
+  | 'suspected_first'  // 疑似首发 (预判)
+  | 'suspected_repeat' // 疑似重复 (预判)
+  | 'official_first'   // 首发报送 (正式定标)
+  | 'official_repeat'; // 重复报送 (正式定标)
+
 export interface SpeedReport {
   id: string;
   title: string;
@@ -45,6 +52,9 @@ export interface SpeedReport {
   transferredDept?: string; // 转办部门
   sameLocationCount?: number; // 同地址关联数
   isSameLocationGroup?: boolean; // 是否被标记为同地址
+  identificationTag?: IdentificationTag; // 预判断/正式定标标识（草稿不算，不打标）
+  identificationReason?: string;        // 判定比对依据/关联线索
+  identificationTime?: string;          // 预判或正式定标时间
   tags: string[];
 }
 

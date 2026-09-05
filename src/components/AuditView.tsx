@@ -1,6 +1,7 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SpeedReport, UserProfile } from '../types';
+import { IdentificationBadge } from './IdentificationBadge';
 import {
   CheckSquare,
   CheckCircle,
@@ -480,7 +481,7 @@ export const AuditView: React.FC<AuditViewProps> = ({
                 onClick={onResetDemoData}
                 className="px-4 py-2 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all inline-flex items-center space-x-1.5"
               >
-                <span>恢复 5 条待审核实验数据</span>
+                <span>恢复系统初始实验数据</span>
               </button>
             )}
           </div>
@@ -491,10 +492,17 @@ export const AuditView: React.FC<AuditViewProps> = ({
               onClick={() => onSelectReport(report)}
               className="bg-white rounded-xl p-3.5 shadow-2xs border border-slate-200 hover:border-blue-300 active:bg-slate-50 transition-all cursor-pointer space-y-2"
             >
-              <h3 className="text-xs font-bold text-slate-800 leading-snug flex items-center justify-between gap-2">
-                <span className="truncate flex-1 min-w-0">{report.title}</span>
-                <span className="shrink-0">{getStatusBadge(report)}</span>
-              </h3>
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="text-xs font-bold text-slate-800 leading-snug line-clamp-2 flex-1">
+                  {report.title}
+                </h3>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {report.identificationTag && (
+                    <IdentificationBadge tag={report.identificationTag} size="xs" />
+                  )}
+                  {getStatusBadge(report)}
+                </div>
+              </div>
 
               <p className="text-[11px] text-slate-500 leading-relaxed line-clamp-2">
                 {report.summary}
@@ -575,9 +583,14 @@ export const AuditView: React.FC<AuditViewProps> = ({
                       key={r.id}
                       className="flex items-center justify-between bg-white/90 p-1.5 rounded-lg border border-amber-100 text-[11px]"
                     >
-                      <span className="font-semibold text-slate-800 truncate max-w-[190px]">
-                        {i + 1}. {r.title}
-                      </span>
+                      <div className="flex items-center gap-1.5 min-w-0 max-w-[210px]">
+                        {r.identificationTag && (
+                          <IdentificationBadge tag={r.identificationTag} size="xs" />
+                        )}
+                        <span className="font-semibold text-slate-800 truncate">
+                          {i + 1}. {r.title}
+                        </span>
+                      </div>
                       <span className="text-[9px] text-slate-500 font-mono shrink-0 ml-1 max-w-[118px] truncate">
                         {r.authorDept} · {r.author}
                       </span>

@@ -25,6 +25,7 @@ import { ActionSheet } from './components/ActionSheet';
 import { Toast, ToastMessage } from './components/Toast';
 import { OfficialAccountEntryView } from './components/OfficialAccountEntryView';
 import { ActivationH5View } from './components/ActivationH5View';
+import { calculatePreJudgment, resolveOfficialTag } from './utils/identification';
 
 export default function App() {
   // Application State with LocalStorage Persistence
@@ -143,9 +144,36 @@ export default function App() {
     setIsCreatingNewReport(false);
     setPendingTemplateId(null);
     const isNew = !reports.some((r) => r.id === reportPayload.id);
+    const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+
+    let identificationTag = reportPayload.identificationTag;
+    let identificationReason = reportPayload.identificationReason;
+    let identificationTime = reportPayload.identificationTime;
+
+    if (isSubmit) {
+      if (!identificationTag) {
+        const result = calculatePreJudgment(reportPayload, reports);
+        identificationTag = result.tag;
+        identificationReason = result.reason;
+        identificationTime = now;
+      }
+    } else {
+      // 草稿不算，不打标
+      identificationTag = undefined;
+      identificationReason = undefined;
+      identificationTime = undefined;
+    }
 
     if (isNew) {
-      const newReport = reportPayload as SpeedReport;
+      const newReport: SpeedReport = {
+        ...(reportPayload as SpeedReport),
+        status: isSubmit ? 'pending_audit' : 'draft',
+        identificationTag,
+        identificationReason,
+        identificationTime,
+        updateTime: now,
+        createTime: reportPayload.createTime || now,
+      };
       setReports((prev) => [newReport, ...prev]);
 
       if (isSubmit) {
@@ -155,8 +183,8 @@ export default function App() {
           id: `notif_${Date.now()}`,
           type: '待审核通知',
           title: `【待审核提醒】新提交速报待审核: ${newReport.title}`,
-          content: `上报人 ${newReport.author} 已提交【${newReport.type}】类速报，请审核人及时登录审核中心进行审查。`,
-          time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+          content: `上报人 ${newReport.author} 已提交【${newReport.type}】类速报，系统已完成查重预判断打标，请审核人及时登录审查。`,
+          time: now,
           isRead: false,
           relatedReportId: newReport.id,
         };
@@ -172,14 +200,21 @@ export default function App() {
                 ...r,
                 ...reportPayload,
                 status: isSubmit ? 'pending_audit' : 'draft',
-                updateTime: new Date().toISOString().replace('T', ' ').substring(0, 16),
+                identificationTag: isSubmit
+                  ? (identificationTag || calculatePreJudgment({ ...r, ...reportPayload }, prev).tag)
+                  : undefined,
+                identificationReason: isSubmit
+                  ? (identificationReason || calculatePreJudgment({ ...r, ...reportPayload }, prev).reason)
+                  : undefined,
+                identificationTime: isSubmit ? (identificationTime || now) : undefined,
+                updateTime: now,
               } as SpeedReport)
             : r
         )
       );
 
       if (isSubmit) {
-        showToast('已重新提交审核');
+        showToast('已重新提交审核并完成查重打标');
       } else {
         showToast('草稿已更新');
       }
@@ -213,6 +248,9 @@ export default function App() {
           ? {
               ...report,
               status: 'draft',
+              identificationTag: undefined,
+              identificationReason: undefined,
+              identificationTime: undefined,
               updateTime: now,
             }
           : report
@@ -222,12 +260,20 @@ export default function App() {
       prev.filter((notification) => !(notification.relatedReportId === id && notification.type === '待审核通知'))
     );
     if (selectedReport?.id === id) {
-      setSelectedReport((prev) => (prev ? { ...prev, status: 'draft', updateTime: now } : prev));
+      setSelectedReport((prev) => (prev ? { ...prev, status: 'draft', identificationTag: undefined, identificationReason: undefined, updateTime: now } : prev));
     }
     showToast('已撤回到草稿，可继续修改后重新提交');
   };
 
   const handleApproveReport = (id: string, score?: number) => {
+    const target = reports.find((r) => r.id === id);
+    const officialTag = target ? resolveOfficialTag(target.identificationTag) : 'official_first';
+    const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const formalReason =
+      officialTag === 'official_first'
+        ? '经终审采纳定标：确认为首发报送线索，已正式录入不良信息库。'
+        : '经终审采纳定标：确认为重复报送，已正式合并入库归档。';
+
     setReports((prev) =>
       prev.map((r) =>
         r.id === id
@@ -235,27 +281,29 @@ export default function App() {
               ...r,
               status: 'approved',
               score: score ?? r.score,
-              updateTime: new Date().toISOString().replace('T', ' ').substring(0, 16),
+              identificationTag: officialTag,
+              identificationReason: formalReason,
+              identificationTime: now,
+              updateTime: now,
             }
           : r
       )
     );
 
-    const target = reports.find((r) => r.id === id);
     if (target) {
       const newNotif: AppNotification = {
         id: `notif_${Date.now()}`,
         type: '审核结果通知',
-        title: `【审核结果通知】速报审核通过: ${target.title}`,
-        content: `审核节点结果：审核通过。您上报的《${target.title}》已审核通过并归档备案。`,
-        time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        title: `【审核结果通知】速报已采纳定标: ${target.title}`,
+        content: `审核节点结果：审核通过并已采纳。定标结果：${officialTag === 'official_first' ? '【首发】' : '【重复】'}。您上报的《${target.title}》已完成正式定标归档。`,
+        time: now,
         isRead: false,
         relatedReportId: target.id,
       };
       setNotifications((prev) => [newNotif, ...prev]);
     }
 
-    showToast('审核通过并已生成结果通知');
+    showToast('已采纳通过，正式标识定标完成');
   };
 
   const handleRejectReport = (id: string, reason: string) => {
@@ -337,19 +385,29 @@ export default function App() {
     }
 
     const finalRemarks = remarks || '信息核实属实，同源内容批量通过归档。';
+    const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
 
     setReports((prev) =>
-      prev.map((r) =>
-        idsToApprove.includes(r.id)
-          ? {
-              ...r,
-              status: 'approved',
-              score: score ?? r.score,
-              auditRemarks: finalRemarks,
-              updateTime: new Date().toISOString().replace('T', ' ').substring(0, 16),
-            }
-          : r
-      )
+      prev.map((r) => {
+        if (idsToApprove.includes(r.id)) {
+          const officialTag = resolveOfficialTag(r.identificationTag);
+          const formalReason =
+            officialTag === 'official_first'
+              ? '批量采纳定标：首发报送线索，正式纳入不良信息库。'
+              : '批量采纳定标：同源重复报送，已正式关联入库。';
+          return {
+            ...r,
+            status: 'approved',
+            score: score ?? r.score,
+            auditRemarks: finalRemarks,
+            identificationTag: officialTag,
+            identificationReason: formalReason,
+            identificationTime: now,
+            updateTime: now,
+          };
+        }
+        return r;
+      })
     );
 
     const newNotif: AppNotification = {
@@ -555,7 +613,8 @@ export default function App() {
             setIsActivationDetail(false);
           }
         }}
-        pageTitle={isActivationH5View ? '账号激活与实名认证' : isOfficialAccount ? '点点速报' : getPageTitle()}
+        pageTitle={isActivationH5View ? '哨兵系统' : isOfficialAccount ? '点点速报' : getPageTitle()}
+        pageSubtitle={isActivationH5View ? 'xyx.shaobingshangbao.konne.com.cn' : undefined}
         isLoggedIn={isLoggedIn}
         hideTabBar={
           isActivationH5View ||
@@ -757,38 +816,45 @@ export default function App() {
         )}
 
         {/* Detail View Modal (contained in phone viewport) */}
-        <DetailModal
-          report={selectedReport}
-          allReports={reports}
-          onClose={handleCloseReportDetail}
-          userRole={user.role}
-          allowAuditActions={currentTab === 'audit' || selectedReportEntry === 'audit_pending'}
-          auditOnlyPreview={
-            (currentTab === 'audit' || selectedReportEntry === 'audit_pending')
-              ? selectedReport?.status !== 'pending_audit'
-              : false
-          }
-          onApprove={handleApproveReport}
-          onReject={handleRejectReport}
-          onTransfer={handleTransferReport}
-          onRecallReport={handleRecallReport}
-          onBatchApprove={handleBatchApproveSameLocation}
-          onBatchReject={handleBatchReject}
-          onEditDraft={(report) => {
-            if (currentTab !== 'report') {
-              setPreviousTab(currentTab);
-            }
-            handleCloseReportDetail();
-            setEditingReport(report);
-            setIsCreatingNewReport(false);
-            setCurrentTab('report');
-          }}
-          onSelectRelatedReport={(r) => {
-            setSelectedReportEntry(null);
-            setSelectedReport(r);
-          }}
-          onToast={showToast}
-        />
+        {(() => {
+          const activeReport = selectedReport
+            ? reports.find((r) => r.id === selectedReport.id) || selectedReport
+            : null;
+          return (
+            <DetailModal
+              report={activeReport}
+              allReports={reports}
+              onClose={handleCloseReportDetail}
+              userRole={user.role}
+              allowAuditActions={currentTab === 'audit' || selectedReportEntry === 'audit_pending'}
+              auditOnlyPreview={
+                (currentTab === 'audit' || selectedReportEntry === 'audit_pending')
+                  ? activeReport?.status !== 'pending_audit'
+                  : false
+              }
+              onApprove={handleApproveReport}
+              onReject={handleRejectReport}
+              onTransfer={handleTransferReport}
+              onRecallReport={handleRecallReport}
+              onBatchApprove={handleBatchApproveSameLocation}
+              onBatchReject={handleBatchReject}
+              onEditDraft={(report) => {
+                if (currentTab !== 'report') {
+                  setPreviousTab(currentTab);
+                }
+                handleCloseReportDetail();
+                setEditingReport(report);
+                setIsCreatingNewReport(false);
+                setCurrentTab('report');
+              }}
+              onSelectRelatedReport={(r) => {
+                setSelectedReportEntry(null);
+                setSelectedReport(r);
+              }}
+              onToast={showToast}
+            />
+          );
+        })()}
 
       </WeChatPhoneShell>
     </>

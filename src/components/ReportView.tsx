@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { SpeedReport, ReportTemplate, UserProfile, ReportStatus, ReportType, ReportSource } from '../types';
+import { SpeedReport, ReportTemplate, UserProfile, ReportStatus, ReportType, ReportSource, IdentificationTag } from '../types';
 import { REPORT_TEMPLATES, DISTRICT_OPTIONS, TYPE_OPTIONS, SOURCE_OPTIONS } from '../data/mockData';
-import { Plus, Save, Send, ChevronRight, X, Sparkles, Filter, Link, FileText, Trash2 } from 'lucide-react';
+import { Plus, Save, Send, ChevronRight, X, Sparkles, Filter, Link, FileText, Trash2, CheckCircle2 } from 'lucide-react';
 import { BackNavigationBar } from './BackNavigationBar';
 import { RecallConfirmDialog } from './RecallConfirmDialog';
+import { IdentificationBadge } from './IdentificationBadge';
+import { calculatePreJudgment } from '../utils/identification';
 
 interface ReportViewProps {
   reports: SpeedReport[];
@@ -155,6 +157,19 @@ export const ReportView: React.FC<ReportViewProps> = ({
       tags: [formDistrict, formType, user.department],
     };
 
+    if (isSubmit) {
+      // 1. 上报环节：用户点击提交后（草稿不算），系统自动比对不良信息库与待审件/审核中数据，立刻打上预判断标识
+      const { tag, reason } = calculatePreJudgment(payload, reports);
+      payload.identificationTag = tag;
+      payload.identificationReason = reason;
+      payload.identificationTime = payload.updateTime;
+    } else {
+      // 草稿不算，不打标
+      payload.identificationTag = undefined;
+      payload.identificationReason = undefined;
+      payload.identificationTime = undefined;
+    }
+
     onSaveReport(payload, isSubmit);
     setIsCreating(false);
     onCloseForm?.();
@@ -182,6 +197,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
   const reportOverallPassRate =
     reportSubmittedTotal > 0 ? Math.round((reportApproved / reportSubmittedTotal) * 100) : 0;
   const reportListItems = reports.filter((r) => !isTransferRelatedReport(r));
+
   const getFilterTabCount = (key: string) => {
     switch (key) {
       case 'all':
@@ -470,25 +486,22 @@ export const ReportView: React.FC<ReportViewProps> = ({
           </div>
 
           {showAllStatuses && (
-            <>
-              {/* Filter Chips Bar */}
-              <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-none">
-                {filterTabs.map((tab) => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setActiveFilter(tab.key)}
-                    className={`px-3 py-1 rounded-xl text-xs whitespace-nowrap font-medium transition-all ${
-                      activeFilter === tab.key
-                        ? 'bg-blue-600 text-white font-semibold shadow-2xs'
-                        : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
-                    }`}
-                  >
-                    {tab.label} ({getFilterTabCount(tab.key)})
-                  </button>
-                ))}
-              </div>
-
-            </>
+            /* Filter Chips Bar */
+            <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-none">
+              {filterTabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveFilter(tab.key)}
+                  className={`px-3 py-1 rounded-xl text-xs whitespace-nowrap font-medium transition-all ${
+                    activeFilter === tab.key
+                      ? 'bg-blue-600 text-white font-semibold shadow-2xs'
+                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
+                  }`}
+                >
+                  {tab.label} ({getFilterTabCount(tab.key)})
+                </button>
+              ))}
+            </div>
           )}
 
           {/* List of Reports */}
@@ -505,10 +518,17 @@ export const ReportView: React.FC<ReportViewProps> = ({
                   onClick={(event) => handleReportCardClick(event, report)}
                   className="bg-white rounded-xl p-3.5 shadow-2xs border border-slate-200 hover:border-blue-300 active:bg-slate-50 transition-all cursor-pointer space-y-2"
                 >
-                  <h3 className="text-xs font-bold text-slate-800 leading-snug flex items-center justify-between gap-2">
-                    <span className="truncate flex-1 min-w-0">{report.title}</span>
-                    <span className="shrink-0">{getStatusBadge(report.status)}</span>
-                  </h3>
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-xs font-bold text-slate-800 leading-snug line-clamp-2 flex-1">
+                      {report.title}
+                    </h3>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {report.status !== 'draft' && report.identificationTag && (
+                        <IdentificationBadge tag={report.identificationTag} size="xs" />
+                      )}
+                      {getStatusBadge(report.status)}
+                    </div>
+                  </div>
 
                   <p className="text-[11px] text-slate-500 leading-relaxed line-clamp-2">
                     {report.summary}
