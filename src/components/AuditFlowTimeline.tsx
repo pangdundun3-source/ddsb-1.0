@@ -25,6 +25,7 @@ interface AuditFlowTimelineProps {
   compact?: boolean;
   headerNote?: string;
   rejectedLabel?: string;
+  hideCardWrapper?: boolean;
   myRejectedNode?: {
     auditor: string;
     org?: string;
@@ -88,12 +89,17 @@ const buildFallbackTimeline = (
 ): FlowStep[] => {
   const score = report.score && report.score !== '--' ? report.score : undefined;
   const rejectText = report.rejectReason || '信息不完整。请补充政策原文链接和群众反馈截图后重新提交。';
+  const submitOperator =
+    report.organization && report.organization.includes('/')
+      ? `${report.author} · ${report.organization} · ${report.submitTime}`
+      : `${report.author || '李四'} · ${getOrganizationPathText(report.organization) || '广域传媒主机构 / 台中市网信办 / 舆情监测中心'} · ${report.submitTime || '2023-10-23 09:15'}`;
+
   const submitStep: FlowStep = {
     title: report.auditStatus === '草稿' ? '草稿保存' : '提交上报',
     state: report.auditStatus === '草稿' ? 'current' : 'completed',
     cards: [
       {
-        operator: report.auditStatus === '草稿' ? `${report.author} · ${getOrganizationPathText(report.organization)}` : formatSubmitter(report),
+        operator: report.auditStatus === '草稿' ? `${report.author} · ${getOrganizationPathText(report.organization)}` : submitOperator,
         statusText: report.auditStatus === '草稿' ? '草稿' : '已提交',
         state: report.auditStatus === '草稿' ? 'current' : 'completed',
         note: report.auditStatus === '草稿' ? '尚未提交送审，可继续编辑完善。' : undefined
@@ -107,20 +113,6 @@ const buildFallbackTimeline = (
       { title: '提交上报', state: 'pending', cards: [{ operator: '等待上报员提交', statusText: '等待提交', state: 'pending' }] },
       { title: '审核处理', state: 'pending', cards: [{ operator: '审核员', statusText: '等待处理', state: 'pending' }] },
       { title: '结束', state: 'pending', cards: [{ operator: '流程结束', statusText: '未开始', state: 'pending' }] }
-    ];
-  }
-
-  if (report.auditStatus === '待审核') {
-    return [
-      submitStep,
-      {
-        title: '审核处理',
-        state: 'current',
-        cards: [{ operator: '王主任 · 市委宣传部舆情科', statusText: '待审核', state: 'current' }]
-      },
-      { title: '审核处理', state: 'pending', cards: [{ operator: '李明 · 市网信办复核组', statusText: '等待处理', state: 'pending' }] },
-      { title: '审核处理', state: 'pending', cards: [{ operator: '赵宁 · 市网信办终审组', statusText: '等待处理', state: 'pending' }] },
-      { title: '结束', state: 'pending', cards: [{ operator: '流程结束', statusText: '等待结论', state: 'pending' }] }
     ];
   }
 
@@ -152,7 +144,7 @@ const buildFallbackTimeline = (
       {
         title: '结束',
         state: 'pending',
-        cards: [{ operator: '流程结束', statusText: '等待结论', state: 'pending' }]
+        cards: [{ operator: '流程结束', statusText: '', state: 'pending' }]
       }
     ];
   }
@@ -164,7 +156,7 @@ const buildFallbackTimeline = (
         title: '审核处理',
         state: 'completed',
         cards: [{
-          operator: `王主任 · 市委宣传部舆情科 · ${report.auditTime || '2026-08-12 16:30'}`,
+          operator: '王主任 · 市委宣传部舆情科',
           statusText: '已通过',
           state: 'completed'
         }]
@@ -172,75 +164,32 @@ const buildFallbackTimeline = (
       {
         title: '审核处理',
         state: 'current',
-        cards: [{ operator: '李明 · 市网信办复核组', statusText: '审核中', state: 'current' }]
+        cards: [{ operator: '李明 · 市网信办复核组', statusText: '待审核', state: 'current' }]
       },
       { title: '审核处理', state: 'pending', cards: [{ operator: '赵宁 · 市网信办终审组', statusText: '等待处理', state: 'pending' }] },
-      { title: '结束', state: 'pending', cards: [{ operator: '流程结束', statusText: '等待结论', state: 'pending' }] }
+      { title: '结束', state: 'pending', cards: [{ operator: '流程结束', statusText: '', state: 'pending' }] }
     ];
   }
 
-  const endStatus =
-    report.auditStatus === '已转办'
-      ? '已转办'
-      : report.auditStatus === '待转办'
-        ? '待转办'
-        : report.auditStatus === '已通过'
-          ? '待采纳'
-          : '已采纳';
-
+  // Default standard flow in AuditDetail: 流转到最后一个审核人赵宁，高亮显示为“待审核”
   return [
+    submitStep,
     {
-      ...submitStep,
-      cards: report.rejectReason
-        ? [
-            submitStep.cards[0],
-            {
-              operator: `${report.author} · ${getOrganizationPathText(report.organization)} · 2026-08-12 17:15`,
-              statusText: '已提交',
-              state: 'completed'
-            }
-          ]
-        : submitStep.cards
+      title: '审核处理',
+      state: 'completed',
+      cards: [{ operator: '王主任 · 市委宣传部舆情科', statusText: '已通过', state: 'completed' }]
     },
     {
       title: '审核处理',
       state: 'completed',
-      cards: [
-        ...(report.rejectReason
-          ? [{
-              operator: '王主任 · 市委宣传部舆情科 · 2026-08-12 16:30',
-              statusText: rejectedLabel,
-              state: 'rejected' as const,
-              note: report.rejectReason
-            }]
-          : []),
-        {
-          operator: `王主任 · 市委宣传部舆情科 · ${report.auditTime || '2026-08-12 18:00'}`,
-          statusText: '已通过',
-          state: 'completed'
-        }
-      ]
+      cards: [{ operator: '李明 · 市网信办复核组', statusText: '已通过', state: 'completed' }]
     },
     {
       title: '审核处理',
-      state: 'completed',
-      cards: [{ operator: '李明 · 市网信办复核组 · 2026-08-12 18:00', statusText: '已通过', state: 'completed' }]
+      state: 'current',
+      cards: [{ operator: '赵宁 · 市网信办终审组', statusText: '待审核', state: 'current' }]
     },
-    {
-      title: '审核处理',
-      state: 'completed',
-      cards: [{ operator: '赵宁 · 市网信办终审组 · 2026-08-12 18:00', statusText: '已通过', state: 'completed', score }]
-    },
-    {
-      title: '结束',
-      state: report.auditStatus === '已通过' ? 'current' : 'completed',
-      cards: [{
-        operator: report.auditStatus === '已转办' ? `流程结束 · ${report.transferTime || '2026-08-12 19:00'}` : '流程结束',
-        statusText: endStatus,
-        state: report.auditStatus === '已通过' ? 'current' : 'completed',
-        note: report.auditStatus === '待转办' ? '已进入不良信息库，等待责任单位转办。' : undefined
-      }]
-    }
+    { title: '结束', state: 'pending', cards: [{ operator: '流程结束', statusText: '', state: 'pending' }] }
   ];
 };
 
@@ -263,30 +212,39 @@ export const AuditFlowTimeline: React.FC<AuditFlowTimelineProps> = ({
   compact = false,
   headerNote = '完整审核链路',
   rejectedLabel = '被驳回',
+  hideCardWrapper = false,
   myRejectedNode = null
 }) => {
   const steps =
-    report.timeline && report.timeline.length > 0
+    report.timeline && report.timeline.length > 3
       ? buildFromTimeline(report.timeline, rejectedLabel)
       : buildFallbackTimeline(report, rejectedLabel, myRejectedNode);
 
-  return (
-    <div className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-2xs">
-      <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-        <div className="flex items-center space-x-2">
-          <History className="h-4 w-4 text-[#2563EB]" />
-          <h3 className="text-sm font-bold text-gray-900">流转状态</h3>
+  const content = (
+    <>
+      {!hideCardWrapper && (
+        <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+          <div className="flex items-center space-x-2">
+            <History className="h-4 w-4 text-[#2563EB]" />
+            <h3 className="text-sm font-bold text-gray-900">流转状态</h3>
+          </div>
+          <span className="text-[11px] font-normal text-gray-400">{headerNote}</span>
         </div>
-        <span className="text-[11px] font-normal text-gray-400">{headerNote}</span>
-      </div>
+      )}
 
-      <div className="relative pt-4 text-xs">
+      <div className={`relative ${hideCardWrapper ? 'pt-1' : 'pt-4'} text-xs`}>
         {steps.map((step, stepIndex) => {
           const isLast = stepIndex === steps.length - 1;
           return (
             <div key={`${step.title}-${stepIndex}`} className={`relative pl-6 ${isLast ? '' : 'pb-4'}`}>
-              {!isLast && <div className="absolute left-[7px] top-4.5 bottom-0 w-[1.5px] bg-[#E2E8F0]" />}
-              <div className={`absolute left-0 top-0.5 flex h-4 w-4 items-center justify-center rounded-full border-2 bg-white ${getStepIconClass(step.state)}`}>
+              {!isLast && (
+                <div
+                  className={`absolute left-[7px] top-4.5 bottom-0 w-[1.5px] ${
+                    step.state === 'completed' ? 'bg-[#10B981]' : 'bg-[#E2E8F0]'
+                  }`}
+                />
+              )}
+              <div className={`absolute left-0 top-0.5 flex h-4 w-4 items-center justify-center rounded-full border bg-white ${getStepIconClass(step.state)}`}>
                 {step.state === 'pending' ? (
                   <span className="h-1.5 w-1.5 rounded-full bg-[#CBD5E1]" />
                 ) : step.state === 'rejected' ? (
@@ -298,32 +256,59 @@ export const AuditFlowTimeline: React.FC<AuditFlowTimelineProps> = ({
                 )}
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <div className="font-bold text-gray-900">{step.title}</div>
                 {step.cards.map((card, cardIndex) => {
-                  const useCompactCard =
-                    card.state === 'pending' ||
-                    (report.auditStatus === '审核中' && card.state === 'current' && !card.score);
+                  const hasComplexNote = card.note && card.state !== 'completed';
+                  const hasScore = card.score !== undefined;
 
-                  return useCompactCard ? (
-                    <div
-                      key={`${card.operator}-${cardIndex}`}
-                      className="bg-[#F8FAFC] border border-[#EDF2F7] rounded-xl px-3.5 py-2.5 flex items-center justify-between text-xs gap-2"
-                    >
-                      <span className="text-gray-700 font-medium truncate">{card.operator}</span>
-                      {!(step.title === '结束' && card.statusText === '等待结论') && (
-                        <span className={`text-gray-400 font-medium text-xs shrink-0 ${card.state === 'current' ? 'text-gray-500' : ''}`}>{card.statusText}</span>
-                      )}
-                    </div>
-                  ) : (
+                  if (!hasComplexNote && !hasScore) {
+                    return (
+                      <div
+                        key={`${card.operator}-${cardIndex}`}
+                        className="bg-[#F8FAFC] border border-[#EDF2F7] rounded-xl px-3.5 py-2.5 flex items-center justify-between text-xs gap-2"
+                      >
+                        <span className="text-gray-700 font-medium truncate">{card.operator}</span>
+                        {card.statusText && (
+                          <span
+                            className={`shrink-0 font-bold ${
+                              card.state === 'completed'
+                                ? 'text-[#059669]'
+                                : card.state === 'current'
+                                ? 'text-[#D97706]'
+                                : card.state === 'rejected'
+                                ? 'text-[#E11D48]'
+                                : 'text-gray-400 font-normal'
+                            }`}
+                          >
+                            {card.statusText}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  return (
                     <div
                       key={`${card.operator}-${cardIndex}`}
                       className={`${compact ? 'px-3 py-2' : 'p-3'} space-y-2 rounded-xl border border-[#EDF2F7] bg-[#F8FAFC]`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-gray-700">{card.operator}</span>
-                        {!(step.title === '结束' && card.statusText === '等待结论') && (
-                          <span className={`shrink-0 font-bold ${getStatusClass(card.state)}`}>{card.statusText}</span>
+                        <span className="truncate text-gray-700 font-medium">{card.operator}</span>
+                        {card.statusText && (
+                          <span
+                            className={`shrink-0 font-bold ${
+                              card.state === 'completed'
+                                ? 'text-[#059669]'
+                                : card.state === 'current'
+                                ? 'text-[#D97706]'
+                                : card.state === 'rejected'
+                                ? 'text-[#E11D48]'
+                                : 'text-gray-400 font-normal'
+                            }`}
+                          >
+                            {card.statusText}
+                          </span>
                         )}
                       </div>
                       {card.note && card.state !== 'completed' && (
@@ -344,6 +329,16 @@ export const AuditFlowTimeline: React.FC<AuditFlowTimelineProps> = ({
           );
         })}
       </div>
+    </>
+  );
+
+  if (hideCardWrapper) {
+    return content;
+  }
+
+  return (
+    <div className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-2xs">
+      {content}
     </div>
   );
 };

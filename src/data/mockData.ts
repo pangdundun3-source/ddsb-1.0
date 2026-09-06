@@ -1020,10 +1020,11 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     infoType: '突发事件',
     author: '张三',
     organization: '台中市网信办',
-    submitTime: '2023-10-24 14:30',
-    auditStatus: '审核中',
-    auditStage: '复核',
-    matchUrl: 'https://news.example.com/',
+    submitTime: '2023-10-24 09:30',
+    auditStatus: '待审核',
+    auditStage: '初审',
+    matchUrl: 'https://news.example.com/topic-water',
+    identificationStatus: '疑似首发',
     detailContent: {
       summary: '今日（10月24日）上午8时许，多名网民在微博、微信群反映XX区XX街道辖区内多个大型居民小区突发停水。经初步核查，受影响范围包括阳光花园、明月居等5个小区，涉及居民约3万人。',
       coreDemands: '网民普遍反映未接到停水通知，早高峰期间停水严重影响正常生活，部分网民情绪急躁，质疑供水部门应急处置能力。',
@@ -1042,10 +1043,97 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     ],
     timeline: [
       { title: '提交上报', operator: '张三·市委宣传部舆情科', time: '2023-10-24 09:30', status: 'completed' },
-      { title: '主任审核', operator: '王主任·市委宣传部舆情科', time: '2023-10-24 10:15', status: 'completed', note: '初审通过，进入复核。' },
-      { title: '二级审核', operator: '复核员·市网信办复核组', status: 'current', note: '审核中，补充核查停水范围和居民反馈。' },
-      { title: '终审审核', operator: '赵宁·市网信办终审组', status: 'pending', note: '等待处理' },
-      { title: '结束', operator: '流程结束', status: 'pending', note: '等待结论' }
+      { title: '审核处理', operator: '市委宣传部舆情科', status: 'current', note: '待审核' }
+    ]
+  },
+  {
+    id: 1011,
+    title: '西屯区水务局关于阳光花园周边应急抢修供水情况专报',
+    source: '政务上报',
+    region: '西屯区',
+    infoType: '突发事件',
+    author: '李四',
+    organization: '西屯区水务局',
+    submitTime: '2023-10-24 09:55',
+    auditStatus: '待审核',
+    auditStage: '初审',
+    matchUrl: 'https://news.example.com/topic-water',
+    identificationStatus: '疑似重复',
+    detailContent: {
+      summary: '西屯区水务局针对阳光花园、明月居等小区突发停水已启动应急排查，经核实系DN600主供水管网阀门突发渗漏承压不足，已派抢修队赶赴现场施工，预计今晚20时前恢复正常供水。',
+      coreDemands: '居民诉求聚焦抢修进度与临时用水保障，水务科已协调出动4台应急送水车进驻受影响小区。',
+      publicOpinionTrend: '小区业主微信群内关于停水抢修讨论较多，官方抢修通报已通过网格群转发，负面情绪趋向平稳。',
+      recommendations: [
+        '水务部门按小时向社会通报抢修进度。',
+        '街道落实老弱孤寡居民上门送水帮扶工作。'
+      ]
+    },
+    attachments: [
+      { id: 'a1011-1', name: '抢修现场施工单.jpg', size: '1.4 MB', type: 'image' },
+      { id: 'a1011-2', name: '临时应急送水车点位图.pdf', size: '2.1 MB', type: 'pdf' }
+    ],
+    timeline: [
+      { title: '提交上报', operator: '李四·西屯区水务局', time: '2023-10-24 09:55', status: 'completed' },
+      { title: '审核处理', operator: '市委宣传部舆情科', status: 'current', note: '待审核' }
+    ]
+  },
+  {
+    id: 1012,
+    title: '关于自媒体传播“供水管网破裂需停水数日”不实信息的舆情核查',
+    source: '网络舆情监测',
+    region: '全市',
+    infoType: '网络谣言',
+    author: '王五',
+    organization: '市委宣传部融媒体中心',
+    submitTime: '2023-10-24 10:20',
+    auditStatus: '待审核',
+    auditStage: '初审',
+    matchUrl: 'https://news.example.com/topic-water',
+    identificationStatus: '疑似重复',
+    detailContent: {
+      summary: '微博及短视频平台出现个别自媒体账号拼接外地水浸视频并声称“供水主干管彻底断裂需停水三至五天”，引发局部恐慌性抢购桶装水。经与水务指挥中心核实确系虚假不实信息。',
+      coreDemands: '群众希望官方平台快速发布权威辟谣信息，澄清恢复供水真实时间表，依法依规处置造谣账号。',
+      publicOpinionTrend: '辟谣线索热度在同城榜位列前五，需抢在晚高峰下班前发布正式官方澄清通报。',
+      recommendations: [
+        '市网信办联动公安网安部门对首发造谣账号进行取证与禁言处置。',
+        '台中发布官方公众号发布辟谣短视频和权威说明。'
+      ]
+    },
+    attachments: [
+      { id: 'a1012-1', name: '不实谣言短视频截图.png', size: '1.8 MB', type: 'image' }
+    ],
+    timeline: [
+      { title: '提交上报', operator: '王五·市委宣传部融媒体中心', time: '2023-10-24 10:20', status: 'completed' },
+      { title: '审核处理', operator: '市委宣传部舆情科', status: 'current', note: '待审核' }
+    ]
+  },
+  {
+    id: 1013,
+    title: '西坝区应急办关于受停水影响小区居民诉求排查与送水保障跟报',
+    source: '政务上报',
+    region: '西坝区',
+    infoType: '民生诉求',
+    author: '赵六',
+    organization: '西坝区应急办',
+    submitTime: '2023-10-24 10:45',
+    auditStatus: '待审核',
+    auditStage: '初审',
+    matchUrl: 'https://news.example.com/topic-water',
+    identificationStatus: '疑似重复',
+    detailContent: {
+      summary: '西坝区应急办联动物业网格员入户摸排明月居及周边高层小区居民诉求，排查独居老人家庭14户，已统一登记需求并协助派送桶装饮用水。',
+      coreDemands: '居民诉求聚焦夜间洗漱供水与次日早间正常用水保障。',
+      publicOpinionTrend: '整体居民情绪平稳，暂未发现恶性舆情。',
+      recommendations: [
+        '应急水车通宵值守，直至主管网试压复水。'
+      ]
+    },
+    attachments: [
+      { id: 'a1013-1', name: '网格员送水排查台账.jpg', size: '980 KB', type: 'image' }
+    ],
+    timeline: [
+      { title: '提交上报', operator: '赵六·西坝区应急办', time: '2023-10-24 10:45', status: 'completed' },
+      { title: '审核处理', operator: '市委宣传部舆情科', status: 'current', note: '待审核' }
     ]
   },
   {

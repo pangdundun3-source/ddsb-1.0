@@ -114,7 +114,7 @@ export const approveReport = (
   manualIdentification?: any
 ): ReportItem => {
   const finalAudit = isFinalAuditStage(report);
-  const appliedScore = finalAudit ? score : undefined;
+  const appliedScore = score !== undefined ? score : undefined;
 
   // 终审采纳流程完成后，无需人工介入，系统自动转换为正式标识“首发”或“重复”并入库归档
   let finalIdentStatus = report.identificationStatus;
@@ -139,14 +139,16 @@ export const approveReport = (
     time: now,
     status: 'completed',
     ...(appliedScore !== undefined ? { score: appliedScore } : {}),
-    note: finalAudit ? '终审通过，流程结束并已采纳。' : '审核通过，进入下一审核节点。'
+    note: finalAudit
+      ? `终审通过，流程结束并已采纳${appliedScore !== undefined ? `（评分: ${appliedScore}分）` : ''}。`
+      : `审核通过，进入下一审核节点${appliedScore !== undefined ? `（评分: ${appliedScore}分）` : ''}。`
   };
 
   return appendTimeline(
     {
       ...report,
       auditStatus: finalAudit ? '已采纳' : '已通过',
-      score: appliedScore ?? '--',
+      score: appliedScore !== undefined ? appliedScore : (report.score || '--'),
       auditor: '王主任',
       auditTime: now,
       identificationStatus: finalIdentStatus

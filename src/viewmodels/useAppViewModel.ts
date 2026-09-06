@@ -180,39 +180,84 @@ export const useAppViewModel = () => {
     id: number,
     score?: number,
     isBatch = false,
-    manualIdentification?: any
+    manualIdentification?: any,
+    batchIds?: number[],
+    scoreMap?: Record<number, number>,
+    identMap?: Record<number, '首发' | '重复'>
   ) => {
     const target = reports.find((report) => report.id === id);
     if (!target) return;
     const now = getNowText();
 
-    if (isBatch && selectedAudit?.matchUrl) {
-      const matchedIds = new Set(
-        reports
-          .filter((report) => report.matchUrl === selectedAudit.matchUrl || report.id === id)
-          .map((report) => report.id)
-      );
+    if (isBatch) {
+      const targetIds =
+        batchIds && batchIds.length > 0
+          ? Array.from(new Set([...batchIds, id]))
+          : Array.from(
+              new Set(
+                reports
+                  .filter(
+                    (report) =>
+                      (selectedAudit?.matchUrl && report.matchUrl === selectedAudit.matchUrl) ||
+                      report.id === id
+                  )
+                  .map((report) => report.id)
+              )
+            );
+
+      const updatedMap = new Map<number, ReportItem>();
+      const targets = reports.filter((report) => targetIds.includes(report.id));
+
+      targets.forEach((report) => {
+        const itemScore = scoreMap?.[report.id] ?? score;
+        const itemIdent = identMap?.[report.id] ?? manualIdentification;
+        const updated = approveReport(report, itemScore, now, itemIdent);
+        updatedMap.set(report.id, updated);
+      });
+
       setReports((previous) =>
-        previous.map((report) =>
-          matchedIds.has(report.id)
-            ? approveReport(report, score, now, manualIdentification)
-            : report
-        )
+        previous.map((report) => (updatedMap.has(report.id) ? updatedMap.get(report.id)! : report))
       );
-      const selectedUpdate = reports.find((report) => report.id === selectedAudit.id);
-      if (selectedUpdate)
-        setSelectedAudit(approveReport(selectedUpdate, score, now, manualIdentification));
-      showToast(
-        `已成功批量审核通过同源速报${score !== undefined ? `（终审评分: ${score}分）` : ''}！`
-      );
+
+      if (selectedAudit && updatedMap.has(selectedAudit.id)) {
+        setSelectedAudit(updatedMap.get(selectedAudit.id)!);
+      }
+      if (selectedReport && updatedMap.has(selectedReport.id)) {
+        setSelectedReport(updatedMap.get(selectedReport.id)!);
+      }
+
+      const newRecords = targets.map((report, idx) => {
+        const itemScore = scoreMap?.[report.id] ?? score;
+        return {
+          ...createAuditRecord(report, '已通过', now, itemScore),
+          id: Date.now() + idx
+        };
+      });
+      setAuditRecords((previous) => [...newRecords, ...previous]);
+
+      const newLogs = targets.map((report) => {
+        const itemScore = scoreMap?.[report.id] ?? score;
+        const itemIdent = identMap?.[report.id] ?? manualIdentification;
+        return createOperationLog(
+          '批量审核速报',
+          `批量审核通过了速报《${report.title}》（认定: ${itemIdent || '已确认'}）${itemScore !== undefined ? `，给予独立打分: ${itemScore}分` : ''}`,
+          now
+        );
+      });
+      setLogs((previous) => [...newLogs, ...previous]);
+
+      showToast(`已成功批量审批通过 ${targets.length} 条数据（独立打分与首发/重复认定已生效）！`);
+      return;
     } else {
-      const updated = approveReport(target, score, now, manualIdentification);
+      const itemScore = scoreMap?.[id] ?? score;
+      const itemIdent = identMap?.[id] ?? manualIdentification;
+      const updated = approveReport(target, itemScore, now, itemIdent);
       setReports((previous) => previous.map((report) => (report.id === id ? updated : report)));
       if (selectedAudit?.id === id) setSelectedAudit(updated);
       if (selectedReport?.id === id) setSelectedReport(updated);
       showToast(
         `已审核通过速报${
-          isFinalAuditStage(target) && score !== undefined ? `（终审评分: ${score}分）` : ''
+          itemScore !== undefined ? `（评分: ${itemScore}分）` : ''
         }`
       );
       setAuditRecords((previous) => [
@@ -220,15 +265,15 @@ export const useAppViewModel = () => {
           updated,
           '已通过',
           now,
-          isFinalAuditStage(target) ? score : undefined
+          itemScore !== undefined ? itemScore : undefined
         ),
         ...previous
       ]);
       setLogs((previous) => [
         createOperationLog(
           '审核速报',
-          `审核通过了速报《${target.title}》${
-            isFinalAuditStage(target) && score !== undefined ? `，给予 ${score} 分` : ''
+          `审核通过了速报《${target.title}》（认定: ${itemIdent || '已确认'}）${
+            itemScore !== undefined ? `，给予 ${itemScore} 分` : ''
           }`,
           now
         ),
@@ -236,26 +281,6 @@ export const useAppViewModel = () => {
       ]);
       return;
     }
-
-    setAuditRecords((previous) => [
-      createAuditRecord(
-        target,
-        '已通过',
-        now,
-        isFinalAuditStage(target) ? score : undefined
-      ),
-      ...previous
-    ]);
-    setLogs((previous) => [
-      createOperationLog(
-        '审核速报',
-        `审核通过了速报《${target.title}》${
-          isFinalAuditStage(target) && score !== undefined ? `，给予 ${score} 分` : ''
-        }`,
-        now
-      ),
-      ...previous
-    ]);
   };
 
   const handleRejectAudit = (id: number, reason: string, detail: string) => {
@@ -281,11 +306,14 @@ export const useAppViewModel = () => {
     showToast(`速报已驳回: ${reason}`);
   };
 
-  const handleBatchApprove = (ids: number[], score?: number) => {
+  const handleBatchApprove = (ids: number[], score?: number, scoreMap?: Record<number, number>) => {
     const now = getNowText();
     const targets = reports.filter((report) => ids.includes(report.id));
     const updates = new Map(
-      targets.map((report) => [report.id, approveReport(report, score, now)])
+      targets.map((report) => {
+        const itemScore = scoreMap?.[report.id] ?? score;
+        return [report.id, approveReport(report, itemScore, now)];
+      })
     );
     setReports((previous) =>
       previous.map((report) => updates.get(report.id) || report)
@@ -297,28 +325,27 @@ export const useAppViewModel = () => {
       setSelectedReport(updates.get(selectedReport.id)!);
     }
     setAuditRecords((previous) => [
-      ...targets.map((target, index) => ({
-        ...createAuditRecord(
-          target,
-          '已通过',
-          now,
-          isFinalAuditStage(target) ? score : undefined
-        ),
-        id: Date.now() + index
-      })),
+      ...targets.map((target, index) => {
+        const itemScore = scoreMap?.[target.id] ?? score;
+        return {
+          ...createAuditRecord(target, '已通过', now, itemScore),
+          id: Date.now() + index
+        };
+      }),
       ...previous
     ]);
     setLogs((previous) => [
-      createOperationLog(
-        '批量审核速报',
-        `批量审核通过了 ${ids.length} 条同源速报${
-          score !== undefined ? `，终审统一赋予 ${score} 分` : ''
-        }`,
-        now
-      ),
+      ...targets.map((target) => {
+        const itemScore = scoreMap?.[target.id] ?? score;
+        return createOperationLog(
+          '批量审核速报',
+          `批量审核通过了同省疑似重复速报《${target.title}》${itemScore !== undefined ? `，给予独立打分: ${itemScore}分` : ''}`,
+          now
+        );
+      }),
       ...previous
     ]);
-    showToast(`已成功批量审核通过 ${ids.length} 条速报！`);
+    showToast(`已批量确认通过 ${targets.length} 条速报（差异化打分已生效）！`);
   };
 
   const handleBatchReject = (ids: number[], reason: string, detail: string) => {
