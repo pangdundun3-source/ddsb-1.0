@@ -83,7 +83,7 @@ export const AuditView: React.FC<AuditViewProps> = ({
   showAllStatuses = false,
   onToast,
 }) => {
-  const [activeFilter, setActiveFilter] = useState<'pending' | 'audited' | 'completed'>('pending');
+  const [activeFilter, setActiveFilter] = useState<'pending' | 'completed' | 'rejected'>('pending');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showBatchGroups, setShowBatchGroups] = useState<boolean>(false);
 
@@ -110,11 +110,8 @@ export const AuditView: React.FC<AuditViewProps> = ({
   // Filter out drafts and transfer-related reports.
   const auditReports = reports.filter((r) => r.status !== 'draft' && !isTransferRelatedReport(r));
 
-  // Filter pending reports (strictly pending_audit)
+  // Filter pending reports (strictly pending_audit - 刚提交且还没有人审核)
   const pendingReports = auditReports.filter((r) => r.status === 'pending_audit');
-
-  // Filter audited reports (reviewing or rejected)
-  const auditedReports = auditReports.filter((r) => r.status === 'auditing' || r.status === 'rejected');
   const rejectedReports = auditReports.filter((r) => r.status === 'rejected');
   const completedReports = auditReports.filter((r) => r.status === 'approved');
 
@@ -125,11 +122,11 @@ export const AuditView: React.FC<AuditViewProps> = ({
     if (activeFilter === 'pending') {
       return r.status === 'pending_audit';
     }
-    if (activeFilter === 'audited') {
-      return r.status === 'auditing' || r.status === 'rejected';
-    }
     if (activeFilter === 'completed') {
       return r.status === 'approved';
+    }
+    if (activeFilter === 'rejected') {
+      return r.status === 'rejected';
     }
     return r.status === 'pending_audit';
   }).filter((r) => {
@@ -149,10 +146,11 @@ export const AuditView: React.FC<AuditViewProps> = ({
     return (uTime - cTime) / (1000 * 60);
   };
   const auditPendingCount = reports.filter((r) => r.status === 'pending_audit').length;
+  const auditAuditingCount = reports.filter((r) => r.status === 'auditing').length;
   const auditApprovedCount = reports.filter((r) => r.status === 'approved').length;
   const auditRejectedCount = reports.filter((r) => r.status === 'rejected').length;
   const auditHandledCount = auditApprovedCount + auditRejectedCount;
-  const auditTotalCount = auditHandledCount + auditPendingCount;
+  const auditTotalCount = auditHandledCount + auditPendingCount + auditAuditingCount;
   const auditProcessRate = auditTotalCount > 0 ? Math.round((auditHandledCount / auditTotalCount) * 100) : 0;
   const auditHandledReports = reports.filter((r) => r.status === 'approved' || r.status === 'rejected');
   const auditAvgResponseMinutes =
@@ -202,7 +200,7 @@ export const AuditView: React.FC<AuditViewProps> = ({
       case 'auditing':
         return (
           <span className="px-2 py-0.5 rounded-md bg-sky-100 text-sky-800 text-[10px] font-bold">
-            已通过
+            审核中
           </span>
         );
       case 'approved':
@@ -310,24 +308,10 @@ export const AuditView: React.FC<AuditViewProps> = ({
           className={`flex-1 py-1.5 rounded-xl font-medium transition-all text-center ${
             activeFilter === 'pending'
               ? 'bg-blue-600 text-white font-semibold shadow-2xs'
-              : 'bg-white text-slate-600 border border-slate-200'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
           }`}
         >
           待审核 ({pendingReports.length})
-        </button>
-
-        <button
-          onClick={() => {
-            setActiveFilter('audited');
-            setShowBatchGroups(false);
-          }}
-          className={`flex-1 py-1.5 rounded-xl font-medium transition-all text-center ${
-            activeFilter === 'audited'
-              ? 'bg-blue-600 text-white font-semibold shadow-2xs'
-              : 'bg-white text-slate-600 border border-slate-200'
-          }`}
-        >
-          已审核 ({auditedReports.length})
         </button>
 
         <button
@@ -338,10 +322,24 @@ export const AuditView: React.FC<AuditViewProps> = ({
           className={`flex-1 py-1.5 rounded-xl font-medium transition-all text-center ${
             activeFilter === 'completed'
               ? 'bg-blue-600 text-white font-semibold shadow-2xs'
-              : 'bg-white text-slate-600 border border-slate-200'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
           }`}
         >
           已采纳 ({completedReports.length})
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveFilter('rejected');
+            setShowBatchGroups(false);
+          }}
+          className={`flex-1 py-1.5 rounded-xl font-medium transition-all text-center ${
+            activeFilter === 'rejected'
+              ? 'bg-blue-600 text-white font-semibold shadow-2xs'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          已驳回 ({rejectedReports.length})
         </button>
       </div>
       )}

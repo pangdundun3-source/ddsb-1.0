@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { SpeedReport, UserRole } from '../types';
 import { DEPARTMENT_OPTIONS } from '../data/mockData';
 import { IdentificationBadge } from './IdentificationBadge';
-import { IDENTIFICATION_CONFIG } from '../utils/identification';
 import {
   CheckCircle2,
   XCircle,
@@ -384,81 +383,6 @@ export const DetailModal: React.FC<DetailModalProps> = ({
                   <span>{currentRejectReason}</span>
                 </p>
               </div>
-            </div>
-          )}
-        </div>
-
-        {/* 查重识别与定标状态卡片 */}
-        <div className="bg-white rounded-2xl p-3.5 border border-slate-200/90 shadow-2xs space-y-2.5">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <div className="flex items-center space-x-1.5">
-              <FileCheck2 className="w-4 h-4 text-blue-600" />
-              <h3 className="text-xs font-bold text-slate-800">查重识别状态</h3>
-            </div>
-            {report.status !== 'draft' && report.identificationTag ? (
-              <IdentificationBadge tag={report.identificationTag} size="md" />
-            ) : (
-              <span className="text-[11px] text-slate-400 font-medium">草稿未打标</span>
-            )}
-          </div>
-
-          {report.status === 'draft' ? (
-            <p className="text-[11px] text-slate-500 leading-relaxed bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-              当前为草稿拟定状态，不触发系统查重打标。提交上报后，系统将自动比对不良信息库与在审件，生成预判断标识。
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {/* 普通提交人视图 (只展示简化提示) */}
-              {userRole !== '审核员' && !allowAuditActions ? (
-                <div className="bg-slate-50/80 rounded-xl p-2.5 border border-slate-100 text-[11px] text-slate-600 space-y-1">
-                  <div className="flex items-center justify-between text-[10px] text-slate-400">
-                    <span>识别范围：不良信息全库比对</span>
-                    {report.identificationTime && (
-                      <span className="font-mono">{report.identificationTime}</span>
-                    )}
-                  </div>
-                  <p className="font-medium text-slate-700">
-                    {report.identificationTag && IDENTIFICATION_CONFIG[report.identificationTag]?.submitterTip}
-                  </p>
-                </div>
-              ) : (
-                /* 审核员视图 (专业审核详情与比对依据) */
-                <div className="space-y-2 text-[11px]">
-                  <div className="bg-blue-50/50 rounded-xl p-2.5 border border-blue-100/80 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-blue-900 text-xs">
-                        {report.identificationTag && IDENTIFICATION_CONFIG[report.identificationTag]?.summaryTitle}
-                      </span>
-                      <span className="text-[10px] text-blue-600 bg-blue-100/70 px-1.5 py-0.5 rounded font-mono">
-                        比对库：不良信息库 + 在审件
-                      </span>
-                    </div>
-                    <p className="text-slate-700 leading-relaxed">
-                      {report.identificationTag && IDENTIFICATION_CONFIG[report.identificationTag]?.auditorTip}
-                    </p>
-                  </div>
-
-                  {report.identificationReason && (
-                    <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-100 space-y-1">
-                      <span className="text-[10px] text-slate-400 font-bold block">判定比对依据 / 关联线索</span>
-                      <p className="text-slate-700 leading-relaxed font-mono text-[11px]">
-                        {report.identificationReason}
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="text-[10px] text-slate-400 flex items-center justify-between pt-0.5 px-0.5">
-                    <span>
-                      {report.status === 'approved'
-                        ? '定标节点：终审采纳已正式生效'
-                        : '定标规则：此环节仅打标供审核参考，采纳后即为正式标识'}
-                    </span>
-                    {report.identificationTime && (
-                      <span className="font-mono">{report.identificationTime}</span>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>

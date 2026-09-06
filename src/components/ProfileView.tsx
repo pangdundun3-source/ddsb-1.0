@@ -334,10 +334,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const reporterFirstPassRate =
     reporterSubmittedTotal > 0 ? Math.round((reporterFirstPass / reporterSubmittedTotal) * 100) : 0;
   const reporterRejectedTodo = submittedReports.filter((r) => r.status === 'rejected').length;
-  const reporterPendingAudit = Math.max(
-    reporterSubmittedTotal - reporterFirstPass - reporterRepairPassed - reporterRejectedTodo,
-    0
-  );
+  const reporterAuditing = submittedReports.filter((r) => r.status === 'auditing').length;
+  const reporterPendingAudit = submittedReports.filter((r) => r.status === 'pending_audit').length;
 
   // 得分指标计算 (综合得分 & 平均得分)
   // 综合得分为累计考核总积分 (可累计至数千分)
@@ -361,6 +359,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const reportComposition = [
     { label: '一次性通过', value: reporterFirstPass, color: '#10b981', textClass: 'text-emerald-700' },
     { label: '返修通过', value: reporterRepairPassed, color: '#06b6d4', textClass: 'text-cyan-700' },
+    { label: '审核中', value: reporterAuditing, color: '#0284c7', textClass: 'text-sky-700' },
     { label: '待审核', value: reporterPendingAudit, color: '#94a3b8', textClass: 'text-slate-600' },
     { label: '驳回', value: reporterRejectedTodo, color: '#f43f5e', textClass: 'text-rose-700' },
   ];
@@ -379,10 +378,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   // --- 2. 审核员角色统计数据 (Auditor Stats) ---
   const auditorApproved = filteredReports.filter((r) => r.status === 'approved').length;
+  const auditorAuditing = filteredReports.filter((r) => r.status === 'auditing').length;
   const auditorRejected = filteredReports.filter((r) => r.status === 'rejected').length;
   const auditorPending = filteredReports.filter((r) => r.status === 'pending_audit').length;
   const auditorAudited = auditorApproved + auditorRejected;
-  const auditorTotal = auditorAudited + auditorPending;
+  const auditorTotal = auditorAudited + auditorPending + auditorAuditing;
   const auditorProcessRate = auditorTotal > 0 ? Math.round((auditorAudited / auditorTotal) * 100) : 0;
   const auditorHandledReports = filteredReports.filter(
     (r) => r.status === 'approved' || r.status === 'rejected'
@@ -398,6 +398,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const auditorAvgResponseTimeStr = formatAuditDuration(auditorAvgResponseMinutes);
   const auditComposition = [
     { label: '审核通过', value: auditorApproved, color: '#10b981', textClass: 'text-emerald-700' },
+    { label: '审核中', value: auditorAuditing, color: '#0284c7', textClass: 'text-sky-700' },
     { label: '审核驳回', value: auditorRejected, color: '#f43f5e', textClass: 'text-rose-700' },
     { label: '待审核', value: auditorPending, color: '#94a3b8', textClass: 'text-slate-600' },
   ];

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { SpeedReport, ReportTemplate, UserProfile, ReportStatus, ReportType, ReportSource, IdentificationTag } from '../types';
 import { REPORT_TEMPLATES, DISTRICT_OPTIONS, TYPE_OPTIONS, SOURCE_OPTIONS } from '../data/mockData';
@@ -66,12 +66,25 @@ export const ReportView: React.FC<ReportViewProps> = ({
   const filterTabs = showAllStatuses
     ? [
         { key: 'pending', label: '待审核' },
+        { key: 'auditing', label: '审核中' },
         { key: 'approved', label: '已采纳' },
         { key: 'rejected', label: '已驳回' },
         { key: 'draft', label: '草稿' },
       ]
     : [{ key: 'draft', label: '草稿' }];
   const reportSourceOptions = SOURCE_OPTIONS.filter((source) => source !== '部门转办');
+
+  const activeTabRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (activeTabRef.current) {
+      activeTabRef.current.scrollIntoView({
+        behavior: 'smooth',
+        inline: 'center',
+        block: 'nearest',
+      });
+    }
+  }, [activeFilter]);
 
   useEffect(() => {
     onFormModeChange?.(isCreating);
@@ -205,7 +218,9 @@ export const ReportView: React.FC<ReportViewProps> = ({
       case 'draft':
         return reportListItems.filter((r) => r.status === 'draft').length;
       case 'pending':
-        return reportListItems.filter((r) => r.status === 'pending_audit' || r.status === 'auditing').length;
+        return reportListItems.filter((r) => r.status === 'pending_audit').length;
+      case 'auditing':
+        return reportListItems.filter((r) => r.status === 'auditing').length;
       case 'approved':
         return reportListItems.filter((r) => r.status === 'approved').length;
       case 'rejected':
@@ -221,7 +236,8 @@ export const ReportView: React.FC<ReportViewProps> = ({
 
     if (!showAllStatuses && r.status !== 'draft') return false;
     if (activeFilter === 'draft' && r.status !== 'draft') return false;
-    if (activeFilter === 'pending' && r.status !== 'pending_audit' && r.status !== 'auditing') return false;
+    if (activeFilter === 'pending' && r.status !== 'pending_audit') return false;
+    if (activeFilter === 'auditing' && r.status !== 'auditing') return false;
     if (activeFilter === 'approved' && r.status !== 'approved') return false;
     if (activeFilter === 'rejected' && r.status !== 'rejected') return false;
 
@@ -486,21 +502,25 @@ export const ReportView: React.FC<ReportViewProps> = ({
           </div>
 
           {showAllStatuses && (
-            /* Filter Chips Bar */
-            <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-none">
-              {filterTabs.map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveFilter(tab.key)}
-                  className={`px-3 py-1 rounded-xl text-xs whitespace-nowrap font-medium transition-all ${
-                    activeFilter === tab.key
-                      ? 'bg-blue-600 text-white font-semibold shadow-2xs'
-                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
-                  }`}
-                >
-                  {tab.label} ({getFilterTabCount(tab.key)})
-                </button>
-              ))}
+            /* Filter Chips Bar with Horizontal Scroll */
+            <div className="flex items-center gap-1.5 overflow-x-auto py-1 px-0.5 scroll-smooth overscroll-x-contain touch-pan-x select-none">
+              {filterTabs.map((tab) => {
+                const isActive = activeFilter === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    ref={isActive ? (el) => { activeTabRef.current = el; } : null}
+                    onClick={() => setActiveFilter(tab.key)}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs whitespace-nowrap font-medium transition-all shrink-0 ${
+                      isActive
+                        ? 'bg-blue-600 text-white font-semibold shadow-2xs'
+                        : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80 active:bg-slate-200'
+                    }`}
+                  >
+                    {tab.label} ({getFilterTabCount(tab.key)})
+                  </button>
+                );
+              })}
             </div>
           )}
 

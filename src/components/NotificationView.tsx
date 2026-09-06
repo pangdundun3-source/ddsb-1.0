@@ -42,6 +42,9 @@ export const NotificationView: React.FC<NotificationViewProps> = ({
     if (notif.type === '待审核通知' && relatedReport) {
       return `上报人：${relatedReport.author} · ${relatedReport.authorDept}`;
     }
+    if (notif.type === '审核中通知' && relatedReport) {
+      return `第一审核人已审查通过，流程已进入【审核中】多环节复核流转阶段。`;
+    }
     if (notif.type === '审核结果通知' && relatedReport) {
       const reviewerPrefix = '审核人：王主任 · 市委宣传部舆情科';
 
@@ -50,8 +53,12 @@ export const NotificationView: React.FC<NotificationViewProps> = ({
         return `${reviewerPrefix}。上报被驳回：${reason}`;
       }
 
-      if (relatedReport.status === 'approved' || relatedReport.status === 'auditing') {
-        return `${reviewerPrefix}。上报已通过，进入下一审核节点`;
+      if (relatedReport.status === 'approved') {
+        return `${reviewerPrefix}。终审采纳通过，已正式定标入库`;
+      }
+
+      if (relatedReport.status === 'auditing') {
+        return `${reviewerPrefix}。上报已通过初审，当前处于【审核中】多环节流转阶段`;
       }
 
       if (relatedReport.status === 'transferred' && relatedReport.transferredDept) {
@@ -68,6 +75,12 @@ export const NotificationView: React.FC<NotificationViewProps> = ({
         return (
           <span className="text-amber-800 font-bold text-[11px] bg-amber-50 border border-amber-200/90 px-2 py-0.5 rounded-md">
             待审核通知
+          </span>
+        );
+      case '审核中通知':
+        return (
+          <span className="text-sky-800 font-bold text-[11px] bg-sky-50 border border-sky-200/90 px-2 py-0.5 rounded-md">
+            审核中通知
           </span>
         );
       case '审核结果通知':

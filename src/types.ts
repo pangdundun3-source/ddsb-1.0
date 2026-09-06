@@ -71,7 +71,7 @@ export interface ReportTemplate {
   advicePlaceholder: string;
 }
 
-export type NotificationType = '待审核通知' | '审核结果通知';
+export type NotificationType = '待审核通知' | '审核中通知' | '审核结果通知';
 
 export interface AppNotification {
   id: string;
