@@ -3,6 +3,8 @@ import { ReportItem, PageId } from '../types';
 import { ChevronDown, Search, RotateCcw, X } from 'lucide-react';
 import { PaginationBar } from '../components/PaginationBar';
 import { OrgPathDisplay, getOrganizationPathText } from '../components/OrgPathDisplay';
+import { IdentificationBadge } from '../components/IdentificationBadge';
+import { resolveIdentification } from '../services/identificationService';
 
 interface NegativeInfoLibraryProps {
   negativeList: ReportItem[];
@@ -24,6 +26,7 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
   const [orgFilterType, setOrgFilterType] = useState<'submit' | 'audit'>('submit');
   const [orgFilter, setOrgFilter] = useState('全部');
   const [statusFilter, setStatusFilter] = useState('全部');
+  const [identFilter, setIdentFilter] = useState<'全部' | '首发' | '重复'>('全部');
   const [transferTarget, setTransferTarget] = useState<ReportItem | null>(null);
   const [transferOpinion, setTransferOpinion] = useState('');
 
@@ -83,6 +86,15 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
       const itemOrg = orgFilterType === 'submit' ? item.organization : getAuditorOrg(item);
       if (itemOrg !== orgFilter) return false;
     }
+    if (identFilter !== '全部') {
+      const identStatus = resolveIdentification(item, negativeList).status;
+      if (identFilter === '首发' && identStatus !== '首发' && identStatus !== '疑似首发' && identStatus !== '首发报送') {
+        return false;
+      }
+      if (identFilter === '重复' && identStatus !== '重复' && identStatus !== '疑似重复' && identStatus !== '重复报送') {
+        return false;
+      }
+    }
     return true;
   });
   // Pagination (页码管理 + 每页条数设置)
@@ -91,7 +103,7 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [keyword, orgFilterType, orgFilter, statusFilter, timeFilterType, startDateFilter, endDateFilter]);
+  }, [keyword, orgFilterType, orgFilter, statusFilter, identFilter, timeFilterType, startDateFilter, endDateFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
@@ -109,6 +121,7 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
     setOrgFilterType('submit');
     setOrgFilter('全部');
     setStatusFilter('全部');
+    setIdentFilter('全部');
   };
 
   return (
@@ -215,6 +228,20 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
               <option value="已转办">已转办</option>
             </select>
           </div>
+
+          {/* 识别标识 */}
+          <div className="flex items-center space-x-2 shrink-0">
+            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">识别标识</label>
+            <select
+              value={identFilter}
+              onChange={(e) => setIdentFilter(e.target.value as '全部' | '首发' | '重复')}
+              className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-xs bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] shadow-2xs cursor-pointer"
+            >
+              <option value="全部">全部</option>
+              <option value="首发">首发</option>
+              <option value="重复">重复</option>
+            </select>
+          </div>
         </div>
 
         <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs">
@@ -244,7 +271,7 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
             <thead>
               <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-600 font-semibold">
                 <th className="py-3 px-4 w-12 text-center">序号</th>
-                <th className="py-3 px-4 min-w-[240px]">事件标题</th>
+                <th className="py-3 px-4 min-w-[260px]">事件标题</th>
                 <th className="py-3 px-4 min-w-[160px]">上报人员 / 机构</th>
                 <th className="py-3 px-4">报送时间</th>
                 <th className="py-3 px-4 min-w-[160px]">审核人员 / 机构</th>
@@ -254,70 +281,76 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 text-gray-700">
-              {displayList.map((item, index) => (
-                <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
-                  <td className="py-3 px-4 text-center text-gray-400 font-mono">{(safePage - 1) * pageSize + index + 1}</td>
-                  <td className="py-3 px-4">
-                    <button
-                      onClick={() => {
-                        onSelectNegative(item);
-                        onNavigate('negative-detail');
-                      }}
-                      className="text-blue-600 hover:text-blue-800 hover:underline font-medium text-left cursor-pointer"
-                    >
-                      {item.title}
-                    </button>
-                  </td>
-                  <td className="py-3 px-4">
-                    <div className="font-semibold text-gray-900 leading-snug">{item.author}</div>
-                    <OrgPathDisplay organization={item.organization} className="max-w-[220px]" />
-                  </td>
-                  <td className="py-3 px-4 font-mono text-gray-500 whitespace-nowrap">{item.submitTime}</td>
-                  <td className="py-3 px-4">
-                    <div className="font-semibold text-gray-900 leading-snug">{getAuditor(item)}</div>
-                    <OrgPathDisplay organization={getAuditorOrg(item)} className="max-w-[220px]" />
-                  </td>
-                  <td className="py-3 px-4 text-center whitespace-nowrap">
-                    {getTransferStatus(item) === '待转办' ? (
-                      <span className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-amber-100 text-amber-700 border border-amber-200">
-                        待转办
-                      </span>
-                    ) : (
-                      <span className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-blue-100 text-blue-700 border border-blue-200">
-                        已转办
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3 px-4 font-mono text-gray-500 whitespace-nowrap">{getAuditCompleteTime(item)}</td>
-                  <td className="py-3 px-4 text-center whitespace-nowrap space-x-2">
-                    <button
-                      onClick={() => {
-                        onSelectNegative(item);
-                        onNavigate('negative-detail');
-                      }}
-                      className="text-[#1E5ABB] hover:underline font-medium cursor-pointer"
-                    >
-                      详情
-                    </button>
-                    {getTransferStatus(item) === '待转办' ? (
-                      <>
-                        <span className="text-gray-300">|</span>
+              {displayList.map((item, index) => {
+                const ident = resolveIdentification(item, negativeList);
+                return (
+                  <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
+                    <td className="py-3 px-4 text-center text-gray-400 font-mono">{(safePage - 1) * pageSize + index + 1}</td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <button
                           onClick={() => {
-                            setTransferTarget(item);
-                            setTransferOpinion('');
+                            onSelectNegative(item);
+                            onNavigate('negative-detail');
                           }}
-                          className="text-[#1E5ABB] hover:underline font-medium cursor-pointer"
+                          className="text-blue-600 hover:text-blue-800 hover:underline font-medium text-left cursor-pointer"
                         >
-                          转办
+                          {item.title}
                         </button>
-                      </>
-                    ) : (
-                      <span className="text-gray-400">已转办</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                        <IdentificationBadge status={ident.status} size="xs" showIcon />
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="font-semibold text-gray-900 leading-snug">{item.author}</div>
+                      <OrgPathDisplay organization={item.organization} className="max-w-[220px]" />
+                    </td>
+                    <td className="py-3 px-4 font-mono text-gray-500 whitespace-nowrap">{item.submitTime}</td>
+                    <td className="py-3 px-4">
+                      <div className="font-semibold text-gray-900 leading-snug">{getAuditor(item)}</div>
+                      <OrgPathDisplay organization={getAuditorOrg(item)} className="max-w-[220px]" />
+                    </td>
+                    <td className="py-3 px-4 text-center whitespace-nowrap">
+                      {getTransferStatus(item) === '待转办' ? (
+                        <span className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-amber-100 text-amber-700 border border-amber-200">
+                          待转办
+                        </span>
+                      ) : (
+                        <span className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-blue-100 text-blue-700 border border-blue-200">
+                          已转办
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 font-mono text-gray-500 whitespace-nowrap">{getAuditCompleteTime(item)}</td>
+                    <td className="py-3 px-4 text-center whitespace-nowrap space-x-2">
+                      <button
+                        onClick={() => {
+                          onSelectNegative(item);
+                          onNavigate('negative-detail');
+                        }}
+                        className="text-[#1E5ABB] hover:underline font-medium cursor-pointer"
+                      >
+                        详情
+                      </button>
+                      {getTransferStatus(item) === '待转办' ? (
+                        <>
+                          <span className="text-gray-300">|</span>
+                          <button
+                            onClick={() => {
+                              setTransferTarget(item);
+                              setTransferOpinion('');
+                            }}
+                            className="text-[#1E5ABB] hover:underline font-medium cursor-pointer"
+                          >
+                            转办
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-gray-400">已转办</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { ReportItem, PageId, Attachment } from '../types';
 import { getFinalAuditScore } from '../auditStage';
+import { IdentificationBadge } from '../components/IdentificationBadge';
+import { resolveIdentification } from '../services/identificationService';
 import {
   Info,
   FileText,
@@ -77,6 +79,7 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
   const rejectReasonText = report.rejectReason || '信息不完整，请补充政策原文链接和现场排查核实依据后重新提交。';
   const rejectFollowUpText = '请点击右上角【修改补充并重新提交】按钮补充修正后再次送审。';
   const finalScore = getFinalAuditScore(report);
+  const ident = resolveIdentification(report);
 
   const detail = report.detailContent || {
     summary: '多名网民在微信群和短视频平台反映西坝区阳光花园一期、明月居等小区突发停水。经初步核查，受影响范围涉及居民约3万人。',
@@ -203,9 +206,14 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
           <div className="bg-white rounded-xl p-6 border border-gray-200/80 shadow-2xs space-y-5">
             {/* Title & Status Row */}
             <div className="flex items-start justify-between gap-4">
-              <h1 className="text-lg sm:text-xl font-bold text-gray-900 leading-snug">
-                {report.title}
-              </h1>
+              <div className="space-y-1.5 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-lg sm:text-xl font-bold text-gray-900 leading-snug">
+                    {report.title}
+                  </h1>
+                  <IdentificationBadge status={ident.status} size="sm" showIcon />
+                </div>
+              </div>
               <span
                 className={`shrink-0 text-xs font-semibold px-3 py-1 rounded-md border ${
                   isDraft

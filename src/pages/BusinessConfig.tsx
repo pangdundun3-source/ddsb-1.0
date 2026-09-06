@@ -382,7 +382,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
     { id: 'evaluation_rule', label: '考核规则' },
     { id: 'stats_metric', label: '统计指标' },
     { id: 'audit_flow', label: '审核层级/流程' },
-    { id: 'login_method', label: '登录验证方式' },
     { id: 'value_added', label: '增值业务申请' }
   ];
 
@@ -684,11 +683,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
         ]
       }
     ],
-    login_method: [
-      { id: '701', name: '账号密码登录', loginType: 'password', loginTypeName: '系统默认', configStatus: '已配置', isFallback: true, isDefault: true, status: '启用', updateTime: '2023-10-01 00:00:00', description: '基于加密数据库的基础密码鉴权，作为系统默认兜底登录方式' },
-      { id: '702', name: '手机短信验证码', loginType: 'sms', loginTypeName: '短信服务', configStatus: '已配置', isFallback: false, isDefault: false, status: '启用', updateTime: '2023-10-15 12:00:00', description: '支持手机号动态一次性口令登录，需要配置短信服务商、签名、模板和验证码有效期' },
-      { id: '703', name: '微信扫码登录', loginType: 'wechat', loginTypeName: '第三方授权', configStatus: '待配置', isFallback: false, isDefault: false, status: '停用', updateTime: '2023-10-20 15:40:00', description: '支持通过微信扫码完成身份认证，需要配置授权应用参数和回调地址' }
-    ],
     value_added: [
       {
         id: 'va_1',
@@ -699,6 +693,17 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
         activatedStatus: '已开通',
         updateTime: '2023-11-10 10:00:00',
         description: '支持批量勾选多条报送线索与事项目录、快捷批量审核通过、批量驳回与一键签发转办，大幅提升处置效率',
+        isDefault: true
+      },
+      {
+        id: 'va_dup',
+        name: '报送首发重复识别',
+        dictCategoryName: '增值业务',
+        dictCode: 'VA_FIRST_DUPLICATE_IDENTIFY',
+        status: '启用',
+        activatedStatus: '已开通',
+        updateTime: '2023-11-10 10:00:00',
+        description: '基于智能文本相似度与事件指纹比对算法，自动识别多源上报线索并打上首发与重复标识，有效防止多头报送与重复审核计分',
         isDefault: true
       },
       {
@@ -808,7 +813,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
   const [formDictCode, setFormDictCode] = useState<string>('');
   const [formSortOrder, setFormSortOrder] = useState<number>(1);
   const [formPersonnelRoleGroup, setFormPersonnelRoleGroup] = useState<'上报员' | '审核员'>('上报员');
-  const [formLoginConfigStatus, setFormLoginConfigStatus] = useState<'已配置' | '待配置'>('已配置');
 
   // Stats metric module states
   const [metricModalOpen, setMetricModalOpen] = useState(false);
@@ -1962,11 +1966,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
 
       const newStatus = targetItem.status === '启用' ? '停用' : '启用';
 
-      if (activeModule === 'login_method' && newStatus === '停用' && list.filter(item => item.status === '启用').length <= 1) {
-        alert('至少需要保留一种启用中的登录方式');
-        return prev;
-      }
-
       if (activeModule === 'audit_score' && newStatus === '停用' && list.filter(item => item.status === '启用').length <= 1) {
         alert('至少需要保留一组启用中的审核打分规则');
         return prev;
@@ -2103,7 +2102,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
   };
 
   const openEditModal = (item: ConfigModuleItem) => {
-    if (item.isDefault && activeModule !== 'evaluation_rule' && activeModule !== 'login_method') {
+    if (item.isDefault && activeModule !== 'evaluation_rule') {
       alert('系统默认模板不支持删除和修改！仅提供查看功能。如需个性化格式，请新建“自定义”模板。');
       openPreviewItem(item);
       return;
@@ -2122,9 +2121,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
       setFormSortOrder(item.sortOrder || 1);
       setFormScoreStatus(item.status);
       setFormPersonnelRoleGroup(getPersonnelRoleGroup(item));
-    } else if (activeModule === 'login_method') {
-      setFormScoreStatus(item.status);
-      setFormLoginConfigStatus(item.configStatus || '待配置');
     } else if (activeModule === 'value_added') {
       setFormDictCode(item.dictCode || `VA_${item.id}`);
     } else if (activeModule === 'report_template') {
@@ -2202,33 +2198,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
     if (!formName.trim()) return;
 
     const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
-
-    if (activeModule === 'login_method' && editingItem) {
-      const nextStatus = formScoreStatus;
-      const enabledCount = (dataStore.login_method || []).filter(item => item.status === '启用').length;
-      if (editingItem.status === '启用' && nextStatus === '停用' && enabledCount <= 1) {
-        alert('至少需要保留一种启用中的登录方式');
-        return;
-      }
-
-      setDataStore(prev => ({
-        ...prev,
-        login_method: (prev.login_method || []).map(item =>
-          item.id === editingItem.id
-            ? {
-                ...item,
-                name: formName.trim(),
-                status: nextStatus,
-                configStatus: formLoginConfigStatus,
-                updateTime: nowStr,
-                description: formDesc.trim() || item.description
-              }
-            : item
-        )
-      }));
-      setIsModalOpen(false);
-      return;
-    }
 
     if (activeModule === 'value_added') {
       const vaItem: ConfigModuleItem = {
@@ -2602,7 +2571,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
 
               <div className="flex items-center space-x-3">
                 {/* Search input (Hidden in value_added) */}
-                {activeModule !== 'value_added' && activeModule !== 'stats_metric' && activeModule !== 'login_method' && (
+                {activeModule !== 'value_added' && activeModule !== 'stats_metric' && (
                   <div className="relative">
                     <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
                     <input
@@ -2616,7 +2585,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
                 )}
 
                 {/* + 新增 button */}
-                {activeModule !== 'value_added' && activeModule !== 'stats_metric' && activeModule !== 'evaluation_rule' && activeModule !== 'login_method' && activeModule !== 'data_dict' && (
+                {activeModule !== 'value_added' && activeModule !== 'stats_metric' && activeModule !== 'evaluation_rule' && activeModule !== 'data_dict' && (
                   <button
                     onClick={openAddModal}
                     className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center space-x-1 cursor-pointer whitespace-nowrap"
@@ -3709,114 +3678,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
                 </div>
 
               </div>
-            ) : activeModule === 'login_method' ? (
-              <div className="space-y-3">
-                <div className="p-3 rounded-lg border border-blue-100 bg-blue-50/30 flex items-start gap-2">
-                  <Info className="w-4 h-4 text-[#1E5ABB] shrink-0 mt-0.5" />
-                  <div className="text-xs leading-relaxed">
-                    <div className="font-bold text-gray-800">登录入口配置规则</div>
-                    <p className="text-gray-500 text-[11px] mt-0.5">
-                      账号密码为系统默认兜底登录方式；微信扫码、手机短信验证码为可选扩展入口。系统允许启用一种或多种方式，但至少保留一种启用。
-                    </p>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto border border-gray-100 rounded-lg">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-gray-50/80 text-gray-500 border-b border-gray-200 font-medium">
-                        <th className="py-2.5 px-4 font-medium">登录方式</th>
-                        <th className="py-2.5 px-4 font-medium whitespace-nowrap">类型/来源</th>
-                        <th className="py-2.5 px-4 font-medium whitespace-nowrap">配置状态</th>
-                        <th className="py-2.5 px-4 font-medium whitespace-nowrap">启用状态</th>
-                        <th className="py-2.5 px-4 font-medium whitespace-nowrap">更新时间</th>
-                        <th className="py-2.5 px-4 font-medium text-center whitespace-nowrap">操作</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 text-gray-700">
-                      {filteredList.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="py-8 text-center text-gray-400 text-xs">
-                            暂无相关登录方式
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredList.map(item => (
-                          <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
-                            <td className="py-3 px-4">
-                              <div className="flex flex-col space-y-1">
-                                <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                                  <span className="font-bold text-gray-900">{item.name}</span>
-                                  {item.isDefault && (
-                                    <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 font-bold rounded border border-gray-200 shrink-0">
-                                      <Lock className="w-2.5 h-2.5 text-gray-400" />
-                                      <span>系统默认</span>
-                                    </span>
-                                  )}
-                                  {item.isFallback && (
-                                    <span className="px-1.5 py-0.5 text-[10px] bg-blue-50 text-blue-700 border border-blue-100 font-bold rounded">
-                                      兜底入口
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-[11px] text-gray-400 line-clamp-1">{item.description}</p>
-                              </div>
-                            </td>
-                            <td className="py-3 px-4 whitespace-nowrap">
-                              <span className="inline-flex items-center space-x-1 px-2 py-0.5 text-[10px] bg-slate-50 text-slate-700 font-bold rounded border border-slate-200">
-                                <UserCheck className="w-2.5 h-2.5 text-slate-500" />
-                                <span>{item.loginTypeName || '系统登录'}</span>
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 whitespace-nowrap">
-                              <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
-                                item.configStatus === '已配置' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-800'
-                              }`}>
-                                {item.configStatus || '待配置'}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 whitespace-nowrap">
-                              <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
-                                item.status === '启用' ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-500'
-                              }`}>
-                                {item.status}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 whitespace-nowrap font-mono text-gray-500">{item.updateTime}</td>
-                            <td className="py-3 px-4">
-                              <div className="flex items-center justify-center space-x-3">
-                                <button
-                                  onClick={() => openPreviewItem(item)}
-                                  className="text-gray-400 hover:text-[#1E5ABB] cursor-pointer"
-                                  title="查看详情"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => openEditModal(item)}
-                                  className="text-[#1E5ABB] hover:text-[#134092] cursor-pointer"
-                                  title="配置"
-                                >
-                                  <Edit3 className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => handleToggleStatus(item.id)}
-                                  className="cursor-pointer"
-                                  title={item.status === '启用' ? '点击停用' : '点击启用'}
-                                >
-                                  <div className={`w-7 h-3.5 flex items-center rounded-full p-0.5 transition-colors ${item.status === '启用' ? 'bg-emerald-500 justify-end' : 'bg-gray-300 justify-start'}`}>
-                                    <div className="w-2.5 h-2.5 bg-white rounded-full shadow-2xs"></div>
-                                  </div>
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
             ) : activeModule === 'value_added' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {filteredList.length === 0 ? (
@@ -3828,6 +3689,18 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
                     const isActivated = item.activatedStatus === '已开通';
                     const isEnabled = isActivated && item.status === '启用';
                     const isDisabled = isActivated && item.status === '停用';
+
+                    const IconComp = item.name.includes('首发') || item.name.includes('重复') || item.dictCode === 'VA_FIRST_DUPLICATE_IDENTIFY'
+                      ? Layers
+                      : item.name.includes('批量')
+                      ? CheckSquare
+                      : item.name.includes('截图') || item.name.includes('取证')
+                      ? Paperclip
+                      : item.name.includes('指令')
+                      ? GitBranch
+                      : item.name.includes('公告')
+                      ? Info
+                      : Sparkles;
 
                     let cardClass = '';
                     if (isEnabled) {
@@ -3851,12 +3724,12 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
                           {/* Header: Product Name & Direct Top-Right Control */}
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex items-center space-x-3">
-                              <div className={`w-10 h-10 rounded-lg border flex items-center justify-center shrink-0 shadow-2xs ${
+                              <div className={`w-11 h-11 rounded-xl border flex items-center justify-center shrink-0 shadow-2xs ${
                                 isEnabled || !isActivated
-                                  ? 'bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200/80'
+                                  ? 'bg-[#FFFDF5] border-[#FDE68A]'
                                   : 'bg-gray-200 border-gray-300'
                               }`}>
-                                <Sparkles className={`w-5 h-5 ${isEnabled || !isActivated ? 'text-amber-600' : 'text-gray-400'}`} />
+                                <IconComp className={`w-5 h-5 ${isEnabled || !isActivated ? 'text-amber-600' : 'text-gray-400'}`} />
                               </div>
                               <div>
                                 <h3 className={`font-bold text-sm flex items-center space-x-2 ${
@@ -3865,23 +3738,17 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
                                   <span>{item.name}</span>
                                 </h3>
                                 <div className="flex items-center space-x-1.5 mt-1">
-                                  {/* 开通状态 Badge */}
-                                  <span className={`inline-flex items-center space-x-1 text-[10px] px-2 py-0.2 rounded border font-semibold ${
-                                    isActivated
-                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                      : 'bg-slate-100 text-slate-700 border-slate-200'
-                                  }`}>
-                                    {isActivated ? (
-                                      <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
-                                    ) : (
+                                  {/* 开通状态 Badge (未开通时提示) */}
+                                  {!isActivated && (
+                                    <span className="inline-flex items-center space-x-1 text-[10px] px-2 py-0.5 rounded border font-semibold bg-slate-100 text-slate-700 border-slate-200">
                                       <Lock className="w-2.5 h-2.5 text-slate-500" />
-                                    )}
-                                    <span>{item.activatedStatus || '未开通'}</span>
-                                  </span>
+                                      <span>{item.activatedStatus || '未开通'}</span>
+                                    </span>
+                                  )}
 
-                                  <span className={`inline-block text-[10px] px-2 py-0.2 rounded border font-medium ${
+                                  <span className={`inline-block text-[10px] px-2 py-0.5 rounded border font-medium ${
                                     isEnabled || !isActivated
-                                      ? 'text-amber-700 bg-amber-50 border-amber-200/60'
+                                      ? 'text-amber-700 bg-amber-50 border-amber-200/80'
                                       : 'text-gray-500 bg-gray-200/60 border-gray-300'
                                   }`}>
                                     增值扩展功能
@@ -4492,7 +4359,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
           <div className={`bg-white rounded-lg shadow-xl w-full ${activeModule === 'report_template' ? 'max-w-4xl' : activeModule === 'audit_score' ? 'max-w-2xl' : 'max-w-lg'} overflow-hidden animate-in fade-in zoom-in-95 max-h-[90vh] flex flex-col`}>
             <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center shrink-0">
               <h3 className="text-sm font-bold text-gray-800">
-                {activeModule === 'audit_score' ? '审核打分规则详情' : activeModule === 'stats_metric' ? '指标详情' : activeModule === 'login_method' ? '登录方式详情' : activeModule === 'data_dict' ? '数据字典详情' : '配置详情'}{activeModule === 'audit_score' ? '' : ` - ${previewItem.name}`}
+                {activeModule === 'audit_score' ? '审核打分规则详情' : activeModule === 'stats_metric' ? '指标详情' : activeModule === 'data_dict' ? '数据字典详情' : '配置详情'}{activeModule === 'audit_score' ? '' : ` - ${previewItem.name}`}
               </h3>
               <button
                 onClick={() => setPreviewItem(null)}
@@ -4553,62 +4420,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
 
                   <div>
                     <span className="text-gray-400 block mb-1">指标说明:</span>
-                    <p className="p-2.5 bg-gray-50 rounded border border-gray-100 text-gray-700 leading-relaxed">
-                      {previewItem.description || '暂无详细补充说明'}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {activeModule === 'login_method' && (
-                <div className="space-y-4">
-                  <div>
-                    <span className="text-gray-400 block mb-1">登录方式:</span>
-                    <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                      <span className="font-bold text-gray-800 text-sm">{previewItem.name}</span>
-                      {previewItem.isDefault && (
-                        <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 font-bold rounded border border-gray-200">
-                          <Lock className="w-2.5 h-2.5 text-gray-400" />
-                          <span>系统默认</span>
-                        </span>
-                      )}
-                      {previewItem.isFallback && (
-                        <span className="px-1.5 py-0.5 text-[10px] bg-blue-50 text-blue-700 border border-blue-100 font-bold rounded">
-                          兜底入口
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <span className="text-gray-400 block mb-1">类型/来源:</span>
-                      <span className="font-bold text-gray-800">{previewItem.loginTypeName || '系统登录'}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-400 block mb-1">配置状态:</span>
-                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
-                        previewItem.configStatus === '已配置' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-800'
-                      }`}>
-                        {previewItem.configStatus || '待配置'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-400 block mb-1">启用状态:</span>
-                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
-                        previewItem.status === '启用' ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-500'
-                      }`}>
-                        {previewItem.status}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-400 block mb-1">更新时间:</span>
-                      <span className="font-mono text-gray-600">{previewItem.updateTime}</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <span className="text-gray-400 block mb-1">配置说明:</span>
                     <p className="p-2.5 bg-gray-50 rounded border border-gray-100 text-gray-700 leading-relaxed">
                       {previewItem.description || '暂无详细补充说明'}
                     </p>
@@ -4754,7 +4565,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
                 );
               })()}
 
-              {activeModule !== 'report_template' && activeModule !== 'stats_metric' && activeModule !== 'login_method' && activeModule !== 'data_dict' && activeModule !== 'audit_score' && (
+              {activeModule !== 'report_template' && activeModule !== 'stats_metric' && activeModule !== 'data_dict' && activeModule !== 'audit_score' && (
               <div>
                 <span className="text-gray-400 block mb-1">配置项名称:</span>
                 <div className="flex items-center space-x-2">
@@ -4774,7 +4585,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
               </div>
               )}
 
-              {activeModule !== 'report_template' && activeModule !== 'stats_metric' && activeModule !== 'login_method' && activeModule !== 'data_dict' && activeModule !== 'audit_score' && (
+              {activeModule !== 'report_template' && activeModule !== 'stats_metric' && activeModule !== 'data_dict' && activeModule !== 'audit_score' && (
               <div className="grid grid-cols-2 gap-3">
                 {activeModule === 'report_template' && (
                   <div>
@@ -4850,7 +4661,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
               </div>
               )}
 
-              {activeModule !== 'report_template' && activeModule !== 'stats_metric' && activeModule !== 'login_method' && activeModule !== 'data_dict' && activeModule !== 'audit_score' && (
+              {activeModule !== 'report_template' && activeModule !== 'stats_metric' && activeModule !== 'data_dict' && activeModule !== 'audit_score' && (
               <div>
                 <span className="text-gray-400 block mb-1">业务说明:</span>
                 <p className="p-2.5 bg-gray-50 rounded border border-gray-100 text-gray-700 leading-relaxed">
@@ -5329,57 +5140,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
                         className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
                       />
                     </div>
-                  </div>
-                </div>
-              ) : activeModule === 'login_method' ? (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-gray-700 font-medium mb-1">登录方式名称</label>
-                      <input
-                        type="text"
-                        required
-                        value={formName}
-                        onChange={e => setFormName(e.target.value)}
-                        className="w-full px-3 py-1.5 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-gray-50 text-gray-700"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-700 font-medium mb-1">类型/来源</label>
-                      <div className="px-3 py-1.5 border border-gray-200 rounded bg-gray-50 text-gray-700 font-bold">
-                        {editingItem?.loginTypeName || '系统登录'}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-700 font-medium mb-1">配置状态 *</label>
-                      <select
-                        value={formLoginConfigStatus}
-                        onChange={e => setFormLoginConfigStatus(e.target.value as '已配置' | '待配置')}
-                        className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white cursor-pointer font-bold text-gray-800"
-                      >
-                        <option value="已配置">已配置</option>
-                        <option value="待配置">待配置</option>
-                      </select>
-                    </div>
-
-                    {renderFormStatusSegment('启用状态 *')}
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-700 font-medium mb-1">配置说明</label>
-                    <textarea
-                      rows={3}
-                      value={formDesc}
-                      onChange={e => setFormDesc(e.target.value)}
-                      placeholder="请输入该登录方式的配置说明..."
-                      className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] text-xs"
-                    />
-                  </div>
-
-                  <div className="p-3 bg-blue-50 border border-blue-100 rounded text-[11px] text-blue-800 leading-relaxed">
-                    账号密码为系统默认兜底方式，不可删除；微信扫码和手机短信验证码为系统内置扩展登录入口。MFA 等二次认证能力建议后续放入安全策略配置。
                   </div>
                 </div>
               ) : activeModule === 'audit_flow' ? (

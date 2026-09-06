@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { AuditRecordItem, ReportItem, PageId, Attachment, TimelineNode } from '../types';
+import { IdentificationBadge } from '../components/IdentificationBadge';
+import { resolveIdentification } from '../services/identificationService';
 import {
   Info,
   FileText,
@@ -58,6 +60,7 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
         if (found) {
           return {
             ...found,
+            identificationStatus: record.identificationStatus || found.identificationStatus,
             auditor: record.auditor || found.auditor,
             auditTime: record.auditTime || found.auditTime,
             rejectReason: record.rejectReason ?? found.rejectReason,
@@ -76,6 +79,7 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
           submitTime: record.submitTime || record.auditTime,
           occurAddress: '全市范围',
           auditStatus: record.auditResult === '已通过' ? '已采纳' : '已驳回',
+          identificationStatus: record.identificationStatus || '首发',
           ...(record.score !== undefined ? { score: record.score } : {}),
           matchUrl: 'https://news.example.com/',
           detailContent: {
@@ -327,9 +331,18 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
           <div className="bg-white rounded-xl p-6 border border-gray-200/80 shadow-2xs space-y-5">
             {/* Title & Status Row */}
             <div className="flex items-start justify-between gap-4">
-              <h1 className="text-lg sm:text-xl font-bold text-gray-900 leading-snug">
-                {report.title}
-              </h1>
+              <div className="space-y-1.5 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-lg sm:text-xl font-bold text-gray-900 leading-snug">
+                    {report.title}
+                  </h1>
+                  <IdentificationBadge
+                    status={record?.identificationStatus || report.identificationStatus || resolveIdentification(report).status || '首发'}
+                    size="sm"
+                    showIcon
+                  />
+                </div>
+              </div>
               <span
                 className={`shrink-0 text-xs font-semibold px-3 py-1 rounded-md border ${
                   titleStatusText === '已驳回'

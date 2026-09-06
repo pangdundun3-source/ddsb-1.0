@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ReportItem, PageId } from '../types';
 import { PaginationBar } from '../components/PaginationBar';
 import { getOrganizationPathText, OrgPathDisplay } from '../components/OrgPathDisplay';
 import { AuditStatusBadge } from '../components/AuditStatusBadge';
+import { IdentificationBadge } from '../components/IdentificationBadge';
+import { resolveIdentification } from '../services/identificationService';
 import {
   Search,
   RotateCcw,
@@ -46,6 +48,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
 }) => {
   // Filter States
   const [activeTab, setActiveTab] = useState<'待审核' | '审核中' | '已驳回' | '草稿' | '已采纳'>('待审核');
+  const [identFilter, setIdentFilter] = useState<'全部' | '疑似首发' | '疑似重复' | '识别中' | '首发报送' | '重复报送'>('全部');
   const [keyword, setKeyword] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -54,6 +57,36 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   // Modals
   const [withdrawTarget, setWithdrawTarget] = useState<ReportItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ReportItem | null>(null);
+
+  // Precompute map of identifications for all reports
+  const reportIdentMap = useMemo(() => {
+    const map = new Map<number, ReturnType<typeof resolveIdentification>>();
+    reports.forEach((r) => {
+      map.set(r.id, resolveIdentification(r, reports));
+    });
+    return map;
+  }, [reports]);
+
+  // Status counts for top identification area
+  const identCounts = useMemo(() => {
+    let suspectedFirst = 0;
+    let suspectedDuplicate = 0;
+    let analyzing = 0;
+    let formalFirst = 0;
+    let formalDuplicate = 0;
+
+    reports.forEach((r) => {
+      const ident = reportIdentMap.get(r.id);
+      const st = ident?.status;
+      if (st === '疑似首发') suspectedFirst++;
+      else if (st === '疑似重复') suspectedDuplicate++;
+      else if (st === '识别中') analyzing++;
+      else if (st === '首发') formalFirst++;
+      else if (st === '重复') formalDuplicate++;
+    });
+
+    return { suspectedFirst, suspectedDuplicate, analyzing, formalFirst, formalDuplicate };
+  }, [reports, reportIdentMap]);
 
   // Statistics calculation
   const totalCount = reports.length;
@@ -75,6 +108,17 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
     if (activeTab === '审核中' && item.auditStatus !== '审核中') return false;
     if (activeTab === '已驳回' && item.auditStatus !== '被驳回' && item.auditStatus !== '已驳回') return false;
     if (activeTab === '草稿' && item.auditStatus !== '草稿') return false;
+
+    // Identification filter
+    if (identFilter !== '全部') {
+      const ident = reportIdentMap.get(item.id);
+      const st = ident?.status;
+      if (identFilter === '疑似首发' && st !== '疑似首发') return false;
+      if (identFilter === '疑似重复' && st !== '疑似重复') return false;
+      if (identFilter === '识别中' && st !== '识别中') return false;
+      if (identFilter === '首发报送' && st !== '首发') return false;
+      if (identFilter === '重复报送' && st !== '重复') return false;
+    }
 
     // Search filters (智能综合模糊检索: 标题、上报人员、事件来源、所属机构、发生地址)
     if (keyword.trim()) {
@@ -399,15 +443,22 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                       <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
                         <td className="py-3.5 px-4 text-center text-gray-400 font-mono">{(safePage - 1) * pageSize + index + 1}</td>
                         <td className="py-3.5 px-4">
-                          <button
-                            onClick={() => {
-                              onSelectReport(item);
-                              onNavigate('report-detail');
-                            }}
-                            className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer block leading-snug"
-                          >
-                            {item.title}
-                          </button>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <button
+                              onClick={() => {
+                                onSelectReport(item);
+                                onNavigate('report-detail');
+                              }}
+                              className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer leading-snug"
+                            >
+                              {item.title}
+                            </button>
+                            <IdentificationBadge
+                              status={reportIdentMap.get(item.id)?.status}
+                              size="xs"
+                              showIcon
+                            />
+                          </div>
                         </td>
                         <td className="py-3.5 px-4">
                           <div
@@ -546,15 +597,24 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                   <div className="space-y-2.5">
                     {/* Header */}
                     <div className="flex items-start justify-between gap-2">
-                      <h4
-                        onClick={() => {
-                          onSelectReport(item);
-                          onNavigate('report-detail');
-                        }}
-                        className="text-xs font-bold text-gray-900 hover:text-[#1E5ABB] cursor-pointer line-clamp-2 leading-snug"
-                      >
-                        {item.title}
-                      </h4>
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h4
+                            onClick={() => {
+                              onSelectReport(item);
+                              onNavigate('report-detail');
+                            }}
+                            className="text-xs font-bold text-gray-900 hover:text-[#1E5ABB] cursor-pointer line-clamp-2 leading-snug"
+                          >
+                            {item.title}
+                          </h4>
+                          <IdentificationBadge
+                            status={reportIdentMap.get(item.id)?.status}
+                            size="xs"
+                            showIcon
+                          />
+                        </div>
+                      </div>
                       <AuditStatusBadge status={item.auditStatus} className="shrink-0" />
                     </div>
 

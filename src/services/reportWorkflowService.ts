@@ -1,5 +1,6 @@
 import { isFinalAuditStage } from '../auditStage';
 import { AuditRecordItem, LogItem, NewReportFormData, ReportItem, TimelineNode } from '../types';
+import { resolveIdentification } from './identificationService';
 
 export const getNowText = () => new Date().toLocaleString('zh-CN', { hour12: false });
 
@@ -59,9 +60,20 @@ const createReportFromForm = (
 export const createSubmittedReport = (
   input: NewReportFormData,
   id = Date.now(),
-  submitTime = getNowText()
+  submitTime = getNowText(),
+  allReports?: ReportItem[]
 ): ReportItem => {
-  const report = createReportFromForm(input, id, submitTime);
+  const baseReport = createReportFromForm(input, id, submitTime);
+  const report: ReportItem = {
+    ...baseReport,
+    identificationStatus: '识别中',
+    identificationDetail: {
+      status: '识别中',
+      similarity: 50,
+      matchReason: '系统正在并发检索不良信息库、待审件与全网线索指纹...',
+      checkTime: '正在比对'
+    }
+  };
 
   return appendTimeline(report, [
     createSubmitNode(report, submitTime),
@@ -70,13 +82,19 @@ export const createSubmittedReport = (
 };
 
 export const resubmitReport = (report: ReportItem, now = getNowText()): ReportItem => {
+  const { status, detail } = resolveIdentification({
+    ...report,
+    auditStatus: '待审核'
+  });
   const resubmittedReport: ReportItem = {
     ...report,
     auditStatus: '待审核',
     submitTime: now,
     rejectReason: undefined,
     rejectDetail: undefined,
-    score: '--'
+    score: '--',
+    identificationStatus: status || '疑似首发',
+    identificationDetail: detail
   };
 
   return appendTimeline(resubmittedReport, [
@@ -92,10 +110,29 @@ export const resubmitReport = (report: ReportItem, now = getNowText()): ReportIt
 export const approveReport = (
   report: ReportItem,
   score?: number,
-  now = getNowText()
+  now = getNowText(),
+  manualIdentification?: any
 ): ReportItem => {
   const finalAudit = isFinalAuditStage(report);
   const appliedScore = finalAudit ? score : undefined;
+
+  // 终审采纳流程完成后，无需人工介入，系统自动转换为正式标识“首发”或“重复”并入库归档
+  let finalIdentStatus = report.identificationStatus;
+  if (manualIdentification) {
+    finalIdentStatus =
+      manualIdentification === '重复' || manualIdentification === '重复报送' ? '重复' : '首发';
+  } else if (finalAudit) {
+    if (
+      finalIdentStatus === '疑似重复' ||
+      finalIdentStatus === '重复' ||
+      finalIdentStatus === '重复报送'
+    ) {
+      finalIdentStatus = '重复';
+    } else {
+      finalIdentStatus = '首发';
+    }
+  }
+
   const approveNode: TimelineNode = {
     title: '审核处理',
     operator: '王主任·市委宣传部舆情科',
@@ -111,7 +148,8 @@ export const approveReport = (
       auditStatus: finalAudit ? '已采纳' : '已通过',
       score: appliedScore ?? '--',
       auditor: '王主任',
-      auditTime: now
+      auditTime: now,
+      identificationStatus: finalIdentStatus
     },
     [
       approveNode,
@@ -194,18 +232,30 @@ export const createAuditRecord = (
   score?: number,
   reason?: string,
   detail?: string
-): AuditRecordItem => ({
-  id: Date.now(),
-  reportId: report.id,
-  title: report.title,
-  organization: report.organization,
-  auditor: '王主任',
-  auditResult: result,
-  auditTime: now,
-  ...(score !== undefined && isFinalAuditStage(report) ? { score } : {}),
-  ...(reason ? { rejectReason: reason } : {}),
-  ...(detail ? { rejectDetail: detail } : {})
-});
+): AuditRecordItem => {
+  const isDuplicate =
+    report.identificationStatus === '疑似重复' ||
+    report.identificationStatus === '重复' ||
+    report.identificationStatus === '重复报送' ||
+    reason?.includes('重复');
+  const finalIdentStatus = isDuplicate ? '重复' : '首发';
+
+  return {
+    id: Date.now(),
+    reportId: report.id,
+    title: report.title,
+    organization: report.organization,
+    submitter: report.author,
+    submitTime: report.submitTime,
+    auditor: '王主任',
+    auditResult: result,
+    auditTime: now,
+    ...(score !== undefined && isFinalAuditStage(report) ? { score } : {}),
+    ...(reason ? { rejectReason: reason } : {}),
+    ...(detail ? { rejectDetail: detail } : {}),
+    identificationStatus: finalIdentStatus
+  };
+};
 
 export const createOperationLog = (
   actionType: string,

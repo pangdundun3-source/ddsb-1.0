@@ -21,6 +21,26 @@ export type PageId =
 export type AuditStatus = '待审核' | '审核中' | '已通过' | '已采纳' | '被驳回' | '已驳回' | '待转办' | '已转办' | '草稿';
 export type AuditStage = '初审' | '复核' | '终审';
 
+export type IdentificationStatus =
+  | '疑似首发'
+  | '疑似重复'
+  | '识别中'
+  | '首发'
+  | '重复'
+  | '首发报送'
+  | '重复报送';
+
+export interface IdentificationDetail {
+  status: IdentificationStatus;
+  similarity?: number; // 相似度百分比，如 89
+  matchReason?: string; // 匹配原因
+  matchedReportId?: number; // 匹配关联的速报ID
+  matchedReportTitle?: string; // 匹配关联的速报标题
+  fingerprint?: string; // 事件文本与指纹特征
+  checkTime?: string; // 识别检测时间
+  manualConfirmed?: boolean; // 是否经审核员人工确认定标
+}
+
 export interface Attachment {
   id: string;
   name: string;
@@ -125,6 +145,8 @@ export interface ReportItem {
   transferTime?: string;
   auditor?: string;
   auditTime?: string;
+  identificationStatus?: IdentificationStatus;
+  identificationDetail?: IdentificationDetail;
 }
 
 export interface AuditRecordItem {
@@ -141,6 +163,7 @@ export interface AuditRecordItem {
   score?: number;
   rejectReason?: string;
   rejectDetail?: string;
+  identificationStatus?: IdentificationStatus;
 }
 
 export interface OrgItem {

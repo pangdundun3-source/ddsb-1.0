@@ -155,6 +155,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     organization: '台中市网信办',
     submitTime: '2023-10-23 09:15',
     auditStatus: '已转办',
+    identificationStatus: '首发',
     score: 85,
     matchUrl: 'https://news.example.com/tour-autumn',
     detailContent: {
@@ -184,6 +185,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     organization: '台中市网信办',
     submitTime: '2023-10-22 16:45',
     auditStatus: '已通过',
+    identificationStatus: '重复',
     detailContent: {
       summary: '智慧停车与便民服务App升级引起市民热烈讨论，正面评价占比88%。',
       coreDemands: '希望优化老年人便民UI与大字号关怀模式。',
@@ -201,6 +203,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     organization: '台中市网信办',
     submitTime: '2023-10-22 10:20',
     auditStatus: '已转办',
+    identificationStatus: '首发',
     score: 78,
     detailContent: {
       summary: '收集到老旧小区加装电梯与绿化占地相关民意留言140余条。',
@@ -219,6 +222,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     organization: '台中市网信办',
     submitTime: '2023-10-21 15:55',
     auditStatus: '被驳回',
+    identificationStatus: '首发',
     score: '--',
     detailContent: {
       summary: '核查举报某带货主播夸大保健产品疗效的舆情线索。',
@@ -236,7 +240,8 @@ export const INITIAL_REPORTS: ReportItem[] = [
     author: '周八',
     organization: '台中市网信办',
     submitTime: '2023-10-21 09:00',
-    auditStatus: '已通过'
+    auditStatus: '已通过',
+    identificationStatus: '首发'
   },
   {
     id: 7,
@@ -248,6 +253,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     organization: '台中市网信办',
     submitTime: '2023-10-20 17:30',
     auditStatus: '已转办',
+    identificationStatus: '重复',
     score: 75
   },
   {
@@ -259,7 +265,8 @@ export const INITIAL_REPORTS: ReportItem[] = [
     author: '郑十',
     organization: '台中市网信办',
     submitTime: '2023-10-20 11:15',
-    auditStatus: '已通过'
+    auditStatus: '已通过',
+    identificationStatus: '首发'
   },
   {
     id: 9,
@@ -271,6 +278,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     organization: '台中市网信办',
     submitTime: '2023-10-19 14:40',
     auditStatus: '被驳回',
+    identificationStatus: '首发',
     score: '--'
   },
   {
@@ -283,6 +291,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     organization: '台中市网信办',
     submitTime: '2023-10-19 09:30',
     auditStatus: '已转办',
+    identificationStatus: '重复',
     score: 82
   },
   {
@@ -294,7 +303,8 @@ export const INITIAL_REPORTS: ReportItem[] = [
     author: '钱十三',
     organization: '高新区管委会',
     submitTime: '2023-10-18 16:20',
-    auditStatus: '已通过'
+    auditStatus: '已通过',
+    identificationStatus: '首发'
   },
   {
     id: 12,
@@ -306,6 +316,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     organization: '市卫健委',
     submitTime: '2023-10-18 11:05',
     auditStatus: '已转办',
+    identificationStatus: '首发',
     score: 91
   },
   {
@@ -318,6 +329,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     organization: '西屯区环保局',
     submitTime: '2023-10-17 17:40',
     auditStatus: '待转办',
+    identificationStatus: '重复',
     score: '--'
   },
   {
@@ -330,6 +342,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     organization: '市政务服务局',
     submitTime: '2023-10-17 10:12',
     auditStatus: '已转办',
+    identificationStatus: '首发',
     score: 84
   },
   {
@@ -342,6 +355,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     organization: '市市场监管局',
     submitTime: '2023-10-16 15:30',
     auditStatus: '已转办',
+    identificationStatus: '重复',
     score: 89
   },
   {
@@ -353,7 +367,8 @@ export const INITIAL_REPORTS: ReportItem[] = [
     author: '郑十八',
     organization: '市教育局',
     submitTime: '2023-10-16 08:45',
-    auditStatus: '已通过'
+    auditStatus: '已通过',
+    identificationStatus: '首发'
   },
   {
     id: 17,
@@ -364,7 +379,8 @@ export const INITIAL_REPORTS: ReportItem[] = [
     author: '王十九',
     organization: '市文旅局',
     submitTime: '2023-10-15 14:10',
-    auditStatus: '已通过'
+    auditStatus: '已通过',
+    identificationStatus: '首发'
   },
   {
     id: 18,
@@ -375,7 +391,8 @@ export const INITIAL_REPORTS: ReportItem[] = [
     author: '陈二十',
     organization: '西屯区教育局',
     submitTime: '2023-10-15 09:20',
-    auditStatus: '已通过'
+    auditStatus: '已通过',
+    identificationStatus: '重复'
   },
   {
     id: 19,
@@ -386,7 +403,8 @@ export const INITIAL_REPORTS: ReportItem[] = [
     author: '刘二十一',
     organization: '市公安交警支队',
     submitTime: '2023-10-14 16:50',
-    auditStatus: '已通过'
+    auditStatus: '已通过',
+    identificationStatus: '首发'
   },
   {
     id: 20,
@@ -398,6 +416,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     organization: '北屯区住建局',
     submitTime: '2023-10-14 11:30',
     auditStatus: '待转办',
+    identificationStatus: '重复',
     score: '--'
   },
   {
@@ -799,6 +818,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     organization: '广域传媒主机构 / 台中市网信办 / 北屯区宣传部 / 北屯区教育科',
     submitTime: '2026-08-13 09:10',
     auditStatus: '待审核',
+    identificationStatus: '识别中',
     score: '--',
     detailContent: {
       summary: '开学后校园周边早高峰拥堵加剧，家长和周边居民集中反映接送车辆临时停靠影响通行。',
@@ -824,6 +844,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     organization: '台中市网信办',
     submitTime: '2026-08-20 09:10',
     auditStatus: '已转办',
+    identificationStatus: '首发',
     score: 87,
     auditor: '赵宁',
     auditTime: '2026-08-22 09:30',
@@ -858,6 +879,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     organization: '台中市网信办',
     submitTime: '2026-08-25 14:20',
     auditStatus: '待转办',
+    identificationStatus: '首发',
     score: 91,
     auditor: '赵宁',
     auditTime: '2026-08-26 16:10',
@@ -890,6 +912,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     organization: '台中市网信办',
     submitTime: '2026-08-28 10:00',
     auditStatus: '已转办',
+    identificationStatus: '重复',
     score: 84,
     auditor: '赵宁',
     auditTime: '2026-08-29 15:50',
@@ -924,6 +947,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     organization: '台中市网信办',
     submitTime: '2026-09-01 09:00',
     auditStatus: '待转办',
+    identificationStatus: '重复',
     score: 86,
     auditor: '赵宁',
     auditTime: '2026-09-03 15:20',
@@ -957,6 +981,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     organization: '台中市网信办',
     submitTime: '2026-09-02 08:40',
     auditStatus: '已转办',
+    identificationStatus: '首发',
     score: 89,
     auditor: '赵宁',
     auditTime: '2026-09-04 16:30',
@@ -1080,7 +1105,8 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     author: '周八',
     organization: '台中市网信办',
     submitTime: '2023-10-21 09:00',
-    auditStatus: '待审核'
+    auditStatus: '待审核',
+    identificationStatus: '识别中'
   },
   {
     id: 107,
@@ -1156,7 +1182,8 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     author: '林十二',
     organization: '台中市网信办',
     submitTime: '2023-10-19 09:30',
-    auditStatus: '待审核'
+    auditStatus: '待审核',
+    identificationStatus: '识别中'
   },
   {
     id: 111,
@@ -1228,21 +1255,22 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     author: '陈二十',
     organization: '西屯区教育局',
     submitTime: '2023-10-15 15:45',
-    auditStatus: '待审核'
+    auditStatus: '待审核',
+    identificationStatus: '识别中'
   }
 ];
 
 export const INITIAL_AUDIT_RECORDS: AuditRecordItem[] = [
-  { id: 1, title: '关于某社区突发停水事件的舆情上报', organization: '台中市网信办', auditor: '李审核', auditResult: '已通过', auditTime: '2023-10-24 15:00', reportId: 1, score: 92 },
-  { id: 2, title: '台中市秋季旅游推广媒体传播分析', organization: '台中市网信办', auditor: '王审核', auditResult: '被驳回', auditTime: '2023-10-23 10:30', reportId: 2, rejectReason: '信息不完整', rejectDetail: '请补充权威媒体报道链接与传播数据截图等佐证材料后重新提交。' },
-  { id: 3, title: '关于城市交通拥堵治理的市民建议汇总', organization: '台中市交通局', auditor: '张审核', auditResult: '已通过', auditTime: '2023-10-22 09:15', reportId: 3, score: 90 },
-  { id: 4, title: '某大型商场消防安全隐患排查报告', organization: '台中市消防支队', auditor: '刘审核', auditResult: '被驳回', auditTime: '2023-10-21 16:45', reportId: 4, rejectReason: '非本辖区职责', rejectDetail: '该事项管辖权属于住建部门，请转对口单位报送。' },
-  { id: 5, title: '年度文化惠民工程进展情况通报', organization: '台中市文化局', auditor: '陈审核', auditResult: '已通过', auditTime: '2023-10-20 11:20', reportId: 5, score: 88 },
-  { id: 6, title: '关于冬季供暖保障工作的舆情监测', organization: '台中市住建局', auditor: '赵审核', auditResult: '已通过', auditTime: '2023-10-19 14:30', reportId: 6, score: 85 },
-  { id: 7, title: '食品安全周宣传活动效果评估', organization: '台中市食药监', auditor: '孙审核', auditResult: '被驳回', auditTime: '2023-10-18 10:00', reportId: 7, rejectReason: '佐证不足', rejectDetail: '需补充现场活动照片与宣传物料投放记录等佐证材料。' },
-  { id: 8, title: '关于智慧城市建设二期工程的公示', organization: '台中市发改委', auditor: '周审核', auditResult: '已通过', auditTime: '2023-10-17 15:40', reportId: 8, score: 93 },
-  { id: 9, title: '全市中小学心理健康教育调研报告', organization: '台中市教育局', auditor: '吴审核', auditResult: '已通过', auditTime: '2023-10-16 09:50', reportId: 9, score: 87 },
-  { id: 10, title: '关于加强老旧小区改造监管的通知', organization: '台中市房管局', auditor: '郑审核', auditResult: '被驳回', auditTime: '2023-10-15 13:20', reportId: 10, rejectReason: '重复上报', rejectDetail: '与历史已采纳速报内容重复，请核对后合并报送。' }
+  { id: 1, title: '关于某社区突发停水事件的舆情上报', organization: '台中市网信办', auditor: '李审核', auditResult: '已通过', auditTime: '2023-10-24 15:00', reportId: 1, score: 92, identificationStatus: '首发' },
+  { id: 2, title: '台中市秋季旅游推广媒体传播分析', organization: '台中市网信办', auditor: '王审核', auditResult: '被驳回', auditTime: '2023-10-23 10:30', reportId: 2, rejectReason: '信息不完整', rejectDetail: '请补充权威媒体报道链接与传播数据截图等佐证材料后重新提交。', identificationStatus: '首发' },
+  { id: 3, title: '关于城市交通拥堵治理的市民建议汇总', organization: '台中市交通局', auditor: '张审核', auditResult: '已通过', auditTime: '2023-10-22 09:15', reportId: 3, score: 90, identificationStatus: '首发' },
+  { id: 4, title: '某大型商场消防安全隐患排查报告', organization: '台中市消防支队', auditor: '刘审核', auditResult: '被驳回', auditTime: '2023-10-21 16:45', reportId: 4, rejectReason: '非本辖区职责', rejectDetail: '该事项管辖权属于住建部门，请转对口单位报送。', identificationStatus: '首发' },
+  { id: 5, title: '年度文化惠民工程进展情况通报', organization: '台中市文化局', auditor: '陈审核', auditResult: '已通过', auditTime: '2023-10-20 11:20', reportId: 5, score: 88, identificationStatus: '首发' },
+  { id: 6, title: '关于冬季供暖保障工作的舆情监测', organization: '台中市住建局', auditor: '赵审核', auditResult: '已通过', auditTime: '2023-10-19 14:30', reportId: 6, score: 85, identificationStatus: '首发' },
+  { id: 7, title: '食品安全周宣传活动效果评估', organization: '台中市食药监', auditor: '孙审核', auditResult: '被驳回', auditTime: '2023-10-18 10:00', reportId: 7, rejectReason: '佐证不足', rejectDetail: '需补充现场活动照片与宣传物料投放记录等佐证材料。', identificationStatus: '首发' },
+  { id: 8, title: '关于智慧城市建设二期工程的公示', organization: '台中市发改委', auditor: '周审核', auditResult: '已通过', auditTime: '2023-10-17 15:40', reportId: 8, score: 93, identificationStatus: '首发' },
+  { id: 9, title: '全市中小学心理健康教育调研报告', organization: '台中市教育局', auditor: '吴审核', auditResult: '已通过', auditTime: '2023-10-16 09:50', reportId: 9, score: 87, identificationStatus: '首发' },
+  { id: 10, title: '关于加强老旧小区改造监管的通知', organization: '台中市房管局', auditor: '郑审核', auditResult: '被驳回', auditTime: '2023-10-15 13:20', reportId: 10, rejectReason: '重复上报', rejectDetail: '与历史已采纳速报内容重复，请核对后合并报送。', identificationStatus: '重复' }
 ];
 
 export const INITIAL_NEGATIVE_INFO: ReportItem[] = [
@@ -1256,6 +1284,7 @@ export const INITIAL_NEGATIVE_INFO: ReportItem[] = [
     organization: '台中市网信办',
     submitTime: '2023-10-24 14:30',
     auditStatus: '待转办',
+    identificationStatus: '首发',
     detailContent: {
       summary: '今日（10月24日）上午8时许，多名网民在微博、微信群反映XX区XX街道辖区内多个大型居民小区突发停水。经初步核查，受影响范围包括阳光花园、明月居等5个小区，涉及居民约3万人。',
       coreDemands: '网民普遍反映未接到停水通知，早高峰期间停水严重影响正常生活，部分网民情绪急躁，质疑供水部门应急处置能力。',
@@ -1291,7 +1320,8 @@ export const INITIAL_NEGATIVE_INFO: ReportItem[] = [
     author: '李四',
     organization: '台中市网信办',
     submitTime: '2023-10-23 09:15',
-    auditStatus: '已转办'
+    auditStatus: '已转办',
+    identificationStatus: '首发'
   },
   {
     id: 203,
@@ -1302,7 +1332,8 @@ export const INITIAL_NEGATIVE_INFO: ReportItem[] = [
     author: '王五',
     organization: '台中市网信办',
     submitTime: '2023-10-22 16:45',
-    auditStatus: '待转办'
+    auditStatus: '待转办',
+    identificationStatus: '重复'
   },
   {
     id: 204,
@@ -1313,7 +1344,8 @@ export const INITIAL_NEGATIVE_INFO: ReportItem[] = [
     author: '赵六',
     organization: '台中市网信办',
     submitTime: '2023-10-22 10:20',
-    auditStatus: '已转办'
+    auditStatus: '已转办',
+    identificationStatus: '首发'
   },
   {
     id: 205,
@@ -1324,7 +1356,8 @@ export const INITIAL_NEGATIVE_INFO: ReportItem[] = [
     author: '孙七',
     organization: '台中市网信办',
     submitTime: '2023-10-21 15:55',
-    auditStatus: '待转办'
+    auditStatus: '待转办',
+    identificationStatus: '首发'
   },
   {
     id: 206,
@@ -1335,7 +1368,8 @@ export const INITIAL_NEGATIVE_INFO: ReportItem[] = [
     author: '周八',
     organization: '台中市网信办',
     submitTime: '2023-10-21 09:00',
-    auditStatus: '已转办'
+    auditStatus: '已转办',
+    identificationStatus: '首发'
   },
   {
     id: 207,
@@ -1346,7 +1380,8 @@ export const INITIAL_NEGATIVE_INFO: ReportItem[] = [
     author: '吴九',
     organization: '台中市网信办',
     submitTime: '2023-10-20 17:30',
-    auditStatus: '待转办'
+    auditStatus: '待转办',
+    identificationStatus: '重复'
   },
   {
     id: 208,
@@ -1357,7 +1392,8 @@ export const INITIAL_NEGATIVE_INFO: ReportItem[] = [
     author: '郑十',
     organization: '台中市网信办',
     submitTime: '2023-10-20 11:15',
-    auditStatus: '已转办'
+    auditStatus: '已转办',
+    identificationStatus: '首发'
   },
   {
     id: 209,
@@ -1368,7 +1404,8 @@ export const INITIAL_NEGATIVE_INFO: ReportItem[] = [
     author: '陈十一',
     organization: '台中市网信办',
     submitTime: '2023-10-19 14:40',
-    auditStatus: '待转办'
+    auditStatus: '待转办',
+    identificationStatus: '首发'
   },
   {
     id: 210,
@@ -1379,7 +1416,56 @@ export const INITIAL_NEGATIVE_INFO: ReportItem[] = [
     author: '林十二',
     organization: '台中市网信办',
     submitTime: '2023-10-19 09:30',
-    auditStatus: '已转办'
+    auditStatus: '已转办',
+    identificationStatus: '重复'
+  },
+  {
+    id: 211,
+    title: '关于某外卖餐饮店食品卫生违规的再次群众举报核查',
+    source: '群众举报',
+    region: '西屯区',
+    infoType: '突发事件',
+    author: '钱十四',
+    organization: '西屯区市场监管局',
+    submitTime: '2023-10-18 16:30',
+    auditStatus: '已转办',
+    identificationStatus: '重复'
+  },
+  {
+    id: 212,
+    title: '北屯区某主干道夜间占道施工扰民连续投诉处置',
+    source: '网格巡查',
+    region: '北屯区',
+    infoType: '民生诉求',
+    author: '李十五',
+    organization: '北屯区城管局',
+    submitTime: '2023-10-18 10:15',
+    auditStatus: '待转办',
+    identificationStatus: '重复'
+  },
+  {
+    id: 213,
+    title: '关于某校外培训机构隐形变异开展学科类培训核查专报',
+    source: '群众举报',
+    region: '南屯区',
+    infoType: '舆情动态',
+    author: '周十六',
+    organization: '市教育局',
+    submitTime: '2023-10-17 15:40',
+    auditStatus: '已转办',
+    identificationStatus: '重复'
+  },
+  {
+    id: 214,
+    title: '某住宅小区二次供水水质异味市民反复反馈核处',
+    source: '热线12345',
+    region: '西屯区',
+    infoType: '民生诉求',
+    author: '吴十七',
+    organization: '市水务局',
+    submitTime: '2023-10-17 09:20',
+    auditStatus: '待转办',
+    identificationStatus: '重复'
   }
 ];
 

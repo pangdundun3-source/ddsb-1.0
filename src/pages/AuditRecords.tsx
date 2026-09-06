@@ -3,6 +3,8 @@ import { AuditRecordItem, PageId, ReportItem } from '../types';
 import { Search, RotateCcw, X, AlertCircle } from 'lucide-react';
 import { PaginationBar } from '../components/PaginationBar';
 import { OrgPathDisplay, getOrganizationPathText } from '../components/OrgPathDisplay';
+import { IdentificationBadge } from '../components/IdentificationBadge';
+import { resolveIdentification } from '../services/identificationService';
 
 interface AuditRecordsProps {
   records: AuditRecordItem[];
@@ -22,6 +24,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
   const [endDate, setEndDate] = useState('');
   const [selectedOrg, setSelectedOrg] = useState('全部机构');
   const [selectedResult, setSelectedResult] = useState('全部');
+  const [selectedIdent, setSelectedIdent] = useState('全部');
 
   const orgOptions = [
     '全部机构',
@@ -54,6 +57,11 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
       if (selectedResult === '通过' && rec.auditResult !== '已通过') return false;
       if (selectedResult === '驳回' && rec.auditResult !== '被驳回') return false;
     }
+    if (selectedIdent !== '全部') {
+      const reportMatch = allReports.find((r) => r.id === rec.reportId);
+      const status = rec.identificationStatus || reportMatch?.identificationStatus || '首发';
+      if (!status.includes(selectedIdent)) return false;
+    }
     if (startDate) {
       const recDate = rec.auditTime.split(' ')[0];
       if (recDate < startDate) return false;
@@ -71,6 +79,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
     setEndDate('');
     setSelectedOrg('全部机构');
     setSelectedResult('全部');
+    setSelectedIdent('全部');
   };
 
   // Pagination (页码管理 + 每页条数设置)
@@ -79,7 +88,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [keyword, selectedOrg, selectedResult, startDate, endDate]);
+  }, [keyword, selectedOrg, selectedResult, selectedIdent, startDate, endDate]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
@@ -167,7 +176,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
           </div>
 
           {/* 审核状态 */}
-          <div className="flex items-center space-x-2 shrink-0 min-w-[160px]">
+          <div className="flex items-center space-x-2 shrink-0 min-w-[150px]">
             <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">审核状态</label>
             <select
               value={selectedResult}
@@ -177,6 +186,20 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
               <option value="全部">全部结论</option>
               <option value="通过">已通过</option>
               <option value="驳回">已驳回</option>
+            </select>
+          </div>
+
+          {/* 打标类型 */}
+          <div className="flex items-center space-x-2 shrink-0 min-w-[140px]">
+            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">研判打标</label>
+            <select
+              value={selectedIdent}
+              onChange={(e) => setSelectedIdent(e.target.value)}
+              className="flex-1 px-3 py-2 border border-gray-300 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 shadow-2xs cursor-pointer"
+            >
+              <option value="全部">全部标识</option>
+              <option value="首发">首发</option>
+              <option value="重复">重复</option>
             </select>
           </div>
         </div>
@@ -237,12 +260,19 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
                   <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
                     <td className="py-3.5 px-4 text-center text-gray-400 font-mono">{(safePage - 1) * pageSize + index + 1}</td>
                     <td className="py-3.5 px-4">
-                      <button
-                        onClick={() => handleDetail(item)}
-                        className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer block leading-snug"
-                      >
-                        {item.title}
-                      </button>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={() => handleDetail(item)}
+                          className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer leading-snug"
+                        >
+                          {item.title}
+                        </button>
+                        <IdentificationBadge
+                          status={item.identificationStatus || (reportMatch ? resolveIdentification(reportMatch, allReports).status : '首发')}
+                          size="xs"
+                          showIcon
+                        />
+                      </div>
                     </td>
                     <td className="py-3.5 px-4">
                       <div className="font-semibold text-gray-900 leading-snug">{submitterName}</div>

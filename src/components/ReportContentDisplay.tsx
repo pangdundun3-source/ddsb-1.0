@@ -1,6 +1,8 @@
 import React from 'react';
 import { Attachment, ReportItem } from '../types';
 import { getFinalAuditScore } from '../auditStage';
+import { IdentificationBadge } from './IdentificationBadge';
+import { resolveIdentification } from '../services/identificationService';
 import {
   Clock,
   Download,
@@ -106,14 +108,21 @@ export const ReportContentDisplay: React.FC<ReportContentDisplayProps> = ({ repo
     anchor.click();
   };
 
+  const ident = resolveIdentification(report);
+
   return (
     <div className="space-y-5">
       <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-2xs">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="truncate text-base font-extrabold leading-6 text-slate-950">
-              {report.title}
-            </h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-base font-extrabold leading-6 text-slate-950">
+                {report.title}
+              </h1>
+              {ident.status && (
+                <IdentificationBadge status={ident.status} size="xs" showIcon />
+              )}
+            </div>
             <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-slate-500">
               <span className="inline-flex items-center gap-1.5">
                 <User className="h-3.5 w-3.5 text-slate-400" />

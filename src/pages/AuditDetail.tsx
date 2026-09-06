@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ReportItem, PageId, Attachment } from '../types';
+import { IdentificationBadge } from '../components/IdentificationBadge';
+import { resolveIdentification } from '../services/identificationService';
 import {
   Info,
   FileText,
@@ -34,7 +36,7 @@ import { getFinalAuditScore, isFinalAuditStage } from '../auditStage';
 interface AuditDetailProps {
   report: ReportItem | null;
   allReports?: ReportItem[];
-  onApprove: (id: number, score?: number, isBatch?: boolean) => void;
+  onApprove: (id: number, score?: number, isBatch?: boolean, manualIdentification?: '首发' | '重复') => void;
   onReject: (id: number, reason: string, detail: string) => void;
   onNavigate: (page: PageId) => void;
 }
@@ -55,6 +57,14 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
   const [rejectDetail, setRejectDetail] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState<any | null>(null);
+
+  const ident = resolveIdentification(report, allReports);
+  const defaultFormal: '首发' | '重复' = (ident.status === '重复' || ident.status === '疑似重复') ? '重复' : '首发';
+  const [manualIdent, setManualIdent] = useState<'首发' | '重复'>(defaultFormal);
+
+  useEffect(() => {
+    setManualIdent((ident.status === '重复' || ident.status === '疑似重复') ? '重复' : '首发');
+  }, [report?.id, ident.status]);
 
   if (!report) {
     return (
@@ -80,7 +90,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
   const handleSubmitAudit = () => {
     const shouldBatch = isUrlMatched && matchedCoReports.length > 0;
     if (auditMode === 'pass') {
-      onApprove(report.id, canScore ? selectedScore : undefined, shouldBatch);
+      onApprove(report.id, canScore ? selectedScore : undefined, shouldBatch, manualIdent);
     } else {
       onReject(report.id, rejectReason, rejectDetail);
     }
@@ -154,9 +164,14 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
           <div className="bg-white rounded-xl p-6 border border-gray-200/80 shadow-2xs space-y-5">
             {/* Title & Status Row */}
             <div className="flex items-start justify-between gap-4">
-              <h1 className="text-lg sm:text-xl font-bold text-gray-900 leading-snug">
-                {report.title}
-              </h1>
+              <div className="space-y-1.5 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-lg sm:text-xl font-bold text-gray-900 leading-snug">
+                    {report.title}
+                  </h1>
+                  <IdentificationBadge status={ident.status} size="sm" showIcon />
+                </div>
+              </div>
               {/* Event Final Overall Result */}
               <div className="flex items-center gap-2 shrink-0">
                 <span className="text-[11px] text-gray-400 font-normal">事件结果</span>
@@ -427,10 +442,17 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
                       matchedCoReports.map((c) => (
                         <div
                           key={c.id}
-                          className="bg-white rounded-lg p-2.5 border border-[#F5E5CD] shadow-2xs space-y-1"
+                          className="bg-white rounded-lg p-2.5 border border-[#F5E5CD] shadow-2xs space-y-1.5"
                         >
-                          <div className="font-bold text-gray-800 text-xs leading-snug">
-                            {c.title}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-gray-800 text-xs leading-snug">
+                              {c.title}
+                            </span>
+                            <IdentificationBadge
+                              status={resolveIdentification(c, allReports).status}
+                              size="xs"
+                              showIcon
+                            />
                           </div>
                           <div className="text-[11px] text-gray-500 flex items-center space-x-1.5">
                             <span>{c.organization}</span>
@@ -442,9 +464,12 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
                         </div>
                       ))
                     ) : (
-                      <div className="bg-white rounded-lg p-2.5 border border-[#F5E5CD] shadow-2xs space-y-1">
-                        <div className="font-bold text-gray-800 text-xs leading-snug">
-                          短视频平台涉及虚假宣传的群众举报核查
+                      <div className="bg-white rounded-lg p-2.5 border border-[#F5E5CD] shadow-2xs space-y-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-gray-800 text-xs leading-snug">
+                            短视频平台涉及虚假宣传的群众举报核查
+                          </span>
+                          <IdentificationBadge status="疑似重复" size="xs" showIcon />
                         </div>
                         <div className="text-[11px] text-gray-500 flex items-center space-x-1.5">
                           <span>台中市网信办</span>
@@ -542,6 +567,44 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
                     </div>
                   </div>
                 )}
+
+                {/* 智能首发/重复认定归档选项 */}
+                <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-2.5 space-y-2">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="font-semibold text-slate-700 text-xs flex items-center gap-1">
+                      <Sparkles className="w-3.5 h-3.5 text-[#1E5ABB]" />
+                      采纳归档打标:
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      系统建议: <strong className="text-slate-800">{ident.status}</strong>
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setManualIdent('首发')}
+                      className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer border ${
+                        manualIdent === '首发'
+                          ? 'bg-[#1E5ABB] text-white border-[#1E5ABB] shadow-2xs'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-blue-50'
+                      }`}
+                    >
+                      <span>归档为「首发」</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setManualIdent('重复')}
+                      className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer border ${
+                        manualIdent === '重复'
+                          ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-amber-50'
+                      }`}
+                    >
+                      <span>归档为「重复」</span>
+                    </button>
+                  </div>
+                </div>
+
                 <button
                   type="button"
                   onClick={handleSubmitAudit}

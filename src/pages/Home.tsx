@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { PageId, ReportItem, OrgItem } from '../types';
+import { IdentificationBadge } from '../components/IdentificationBadge';
+import { resolveIdentification } from '../services/identificationService';
 import {
   Building2,
   Users,
@@ -87,9 +89,16 @@ export const Home: React.FC<HomeProps> = ({
 }) => {
   const [currentTime, setCurrentTime] = useState('2026-09-04 17:25:00');
   const [subOrgSort, setSubOrgSort] = useState<'pending' | 'submitted'>('pending');
+  const [todoTab, setTodoTab] = useState<'audit' | 'report'>('audit');
 
   const pendingAudits = useMemo(() => {
     return reports.filter((r) => r.auditStatus === '待审核');
+  }, [reports]);
+
+  const reportTodos = useMemo(() => {
+    return reports.filter(
+      (r) => r.auditStatus === '待审核' || r.auditStatus === '审核中' || r.auditStatus === '被驳回'
+    );
   }, [reports]);
 
   const handleQuickAudit = (report: ReportItem) => {
@@ -356,55 +365,137 @@ export const Home: React.FC<HomeProps> = ({
           </div>
         </div>
 
-        {/* Right Column: 今日审核待办列表 (8条待处理) (lg:col-span-5) */}
+        {/* Right Column: 审核待办列表 / 报送待办列表 (lg:col-span-5) */}
         <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col justify-between">
-          <div className="p-4 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
-              <h3 className="font-black text-slate-900 text-sm tracking-tight">今日审核待办列表</h3>
-              <span className="px-2 py-0.2 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-full">
-                8条待处理
-              </span>
+          <div className="p-3.5 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between">
+            <div className="flex items-center space-x-1.5 p-0.5 bg-slate-200/70 rounded-lg">
+              <button
+                onClick={() => setTodoTab('audit')}
+                className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                  todoTab === 'audit'
+                    ? 'bg-white text-slate-900 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>审核待办列表</span>
+                <span className="px-1.5 py-0.2 bg-amber-100 text-amber-800 text-[10px] rounded-full font-mono">
+                  {pendingAudits.length}
+                </span>
+              </button>
+              <button
+                onClick={() => setTodoTab('report')}
+                className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                  todoTab === 'report'
+                    ? 'bg-white text-slate-900 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>报送待办列表</span>
+                <span className="px-1.5 py-0.2 bg-blue-100 text-[#1E5ABB] text-[10px] rounded-full font-mono">
+                  {reportTodos.length}
+                </span>
+              </button>
             </div>
-            <span className="text-[11px] text-slate-500 font-medium">按时效紧迫度排列</span>
+            <span className="text-[11px] text-slate-400 font-medium">智能识别预判</span>
           </div>
 
           <div className="p-3 space-y-2.5 max-h-[460px] overflow-y-auto">
-            {pendingAudits.slice(0, 8).map((item, idx) => (
-              <div
-                key={item.id}
-                onClick={() => handleQuickAudit(item)}
-                className="p-3 bg-slate-50/80 hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-3 group"
-              >
-                <div className="min-w-0 space-y-1">
-                  <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700 truncate">
-                    {item.title}
-                  </div>
-                  <div className="text-[10px] text-slate-500 truncate">
-                    该速报已提交，正等待核关研判审核批复。
-                  </div>
-                  <div className="text-[10px] text-slate-400 font-mono">
-                    {item.organization} · {item.author} · {item.submitTime || '2026-09-04 10:20'}
-                  </div>
-                </div>
-
-                <div className="flex flex-col items-end space-y-1.5 shrink-0">
-                  <span className="px-2 py-0.5 bg-amber-100 text-amber-800 font-bold text-[10px] rounded border border-amber-200">
-                    待审核
-                  </span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleQuickAudit(item);
-                    }}
-                    className="px-2.5 py-1 bg-white hover:bg-blue-600 hover:text-white border border-slate-300 text-blue-700 font-bold text-[11px] rounded-lg shadow-2xs transition-all cursor-pointer flex items-center space-x-0.5"
+            {todoTab === 'audit' ? (
+              pendingAudits.slice(0, 8).map((item) => {
+                const ident = resolveIdentification(item, reports);
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => handleQuickAudit(item)}
+                    className="p-3 bg-slate-50/80 hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-3 group"
                   >
-                    <span>详情</span>
-                    <span>→</span>
-                  </button>
-                </div>
-              </div>
-            ))}
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex items-center space-x-1.5 min-w-0 flex-wrap">
+                        <span className="text-xs font-bold text-slate-900 group-hover:text-blue-700 truncate">
+                          {item.title}
+                        </span>
+                        <IdentificationBadge status={ident.status} size="xs" showIcon />
+                      </div>
+                      <div className="text-[10px] text-slate-500 truncate">
+                        {ident.detail?.matchReason || '该速报已提交，正等待核关研判审核批复。'}
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-mono">
+                        {item.organization} · {item.author} · {item.submitTime || '2026-09-04 10:20'}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-end space-y-1.5 shrink-0">
+                      <span className="px-2 py-0.5 bg-amber-100 text-amber-800 font-bold text-[10px] rounded border border-amber-200">
+                        待审核
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleQuickAudit(item);
+                        }}
+                        className="px-2.5 py-1 bg-white hover:bg-blue-600 hover:text-white border border-slate-300 text-blue-700 font-bold text-[11px] rounded-lg shadow-2xs transition-all cursor-pointer flex items-center space-x-0.5"
+                      >
+                        <span>去审核</span>
+                        <span>→</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              reportTodos.slice(0, 8).map((item) => {
+                const ident = resolveIdentification(item, reports);
+                const isRejected = item.auditStatus === '被驳回' || item.auditStatus === '已驳回';
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => handleViewDetail(item)}
+                    className="p-3 bg-slate-50/80 hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-3 group"
+                  >
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex items-center space-x-1.5 min-w-0 flex-wrap">
+                        <span className="text-xs font-bold text-slate-900 group-hover:text-blue-700 truncate">
+                          {item.title}
+                        </span>
+                        <IdentificationBadge status={ident.status} size="xs" showIcon />
+                      </div>
+                      <div className="text-[10px] text-slate-500 truncate">
+                        {isRejected
+                          ? `驳回原因：${item.rejectReason || '需补充佐证材料'}`
+                          : item.auditStatus === '草稿'
+                          ? '草稿待编辑完善，暂未提交送审'
+                          : ident.detail?.matchReason || '报送已录入，等待审核分流'}
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-mono">
+                        {item.organization} · {item.author} · {item.submitTime || '2026-09-04 10:20'}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-end space-y-1.5 shrink-0">
+                      <span
+                        className={`px-2 py-0.5 font-bold text-[10px] rounded border ${
+                          isRejected
+                            ? 'bg-rose-100 text-rose-800 border-rose-200'
+                            : 'bg-blue-100 text-blue-800 border-blue-200'
+                        }`}
+                      >
+                        {item.auditStatus}
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewDetail(item);
+                        }}
+                        className="px-2.5 py-1 bg-white hover:bg-[#1E5ABB] hover:text-white border border-slate-300 text-[#1E5ABB] font-bold text-[11px] rounded-lg shadow-2xs transition-all cursor-pointer flex items-center space-x-0.5"
+                      >
+                        <span>查看</span>
+                        <span>→</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </div>

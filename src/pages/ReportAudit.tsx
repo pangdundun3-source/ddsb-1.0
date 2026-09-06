@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { PaginationBar } from '../components/PaginationBar';
 import { OrgPathDisplay, getOrganizationPathText } from '../components/OrgPathDisplay';
 import { AuditStatusBadge } from '../components/AuditStatusBadge';
+import { IdentificationBadge } from '../components/IdentificationBadge';
+import { resolveIdentification } from '../services/identificationService';
 import { ReportItem, PageId } from '../types';
 import { isFinalAuditStage } from '../auditStage';
 import {
@@ -543,15 +545,22 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                             <tr key={`cluster-item-${item.id}`} className="hover:bg-amber-50/30 transition-colors">
                               <td className="py-3 px-4 text-center text-amber-800/70 font-mono text-xs">{itemIdx + 1}</td>
                               <td className="py-3 px-4">
-                                <button
-                                  onClick={() => {
-                                    onSelectAudit(item);
-                                    onNavigate('audit-detail');
-                                  }}
-                                  className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer block leading-snug"
-                                >
-                                  {item.title}
-                                </button>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <button
+                                    onClick={() => {
+                                      onSelectAudit(item);
+                                      onNavigate('audit-detail');
+                                    }}
+                                    className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer leading-snug"
+                                  >
+                                    {item.title}
+                                  </button>
+                                  <IdentificationBadge
+                                    status={resolveIdentification(item, allReports.length > 0 ? allReports : auditPendingList).status}
+                                    size="xs"
+                                    showIcon
+                                  />
+                                </div>
                               </td>
                               <td className="py-3 px-4 text-gray-500 text-xs">
                                 <span className="line-clamp-2" title={item.detailContent?.summary || item.title}>
@@ -654,15 +663,22 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                         <tr key={`other-item-${item.id}`} className="hover:bg-blue-50/20 transition-colors">
                           <td className="py-3 px-4 text-center text-gray-400 font-mono text-xs">{itemIdx + 1}</td>
                           <td className="py-3 px-4">
-                            <button
-                              onClick={() => {
-                                onSelectAudit(item);
-                                onNavigate('audit-detail');
-                              }}
-                              className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer block leading-snug"
-                            >
-                              {item.title}
-                            </button>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <button
+                                onClick={() => {
+                                  onSelectAudit(item);
+                                  onNavigate('audit-detail');
+                                }}
+                                className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer leading-snug"
+                              >
+                                {item.title}
+                              </button>
+                              <IdentificationBadge
+                                status={resolveIdentification(item, allReports.length > 0 ? allReports : auditPendingList).status}
+                                size="xs"
+                                showIcon
+                              />
+                            </div>
                           </td>
                           <td className="py-3 px-4 text-gray-500 text-xs">
                             <span className="line-clamp-2" title={item.detailContent?.summary || item.title}>
@@ -749,15 +765,22 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                       <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
                         <td className="py-3 px-4 text-center text-gray-400 font-mono text-xs">{(safePage - 1) * pageSize + index + 1}</td>
                         <td className="py-3 px-4">
-                          <button
-                            onClick={() => {
-                              onSelectAudit(item);
-                              onNavigate('audit-detail');
-                            }}
-                            className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer block leading-snug"
-                          >
-                            {item.title}
-                          </button>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <button
+                              onClick={() => {
+                                onSelectAudit(item);
+                                onNavigate('audit-detail');
+                              }}
+                              className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer leading-snug"
+                            >
+                              {item.title}
+                            </button>
+                            <IdentificationBadge
+                              status={resolveIdentification(item, allReports.length > 0 ? allReports : auditPendingList).status}
+                              size="xs"
+                              showIcon
+                            />
+                          </div>
                         </td>
                         <td className="py-3 px-4 text-gray-500 text-xs">
                           <span className="line-clamp-2" title={item.detailContent?.summary || item.title}>
@@ -873,15 +896,24 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                   <div className="space-y-2.5">
                     {/* Top Row */}
                     <div className="flex items-start justify-between gap-2">
-                      <h4
-                        onClick={() => {
-                          onSelectAudit(item);
-                          onNavigate('audit-detail');
-                        }}
-                        className="text-xs font-bold text-gray-900 hover:text-[#1E5ABB] cursor-pointer line-clamp-2 leading-snug"
-                      >
-                        {item.title}
-                      </h4>
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h4
+                            onClick={() => {
+                              onSelectAudit(item);
+                              onNavigate('audit-detail');
+                            }}
+                            className="text-xs font-bold text-gray-900 hover:text-[#1E5ABB] cursor-pointer line-clamp-2 leading-snug"
+                          >
+                            {item.title}
+                          </h4>
+                          <IdentificationBadge
+                            status={resolveIdentification(item, allReports.length > 0 ? allReports : auditPendingList).status}
+                            size="xs"
+                            showIcon
+                          />
+                        </div>
+                      </div>
                       <AuditStatusBadge status={item.auditStatus} className="shrink-0" />
                     </div>
 
