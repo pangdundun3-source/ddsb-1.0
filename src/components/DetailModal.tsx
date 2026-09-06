@@ -16,7 +16,9 @@ import {
   UserCheck,
   History,
   FileCheck2,
-  Link2
+  Link2,
+  X,
+  ChevronLeft,
 } from 'lucide-react';
 import { BackNavigationBar } from './BackNavigationBar';
 import { RecallConfirmDialog } from './RecallConfirmDialog';
@@ -69,6 +71,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
   const [auditSheetMode, setAuditSheetMode] = useState<'pass' | 'reject' | null>(null);
   const [rejectReasonCategory, setRejectReasonCategory] = useState<string>('信息不完整');
   const [rejectDetailText, setRejectDetailText] = useState<string>('信息不完整，请补充政策原文链接和群众反馈截图后重新提交。');
+  const [previewDetailReport, setPreviewDetailReport] = useState<SpeedReport | null>(null);
   const canAudit = allowAuditActions && !auditOnlyPreview && report?.status === 'pending_audit';
   const canEdit = !auditOnlyPreview && (report?.status === 'draft' || report?.status === 'rejected');
 
@@ -79,32 +82,38 @@ export const DetailModal: React.FC<DetailModalProps> = ({
       setHasMatched(Boolean(initialMatchLink));
       setAuditSheetMode(null);
       setShowRecallConfirm(false);
+      setPreviewDetailReport(null);
     }
   }, [report?.id, report?.matchedLink]);
 
   if (!report) return null;
 
   // Link precision matching reports
-  const normalizedMatchLink = matchLinkInput.trim();
-  const matchedPendingReports = allReports.filter((r) => {
-    if (r.status !== 'pending_audit') return false;
+  const normalizedMatchLink = matchLinkInput.trim().toLowerCase();
+  const matchedReports = allReports.filter((r) => {
     if (!normalizedMatchLink) return false;
-    return r.matchedLink === normalizedMatchLink || r.address === normalizedMatchLink;
+    const rLink = (r.matchedLink || '').trim().toLowerCase();
+    const isLinkMatch =
+      Boolean(rLink) &&
+      (rLink === normalizedMatchLink ||
+        rLink.includes(normalizedMatchLink) ||
+        normalizedMatchLink.includes(rLink));
+    const isAddressMatch =
+      Boolean(r.address) &&
+      Boolean(report.address) &&
+      r.address.trim().toLowerCase() === report.address.trim().toLowerCase();
+    return isLinkMatch || isAddressMatch;
   });
-  const sameLinkRelatedReports = allReports.filter((r) => {
-    if (r.id === report.id) return false;
-    if (!normalizedMatchLink) return false;
-    return r.matchedLink === normalizedMatchLink || r.address === report.address;
-  });
-  const visibleMatchReports =
-    Array.from(
-      new Map(
-        [...matchedPendingReports, ...sameLinkRelatedReports]
-          .filter((item) => item.id !== report.id)
-          .map((item) => [item.id, item])
-      ).values()
-    ).slice(0, 3);
+
+  const visibleMatchReports = Array.from(
+    new Map(
+      matchedReports
+        .filter((item) => item.id !== report.id)
+        .map((item) => [item.id, item])
+    ).values()
+  );
   const displayMatchCount = visibleMatchReports.length;
+  const matchedPendingReports = visibleMatchReports.filter((r) => r.status === 'pending_audit');
   const matchedCount = matchedPendingReports.length;
   const matchedIds = matchedPendingReports.map((r) => r.id);
   const isBatchMode = hasMatched && matchedCount > 1;
@@ -478,96 +487,89 @@ export const DetailModal: React.FC<DetailModalProps> = ({
         {/* Mobile Audit Operations Card (审核操作) - Derived from PC layout */}
         {/* ========================================================= */}
         {canAudit && (
-          <div className="bg-white rounded-2xl p-3.5 border border-amber-200/90 shadow-xs space-y-3">
-            
-            {/* Header Notice Banner */}
-            <div className="space-y-2">
+          <div className="bg-blue-50/50 rounded-2xl p-3.5 border border-blue-100 shadow-2xs space-y-3">
+            {/* Header: Title and Count Badge */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-1.5">
+                <Link2 className="w-4 h-4 text-blue-600" />
+                <span className="text-xs sm:text-sm font-bold text-slate-800">按链接地址精准匹配</span>
+              </div>
+              <span className="px-2.5 py-0.5 rounded-full bg-blue-100/90 text-blue-600 text-[11px] font-semibold">
+                共 {displayMatchCount} 条匹配数据
+              </span>
             </div>
 
-            {/* 按链接地址精准匹配 */}
-            <div className="space-y-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-              <label className="text-[11px] font-bold text-slate-700 flex items-center space-x-1">
-                <Link2 className="w-3.5 h-3.5 text-blue-600" />
-                <span>按链接地址精准匹配</span>
-              </label>
+            {/* Link Input Bar */}
+            <div className="relative flex items-center bg-white border border-slate-200/90 rounded-xl px-3 py-2 shadow-2xs">
+              <input
+                type="text"
+                value={matchLinkInput}
+                onChange={(e) => {
+                  setMatchLinkInput(e.target.value);
+                  setHasMatched(true);
+                }}
+                placeholder="请输入或复制上报链接地址..."
+                className="flex-1 bg-transparent text-xs text-slate-800 font-mono focus:outline-none pr-7"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (matchLinkInput) {
+                    navigator.clipboard?.writeText?.(matchLinkInput);
+                    onToast('已复制链接地址');
+                  }
+                }}
+                className="absolute right-2.5 p-1 text-blue-500 hover:text-blue-700 transition-colors"
+                title="复制链接"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+              </button>
+            </div>
 
-              <div className="flex items-center space-x-1.5">
-                <input
-                  type="text"
-                  value={matchLinkInput}
-                  onChange={(e) => {
-                    setMatchLinkInput(e.target.value);
-                    setHasMatched(false);
-                  }}
-                  placeholder="请输入或复制上报链接地址..."
-                  className="flex-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-800 focus:outline-none focus:border-blue-500 font-mono"
-                />
-              </div>
+            {/* Matched Reports List */}
+            <div className="space-y-2 pt-0.5">
+              {visibleMatchReports.length > 0 ? (
+                visibleMatchReports.map((item) => (
+                  <div
+                    key={item.id}
+                    className="bg-white rounded-xl p-3 border border-slate-200/80 shadow-2xs hover:border-blue-300 transition-all space-y-1.5"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      {/* 1. 标题设置为高亮可点击状态 */}
+                      <button
+                        type="button"
+                        onClick={() => setPreviewDetailReport(item)}
+                        className="text-left font-bold text-xs sm:text-[13px] text-blue-600 hover:text-blue-700 hover:underline active:opacity-75 transition-colors line-clamp-1 flex-1 cursor-pointer"
+                        title="点击查看该条数据详情"
+                      >
+                        {item.title}
+                      </button>
 
-              {/* Match Detection Notice (Matching PC screenshot alert) */}
-              {showMatchedResults && (
-                <div
-                  className={`rounded-xl p-2.5 text-[11px] space-y-2 animate-in fade-in ${
-                    isBatchMode
-                      ? 'bg-amber-50 border border-amber-200 text-amber-950'
-                      : 'bg-blue-50 border border-blue-100 text-blue-950'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-start space-x-1.5 min-w-0">
-                      {isBatchMode ? (
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
-                      ) : (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
-                      )}
-                      <span>
-                        已匹配 <strong className="font-mono font-bold">{displayMatchCount}</strong> 条待审核内容
-                        {isBatchMode ? '，可进行批量处理。' : '。'}
-                      </span>
+                      {/* 研判标签 */}
+                      <div className="shrink-0">
+                        <IdentificationBadge
+                          tag={item.identificationTag || 'suspected_first'}
+                          size="xs"
+                        />
+                      </div>
+                    </div>
+
+                    {/* 机构与时间副信息 */}
+                    <div className="flex items-center space-x-1.5 text-[11px] text-slate-400 font-normal">
+                      <span>{item.authorDept || '台中市网信办'}</span>
+                      <span>·</span>
+                      <span>{item.author || '网格员'}</span>
+                      <span>·</span>
+                      <span className="font-mono">{item.createTime}</span>
                     </div>
                   </div>
-
-                  <div className="rounded-xl border border-amber-100 bg-white/90 overflow-hidden">
-                    {visibleMatchReports.length > 0 ? (
-                      visibleMatchReports.map((item) => {
-                        return (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => {
-                              if (onSelectRelatedReport) {
-                                onSelectRelatedReport(item);
-                              }
-                            }}
-                            className="w-full text-left px-2.5 py-2 border-b border-amber-50 last:border-b-0 transition-colors hover:bg-amber-50/60 active:bg-amber-100/50"
-                            >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0 flex-1 space-y-1">
-                                <div className="text-[11px] font-bold text-slate-800 line-clamp-2">
-                                  {item.title}
-                                </div>
-                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-slate-500">
-                                  <span className="truncate">{item.authorDept}</span>
-                                  <span className="text-slate-300">·</span>
-                                  <span className="truncate">{item.author}</span>
-                                  <span className="text-slate-300">·</span>
-                                  <span className="font-mono">{item.createTime}</span>
-                                </div>
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })
-                    ) : (
-                      <div className="p-2.5 text-[11px] text-slate-500">
-                        暂未匹配到待审核内容。
-                      </div>
-                    )}
-                  </div>
+                ))
+              ) : (
+                <div className="p-3 text-center text-xs text-slate-400 bg-white rounded-xl border border-slate-100">
+                  暂未检索到该链接关联的匹配速报
                 </div>
               )}
             </div>
-
           </div>
         )}
 
@@ -844,6 +846,203 @@ export const DetailModal: React.FC<DetailModalProps> = ({
                 </>
               )}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 2. 点击匹配项标题后弹出的速报详情弹窗 (限制在模拟器内) */}
+      {/* ========================================================= */}
+      {previewDetailReport && (
+        <div
+          className="absolute inset-0 z-[60] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in duration-200"
+          onClick={() => setPreviewDetailReport(null)}
+        >
+          <div
+            className="bg-white w-full max-w-[360px] max-h-[86%] rounded-3xl shadow-2xl border border-slate-200/90 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-600 via-sky-600 to-cyan-600 text-white px-3.5 py-3 flex items-center justify-between shrink-0">
+              <div className="flex items-center space-x-2 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setPreviewDetailReport(null)}
+                  className="p-1 rounded-lg hover:bg-white/10 active:scale-95 transition-all text-white/90 hover:text-white"
+                  title="返回"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <div className="min-w-0">
+                  <h3 className="text-xs sm:text-sm font-bold truncate">速报详情</h3>
+                  <p className="text-[10px] text-white/80 font-mono truncate">
+                    编号: {previewDetailReport.id}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-1.5 shrink-0">
+                {previewDetailReport.identificationTag && (
+                  <IdentificationBadge
+                    tag={previewDetailReport.identificationTag}
+                    size="xs"
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={() => setPreviewDetailReport(null)}
+                  className="p-1 rounded-lg text-white/80 hover:text-white hover:bg-white/10 active:scale-95 transition-all"
+                  title="关闭"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-2.5 text-xs text-slate-700">
+              {/* Title & Tag */}
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[10px] font-semibold border border-blue-200/60">
+                    {previewDetailReport.category || '舆情速报'}
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400">
+                    网格: {previewDetailReport.gridCode || 'WH-02-14'}
+                  </span>
+                </div>
+                <h4 className="text-xs sm:text-[13px] font-extrabold text-slate-900 leading-snug">
+                  {previewDetailReport.title}
+                </h4>
+              </div>
+
+              {/* Basic Meta Grid */}
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                  <span className="text-slate-400 block text-[10px]">上报人 / 部门</span>
+                  <span className="font-semibold text-slate-800 mt-0.5 block truncate">
+                    {previewDetailReport.author} ({previewDetailReport.authorDept || '台中市网信办'})
+                  </span>
+                </div>
+                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                  <span className="text-slate-400 block text-[10px]">上报时间</span>
+                  <span className="font-mono font-semibold text-slate-800 mt-0.5 block truncate">
+                    {previewDetailReport.createTime}
+                  </span>
+                </div>
+              </div>
+
+              {/* Address */}
+              {previewDetailReport.address && (
+                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex items-start space-x-1.5 text-[11px]">
+                  <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1">
+                    <span className="text-slate-400 text-[10px] block">发生地址</span>
+                    <span className="font-medium text-slate-800 break-words">{previewDetailReport.address}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Matched Link */}
+              {previewDetailReport.matchedLink && (
+                <div className="bg-blue-50/50 p-2.5 rounded-xl border border-blue-100 space-y-1 text-[11px]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-blue-700 font-bold text-[10px] flex items-center space-x-1">
+                      <Link2 className="w-3 h-3 text-blue-600" />
+                      <span>关联存证链接</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard?.writeText?.(previewDetailReport.matchedLink || '');
+                        onToast('已复制关联链接');
+                      }}
+                      className="text-blue-600 hover:text-blue-800 text-[10px] font-medium flex items-center gap-0.5"
+                    >
+                      <span>复制</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <p className="font-mono text-slate-700 text-[10.5px] break-all bg-white p-2 rounded-lg border border-blue-100">
+                    {previewDetailReport.matchedLink}
+                  </p>
+                </div>
+              )}
+
+              {/* Summary / Content */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-800 flex items-center space-x-1">
+                  <FileCheck2 className="w-3.5 h-3.5 text-blue-600" />
+                  <span>速报内容及事件摘要</span>
+                </label>
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs text-slate-700 leading-relaxed">
+                  {previewDetailReport.summary || '暂无详细摘要内容'}
+                </div>
+              </div>
+
+              {/* Core Demand */}
+              {previewDetailReport.coreDemand && (
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-800 flex items-center space-x-1">
+                    <MessageSquare className="w-3.5 h-3.5 text-amber-600" />
+                    <span>核心诉求</span>
+                  </label>
+                  <div className="bg-amber-50/50 p-2 rounded-xl border border-amber-100 text-xs text-amber-900 leading-relaxed">
+                    {previewDetailReport.coreDemand}
+                  </div>
+                </div>
+              )}
+
+              {/* Disposal Advice */}
+              {previewDetailReport.disposalAdvice && (
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-800 flex items-center space-x-1">
+                    <Building2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>处置建议</span>
+                  </label>
+                  <div className="bg-emerald-50/50 p-2 rounded-xl border border-emerald-100 text-xs text-emerald-900 leading-relaxed">
+                    {previewDetailReport.disposalAdvice}
+                  </div>
+                </div>
+              )}
+
+              {/* Identification Reason */}
+              {previewDetailReport.identificationReason && (
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-800 flex items-center space-x-1">
+                    <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>智能识别研判说明</span>
+                  </label>
+                  <div className="bg-indigo-50/50 p-2 rounded-xl border border-indigo-100 text-xs text-indigo-900 leading-relaxed">
+                    {previewDetailReport.identificationReason}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="p-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-end space-x-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setPreviewDetailReport(null)}
+                className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-100 active:scale-95 transition-all"
+              >
+                关闭
+              </button>
+              {onSelectRelatedReport && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = previewDetailReport;
+                    setPreviewDetailReport(null);
+                    onSelectRelatedReport(target);
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 active:scale-95 transition-all shadow-xs"
+                >
+                  切换至此速报
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
