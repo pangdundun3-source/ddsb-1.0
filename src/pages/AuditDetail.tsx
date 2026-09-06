@@ -56,6 +56,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
   const [rejectDetail, setRejectDetail] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState<any | null>(null);
+  const [viewingDetailReport, setViewingDetailReport] = useState<ReportItem | null>(null);
 
   if (!report) {
     return (
@@ -75,11 +76,96 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
   const matchedCoReports = allReports.filter(
     (r) => r.id !== report.id && r.matchUrl && matchUrl && r.matchUrl.trim() === matchUrl.trim()
   );
+
+  // Fallback co-reports for matching list when viewing standalone report with matchUrl
+  const fallbackCoReports: ReportItem[] = [
+    {
+      id: 901,
+      title: '某短视频平台涉及虚假宣传的群众举报核查',
+      source: '群众举报',
+      region: '西屯区',
+      infoType: '突发事件',
+      author: '孙七',
+      organization: '台中市网信办',
+      submitTime: '2026-08-13 08:45',
+      auditStatus: '待审核',
+      originLabel: '疑似重复',
+      originReason: '系统智能比对：检测到与当前速报存在同源URL链接。',
+      matchUrl: matchUrl,
+      detailContent: {
+        summary: '多名网民反映短视频平台涉及虚假宣传及涉嫌违规促销的情况，存在舆情发酵风险。',
+        coreDemands: '建议协调相关监管部门进行约谈并督促平台清理违规内容。',
+        recommendations: [
+          '1. 协调市场监管部门开展联合核查。',
+          '2. 固定电子证据并限时责令整改。'
+        ]
+      }
+    },
+    {
+      id: 902,
+      title: '台中市秋季旅游推广媒体传播分析',
+      source: '新闻网站',
+      region: '全市',
+      infoType: '舆情动态',
+      author: '李四',
+      organization: '台中市网信办',
+      submitTime: '2026-08-13 09:15',
+      auditStatus: '待审核',
+      originLabel: '疑似重复',
+      originReason: '同源链接重复上报。',
+      matchUrl: matchUrl,
+      detailContent: {
+        summary: '针对秋季旅游季舆情传播动态的初步梳理与各区反馈。',
+        coreDemands: '加强景区正面宣传引导与热点监测。',
+        recommendations: ['持续跟进同城热度榜与网民诉求。']
+      }
+    },
+    {
+      id: 903,
+      title: '南屯区老旧小区改造政策解读及反馈收集',
+      source: '政府官网',
+      region: '南屯区',
+      infoType: '政策解读',
+      author: '赵六',
+      organization: '台中市网信办',
+      submitTime: '2026-08-13 10:20',
+      auditStatus: '待审核',
+      originLabel: '疑似首发',
+      matchUrl: matchUrl,
+      detailContent: {
+        summary: '收集整理居民对老旧小区加装电梯与停车位改造的意见反馈。',
+        coreDemands: '建议街道办开通线上答疑通道。',
+        recommendations: ['加强政策正面解读与民生热线对接。']
+      }
+    },
+    {
+      id: 904,
+      title: '微信平台关于智慧城市建设的讨论热度分析',
+      source: '社交媒体',
+      region: '北屯区',
+      infoType: '舆情动态',
+      author: '王五',
+      organization: '台中市网信办',
+      submitTime: '2026-08-13 11:30',
+      auditStatus: '待审核',
+      originLabel: '疑似重复',
+      matchUrl: matchUrl,
+      detailContent: {
+        summary: '微信群及朋友圈讨论智慧城市生活便捷度的网民反馈汇编。',
+        coreDemands: '进一步优化政务App体验与便民功能。',
+        recommendations: ['定期公布系统升级进展。']
+      }
+    }
+  ];
+
+  const displayMatchedList = matchedCoReports.length > 0 ? matchedCoReports : fallbackCoReports;
+  const totalMatchedCount = isUrlMatched ? displayMatchedList.length + 1 : 1;
+
   const canScore = isFinalAuditStage(report);
   const finalScore = getFinalAuditScore(report);
 
   const handleSubmitAudit = () => {
-    const shouldBatch = isUrlMatched && matchedCoReports.length > 0;
+    const shouldBatch = isUrlMatched && (matchedCoReports.length > 0 || displayMatchedList.length > 0);
     if (auditMode === 'pass') {
       onApprove(report.id, canScore ? selectedScore : undefined, shouldBatch);
     } else {
@@ -161,21 +247,18 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
                 </h1>
                 <ReportOriginBadge report={report} size="md" />
               </div>
-              {/* Event Final Overall Result */}
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="text-[11px] text-gray-400 font-normal">事件结果</span>
-                <span
-                  className={`text-xs font-semibold px-3 py-1 rounded-md border ${
-                    report.auditStatus === '已采纳' || report.auditStatus === '已通过' || report.auditStatus === '待转办' || report.auditStatus === '已转办'
-                      ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                      : report.auditStatus === '被驳回' || report.auditStatus === '已驳回'
-                      ? 'bg-rose-50 text-rose-600 border-rose-200'
-                      : 'bg-amber-50 text-amber-600 border-amber-200'
-                  }`}
-                >
-                  {report.auditStatus}
-                </span>
-              </div>
+              {/* Status Badge */}
+              <span
+                className={`shrink-0 text-xs font-semibold px-3 py-1 rounded-md border ${
+                  report.auditStatus === '已采纳' || report.auditStatus === '已通过' || report.auditStatus === '待转办' || report.auditStatus === '已转办'
+                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                    : report.auditStatus === '被驳回' || report.auditStatus === '已驳回'
+                    ? 'bg-rose-50 text-rose-600 border-rose-200'
+                    : 'bg-amber-50 text-amber-600 border-amber-200'
+                }`}
+              >
+                {report.auditStatus}
+              </span>
             </div>
 
             {/* Sub-meta: Author & Organization, Submit Time */}
@@ -392,10 +475,15 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
               <>
             {/* Precision Match by URL Section (1:1 with reference screenshot) */}
             <div className="bg-[#F4F8FD] border border-[#E2EEF9] rounded-2xl p-3.5 space-y-2.5">
-              {/* Header */}
-              <div className="flex items-center space-x-1.5 text-gray-900 font-bold text-xs">
-                <LinkIcon className="w-3.5 h-3.5 text-[#2563EB] shrink-0" />
-                <span>按链接地址精准匹配</span>
+              {/* Header with Title & Count Pill Badge (as requested in screenshot) */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-1.5 text-gray-900 font-bold text-xs">
+                  <LinkIcon className="w-3.5 h-3.5 text-[#2563EB] shrink-0" />
+                  <span>按链接地址精准匹配</span>
+                </div>
+                <span className="bg-[#EBF3FE] text-[#2563EB] border border-[#D5E6FC] text-[11px] font-medium px-2.5 py-0.5 rounded-full shrink-0">
+                  共 {totalMatchedCount} 条匹配数据
+                </span>
               </div>
 
               {/* URL Field */}
@@ -416,53 +504,34 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
                 )}
               </div>
 
-              {/* Matched Notice Box (Amber Container) */}
+              {/* Matched Content Items List (Clean cards without yellow container and without warning text) */}
               {isUrlMatched && (
-                <div className="bg-[#FEF9EE] border border-[#FBE3B5] rounded-xl p-3 space-y-2.5">
-                  {/* Warning Header Line */}
-                  <div className="flex items-center space-x-1.5 text-gray-800 font-bold text-xs">
-                    <AlertTriangle className="w-4 h-4 text-[#D97706] shrink-0" />
-                    <span>已匹配 {matchedCoReports.length > 0 ? matchedCoReports.length : 1} 条待审核内容，可进行批量处理。</span>
-                  </div>
-
-                  {/* Matched Content Item Card(s) */}
-                  <div className="space-y-2">
-                    {matchedCoReports.length > 0 ? (
-                      matchedCoReports.map((c) => (
-                        <div
-                          key={c.id}
-                          className="bg-white rounded-lg p-2.5 border border-[#F5E5CD] shadow-2xs space-y-1"
+                <div className="space-y-2 pt-1">
+                  {displayMatchedList.map((c) => (
+                    <div
+                      key={c.id}
+                      className="bg-white rounded-lg p-2.5 border border-gray-200/80 hover:border-blue-300 shadow-2xs space-y-1 transition-all"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setViewingDetailReport(c)}
+                          className="font-bold text-[#1E5ABB] hover:text-[#134092] hover:underline text-xs leading-snug text-left cursor-pointer transition-colors line-clamp-1"
+                          title={`点击查看事件详情: ${c.title}`}
                         >
-                          <div className="flex items-center gap-2">
-                            <div className="font-bold text-gray-800 text-xs leading-snug">
-                              {c.title}
-                            </div>
-                            <ReportOriginBadge report={c} size="sm" className="shrink-0" />
-                          </div>
-                          <div className="text-[11px] text-gray-500 flex items-center space-x-1.5">
-                            <span>{c.organization}</span>
-                            <span className="text-gray-300">·</span>
-                            <span>{c.author}</span>
-                            <span className="text-gray-300">·</span>
-                            <span className="font-mono">{c.submitTime}</span>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="bg-white rounded-lg p-2.5 border border-[#F5E5CD] shadow-2xs space-y-1">
-                        <div className="font-bold text-gray-800 text-xs leading-snug">
-                          短视频平台涉及虚假宣传的群众举报核查
-                        </div>
-                        <div className="text-[11px] text-gray-500 flex items-center space-x-1.5">
-                          <span>台中市网信办</span>
-                          <span className="text-gray-300">·</span>
-                          <span>张三</span>
-                          <span className="text-gray-300">·</span>
-                          <span className="font-mono">2026-08-13 08:45</span>
-                        </div>
+                          {c.title}
+                        </button>
+                        <ReportOriginBadge report={c} size="sm" className="shrink-0" />
                       </div>
-                    )}
-                  </div>
+                      <div className="text-[11px] text-gray-500 flex items-center space-x-1.5">
+                        <span>{c.organization}</span>
+                        <span className="text-gray-300">·</span>
+                        <span>{c.author}</span>
+                        <span className="text-gray-300">·</span>
+                        <span className="font-mono">{c.submitTime}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -551,15 +620,12 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
                 )}
                 <button
                   type="button"
+                  id="btn-confirm-batch-approve"
                   onClick={handleSubmitAudit}
                   className="w-full py-2.5 mt-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5" />
-                  <span>
-                    {isUrlMatched && matchedCoReports.length > 0
-                      ? `${canScore ? '确认批量通过并评分' : '确认批量通过'} (${matchedCoReports.length + 1} 条)`
-                      : canScore ? '确认通过并评分' : '确认通过'}
-                  </span>
+                  <span>确认批量通过</span>
                 </button>
               </div>
             ) : (
@@ -798,6 +864,156 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
         attachments={attachments}
         onSelectAttachment={(att) => setPreviewAttachment(att)}
       />
+
+      {/* Event Detail Modal for Matched Co-Report Click */}
+      {viewingDetailReport && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setViewingDetailReport(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-gray-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-[#1E5ABB] text-white px-5 py-3.5 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <FileText className="w-5 h-5 text-blue-100 shrink-0" />
+                <h3 className="text-sm font-bold">事件详情 · 同源速报查看</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingDetailReport(null)}
+                className="text-white/80 hover:text-white p-1 hover:bg-white/10 rounded-lg text-lg font-bold cursor-pointer transition-colors"
+                title="关闭"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 sm:p-6 overflow-y-auto space-y-4 text-xs">
+              {/* Title & Origin Badge */}
+              <div className="pb-3 border-b border-gray-100">
+                <div className="space-y-1.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center flex-wrap gap-2">
+                      <h2 className="text-base font-bold text-gray-900 leading-snug">
+                        {viewingDetailReport.title}
+                      </h2>
+                      <ReportOriginBadge report={viewingDetailReport} size="sm" />
+                    </div>
+                    <span className="shrink-0 text-xs font-semibold px-2.5 py-1 rounded-md border bg-amber-50 text-amber-600 border-amber-200">
+                      待审核
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-gray-500 text-[11px]">
+                    <span className="flex items-center space-x-1">
+                      <User className="w-3 h-3 text-gray-400" />
+                      <span>{viewingDetailReport.author}（{viewingDetailReport.organization}）</span>
+                    </span>
+                    <span className="flex items-center space-x-1">
+                      <Clock className="w-3 h-3 text-gray-400" />
+                      <span className="font-mono">{viewingDetailReport.submitTime}</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Meta Info Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 p-3 bg-gray-50 rounded-xl border border-gray-100 text-[11px]">
+                <div>
+                  <span className="text-gray-400 block">信息来源</span>
+                  <span className="font-medium text-gray-700">{viewingDetailReport.source || '群众举报'}</span>
+                </div>
+                <div>
+                  <span className="text-gray-400 block">所属区域</span>
+                  <span className="font-medium text-gray-700">{viewingDetailReport.region || '全市'}</span>
+                </div>
+                <div>
+                  <span className="text-gray-400 block">信息类型</span>
+                  <span className="font-medium text-gray-700">{viewingDetailReport.infoType || '突发事件'}</span>
+                </div>
+                {viewingDetailReport.occurAddress && (
+                  <div className="col-span-2 sm:col-span-3">
+                    <span className="text-gray-400 block">发生地址</span>
+                    <span className="font-medium text-gray-700">{viewingDetailReport.occurAddress}</span>
+                  </div>
+                )}
+                {viewingDetailReport.matchUrl && (
+                  <div className="col-span-2 sm:col-span-3">
+                    <span className="text-gray-400 block">匹配链接</span>
+                    <a
+                      href={viewingDetailReport.matchUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono text-[#2563EB] hover:underline flex items-center space-x-1 truncate"
+                    >
+                      <span className="truncate">{viewingDetailReport.matchUrl}</span>
+                      <ExternalLink className="w-3 h-3 shrink-0" />
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {/* Content Breakdown */}
+              <div className="space-y-3 pt-1">
+                <div className="space-y-1">
+                  <div className="font-bold text-gray-900 text-xs">【内容摘要】</div>
+                  <div className="bg-[#F8F9FA] border border-gray-100 rounded-lg p-3 text-xs text-gray-700 leading-relaxed font-normal">
+                    {viewingDetailReport.detailContent?.summary || '多名网民反映该事件相关情况，已通过基层网格进行核实排查。'}
+                  </div>
+                </div>
+
+                {viewingDetailReport.detailContent?.coreDemands && (
+                  <div className="space-y-1">
+                    <div className="font-bold text-gray-900 text-xs">【核心诉求】</div>
+                    <div className="bg-[#F8F9FA] border border-gray-100 rounded-lg p-3 text-xs text-gray-700 leading-relaxed font-normal">
+                      {viewingDetailReport.detailContent.coreDemands}
+                    </div>
+                  </div>
+                )}
+
+                {viewingDetailReport.detailContent?.recommendations && (
+                  <div className="space-y-1">
+                    <div className="font-bold text-gray-900 text-xs">【处置建议】</div>
+                    <div className="bg-[#F8F9FA] border border-gray-100 rounded-lg p-3 text-xs text-gray-700 leading-relaxed font-normal">
+                      {Array.isArray(viewingDetailReport.detailContent.recommendations) ? (
+                        viewingDetailReport.detailContent.recommendations.map((rec, idx) => (
+                          <p key={idx} className="leading-relaxed">{rec}</p>
+                        ))
+                      ) : (
+                        <p className="leading-relaxed">{viewingDetailReport.detailContent.recommendations}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Attachments if any */}
+                {viewingDetailReport.attachments && viewingDetailReport.attachments.length > 0 && (
+                  <div className="space-y-1 pt-1">
+                    <div className="font-bold text-gray-900 text-xs">【附件列表】({viewingDetailReport.attachments.length}个)</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {viewingDetailReport.attachments.map((att) => (
+                        <div
+                          key={att.id}
+                          className="flex items-center justify-between p-2 bg-gray-50 border border-gray-200 rounded-lg text-[11px]"
+                        >
+                          <div className="flex items-center space-x-2 truncate">
+                            <Paperclip className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <span className="truncate font-medium text-gray-700">{att.name}</span>
+                          </div>
+                          <span className="text-gray-400 text-[10px] shrink-0">{att.size}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
