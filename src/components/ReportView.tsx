@@ -207,6 +207,8 @@ export const ReportView: React.FC<ReportViewProps> = ({
     reportSubmittedTotal - reportFirstPass - reportRepairPassed - reportRejectedTodo,
     0
   );
+  const reportFirstPassRate =
+    reportSubmittedTotal > 0 ? Math.round((reportFirstPass / reportSubmittedTotal) * 100) : 0;
   const reportOverallPassRate =
     reportSubmittedTotal > 0 ? Math.round((reportApproved / reportSubmittedTotal) * 100) : 0;
   const reportListItems = reports.filter((r) => !isTransferRelatedReport(r));
@@ -474,7 +476,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
               </div>
             </div>
 
-            <div className="relative z-10 grid grid-cols-3 gap-1.5">
+            <div className="relative z-10 grid grid-cols-4 gap-1.5">
               <div className="rounded-xl border border-white/20 bg-white/15 p-2 min-w-0 overflow-hidden">
                 <p className="text-[9px] text-cyan-100 font-bold truncate">报送待办</p>
                 <p className="text-xl leading-none font-black font-mono text-white mt-1.5">{reportTodoCount}</p>
@@ -490,8 +492,17 @@ export const ReportView: React.FC<ReportViewProps> = ({
                 </p>
               </div>
               <div className="rounded-xl border border-white/20 bg-white/15 p-2 min-w-0 overflow-hidden">
-                <p className="text-[9px] text-slate-200 font-bold truncate">整体通过率</p>
+                <p className="text-[9px] text-emerald-200 font-bold truncate">一次通过率</p>
                 <p className="text-xl leading-none font-black font-mono text-emerald-300 mt-1.5">
+                  {reportFirstPassRate}%
+                </p>
+                <p className="text-[8px] text-emerald-100/80 truncate mt-1.5">
+                  {reportFirstPass}/{reportSubmittedTotal} 一次过
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/20 bg-white/15 p-2 min-w-0 overflow-hidden">
+                <p className="text-[9px] text-slate-200 font-bold truncate">整体通过率</p>
+                <p className="text-xl leading-none font-black font-mono text-white mt-1.5">
                   {reportOverallPassRate}%
                 </p>
                 <p className="text-[8px] text-slate-300 truncate mt-1.5">
