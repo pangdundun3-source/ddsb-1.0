@@ -525,6 +525,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
             setSmartMatchNotice={setSmartMatchNotice}
             applyScorePreset={applyScorePreset}
             onInspectReport={(item) => setInspectingReport(item)}
+            auditMode={auditMode}
           />
 
           {/* In 2-column mode, render Decision Console & Timeline below the list */}

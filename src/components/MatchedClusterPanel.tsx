@@ -3,6 +3,7 @@ import { ReportItem } from '../types';
 import {
   Link as LinkIcon,
   ExternalLink,
+  Ban,
 } from 'lucide-react';
 
 interface MatchedClusterPanelProps {
@@ -23,6 +24,7 @@ interface MatchedClusterPanelProps {
   applyScorePreset?: (preset: 'stepped' | 'all5' | 'all3') => void;
   onInspectReport: (report: ReportItem) => void;
   compact?: boolean;
+  auditMode?: 'pass' | 'reject';
 }
 
 export const MatchedClusterPanel: React.FC<MatchedClusterPanelProps> = ({
@@ -36,6 +38,7 @@ export const MatchedClusterPanel: React.FC<MatchedClusterPanelProps> = ({
   selectedScore,
   onInspectReport,
   compact = false,
+  auditMode = 'pass',
 }) => {
   return (
     <div className="bg-white rounded-xl p-4 sm:p-4.5 border border-gray-200/80 shadow-2xs space-y-3.5">
@@ -143,26 +146,36 @@ export const MatchedClusterPanel: React.FC<MatchedClusterPanelProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-1">
-                      <span className="text-[11px] text-gray-400">评分:</span>
-                      <div className="flex items-center space-x-0.5">
-                        {[5, 3.5, 3, 1, 0].map((sc) => (
-                          <button
-                            key={sc}
-                            type="button"
-                            onClick={() => handleSetScore(item.id, sc)}
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all border ${
-                              itemScore === sc
-                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
-                                : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'
-                            }`}
-                          >
-                            {sc}
-                          </button>
-                        ))}
-                        <span className="text-[10px] text-gray-400 font-normal pl-0.5">分</span>
+                    {auditMode === 'reject' ? (
+                      <div className="flex items-center space-x-1">
+                        <span className="text-[11px] text-gray-400">评分:</span>
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium text-rose-600 bg-rose-50 border border-rose-200/80">
+                          <Ban className="w-2.5 h-2.5 text-rose-500" />
+                          驳回不赋分
+                        </span>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="flex items-center space-x-1">
+                        <span className="text-[11px] text-gray-400">评分:</span>
+                        <div className="flex items-center space-x-0.5">
+                          {[5, 3.5, 3, 1, 0].map((sc) => (
+                            <button
+                              key={sc}
+                              type="button"
+                              onClick={() => handleSetScore(item.id, sc)}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all border ${
+                                itemScore === sc
+                                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'
+                              }`}
+                            >
+                              {sc}
+                            </button>
+                          ))}
+                          <span className="text-[10px] text-gray-400 font-normal pl-0.5">分</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
