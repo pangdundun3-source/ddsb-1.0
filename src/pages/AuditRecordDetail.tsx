@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AuditRecordItem, ReportItem, PageId, Attachment, TimelineNode } from '../types';
+import { AuditRecordItem, ReportItem, PageId, Attachment, TimelineNode, OriginTypeLabel } from '../types';
 import {
   Info,
   FileText,
@@ -29,6 +29,7 @@ import {
 import { AttachmentPreviewModal } from '../components/AttachmentPreviewModal';
 import { AuditFlowTimeline } from '../components/AuditFlowTimeline';
 import { getFinalAuditScore } from '../auditStage';
+import { ReportOriginBadge } from '../components/ReportOriginBadge';
 
 interface AuditRecordDetailProps {
   record: AuditRecordItem | null;
@@ -56,14 +57,25 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
         // 优先使用速报实时对象：整体状态与流转时间线随速报当前进度展示。
         // 本条审核记录只代表“某个审核节点当时”的结论，不覆盖速报整体状态。
         if (found) {
+          const finalOrigin: OriginTypeLabel =
+            record.originLabel === '重复' ||
+            found.originLabel === '重复' ||
+            record.originLabel === '疑似重复' ||
+            found.originLabel === '疑似重复'
+              ? '重复'
+              : '首发';
           return {
             ...found,
+            originLabel: finalOrigin,
             auditor: record.auditor || found.auditor,
             auditTime: record.auditTime || found.auditTime,
             rejectReason: record.rejectReason ?? found.rejectReason,
             rejectDetail: record.rejectDetail ?? found.rejectDetail
           };
         }
+
+        const baseOrigin: OriginTypeLabel =
+          record.originLabel === '重复' || record.originLabel === '疑似重复' ? '重复' : '首发';
 
         const base: ReportItem = {
           id: record.reportId || record.id,
@@ -76,6 +88,7 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
           submitTime: record.submitTime || record.auditTime,
           occurAddress: '全市范围',
           auditStatus: record.auditResult === '已通过' ? '已采纳' : '已驳回',
+          originLabel: baseOrigin,
           ...(record.score !== undefined ? { score: record.score } : {}),
           matchUrl: 'https://news.example.com/',
           detailContent: {
@@ -327,9 +340,12 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
           <div className="bg-white rounded-xl p-6 border border-gray-200/80 shadow-2xs space-y-5">
             {/* Title & Status Row */}
             <div className="flex items-start justify-between gap-4">
-              <h1 className="text-lg sm:text-xl font-bold text-gray-900 leading-snug">
-                {report.title}
-              </h1>
+              <div className="flex items-center flex-wrap gap-2.5">
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900 leading-snug">
+                  {report.title}
+                </h1>
+                <ReportOriginBadge label={report.originLabel === '重复' ? '重复' : '首发'} size="md" />
+              </div>
               <span
                 className={`shrink-0 text-xs font-semibold px-3 py-1 rounded-md border ${
                   titleStatusText === '已驳回'

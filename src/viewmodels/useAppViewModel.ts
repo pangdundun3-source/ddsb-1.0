@@ -109,19 +109,19 @@ export const useAppViewModel = () => {
   };
 
   const handleCreateReport = (newReportData: NewReportFormData) => {
-    const createdItem = createSubmittedReport(newReportData);
+    const createdItem = createSubmittedReport(newReportData, Date.now(), getNowText(), reports);
     setReports((previous) => [createdItem, ...previous]);
     setLogs((previous) => [
       createOperationLog(
         '提交速报',
-        `创建并提交了速报《${newReportData.title}》`,
+        `创建并提交了速报《${newReportData.title}》（智能预判：${createdItem.originLabel || '疑似首发'}）`,
         getNowText(),
         newReportData.author,
         newReportData.organization
       ),
       ...previous
     ]);
-    showToast('新速报提交成功，已进入待审核队列！');
+    showToast(`新速报提交成功（系统预判：${createdItem.originLabel || '疑似首发'}），已进入待审核队列！`);
   };
 
   const handleDeleteReport = (id: number) => {
@@ -152,7 +152,7 @@ export const useAppViewModel = () => {
   };
 
   const handleResubmitReport = (updatedReport: ReportItem) => {
-    const updated = resubmitReport(updatedReport);
+    const updated = resubmitReport(updatedReport, getNowText(), reports);
     setReports((previous) => {
       const exists = previous.some((report) => report.id === updated.id);
       return exists
@@ -161,13 +161,15 @@ export const useAppViewModel = () => {
     });
     if (selectedReport?.id === updated.id) setSelectedReport(updated);
     if (selectedAudit?.id === updated.id) setSelectedAudit(updated);
-    showToast('速报已成功提交送审！');
+    showToast(`速报已成功提交送审（预判更新为：${updated.originLabel || '疑似首发'}）！`);
   };
 
   const handleApproveAudit = (id: number, score?: number, isBatch = false) => {
     const target = reports.find((report) => report.id === id);
     if (!target) return;
     const now = getNowText();
+
+    let finalReportToRecord = target;
 
     if (isBatch && selectedAudit?.matchUrl) {
       const matchedIds = new Set(
@@ -176,15 +178,27 @@ export const useAppViewModel = () => {
           .map((report) => report.id)
       );
       setReports((previous) =>
-        previous.map((report) => (matchedIds.has(report.id) ? approveReport(report, score, now) : report))
+        previous.map((report) => {
+          if (matchedIds.has(report.id)) {
+            const updated = approveReport(report, score, now);
+            if (report.id === id) finalReportToRecord = updated;
+            return updated;
+          }
+          return report;
+        })
       );
       const selectedUpdate = reports.find((report) => report.id === selectedAudit.id);
-      if (selectedUpdate) setSelectedAudit(approveReport(selectedUpdate, score, now));
+      if (selectedUpdate) {
+        const updatedSelected = approveReport(selectedUpdate, score, now);
+        setSelectedAudit(updatedSelected);
+        finalReportToRecord = updatedSelected;
+      }
       showToast(
         `已成功批量审核通过同源速报${score !== undefined ? `（终审评分: ${score}分）` : ''}！`
       );
     } else {
       const updated = approveReport(target, score, now);
+      finalReportToRecord = updated;
       setReports((previous) => previous.map((report) => (report.id === id ? updated : report)));
       if (selectedAudit?.id === id) setSelectedAudit(updated);
       if (selectedReport?.id === id) setSelectedReport(updated);
@@ -197,7 +211,7 @@ export const useAppViewModel = () => {
 
     setAuditRecords((previous) => [
       createAuditRecord(
-        target,
+        finalReportToRecord,
         '已通过',
         now,
         isFinalAuditStage(target) ? score : undefined

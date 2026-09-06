@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { PRESET_REPORT_TEMPLATES as PRESET_TEMPLATES } from '../data/mockData';
 import { AuditStatusBadge } from '../components/AuditStatusBadge';
+import { ReportOriginBadge } from '../components/ReportOriginBadge';
 import { OrgPathDisplay } from '../components/OrgPathDisplay';
 
 export type SystemRoleMode = 'all' | 'reporter' | 'auditor';
@@ -698,12 +699,15 @@ export const Home: React.FC<HomeProps> = ({
                         className="bg-slate-50/80 hover:bg-blue-50/40 border border-slate-200/80 hover:border-blue-300 rounded-xl p-3.5 transition-all duration-150 group space-y-2"
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <button
-                            onClick={openDetail}
-                            className="font-bold text-sm text-slate-800 group-hover:text-[#1E5ABB] transition-colors leading-snug truncate text-left cursor-pointer"
-                          >
-                            {item.title}
-                          </button>
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <button
+                              onClick={openDetail}
+                              className="font-bold text-sm text-slate-800 group-hover:text-[#1E5ABB] transition-colors leading-snug truncate text-left cursor-pointer"
+                            >
+                              {item.title}
+                            </button>
+                            <ReportOriginBadge report={item} size="sm" className="shrink-0" />
+                          </div>
                           <AuditStatusBadge status={item.auditStatus} className="shrink-0" />
                         </div>
 
@@ -842,9 +846,12 @@ export const Home: React.FC<HomeProps> = ({
                       className="bg-slate-50/80 hover:bg-blue-50/40 border border-slate-200/80 hover:border-blue-300 rounded-xl p-3.5 transition-all duration-150 cursor-pointer group space-y-1.5"
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <h4 className="font-bold text-sm text-slate-800 group-hover:text-[#1E5ABB] transition-colors leading-snug truncate">
-                          {item.title}
-                        </h4>
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <h4 className="font-bold text-sm text-slate-800 group-hover:text-[#1E5ABB] transition-colors leading-snug truncate">
+                            {item.title}
+                          </h4>
+                          <ReportOriginBadge report={item} size="sm" className="shrink-0" />
+                        </div>
                         <span className="bg-[#FFF7E6] text-[#D46B08] border border-[#FFD591] text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0">
                           待审核
                         </span>

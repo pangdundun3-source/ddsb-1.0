@@ -30,6 +30,7 @@ import {
 import { AttachmentPreviewModal } from '../components/AttachmentPreviewModal';
 import { AuditFlowTimeline } from '../components/AuditFlowTimeline';
 import { getFinalAuditScore, isFinalAuditStage } from '../auditStage';
+import { ReportOriginBadge } from '../components/ReportOriginBadge';
 
 interface AuditDetailProps {
   report: ReportItem | null;
@@ -154,9 +155,12 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
           <div className="bg-white rounded-xl p-6 border border-gray-200/80 shadow-2xs space-y-5">
             {/* Title & Status Row */}
             <div className="flex items-start justify-between gap-4">
-              <h1 className="text-lg sm:text-xl font-bold text-gray-900 leading-snug">
-                {report.title}
-              </h1>
+              <div className="flex items-center flex-wrap gap-2.5">
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900 leading-snug">
+                  {report.title}
+                </h1>
+                <ReportOriginBadge report={report} size="md" />
+              </div>
               {/* Event Final Overall Result */}
               <div className="flex items-center gap-2 shrink-0">
                 <span className="text-[11px] text-gray-400 font-normal">事件结果</span>
@@ -429,8 +433,11 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
                           key={c.id}
                           className="bg-white rounded-lg p-2.5 border border-[#F5E5CD] shadow-2xs space-y-1"
                         >
-                          <div className="font-bold text-gray-800 text-xs leading-snug">
-                            {c.title}
+                          <div className="flex items-center gap-2">
+                            <div className="font-bold text-gray-800 text-xs leading-snug">
+                              {c.title}
+                            </div>
+                            <ReportOriginBadge report={c} size="sm" className="shrink-0" />
                           </div>
                           <div className="text-[11px] text-gray-500 flex items-center space-x-1.5">
                             <span>{c.organization}</span>

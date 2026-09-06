@@ -3,6 +3,7 @@ import { ReportItem, PageId } from '../types';
 import { PaginationBar } from '../components/PaginationBar';
 import { getOrganizationPathText, OrgPathDisplay } from '../components/OrgPathDisplay';
 import { AuditStatusBadge } from '../components/AuditStatusBadge';
+import { ReportOriginBadge } from '../components/ReportOriginBadge';
 import {
   Search,
   RotateCcw,
@@ -113,7 +114,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
     setKeyword('');
     setStartDate('');
     setEndDate('');
-    setActiveTab('全部');
+    setActiveTab('待审核');
   };
 
   // Pagination (页码管理 + 每页条数设置)
@@ -398,15 +399,18 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                       <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
                         <td className="py-3.5 px-4 text-center text-gray-400 font-mono">{(safePage - 1) * pageSize + index + 1}</td>
                         <td className="py-3.5 px-4">
-                          <button
-                            onClick={() => {
-                              onSelectReport(item);
-                              onNavigate('report-detail');
-                            }}
-                            className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer block leading-snug"
-                          >
-                            {item.title}
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                onSelectReport(item);
+                                onNavigate('report-detail');
+                              }}
+                              className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer block leading-snug"
+                            >
+                              {item.title}
+                            </button>
+                            <ReportOriginBadge report={item} size="sm" className="shrink-0" />
+                          </div>
                         </td>
                         <td className="py-3.5 px-4">
                           <div
@@ -545,15 +549,18 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                   <div className="space-y-2.5">
                     {/* Header */}
                     <div className="flex items-start justify-between gap-2">
-                      <h4
-                        onClick={() => {
-                          onSelectReport(item);
-                          onNavigate('report-detail');
-                        }}
-                        className="text-xs font-bold text-gray-900 hover:text-[#1E5ABB] cursor-pointer line-clamp-2 leading-snug"
-                      >
-                        {item.title}
-                      </h4>
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <h4
+                          onClick={() => {
+                            onSelectReport(item);
+                            onNavigate('report-detail');
+                          }}
+                          className="text-xs font-bold text-gray-900 hover:text-[#1E5ABB] cursor-pointer line-clamp-2 leading-snug"
+                        >
+                          {item.title}
+                        </h4>
+                        <ReportOriginBadge report={item} size="sm" className="shrink-0" />
+                      </div>
                       <AuditStatusBadge status={item.auditStatus} className="shrink-0" />
                     </div>
 

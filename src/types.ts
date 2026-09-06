@@ -48,6 +48,17 @@ export interface UserProfileData {
 export type AuditStatus = '待审核' | '审核中' | '已通过' | '已采纳' | '已驳回' | '被驳回' | '草稿' | '待转办' | '已转办';
 export type AuditStage = '初审' | '复核' | '终审';
 
+export type OriginTypeLabel = '疑似首发' | '疑似重复' | '识别中' | '预判' | '首发' | '重复';
+
+export interface SimilarReportMatch {
+  id: number;
+  title: string;
+  submitTime?: string;
+  organization?: string;
+  similarity?: number;
+  matchReason?: string;
+}
+
 export interface Attachment {
   id: string;
   name: string;
@@ -85,6 +96,7 @@ export interface NewReportFormData {
   source: string;
   region: string;
   occurAddress?: string;
+  matchUrl?: string;
   infoType: string;
   author: string;
   organization: string;
@@ -162,6 +174,9 @@ export interface ReportItem {
   transferTime?: string;
   auditor?: string;
   auditTime?: string;
+  originLabel?: OriginTypeLabel;
+  originReason?: string;
+  originSimilarReports?: SimilarReportMatch[];
 }
 
 export interface AuditRecordItem {
@@ -178,6 +193,8 @@ export interface AuditRecordItem {
   score?: number;
   rejectReason?: string;
   rejectDetail?: string;
+  originLabel?: OriginTypeLabel;
+  originReason?: string;
 }
 
 export interface OrgItem {

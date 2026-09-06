@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { PaginationBar } from '../components/PaginationBar';
 import { OrgPathDisplay, getOrganizationPathText } from '../components/OrgPathDisplay';
 import { AuditStatusBadge } from '../components/AuditStatusBadge';
+import { ReportOriginBadge } from '../components/ReportOriginBadge';
 import { ReportItem, PageId, AuditStatus } from '../types';
 import {
   Search,
@@ -394,7 +395,7 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
 
                       {/* Title & Location */}
                       <td className="py-3 px-3.5">
-                        <div className="space-y-1">
+                        <div className="flex items-center gap-2">
                           <button
                             onClick={() => {
                               onSelectReport(item);
@@ -404,6 +405,7 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
                           >
                             <span className="leading-snug">{item.title}</span>
                           </button>
+                          <ReportOriginBadge report={item} size="sm" className="shrink-0" />
                         </div>
                       </td>
 
@@ -574,15 +576,18 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
                   </div>
 
                   {/* Title */}
-                  <h3
-                    onClick={() => {
-                      onSelectReport(item);
-                      onNavigate('report-detail');
-                    }}
-                    className="font-bold text-sm text-gray-900 group-hover:text-[#1E5ABB] transition-colors leading-snug cursor-pointer line-clamp-2"
-                  >
-                    {item.title}
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3
+                      onClick={() => {
+                        onSelectReport(item);
+                        onNavigate('report-detail');
+                      }}
+                      className="font-bold text-sm text-gray-900 group-hover:text-[#1E5ABB] transition-colors leading-snug cursor-pointer line-clamp-2 flex-1"
+                    >
+                      {item.title}
+                    </h3>
+                    <ReportOriginBadge report={item} size="sm" className="shrink-0" />
+                  </div>
 
                   {/* Time */}
                   <div className="flex items-center justify-between text-[11px] text-gray-400 pt-0.5">

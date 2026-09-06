@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { AuditRecordItem, PageId, ReportItem } from '../types';
+import { AuditRecordItem, PageId, ReportItem, OriginTypeLabel } from '../types';
 import { Search, RotateCcw, X, AlertCircle } from 'lucide-react';
 import { PaginationBar } from '../components/PaginationBar';
 import { OrgPathDisplay, getOrganizationPathText } from '../components/OrgPathDisplay';
+import { ReportOriginBadge } from '../components/ReportOriginBadge';
 
 interface AuditRecordsProps {
   records: AuditRecordItem[];
@@ -232,17 +233,31 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
                 const recordScore = item.score;
                 const rejectReasonText = item.rejectReason || reportMatch?.rejectReason || '信息不完整';
                 const rejectDetailText = item.rejectDetail || reportMatch?.rejectDetail;
+                const finalizedOrigin: OriginTypeLabel =
+                  item.originLabel === '重复' ||
+                  reportMatch?.originLabel === '重复' ||
+                  item.originLabel === '疑似重复' ||
+                  reportMatch?.originLabel === '疑似重复'
+                    ? '重复'
+                    : '首发';
 
                 return (
                   <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
                     <td className="py-3.5 px-4 text-center text-gray-400 font-mono">{(safePage - 1) * pageSize + index + 1}</td>
                     <td className="py-3.5 px-4">
-                      <button
-                        onClick={() => handleDetail(item)}
-                        className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer block leading-snug"
-                      >
-                        {item.title}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleDetail(item)}
+                          className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer block leading-snug"
+                        >
+                          {item.title}
+                        </button>
+                        <ReportOriginBadge
+                          label={finalizedOrigin}
+                          size="sm"
+                          className="shrink-0"
+                        />
+                      </div>
                     </td>
                     <td className="py-3.5 px-4">
                       <div className="font-semibold text-gray-900 leading-snug">{submitterName}</div>

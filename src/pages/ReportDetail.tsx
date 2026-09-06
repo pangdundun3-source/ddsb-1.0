@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { AttachmentPreviewModal } from '../components/AttachmentPreviewModal';
 import { AuditFlowTimeline } from '../components/AuditFlowTimeline';
+import { ReportOriginBadge } from '../components/ReportOriginBadge';
 
 interface ReportDetailProps {
   report: ReportItem | null;
@@ -203,9 +204,12 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
           <div className="bg-white rounded-xl p-6 border border-gray-200/80 shadow-2xs space-y-5">
             {/* Title & Status Row */}
             <div className="flex items-start justify-between gap-4">
-              <h1 className="text-lg sm:text-xl font-bold text-gray-900 leading-snug">
-                {report.title}
-              </h1>
+              <div className="flex items-center flex-wrap gap-2.5">
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900 leading-snug">
+                  {report.title}
+                </h1>
+                <ReportOriginBadge report={report} size="md" />
+              </div>
               <span
                 className={`shrink-0 text-xs font-semibold px-3 py-1 rounded-md border ${
                   isDraft
