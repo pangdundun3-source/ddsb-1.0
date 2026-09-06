@@ -114,14 +114,14 @@ export const useAppViewModel = () => {
     setLogs((previous) => [
       createOperationLog(
         '提交速报',
-        `创建并提交了速报《${newReportData.title}》（智能预判：${createdItem.originLabel || '疑似首发'}）`,
+        `创建并提交了速报《${newReportData.title}》（智能识别：${createdItem.originLabel || '疑似首发'}）`,
         getNowText(),
         newReportData.author,
         newReportData.organization
       ),
       ...previous
     ]);
-    showToast(`新速报提交成功（系统预判：${createdItem.originLabel || '疑似首发'}），已进入待审核队列！`);
+    showToast(`新速报提交成功（智能识别：${createdItem.originLabel || '疑似首发'}），已进入待审核队列！`);
   };
 
   const handleDeleteReport = (id: number) => {
@@ -161,7 +161,7 @@ export const useAppViewModel = () => {
     });
     if (selectedReport?.id === updated.id) setSelectedReport(updated);
     if (selectedAudit?.id === updated.id) setSelectedAudit(updated);
-    showToast(`速报已成功提交送审（预判更新为：${updated.originLabel || '疑似首发'}）！`);
+    showToast(`速报已成功提交送审（标识为：${updated.originLabel || '疑似首发'}）！`);
   };
 
   const handleApproveAudit = (id: number, score?: number, isBatch = false) => {

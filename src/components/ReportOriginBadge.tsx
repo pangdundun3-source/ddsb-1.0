@@ -12,7 +12,7 @@ export function getEffectiveOriginLabel(
 
   if (label) {
     if (isPostAdoption) {
-      if (label === '疑似首发' || label === '识别中' || label === '预判') return '首发';
+      if (label === '疑似首发' || label === '识别中') return '首发';
       if (label === '疑似重复') return '重复';
       return label;
     } else {
@@ -88,7 +88,7 @@ export const ReportOriginBadge: React.FC<ReportOriginBadgeProps> = ({
           className={`inline-flex items-center font-semibold rounded-md bg-blue-50 text-blue-700 border border-blue-300/90 shadow-2xs ${sizeClasses} ${
             interactive ? 'cursor-pointer hover:bg-blue-100 transition-colors' : ''
           } ${className}`}
-          title="系统预判：疑似首发（审核过程标识，待最终审核通过定标）"
+          title="智能识别：疑似首发（审核过程标识，待最终审核通过定标）"
         >
           {showIcon && <Sparkles className={`${iconSizes} text-blue-600 shrink-0`} />}
           <span className="whitespace-nowrap">{displayText}</span>
@@ -103,7 +103,7 @@ export const ReportOriginBadge: React.FC<ReportOriginBadgeProps> = ({
           className={`inline-flex items-center font-semibold rounded-md bg-orange-50 text-orange-700 border border-orange-300/90 shadow-2xs ${sizeClasses} ${
             interactive ? 'cursor-pointer hover:bg-orange-100 transition-colors' : ''
           } ${className}`}
-          title="系统预判：疑似重复（已比对到相似线索或同源地址）"
+          title="智能识别：疑似重复（已比对到相似线索或同源地址）"
         >
           {showIcon && <Copy className={`${iconSizes} text-orange-600 shrink-0`} />}
           <span className="whitespace-nowrap">{displayText}</span>
@@ -118,24 +118,9 @@ export const ReportOriginBadge: React.FC<ReportOriginBadgeProps> = ({
           className={`inline-flex items-center font-semibold rounded-md bg-purple-50 text-purple-700 border border-purple-300/80 shadow-2xs ${sizeClasses} ${
             interactive ? 'cursor-pointer hover:bg-purple-100 transition-colors' : ''
           } ${className}`}
-          title="系统智能识别预判中：正在自动比对不良信息库与在审数据..."
+          title="系统智能识别中：正在自动比对不良信息库与在审数据..."
         >
           {showIcon && <Loader2 className={`${iconSizes} text-purple-600 animate-spin shrink-0`} />}
-          <span className="whitespace-nowrap">{displayText}</span>
-        </span>
-      );
-
-    case '预判':
-      return (
-        <span
-          id={`origin-badge-${activeLabel}`}
-          onClick={onClick}
-          className={`inline-flex items-center font-semibold rounded-md bg-purple-50 text-purple-700 border border-purple-300/80 shadow-2xs ${sizeClasses} ${
-            interactive ? 'cursor-pointer hover:bg-purple-100 transition-colors' : ''
-          } ${className}`}
-          title="系统智能预判状态（审核中过程标识，终审通过后正式定标）"
-        >
-          {showIcon && <Sparkles className={`${iconSizes} text-purple-600 shrink-0`} />}
           <span className="whitespace-nowrap">{displayText}</span>
         </span>
       );

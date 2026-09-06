@@ -242,7 +242,7 @@ export const approveReport = (
   let finalOriginReason: string | undefined = report.originReason;
 
   if (finalAudit) {
-    if (report.originLabel === '疑似首发' || report.originLabel === '识别中' || report.originLabel === '预判' || !report.originLabel) {
+    if (report.originLabel === '疑似首发' || report.originLabel === '识别中' || !report.originLabel) {
       finalOriginLabel = '首发';
       finalOriginReason = '经终审审核定标确认：首发报送，已正式归档入库。';
     } else if (report.originLabel === '疑似重复') {

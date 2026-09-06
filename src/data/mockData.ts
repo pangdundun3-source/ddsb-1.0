@@ -1157,8 +1157,8 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     organization: '台中市网信办',
     submitTime: '2023-10-21 09:00',
     auditStatus: '待审核',
-    originLabel: '预判',
-    originReason: '系统智能比对：系统预判首发报送，待终审确认定标。'
+    originLabel: '疑似首发',
+    originReason: '系统智能比对：自动比对不良信息库与在审历史库，未发现重合线索，初判为首发报送。'
   },
   {
     id: 107,

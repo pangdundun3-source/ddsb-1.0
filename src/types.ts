@@ -48,7 +48,7 @@ export interface UserProfileData {
 export type AuditStatus = '待审核' | '审核中' | '已通过' | '已采纳' | '已驳回' | '被驳回' | '草稿' | '待转办' | '已转办';
 export type AuditStage = '初审' | '复核' | '终审';
 
-export type OriginTypeLabel = '疑似首发' | '疑似重复' | '识别中' | '预判' | '首发' | '重复';
+export type OriginTypeLabel = '疑似首发' | '疑似重复' | '识别中' | '首发' | '重复';
 
 export interface SimilarReportMatch {
   id: number;
