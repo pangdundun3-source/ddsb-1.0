@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   initialAuditPending,
   initialAuditRecords,
@@ -22,14 +22,7 @@ import {
 import { AuditRecordItem, LogItem, NewReportFormData, OrgItem, PageId, ReportItem } from '../types';
 
 export const useAppViewModel = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    try {
-      const savedAuth = localStorage.getItem('ddsb_is_logged_in');
-      return savedAuth === 'true';
-    } catch {
-      return false;
-    }
-  });
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<string>(() => {
     try {
       return localStorage.getItem('ddsb_current_user') || '张三';
@@ -37,16 +30,16 @@ export const useAppViewModel = () => {
       return '张三';
     }
   });
-  const [activePage, setActivePage] = useState<PageId>(() => {
+  const [activePage, setActivePage] = useState<PageId>('login');
+
+  useEffect(() => {
     try {
-      const savedAuth = localStorage.getItem('ddsb_is_logged_in');
-      if (savedAuth !== 'true') return 'login';
-      const saved = localStorage.getItem('ddsb_active_page');
-      return (saved as PageId) || 'portal';
+      localStorage.setItem('ddsb_is_logged_in', 'false');
+      localStorage.setItem('ddsb_active_page', 'login');
     } catch {
-      return 'login';
+      // Ignore storage failures in restricted browser contexts.
     }
-  });
+  }, []);
   const [businessConfigInitialModule, setBusinessConfigInitialModule] = useState('report_template');
   const [reports, setReports] = useState<ReportItem[]>([
     ...initialAuditPending,
