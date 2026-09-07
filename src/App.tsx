@@ -29,16 +29,10 @@ import { calculatePreJudgment, resolveOfficialTag } from './utils/identification
 
 export default function App() {
   // Application State with LocalStorage Persistence
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    const saved = localStorage.getItem('wechat_v8_logged');
-    return saved !== null ? JSON.parse(saved) : true;
-  });
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
 
-  // Official Account Screen vs H5 Workbench Screen
-  const [isOfficialAccount, setIsOfficialAccount] = useState<boolean>(() => {
-    const saved = localStorage.getItem('wechat_v8_oa_screen');
-    return saved !== null ? JSON.parse(saved) : true;
-  });
+  // Always land on the official account home when the link is opened
+  const [isOfficialAccount, setIsOfficialAccount] = useState<boolean>(true);
 
   const [user, setUser] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('wechat_v8_user');
