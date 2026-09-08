@@ -101,6 +101,10 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   const firstTimePassCount = totalCount - rejectedCount;
   const firstTimePassRate = totalCount > 0 ? Math.round((firstTimePassCount / totalCount) * 100) : 0;
 
+  // 首发与重复统计
+  const firstCount = identCounts.formalFirst + identCounts.suspectedFirst;
+  const duplicateCount = identCounts.formalDuplicate + identCounts.suspectedDuplicate;
+
   // Tab Filtering
   const filtered = reports.filter((item) => {
     // Tab filter
@@ -246,7 +250,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
             <div className="mt-2 flex items-baseline justify-between">
               <span className="text-2xl font-bold font-mono text-white">{totalCount}</span>
               <span className="text-xs text-blue-200">
-                通过 <strong className="text-emerald-300">{adoptedCount}</strong> · 待审 <strong className="text-amber-300">{pendingCount}</strong>
+                首发 <strong className="text-emerald-300">{firstCount}</strong> · 重复 <strong className="text-purple-300">{duplicateCount}</strong> · 待审 <strong className="text-amber-300">{pendingCount}</strong>
               </span>
             </div>
           </div>
