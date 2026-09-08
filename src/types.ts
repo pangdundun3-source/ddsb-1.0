@@ -13,6 +13,7 @@ export type PageId =
   | 'negative-detail'
   | 'statistics'
   | 'evaluation'
+  | 'notice-management'
   | 'org-management'
   | 'role-permission'
   | 'business-config'
@@ -236,4 +237,61 @@ export interface ToastMessage {
   id: string;
   type: 'success' | 'error' | 'info';
   message: string;
+}
+
+export type NoticeCategory =
+  | '系统通知'
+  | '业务通报'
+  | '工作提示'
+  | '政策下达'
+  | '紧急通知'
+  | '考核公示';
+
+export type NoticePriority = '普通' | '重要' | '紧急' | '特急';
+
+export type NoticeStatus = '已发布' | '草稿' | '已撤回' | '已过期';
+
+export interface NoticeReader {
+  name: string;
+  org: string;
+  readTime: string;
+  confirmed?: boolean;
+}
+
+export interface NoticeItem {
+  id: string;
+  title: string;
+  category: NoticeCategory;
+  priority: NoticePriority;
+  scope: string; // e.g. '全网信系统' | '各区县宣传部' | '直属网信部门' | '审核员专班'
+  targetOrgs: string[]; // e.g. ['台中市网信办', '西屯区宣传部', '北屯区宣传部', '南屯区宣传部']
+  publisher: string;
+  publishOrg: string;
+  publishTime: string;
+  status: NoticeStatus;
+  isPinned: boolean;
+  content: string;
+  summary?: string;
+  attachments?: Attachment[];
+  readCount: number;
+  totalTargetCount: number;
+  requireConfirm?: boolean;
+  confirmCount?: number;
+  expireTime?: string;
+  readers?: NoticeReader[];
+}
+
+export interface NewNoticeFormData {
+  title: string;
+  category: NoticeCategory;
+  priority: NoticePriority;
+  scope: string;
+  targetOrgs: string[];
+  isPinned: boolean;
+  requireConfirm: boolean;
+  expireTime?: string;
+  content: string;
+  summary?: string;
+  attachments?: Attachment[];
+  status?: NoticeStatus;
 }

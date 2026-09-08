@@ -32,11 +32,11 @@ export const Logo: React.FC<LogoProps> = ({
   if (variant === 'header') {
     // Optimized header layout: 点点速豹 Logo + system title
     return (
-      <div className={`flex items-center space-x-3 select-none ${className}`}>
+      <div className={`flex items-center space-x-3.5 sm:space-x-4 select-none ${className}`}>
         {/* 点点速豹 Full Logo */}
-        <div className="flex items-center space-x-2.5">
-          {/* Leopard + Geodesic Network Emblem SVG */}
-          <div className="relative w-8 h-8 shrink-0">
+        <div className="flex items-center space-x-3">
+          {/* Leopard + Geodesic Network Emblem SVG - Scaled to w-10 h-10 */}
+          <div className="relative w-10 h-10 shrink-0 drop-shadow-2xs">
             <svg viewBox="0 0 100 100" className="w-full h-full text-[#1E5ABB]" fill="none">
               {/* Outer Geodesic Network Polygon */}
               <polygon
@@ -79,28 +79,28 @@ export const Logo: React.FC<LogoProps> = ({
           </div>
 
           {/* Vertical Divider */}
-          <div className="h-6 w-[1.5px] bg-[#1E5ABB]/30"></div>
+          <div className="h-7 w-[1.5px] bg-[#1E5ABB]/30"></div>
 
-          {/* Brand Text */}
+          {/* Brand Text - Scaled to 18px font-bold */}
           <div className="flex flex-col justify-center">
-            <span className="text-sm font-black text-[#1E5ABB] tracking-tight leading-none">
+            <span className="text-[18px] font-black text-[#1E5ABB] tracking-tight leading-none font-sans">
               点点速豹
             </span>
-            <span className="text-[10px] font-bold text-[#1E5ABB]/80 font-mono tracking-wide leading-tight">
+            <span className="text-xs font-bold text-[#1E5ABB]/80 font-mono tracking-wider leading-tight mt-0.5">
               subao.cn
             </span>
           </div>
         </div>
 
         {/* Vertical Divider separating system title */}
-        <div className="h-5 w-[1px] bg-gray-200 ml-1"></div>
+        <div className="h-6 w-[1.5px] bg-slate-200 ml-1"></div>
 
-        {/* Sub-system Title */}
-        <div className="flex items-center space-x-2">
-          <h1 className="text-sm font-extrabold text-[#1E5ABB] tracking-tight">
+        {/* Sub-system Title - Scaled to 19px-20px font-bold */}
+        <div className="flex items-center space-x-2.5">
+          <h1 className="text-[19px] sm:text-[20px] font-bold text-[#1E5ABB] tracking-tight">
             舆情速报系统
           </h1>
-          <span className="hidden sm:inline-block px-2 py-0.5 bg-slate-100 text-slate-600 text-[11px] font-medium rounded border border-slate-200">
+          <span className="hidden sm:inline-block px-2.5 py-0.5 bg-slate-100 text-slate-700 text-xs font-medium rounded-md border border-slate-200">
             台中市网信办
           </span>
           <div className="hidden md:flex items-center space-x-1 ml-1">

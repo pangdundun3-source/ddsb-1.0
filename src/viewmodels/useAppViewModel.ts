@@ -36,6 +36,7 @@ const VALID_PAGES: PageId[] = [
   'negative-detail',
   'statistics',
   'evaluation',
+  'notice-management',
   'org-management',
   'role-permission',
   'business-config',

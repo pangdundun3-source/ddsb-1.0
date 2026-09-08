@@ -20,6 +20,7 @@ import { Statistics } from './pages/Statistics';
 import { StatisticsReference } from './pages/StatisticsReference';
 import { Evaluation } from './pages/Evaluation';
 import { EvaluationReference } from './pages/EvaluationReference';
+import { NoticeManagement } from './pages/NoticeManagement';
 import { OrgManagement } from './pages/OrgManagement';
 import { RolePermission } from './pages/RolePermission';
 import { BusinessConfig } from './pages/BusinessConfig';
@@ -318,6 +319,14 @@ export default function App() {
         {activePage === 'statistics' && <StatisticsReference onNavigate={handleNavigate} />}
 
         {activePage === 'evaluation' && <EvaluationReference onNavigate={handleNavigate} />}
+
+        {activePage === 'notice-management' && (
+          <NoticeManagement
+            onNavigate={handleNavigate}
+            currentUser={userName || currentUser}
+            currentOrg={currentOrg.name}
+          />
+        )}
 
         {activePage === 'org-management' && (
           <OrgManagement
