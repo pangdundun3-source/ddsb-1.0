@@ -8,7 +8,10 @@ import {
   Award,
   User,
   LayoutGrid,
-  ChevronDown
+  ChevronDown,
+  Clock,
+  CheckCircle2,
+  Shield
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -33,19 +36,29 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isFromReportSummary =
     activePage === 'report-detail' && (reportDetailSourcePage === 'report-summary' || !reportDetailSourcePage);
 
+  const isReportSummaryActive =
+    activePage === 'report-summary' || isFromReportSummary;
+  const isReportRecordsActive =
+    activePage === 'report-records' || isFromReportRecords;
+
   const isReportActive =
     ['report-summary', 'report-records'].includes(activePage) ||
     (activePage === 'report-detail' && !isFromAudit);
+
+  const isAuditPendingActive =
+    ['report-audit', 'audit-detail'].includes(activePage);
+  const isAuditRecordsActive =
+    ['audit-records', 'audit-record-detail'].includes(activePage) || isFromAudit;
 
   const isAuditActive =
     [
       'report-audit',
       'audit-detail',
       'audit-records',
-      'audit-record-detail',
-      'negative-info',
-      'negative-detail'
+      'audit-record-detail'
     ].includes(activePage) || isFromAudit;
+
+  const isNegativeActive = ['negative-info', 'negative-detail'].includes(activePage);
 
   return (
     <nav className="bg-[#1E5ABB] text-white shadow-sm relative z-20 border-t border-white/15">
@@ -82,7 +95,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <button
               onClick={() => onNavigate('report-summary')}
-              className={`px-4 sm:px-4.5 h-9 transition-all cursor-pointer rounded flex items-center space-x-2 ${
+              className={`px-4 sm:px-4.5 h-9 transition-all cursor-pointer rounded flex items-center space-x-1.5 ${
                 isReportActive
                   ? 'bg-blue-600 font-bold text-white shadow-xs'
                   : 'hover:bg-white/12 text-white/90 hover:text-white'
@@ -90,44 +103,57 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <FileText className="w-4 h-4" />
               <span>报送管理</span>
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${reportMenuOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${reportMenuOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {reportMenuOpen && (
-              <div className="absolute left-0 top-full mt-0.5 w-48 bg-white text-gray-800 rounded-lg shadow-xl border border-gray-100 py-1.5 z-50 text-sm animate-in fade-in duration-150">
+              <div className="absolute left-0 top-full mt-0.5 w-44 bg-white text-gray-800 rounded-xl shadow-xl border border-gray-100/90 p-1.5 z-50 text-[14px] animate-in fade-in duration-150">
+                {/* 报送待办 */}
                 <button
                   onClick={() => {
                     onNavigate('report-summary');
                     setReportMenuOpen(false);
                   }}
-                  className={`w-full text-left px-4 py-2.5 hover:bg-blue-50 hover:text-[#1E5ABB] cursor-pointer flex items-center justify-between ${
-                    activePage === 'report-summary' || isFromReportSummary ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : ''
+                  className={`w-full text-left px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between transition-all ${
+                    isReportSummaryActive
+                      ? 'bg-blue-50/90 text-[#1E5ABB] font-semibold'
+                      : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-normal'
                   }`}
                 >
-                  <span>报送待办</span>
-                  {(activePage === 'report-summary' || isFromReportSummary) && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#1E5ABB]"></span>
+                  <div className="flex items-center space-x-2.5">
+                    <Clock className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                    <span>报送待办</span>
+                  </div>
+                  {isReportSummaryActive && (
+                    <span className="w-2 h-2 rounded-full bg-[#1E5ABB]"></span>
                   )}
                 </button>
+
+                {/* 报送记录 */}
                 <button
                   onClick={() => {
                     onNavigate('report-records');
                     setReportMenuOpen(false);
                   }}
-                  className={`w-full text-left px-4 py-2.5 hover:bg-blue-50 hover:text-[#1E5ABB] cursor-pointer flex items-center justify-between ${
-                    activePage === 'report-records' || isFromReportRecords ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : ''
+                  className={`w-full text-left px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between transition-all ${
+                    isReportRecordsActive
+                      ? 'bg-blue-50/90 text-[#1E5ABB] font-semibold'
+                      : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-normal'
                   }`}
                 >
-                  <span>报送记录</span>
-                  {(activePage === 'report-records' || isFromReportRecords) && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#1E5ABB]"></span>
+                  <div className="flex items-center space-x-2.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                    <span>报送记录</span>
+                  </div>
+                  {isReportRecordsActive && (
+                    <span className="w-2 h-2 rounded-full bg-[#1E5ABB]"></span>
                   )}
                 </button>
               </div>
             )}
           </div>
 
-          {/* 审核管理 Dropdown */}
+          {/* 审核管理 Dropdown (含 审核待办 与 审核记录) */}
           <div
             className="relative h-full flex items-center"
             onMouseEnter={() => setAuditMenuOpen(true)}
@@ -135,7 +161,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <button
               onClick={() => onNavigate('report-audit')}
-              className={`px-4 sm:px-4.5 h-9 transition-all cursor-pointer rounded flex items-center space-x-2 ${
+              className={`px-4 sm:px-4.5 h-9 transition-all cursor-pointer rounded flex items-center space-x-1.5 ${
                 isAuditActive
                   ? 'bg-blue-600 font-bold text-white shadow-xs'
                   : 'hover:bg-white/12 text-white/90 hover:text-white'
@@ -143,42 +169,68 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <ClipboardCheck className="w-4 h-4" />
               <span>审核管理</span>
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${auditMenuOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${auditMenuOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {auditMenuOpen && (
-              <div className="absolute left-0 top-full mt-0.5 w-48 bg-white text-gray-800 rounded-lg shadow-xl border border-gray-100 py-1.5 z-50 text-sm animate-in fade-in duration-150">
+              <div className="absolute left-0 top-full mt-0.5 w-44 bg-white text-gray-800 rounded-xl shadow-xl border border-gray-100/90 p-1.5 z-50 text-[14px] animate-in fade-in duration-150">
+                {/* 审核待办 */}
                 <button
                   onClick={() => {
                     onNavigate('report-audit');
                     setAuditMenuOpen(false);
                   }}
-                  className={`w-full text-left px-4 py-2.5 hover:bg-blue-50 hover:text-[#1E5ABB] cursor-pointer flex items-center justify-between ${
-                    ['report-audit', 'audit-detail'].includes(activePage) ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : ''
+                  className={`w-full text-left px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between transition-all ${
+                    isAuditPendingActive
+                      ? 'bg-blue-50/90 text-[#1E5ABB] font-semibold'
+                      : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-normal'
                   }`}
                 >
-                  <span>审核待办</span>
-                  {['report-audit', 'audit-detail'].includes(activePage) && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#1E5ABB]"></span>
+                  <div className="flex items-center space-x-2.5">
+                    <Clock className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                    <span>审核待办</span>
+                  </div>
+                  {isAuditPendingActive && (
+                    <span className="w-2 h-2 rounded-full bg-[#1E5ABB]"></span>
                   )}
                 </button>
+
+                {/* 审核记录 */}
                 <button
                   onClick={() => {
                     onNavigate('audit-records');
                     setAuditMenuOpen(false);
                   }}
-                  className={`w-full text-left px-4 py-2.5 hover:bg-blue-50 hover:text-[#1E5ABB] cursor-pointer flex items-center justify-between ${
-                    activePage === 'audit-records' || activePage === 'audit-record-detail' || isFromAudit ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : ''
+                  className={`w-full text-left px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between transition-all ${
+                    isAuditRecordsActive
+                      ? 'bg-blue-50/90 text-[#1E5ABB] font-semibold'
+                      : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-normal'
                   }`}
                 >
-                  <span>审核记录</span>
-                  {(activePage === 'audit-records' || activePage === 'audit-record-detail' || isFromAudit) && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#1E5ABB]"></span>
+                  <div className="flex items-center space-x-2.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                    <span>审核记录</span>
+                  </div>
+                  {isAuditRecordsActive && (
+                    <span className="w-2 h-2 rounded-full bg-[#1E5ABB]"></span>
                   )}
                 </button>
               </div>
             )}
           </div>
+
+          {/* 不良信息库 */}
+          <button
+            onClick={() => onNavigate('negative-info')}
+            className={`px-4 sm:px-4.5 h-9 transition-all cursor-pointer rounded flex items-center space-x-2 ${
+              isNegativeActive
+                ? 'bg-blue-600 font-bold text-white shadow-xs'
+                : 'hover:bg-white/12 text-white/90 hover:text-white'
+            }`}
+          >
+            <Shield className="w-4 h-4" />
+            <span>不良信息库</span>
+          </button>
 
           {/* 统计管理 */}
           <button

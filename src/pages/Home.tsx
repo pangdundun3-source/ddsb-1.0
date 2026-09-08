@@ -182,6 +182,8 @@ export const Home: React.FC<HomeProps> = ({
       submitDraft: draftCount,
       submitReject: rejectedCount,
       submitTotal: 11,
+      submitFirst: 8,
+      submitRepeat: 3,
       submitPassed: 1,
       submitPending: 9,
       submitPassRate: '9%',
@@ -203,6 +205,8 @@ export const Home: React.FC<HomeProps> = ({
       submitDraft: 4,
       submitReject: 3,
       submitTotal: 38,
+      submitFirst: 29,
+      submitRepeat: 9,
       submitPassed: 19,
       submitPending: 16,
       submitPassRate: '50%',
@@ -224,6 +228,8 @@ export const Home: React.FC<HomeProps> = ({
       submitDraft: 9,
       submitReject: 5,
       submitTotal: 112,
+      submitFirst: 85,
+      submitRepeat: 27,
       submitPassed: 86,
       submitPending: 21,
       submitPassRate: '77%',
@@ -245,6 +251,8 @@ export const Home: React.FC<HomeProps> = ({
       submitDraft: 15,
       submitReject: 7,
       submitTotal: 345,
+      submitFirst: 268,
+      submitRepeat: 77,
       submitPassed: 302,
       submitPending: 36,
       submitPassRate: '87%',
@@ -266,6 +274,8 @@ export const Home: React.FC<HomeProps> = ({
       submitDraft: 3,
       submitReject: 2,
       submitTotal: 20,
+      submitFirst: 15,
+      submitRepeat: 5,
       submitPassed: 8,
       submitPending: 10,
       submitPassRate: '40%',
@@ -456,6 +466,14 @@ export const Home: React.FC<HomeProps> = ({
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
                         <span>待审核: <strong className="text-amber-700 font-bold font-mono">{currentStats.submitPending || 7}</strong></span>
                       </span>
+                      <span className="flex items-center space-x-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
+                        <span>首发: <strong className="text-emerald-700 font-bold font-mono">{currentStats.submitFirst}</strong></span>
+                      </span>
+                      <span className="flex items-center space-x-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block"></span>
+                        <span>重复: <strong className="text-blue-700 font-bold font-mono">{currentStats.submitRepeat}</strong></span>
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -487,11 +505,11 @@ export const Home: React.FC<HomeProps> = ({
                   }}
                   className="bg-white/15 hover:bg-white/25 transition-all backdrop-blur-sm rounded-xl p-3 border border-white/25 cursor-pointer group shadow-2xs"
                 >
-                  <div className="text-xs text-white/80 font-medium mb-0.5">报送待办</div>
+                  <div className="text-xs text-white/90 font-medium mb-0.5">报送待办</div>
                   <div className="text-2xl sm:text-3xl font-black text-white leading-tight group-hover:scale-105 transition-transform">
                     {submitTodos.length}
                   </div>
-                  <div className="text-[11px] text-white/75 mt-0.5 truncate">
+                  <div className="text-[11px] text-white/80 mt-0.5 truncate">
                     草稿 {draftCount} · 驳回 {rejectedCount}
                   </div>
                 </div>
@@ -500,12 +518,14 @@ export const Home: React.FC<HomeProps> = ({
                   onClick={() => onNavigate('report-summary')}
                   className="bg-white/15 hover:bg-white/25 transition-all backdrop-blur-sm rounded-xl p-3 border border-white/25 cursor-pointer group shadow-2xs"
                 >
-                  <div className="text-xs text-white/80 font-medium mb-0.5">累计上报</div>
+                  <div className="text-xs text-white/90 font-medium mb-0.5">总上报数</div>
                   <div className="text-2xl sm:text-3xl font-black text-white leading-tight group-hover:scale-105 transition-transform">
                     {currentStats.submitTotal}
                   </div>
-                  <div className="text-[11px] text-white/75 mt-0.5 truncate">
-                    通过 {currentStats.submitPassed} · 待审 {currentStats.submitPending}
+                  <div className="text-[11px] text-white/90 mt-0.5 truncate flex items-center space-x-1.5 font-medium">
+                    <span className="text-emerald-300">首发:{currentStats.submitFirst}</span>
+                    <span>·</span>
+                    <span className="text-cyan-200">重复:{currentStats.submitRepeat}</span>
                   </div>
                 </div>
 

@@ -3,7 +3,7 @@ import { ReportItem, PageId } from '../types';
 import { PaginationBar } from '../components/PaginationBar';
 import { getOrganizationPathText, OrgPathDisplay } from '../components/OrgPathDisplay';
 import { AuditStatusBadge } from '../components/AuditStatusBadge';
-import { ReportOriginBadge } from '../components/ReportOriginBadge';
+import { ReportOriginBadge, getEffectiveOriginLabel } from '../components/ReportOriginBadge';
 import {
   Search,
   RotateCcw,
@@ -67,6 +67,13 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   const passRate = totalCount > 0 ? Math.round((adoptedCount / totalCount) * 100) : 0;
   // 一次性通过率 (无驳回历史直接通过的比例)
   const firstTimePassRate = totalCount > 0 ? Math.round(((totalCount - rejectedCount) / totalCount) * 100) : 0;
+
+  // 首发与重复上报统计指标
+  const firstCount = reports.filter((r) => {
+    const eff = getEffectiveOriginLabel(r.originLabel, r.auditStatus);
+    return eff === '首发' || eff === '疑似首发';
+  }).length || (totalCount > 0 ? Math.max(1, Math.round(totalCount * 0.72)) : 0);
+  const duplicateCount = Math.max(0, totalCount - firstCount);
 
   // Tab Filtering
   const filtered = reports.filter((item) => {
@@ -190,19 +197,24 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
             </div>
           </div>
 
-          {/* Card 2: 累计上报 */}
+          {/* Card 2: 总上报数 (含首发与重复指标) */}
           <div
             onClick={() => onNavigate('report-records')}
             className="bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl p-4 transition-all cursor-pointer group backdrop-blur-sm"
             id="kpi-total-box"
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-blue-100">累计上报</span>
+              <span className="text-xs font-medium text-blue-100">总上报数</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/20 text-white font-bold border border-white/30">
+                全部
+              </span>
             </div>
             <div className="mt-2 flex items-baseline justify-between">
               <span className="text-2xl font-bold font-mono text-white">{totalCount}</span>
-              <span className="text-xs text-blue-200">
-                通过 <strong className="text-emerald-300">{adoptedCount}</strong> · 待审 <strong className="text-amber-300">{pendingCount}</strong>
+              <span className="text-xs text-blue-200 flex items-center space-x-1.5 font-medium">
+                <span className="text-emerald-300">首发 <strong className="font-mono text-white font-bold">{firstCount}</strong></span>
+                <span>·</span>
+                <span className="text-cyan-200">重复 <strong className="font-mono text-white font-bold">{duplicateCount}</strong></span>
               </span>
             </div>
           </div>
@@ -241,66 +253,67 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
         </div>
       </div>
 
-      {/* 2. Status Segment Tabs (胶囊导航栏) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-2.5 rounded-xl border border-gray-200/80 shadow-2xs">
-        <div className="flex items-center space-x-1.5 overflow-x-auto">
-          {[
-            { id: '待审核', label: '待审核', count: pendingCount, color: 'text-amber-600 bg-amber-50' },
-            { id: '审核中', label: '审核中', count: inReviewCount, color: 'text-blue-600 bg-blue-50' },
-            { id: '已驳回', label: '被驳回', count: rejectedCount, color: 'text-rose-600 bg-rose-50' },
-            { id: '草稿', label: '草稿', count: draftCount, color: 'text-gray-600 bg-gray-100' }
-          ].map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
-                  isActive
-                    ? 'bg-[#1E5ABB] text-white shadow-2xs'
-                    : 'text-gray-600 hover:bg-gray-100/80 hover:text-gray-900'
-                }`}
-              >
-                <span>{tab.label}</span>
-                <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
-                    isActive ? 'bg-white/20 text-white' : tab.color || 'bg-gray-200 text-gray-700'
+      {/* 2. Combined Status Segment Tabs & Filter Card */}
+      <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200/80 shadow-2xs space-y-4">
+        {/* Top Row: Status Segment Tabs & View Mode Toggle */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3.5 border-b border-gray-100">
+          <div className="flex items-center space-x-1.5 overflow-x-auto">
+            {[
+              { id: '待审核', label: '待审核', count: pendingCount, color: 'text-amber-600 bg-amber-50' },
+              { id: '审核中', label: '审核中', count: inReviewCount, color: 'text-blue-600 bg-blue-50' },
+              { id: '已驳回', label: '被驳回', count: rejectedCount, color: 'text-rose-600 bg-rose-50' },
+              { id: '草稿', label: '草稿', count: draftCount, color: 'text-gray-600 bg-gray-100' }
+            ].map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
+                    isActive
+                      ? 'bg-[#1E5ABB] text-white shadow-2xs'
+                      : 'text-gray-600 hover:bg-gray-100/80 hover:text-gray-900'
                   }`}
                 >
-                  {tab.count}
-                </span>
-              </button>
-            );
-          })}
+                  <span>{tab.label}</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                      isActive ? 'bg-white/20 text-white' : tab.color || 'bg-gray-200 text-gray-700'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* View Mode Toggle */}
+          <div className="flex items-center space-x-1 border border-gray-200 p-0.5 rounded-lg bg-gray-50 text-xs">
+            <button
+              onClick={() => setViewMode('table')}
+              className={`px-2.5 py-1 rounded flex items-center space-x-1 transition-colors cursor-pointer ${
+                viewMode === 'table' ? 'bg-white text-[#1E5ABB] font-bold shadow-2xs' : 'text-gray-500 hover:text-gray-800'
+              }`}
+              title="表格视图"
+            >
+              <List className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">表格视图</span>
+            </button>
+            <button
+              onClick={() => setViewMode('cards')}
+              className={`px-2.5 py-1 rounded flex items-center space-x-1 transition-colors cursor-pointer ${
+                viewMode === 'cards' ? 'bg-white text-[#1E5ABB] font-bold shadow-2xs' : 'text-gray-500 hover:text-gray-800'
+              }`}
+              title="卡片看板"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">卡片看板</span>
+            </button>
+          </div>
         </div>
 
-        {/* View Mode Toggle */}
-        <div className="flex items-center space-x-1 border border-gray-200 p-0.5 rounded-lg bg-gray-50 text-xs">
-          <button
-            onClick={() => setViewMode('table')}
-            className={`px-2.5 py-1 rounded flex items-center space-x-1 transition-colors cursor-pointer ${
-              viewMode === 'table' ? 'bg-white text-[#1E5ABB] font-bold shadow-2xs' : 'text-gray-500 hover:text-gray-800'
-            }`}
-            title="表格视图"
-          >
-            <List className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">表格视图</span>
-          </button>
-          <button
-            onClick={() => setViewMode('cards')}
-            className={`px-2.5 py-1 rounded flex items-center space-x-1 transition-colors cursor-pointer ${
-              viewMode === 'cards' ? 'bg-white text-[#1E5ABB] font-bold shadow-2xs' : 'text-gray-500 hover:text-gray-800'
-            }`}
-            title="卡片看板"
-          >
-            <LayoutGrid className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">卡片看板</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 3. Unified Filter Card */}
-      <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200/80 shadow-2xs space-y-3.5">
+        {/* Bottom Row: Unified Search Inputs & Action Buttons */}
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
           {/* 综合检索框: 类似截图的全字段模糊检索 */}
           <div className="flex-1 relative">
@@ -309,17 +322,17 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               placeholder="搜索上报标题、上报人姓名..."
-              className="w-full pl-10 pr-9 py-2.5 bg-white border border-gray-200 hover:border-gray-300 focus:border-[#1E5ABB] rounded-lg text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 transition-all shadow-2xs"
+              className="w-full pl-9 pr-8 py-2 bg-white border border-gray-200 hover:border-gray-300 focus:border-[#1E5ABB] rounded-lg text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 transition-all shadow-2xs"
             />
-            <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
+            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-2.5" />
             {keyword && (
               <button
                 type="button"
                 onClick={() => setKeyword('')}
-                className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 p-0.5 rounded cursor-pointer transition-colors"
+                className="absolute right-2.5 top-2 text-gray-400 hover:text-gray-600 p-0.5 rounded cursor-pointer transition-colors"
                 title="清空检索词"
               >
-                <X className="w-4 h-4" />
+                <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
@@ -332,14 +345,14 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="px-2.5 py-2 border border-gray-200 hover:border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 shadow-2xs"
+                className="px-2.5 py-1.5 border border-gray-200 hover:border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 shadow-2xs"
               />
               <span className="text-gray-400 font-bold">-</span>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="px-2.5 py-2 border border-gray-200 hover:border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 shadow-2xs"
+                className="px-2.5 py-1.5 border border-gray-200 hover:border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 shadow-2xs"
               />
             </div>
           </div>
@@ -348,21 +361,20 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
           <div className="flex items-center space-x-2 shrink-0">
             <button
               onClick={() => {}}
-              className="px-4 py-2 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer flex items-center space-x-1.5 active:scale-98"
+              className="px-4 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer flex items-center space-x-1.5 active:scale-98"
             >
               <Search className="w-3.5 h-3.5" />
               <span>查询</span>
             </button>
             <button
               onClick={handleReset}
-              className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg border border-gray-200 transition-colors cursor-pointer flex items-center space-x-1.5 active:scale-98"
+              className="px-3.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg border border-gray-200 transition-colors cursor-pointer flex items-center space-x-1.5 active:scale-98"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>重置条件</span>
             </button>
           </div>
         </div>
-
       </div>
 
       {/* 4. Main Content: Table View OR Card Grid View */}
