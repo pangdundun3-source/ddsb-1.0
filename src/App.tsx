@@ -25,28 +25,15 @@ import { ActionSheet } from './components/ActionSheet';
 import { Toast, ToastMessage } from './components/Toast';
 import { OfficialAccountEntryView } from './components/OfficialAccountEntryView';
 import { ActivationH5View } from './components/ActivationH5View';
+import { AnnouncementDetailView } from './components/AnnouncementDetailView';
 import { calculatePreJudgment, resolveOfficialTag } from './utils/identification';
-import { parseHash, buildHash } from './utils/router';
 
 export default function App() {
-  // Read initial hash route if present
-  const initialRoute = parseHash();
-
   // Application State with LocalStorage Persistence
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    if (initialRoute.isLogin) return false;
-    if (initialRoute.tab || initialRoute.viewMode || initialRoute.reportAction) return true;
-    const saved = localStorage.getItem('wechat_v8_logged');
-    return saved ? JSON.parse(saved) : false;
-  });
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
 
-  // Always land on the official account home when the link is opened without sub-routes
-  const [isOfficialAccount, setIsOfficialAccount] = useState<boolean>(() => {
-    if (initialRoute.isActivationH5View || initialRoute.isLogin || initialRoute.tab || initialRoute.viewMode) {
-      return false;
-    }
-    return true;
-  });
+  // Always land on the official account home when the link is opened
+  const [isOfficialAccount, setIsOfficialAccount] = useState<boolean>(true);
 
   const [user, setUser] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('wechat_v8_user');
@@ -54,205 +41,31 @@ export default function App() {
   });
 
   const [reports, setReports] = useState<SpeedReport[]>(() => {
-    const saved = localStorage.getItem('wechat_v8_reports');
-    return saved ? JSON.parse(saved) : INITIAL_REPORTS;
+    return INITIAL_REPORTS;
   });
 
   const [notifications, setNotifications] = useState<AppNotification[]>(() => {
-    const saved = localStorage.getItem('wechat_v8_notifications');
-    return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
+    return INITIAL_NOTIFICATIONS;
   });
 
   // UI Navigation State
-  const [currentTab, setCurrentTab] = useState<AppTab>(() => {
-    return initialRoute.tab || 'home';
-  });
-  const [viewMode, setViewMode] = useState<'main' | 'notifications'>(() => {
-    return initialRoute.viewMode || 'main';
-  });
-  const [selectedReport, setSelectedReport] = useState<SpeedReport | null>(() => {
-    if (initialRoute.reportAction === 'detail' && initialRoute.reportId) {
-      return INITIAL_REPORTS.find((r) => r.id === initialRoute.reportId) || null;
-    }
-    return null;
-  });
-  const [selectedReportEntry, setSelectedReportEntry] = useState<'report_pending' | 'audit_pending' | null>(() => {
-    if (initialRoute.auditEntry) return 'audit_pending';
-    return null;
-  });
-  const [editingReport, setEditingReport] = useState<SpeedReport | null>(() => {
-    if (initialRoute.reportAction === 'edit' && initialRoute.reportId) {
-      return INITIAL_REPORTS.find((r) => r.id === initialRoute.reportId) || null;
-    }
-    return null;
-  });
-  const [isCreatingNewReport, setIsCreatingNewReport] = useState<boolean>(() => {
-    return initialRoute.reportAction === 'new';
-  });
+  const [currentTab, setCurrentTab] = useState<AppTab>('home');
+  const [viewMode, setViewMode] = useState<'main' | 'notifications'>('main');
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<AppNotification | null>(null);
+  const [selectedReport, setSelectedReport] = useState<SpeedReport | null>(null);
+  const [selectedReportEntry, setSelectedReportEntry] = useState<'report_pending' | 'audit_pending' | null>(null);
+  const [editingReport, setEditingReport] = useState<SpeedReport | null>(null);
+  const [isCreatingNewReport, setIsCreatingNewReport] = useState<boolean>(false);
   const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
-  const [isFormMode, setIsFormMode] = useState<boolean>(() => {
-    return initialRoute.reportAction === 'new' || initialRoute.reportAction === 'edit';
-  });
-  const [isProfileDetail, setIsProfileDetail] = useState<boolean>(() => {
-    return initialRoute.profileSub === 'user';
-  });
-  const [isActivationDetail, setIsActivationDetail] = useState<boolean>(() => {
-    return initialRoute.profileSub === 'activation';
-  });
-  const [isActivationH5View, setIsActivationH5View] = useState<boolean>(() => {
-    return !!initialRoute.isActivationH5View;
-  });
-  const [profileSubPage, setProfileSubPage] = useState<'report' | 'audit' | 'notifications' | null>(() => {
-    if (initialRoute.profileSub === 'report' || initialRoute.profileSub === 'audit') {
-      return initialRoute.profileSub;
-    }
-    return null;
-  });
+  const [isFormMode, setIsFormMode] = useState<boolean>(false);
+  const [isProfileDetail, setIsProfileDetail] = useState<boolean>(false);
+  const [isActivationDetail, setIsActivationDetail] = useState<boolean>(false);
+  const [isActivationH5View, setIsActivationH5View] = useState<boolean>(false);
+  const [profileSubPage, setProfileSubPage] = useState<'report' | 'audit' | 'notifications' | null>(null);
   const [previousTab, setPreviousTab] = useState<AppTab | null>(null);
   const [isActionSheetOpen, setIsActionSheetOpen] = useState<boolean>(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
-
-  // Sync state changes to URL hash (Hash Mode for pure client-side routing & simple Nginx deployment)
-  useEffect(() => {
-    const targetHash = buildHash({
-      isOfficialAccount,
-      isActivationH5View,
-      isLoggedIn,
-      viewMode,
-      currentTab,
-      isCreatingNewReport,
-      editingReportId: editingReport?.id,
-      selectedReportId: selectedReport?.id,
-      selectedReportEntry,
-      isProfileDetail,
-      isActivationDetail,
-      profileSubPage,
-    });
-
-    if (window.location.hash !== targetHash) {
-      if (!window.location.hash && targetHash === '#/') {
-        window.history.replaceState(null, '', '#/');
-      } else {
-        window.location.hash = targetHash;
-      }
-    }
-  }, [
-    isOfficialAccount,
-    isActivationH5View,
-    isLoggedIn,
-    viewMode,
-    currentTab,
-    isCreatingNewReport,
-    editingReport,
-    selectedReport,
-    selectedReportEntry,
-    isProfileDetail,
-    isActivationDetail,
-    profileSubPage,
-  ]);
-
-  // Listen to hash change from browser history (Back / Forward / direct URL change)
-  useEffect(() => {
-    const handleHashChange = () => {
-      const route = parseHash(window.location.hash);
-
-      if (route.isActivationH5View) {
-        setIsActivationH5View(true);
-        setIsOfficialAccount(false);
-        return;
-      }
-
-      if (route.isOfficialAccount) {
-        setIsOfficialAccount(true);
-        setIsActivationH5View(false);
-        setSelectedReport(null);
-        setSelectedReportEntry(null);
-        setIsCreatingNewReport(false);
-        setEditingReport(null);
-        return;
-      }
-
-      setIsActivationH5View(false);
-      setIsOfficialAccount(false);
-
-      if (route.isLogin) {
-        setIsLoggedIn(false);
-        return;
-      }
-
-      setIsLoggedIn(true);
-
-      if (route.viewMode === 'notifications') {
-        setViewMode('notifications');
-        setSelectedReport(null);
-        setSelectedReportEntry(null);
-        return;
-      }
-
-      setViewMode('main');
-
-      if (route.tab) {
-        setCurrentTab(route.tab);
-      }
-
-      if (route.reportAction === 'new') {
-        setIsCreatingNewReport(true);
-        setIsFormMode(true);
-        setEditingReport(null);
-        setSelectedReport(null);
-        return;
-      } else {
-        setIsCreatingNewReport(false);
-      }
-
-      if (route.reportAction === 'edit' && route.reportId) {
-        const found = reports.find((r) => r.id === route.reportId);
-        if (found) {
-          setEditingReport(found);
-          setIsFormMode(true);
-          setSelectedReport(null);
-          return;
-        }
-      } else {
-        setEditingReport(null);
-      }
-
-      if (route.reportAction === 'detail' && route.reportId) {
-        const found = reports.find((r) => r.id === route.reportId);
-        if (found) {
-          setSelectedReport(found);
-          if (route.auditEntry) {
-            setSelectedReportEntry('audit_pending');
-          }
-          return;
-        }
-      } else {
-        setSelectedReport(null);
-        setSelectedReportEntry(null);
-      }
-
-      if (route.profileSub === 'user') {
-        setIsProfileDetail(true);
-        setIsActivationDetail(false);
-        setProfileSubPage(null);
-      } else if (route.profileSub === 'activation') {
-        setIsProfileDetail(false);
-        setIsActivationDetail(true);
-        setProfileSubPage(null);
-      } else if (route.profileSub === 'report' || route.profileSub === 'audit') {
-        setIsProfileDetail(false);
-        setIsActivationDetail(false);
-        setProfileSubPage(route.profileSub);
-      } else {
-        setIsProfileDetail(false);
-        setIsActivationDetail(false);
-        setProfileSubPage(null);
-      }
-    };
-
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [reports]);
+  const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>([]);
 
   // Sync state to local storage
   useEffect(() => {
@@ -633,6 +446,11 @@ export default function App() {
       prev.map((n) => (n.id === notif.id ? { ...n, isRead: true } : n))
     );
 
+    if (notif.type === '平台公告') {
+      setSelectedAnnouncement(notif);
+      return;
+    }
+
     if (notif.relatedReportId) {
       const target = reports.find((r) => r.id === notif.relatedReportId);
       if (target) {
@@ -711,6 +529,7 @@ export default function App() {
   // Header Title Determination
   const getPageTitle = () => {
     if (!isLoggedIn) return '网格员上报审核端';
+    if (selectedAnnouncement) return '公告详情';
     if (selectedReport) return '审核报送详情';
     if (profileSubPage === 'report') return '我的报送';
     if (profileSubPage === 'audit') return '我的审核';
@@ -724,6 +543,8 @@ export default function App() {
     switch (currentTab) {
       case 'home':
         return '首页';
+      case 'message':
+        return '消息';
       case 'report':
         return '报送';
       case 'audit':
@@ -740,6 +561,7 @@ export default function App() {
         onSelectTab={(tab) => {
           setCurrentTab(tab);
           setViewMode('main');
+          setSelectedAnnouncement(null);
           setProfileSubPage(null);
           setIsProfileDetail(false);
           setIsActivationDetail(false);
@@ -749,6 +571,7 @@ export default function App() {
         }}
         auditPendingCount={auditPendingCount}
         reportPendingCount={reportPendingCount}
+        unreadNotifCount={unreadNotifCount}
         onOpenActionSheet={() => setIsActionSheetOpen(true)}
         onResetDemoData={handleResetDemoData}
         isOfficialAccount={!isActivationH5View && isOfficialAccount}
@@ -768,6 +591,7 @@ export default function App() {
           showToast('已返回“点点速报”公众号');
         }}
         canGoBack={
+          !!selectedAnnouncement ||
           viewMode === 'notifications' ||
           isFormMode ||
           isCreatingNewReport ||
@@ -778,7 +602,9 @@ export default function App() {
           isActivationDetail
         }
         onBack={() => {
-          if (isActivationH5View) {
+          if (selectedAnnouncement) {
+            setSelectedAnnouncement(null);
+          } else if (isActivationH5View) {
             setIsActivationH5View(false);
             setIsOfficialAccount(true);
           } else if (selectedReport) {
@@ -801,6 +627,7 @@ export default function App() {
         pageSubtitle={isActivationH5View ? 'xyx.shaobingshangbao.konne.com.cn' : undefined}
         isLoggedIn={isLoggedIn}
         hideTabBar={
+          !!selectedAnnouncement ||
           isActivationH5View ||
           isOfficialAccount ||
           viewMode === 'notifications' ||
@@ -813,6 +640,7 @@ export default function App() {
           isActivationDetail
         }
         hideFAB={
+          !!selectedAnnouncement ||
           isActivationH5View ||
           isOfficialAccount ||
           viewMode === 'notifications' ||
@@ -935,11 +763,35 @@ export default function App() {
           />
         ) : (
           <>
-            {currentTab === 'home' && (
+            {currentTab === 'home' && (() => {
+              const activeNotifs = notifications.filter((n) => !dismissedNotificationIds.includes(n.id));
+              const latestNotif = activeNotifs[0];
+              return (
                 <DashboardView
                   user={user}
                   onNewReport={handleOpenNewReport}
+                  latestNotification={latestNotif}
+                  notifications={notifications}
+                  onNavigateToMessages={() => {
+                    setCurrentTab('message');
+                    setViewMode('main');
+                  }}
+                  onSelectNotification={handleSelectNotification}
+                  onDismissNotification={(id) => {
+                    setDismissedNotificationIds((prev) => [...prev, id]);
+                    showToast('已关闭该通知提醒');
+                  }}
                 />
+              );
+            })()}
+
+            {currentTab === 'message' && (
+              <NotificationView
+                notifications={notifications}
+                reports={reports}
+                onMarkAllRead={handleMarkAllNotificationsRead}
+                onSelectNotification={handleSelectNotification}
+              />
             )}
 
             {currentTab === 'report' && (
@@ -1039,6 +891,15 @@ export default function App() {
             />
           );
         })()}
+
+        {/* Announcement Detail View (contained in phone viewport) */}
+        {selectedAnnouncement && (
+          <AnnouncementDetailView
+            announcement={selectedAnnouncement}
+            onClose={() => setSelectedAnnouncement(null)}
+            onToast={showToast}
+          />
+        )}
 
       </WeChatPhoneShell>
     </>

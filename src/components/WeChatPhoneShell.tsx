@@ -3,6 +3,7 @@ import {
   ChevronLeft,
   MoreHorizontal,
   Home,
+  Bell,
   FileText,
   CheckSquare,
   User,
@@ -23,6 +24,7 @@ interface WeChatPhoneShellProps {
   onSelectTab: (tab: AppTab) => void;
   auditPendingCount: number;
   reportPendingCount: number;
+  unreadNotifCount?: number;
   onOpenActionSheet: () => void;
   onResetDemoData?: () => void;
   onBack?: () => void;
@@ -44,6 +46,7 @@ export const WeChatPhoneShell: React.FC<WeChatPhoneShellProps> = ({
   onSelectTab,
   auditPendingCount,
   reportPendingCount,
+  unreadNotifCount = 0,
   onOpenActionSheet,
   onResetDemoData,
   onBack,
@@ -239,7 +242,8 @@ export const WeChatPhoneShell: React.FC<WeChatPhoneShellProps> = ({
 
           {/* Bottom WeChat Tab Bar (Only when logged in and in H5 mode) */}
           {isLoggedIn && !hideTabBar && !isOfficialAccount && (
-            <nav className="bg-white border-t border-slate-200 px-2 py-1 flex items-center justify-around z-30 select-none shadow-xs relative">
+            <nav className="bg-white border-t border-slate-200 px-1 py-1 flex items-center justify-around z-30 select-none shadow-xs relative">
+              {/* 首页 */}
               <button
                 onClick={() => onSelectTab('home')}
                 className={`flex flex-col items-center justify-center flex-1 py-1 transition-colors ${
@@ -250,6 +254,23 @@ export const WeChatPhoneShell: React.FC<WeChatPhoneShellProps> = ({
                 <span className="text-[10px]">首页</span>
               </button>
 
+              {/* 消息 */}
+              <button
+                onClick={() => onSelectTab('message')}
+                className={`flex flex-col items-center justify-center flex-1 py-1 relative transition-colors ${
+                  currentTab === 'message' ? 'text-blue-600 font-semibold' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <Bell className="w-5 h-5 mb-0.5" />
+                <span className="text-[10px]">消息</span>
+                {unreadNotifCount > 0 && (
+                  <span className="absolute top-0 right-3.5 min-w-[14px] h-[14px] px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                    {unreadNotifCount > 99 ? '99+' : unreadNotifCount}
+                  </span>
+                )}
+              </button>
+
+              {/* 报送 */}
               <button
                 onClick={() => onSelectTab('report')}
                 className={`flex flex-col items-center justify-center flex-1 py-1 relative transition-colors ${

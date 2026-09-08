@@ -1,6 +1,16 @@
 import React, { useState } from 'react';
-import { AppNotification, NotificationType, SpeedReport } from '../types';
-import { Bell } from 'lucide-react';
+import { AppNotification, SpeedReport } from '../types';
+import {
+  Bell,
+  Megaphone,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  CheckCheck,
+  ChevronRight,
+  X,
+  Share2,
+} from 'lucide-react';
 
 interface NotificationViewProps {
   notifications: AppNotification[];
@@ -9,205 +19,254 @@ interface NotificationViewProps {
   onSelectNotification: (notif: AppNotification) => void;
 }
 
+type CategoryFilter = '全部' | '平台公告' | '审核结果' | '待审核';
+
 export const NotificationView: React.FC<NotificationViewProps> = ({
   notifications,
   reports = [],
+  onMarkAllRead,
   onSelectNotification,
 }) => {
-  const [statusFilter, setStatusFilter] = useState<'全部' | '未读' | '已读'>('全部');
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('全部');
+  const [onlyUnread, setOnlyUnread] = useState<boolean>(false);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
-  const readCount = notifications.filter((n) => n.isRead).length;
-  const totalCount = notifications.length;
+  const announcementCount = notifications.filter((n) => n.type === '平台公告').length;
+  const auditResultCount = notifications.filter((n) => n.type === '审核结果通知').length;
+  const pendingAuditCount = notifications.filter(
+    (n) => n.type === '待审核通知' || n.type === '审核中通知'
+  ).length;
 
   const filteredNotifs = notifications.filter((n) => {
-    // Status Filter
-    if (statusFilter === '未读' && n.isRead) return false;
-    if (statusFilter === '已读' && !n.isRead) return false;
+    if (onlyUnread && n.isRead) return false;
+
+    if (categoryFilter === '平台公告' && n.type !== '平台公告') return false;
+    if (categoryFilter === '审核结果' && n.type !== '审核结果通知') return false;
+    if (categoryFilter === '待审核' && n.type !== '待审核通知' && n.type !== '审核中通知') return false;
 
     return true;
   });
 
-  const formatNotificationTitle = (notif: AppNotification) => {
-    const relatedReport = reports.find((report) => report.id === notif.relatedReportId);
-    if (relatedReport) return relatedReport.title;
-
-    return notif.title
-      .replace(/^【(?:待审核提醒|审核结果通知)】\s*/, '')
-      .replace(/^新(?:提交)?速报待审核[:：]\s*/, '');
+  const handleCardClick = (notif: AppNotification) => {
+    onSelectNotification(notif);
   };
 
-  const formatNotificationContent = (notif: AppNotification) => {
-    const relatedReport = reports.find((report) => report.id === notif.relatedReportId);
-    if (notif.type === '待审核通知' && relatedReport) {
-      return `上报人：${relatedReport.author} · ${relatedReport.authorDept}`;
-    }
-    if (notif.type === '审核中通知' && relatedReport) {
-      return `第一审核人已审查通过，流程已进入【审核中】多环节复核流转阶段。`;
-    }
-    if (notif.type === '审核结果通知' && relatedReport) {
-      const reviewerPrefix = '审核人：王主任 · 市委宣传部舆情科';
-
-      if (relatedReport.status === 'rejected' && relatedReport.rejectReason) {
-        const reason = relatedReport.rejectReason.replace(/^驳回原因[:：]\s*/, '');
-        return `${reviewerPrefix}。上报被驳回：${reason}`;
-      }
-
-      if (relatedReport.status === 'approved') {
-        return `${reviewerPrefix}。终审采纳通过，已正式定标入库`;
-      }
-
-      if (relatedReport.status === 'auditing') {
-        return `${reviewerPrefix}。上报已通过初审，当前处于【审核中】多环节流转阶段`;
-      }
-
-      if (relatedReport.status === 'transferred' && relatedReport.transferredDept) {
-        return `${reviewerPrefix}。上报已转办至 ${relatedReport.transferredDept}，进入后续处置流程`;
-      }
+  // Extract clean summary data for Audit Results
+  const getAuditResultData = (notif: AppNotification, relatedReport?: SpeedReport) => {
+    if (relatedReport?.status === 'rejected') {
+      return {
+        badgeText: '审核驳回',
+        badgeClass: 'bg-rose-50 text-rose-700 border-rose-200/80',
+        decision: relatedReport.rejectReason || '信息不完整，需补充修改',
+        decisionLabel: '驳回原因',
+        decisionColor: 'text-rose-600',
+        reviewer: notif.publisher || '审核员',
+      };
     }
 
-    return notif.content;
-  };
-
-  const getTypeBadge = (type: NotificationType) => {
-    switch (type) {
-      case '待审核通知':
-        return (
-          <span className="text-amber-800 font-bold text-[11px] bg-amber-50 border border-amber-200/90 px-2 py-0.5 rounded-md">
-            待审核通知
-          </span>
-        );
-      case '审核中通知':
-        return (
-          <span className="text-sky-800 font-bold text-[11px] bg-sky-50 border border-sky-200/90 px-2 py-0.5 rounded-md">
-            审核中通知
-          </span>
-        );
-      case '审核结果通知':
-        return (
-          <span className="text-blue-800 font-bold text-[11px] bg-blue-50 border border-blue-200/90 px-2 py-0.5 rounded-md">
-            审核结果通知
-          </span>
-        );
-      default:
-        return (
-          <span className="text-slate-800 font-bold text-[11px] bg-slate-50 border border-slate-200/90 px-2 py-0.5 rounded-md">
-            {type}
-          </span>
-        );
+    if (relatedReport?.status === 'transferred') {
+      return {
+        badgeText: '部门转办',
+        badgeClass: 'bg-sky-50 text-sky-700 border-sky-200/80',
+        decision: `已转办至 ${relatedReport.transferredDept || '相关职能部门'}`,
+        decisionLabel: '流转状态',
+        decisionColor: 'text-sky-700',
+        reviewer: notif.publisher || '审核员',
+      };
     }
+
+    // Default Approved
+    const scoreText = relatedReport?.score ? ` · 评分 ${relatedReport.score}分` : '';
+    const isFirst = relatedReport?.identificationTag === 'official_first' ? '（首发件）' : '';
+    return {
+      badgeText: '审核通过',
+      badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
+      decision: `终审采纳${scoreText}${isFirst}`,
+      decisionLabel: '审核结论',
+      decisionColor: 'text-emerald-700',
+      reviewer: notif.publisher || '市委宣传部舆情科',
+    };
   };
 
   return (
-    <div className="flex-1 p-3 space-y-3 overflow-y-auto">
-      {/* Primary Navigation Tabs: 全部、未读、已读 */}
-      <div className="flex items-center space-x-1.5 text-xs">
-        <button
-          onClick={() => setStatusFilter('全部')}
-          className={`flex-1 py-2 rounded-xl font-bold transition-all text-center flex items-center justify-center space-x-1 ${
-            statusFilter === '全部'
-              ? 'bg-blue-600 text-white shadow-2xs'
-              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-          }`}
-        >
-          <span>全部</span>
-          <span
-            className={`px-1.5 py-0.2 text-[10px] rounded-full font-mono ${
-              statusFilter === '全部' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-            }`}
-          >
-            {totalCount}
+    <div className="flex-1 p-3 space-y-2.5 overflow-y-auto flex flex-col bg-slate-50/60">
+      {/* Filter & Action Tool Bar */}
+      <div className="flex items-center justify-between px-1 text-xs text-slate-500">
+        <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={onlyUnread}
+            onChange={(e) => setOnlyUnread(e.target.checked)}
+            className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-0 cursor-pointer"
+          />
+          <span className="text-[11px] text-slate-600">
+            仅看未读 ({unreadCount})
           </span>
-        </button>
+        </label>
 
-        <button
-          onClick={() => setStatusFilter('未读')}
-          className={`flex-1 py-2 rounded-xl font-bold transition-all text-center flex items-center justify-center space-x-1 ${
-            statusFilter === '未读'
-              ? 'bg-blue-600 text-white shadow-2xs'
-              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-          }`}
-        >
-          <span>未读</span>
-          {unreadCount > 0 ? (
-            <span
-              className={`px-1.5 py-0.2 text-[10px] rounded-full font-mono font-bold ${
-                statusFilter === '未读' ? 'bg-amber-400 text-slate-900' : 'bg-amber-500 text-white'
-              }`}
-            >
-              {unreadCount}
-            </span>
-          ) : (
-            <span
-              className={`px-1.5 py-0.2 text-[10px] rounded-full font-mono ${
-                statusFilter === '未读' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-              }`}
-            >
-              0
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => setStatusFilter('已读')}
-          className={`flex-1 py-2 rounded-xl font-bold transition-all text-center flex items-center justify-center space-x-1 ${
-            statusFilter === '已读'
-              ? 'bg-blue-600 text-white shadow-2xs'
-              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-          }`}
-        >
-          <span>已读</span>
-          <span
-            className={`px-1.5 py-0.2 text-[10px] rounded-full font-mono ${
-              statusFilter === '已读' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-            }`}
+        {unreadCount > 0 && (
+          <button
+            type="button"
+            onClick={onMarkAllRead}
+            className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 hover:text-blue-700 active:scale-95 transition-all cursor-pointer"
           >
-            {readCount}
-          </span>
-        </button>
+            <CheckCheck className="w-3.5 h-3.5" />
+            <span>全部标为已读</span>
+          </button>
+        )}
       </div>
 
-      {/* Notification List */}
-      <div className="space-y-2.5 pb-4">
+      {/* Message Cards List */}
+      <div className="space-y-2 pb-6 flex-1">
         {filteredNotifs.length === 0 ? (
-          <div className="bg-white rounded-2xl p-8 text-center text-slate-400 border border-slate-200 space-y-1">
-            <Bell className="w-8 h-8 mx-auto mb-2 opacity-40 text-slate-400" />
-            <p className="text-xs font-semibold text-slate-600">暂无{statusFilter !== '全部' ? statusFilter : ''}消息通知</p>
+          <div className="bg-white rounded-2xl p-8 text-center text-slate-400 border border-slate-200/80 space-y-1.5">
+            <Bell className="w-7 h-7 mx-auto opacity-30 text-slate-400" />
+            <p className="text-xs font-semibold text-slate-600">
+              暂无{categoryFilter !== '全部' ? `【${categoryFilter}】` : ''}
+              {onlyUnread ? '未读' : ''}消息
+            </p>
           </div>
         ) : (
-          filteredNotifs.map((notif) => (
-            <div
-              key={notif.id}
-              onClick={() => onSelectNotification(notif)}
-              className={`rounded-xl p-3.5 border transition-all cursor-pointer space-y-1.5 relative ${
-                notif.isRead
-                  ? 'bg-white border-slate-200/90 text-slate-700 opacity-90 hover:border-slate-300'
-                  : 'bg-blue-50/50 border-blue-200 shadow-2xs text-slate-800 hover:border-blue-300'
-              }`}
-            >
-              {!notif.isRead && (
-                <span className="absolute top-3.5 right-3.5 w-2 h-2 rounded-full bg-blue-600 ring-2 ring-blue-100"></span>
-              )}
+          filteredNotifs.map((notif) => {
+            const relatedReport = reports.find((r) => r.id === notif.relatedReportId);
 
-              <div className="flex items-center justify-between pr-4">
-                {getTypeBadge(notif.type)}
-                <span className="text-[10px] text-slate-400 font-mono">{notif.time}</span>
+            // 1. 平台公告卡片 (Platform Announcement)
+            if (notif.type === '平台公告') {
+              return (
+                <div
+                  key={notif.id}
+                  onClick={() => handleCardClick(notif)}
+                  className={`rounded-xl p-3 bg-white border transition-all cursor-pointer relative space-y-2 shadow-2xs hover:border-violet-300 active:scale-[0.99] ${
+                    notif.isRead ? 'border-slate-200/80 text-slate-700' : 'border-violet-200 text-slate-800'
+                  }`}
+                >
+                  {/* Row 1: Badge + Title + Unread Indicator */}
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-50 text-violet-700 border border-violet-200/80">
+                      <Megaphone className="w-3 h-3 text-violet-600" />
+                      <span>平台公告</span>
+                    </span>
+                    <h4 className="text-xs font-bold text-slate-900 leading-snug truncate flex-1">
+                      {notif.title}
+                    </h4>
+                    {!notif.isRead && (
+                      <span className="shrink-0 w-2 h-2 rounded-full bg-blue-600 ring-2 ring-blue-100" />
+                    )}
+                  </div>
+
+                  {/* Row 2: Content Summary */}
+                  <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
+                    {notif.content}
+                  </p>
+
+                  {/* Row 3: Time at bottom-left + Action link at bottom-right */}
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px]">
+                    <span className="text-slate-400 font-mono">{notif.time}</span>
+                    <span className="text-violet-600 font-medium flex items-center gap-0.5">
+                      查看公告 <ChevronRight className="w-3 h-3" />
+                    </span>
+                  </div>
+                </div>
+              );
+            }
+
+            // 2. 报送审核结果通知 (Audit Result Notification)
+            if (notif.type === '审核结果通知') {
+              const auditData = getAuditResultData(notif, relatedReport);
+              const cleanTitle = relatedReport?.title || notif.title;
+
+              return (
+                <div
+                  key={notif.id}
+                  onClick={() => handleCardClick(notif)}
+                  className={`rounded-xl p-3 bg-white border transition-all cursor-pointer relative space-y-2 shadow-2xs hover:border-blue-300 active:scale-[0.99] ${
+                    notif.isRead ? 'border-slate-200/80 text-slate-700' : 'border-emerald-200 text-slate-800'
+                  }`}
+                >
+                  {/* Row 1: Badge + Title + Unread Indicator */}
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span
+                      className={`shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${auditData.badgeClass}`}
+                    >
+                      {auditData.badgeText.includes('驳回') || auditData.badgeText.includes('退回') ? (
+                        <XCircle className="w-3 h-3" />
+                      ) : (
+                        <CheckCircle2 className="w-3 h-3" />
+                      )}
+                      <span>{auditData.badgeText}</span>
+                    </span>
+                    <h4 className="text-xs font-bold text-slate-900 leading-snug truncate flex-1">
+                      {cleanTitle}
+                    </h4>
+                    {!notif.isRead && (
+                      <span className="shrink-0 w-2 h-2 rounded-full bg-blue-600 ring-2 ring-blue-100" />
+                    )}
+                  </div>
+
+                  {/* Row 2: Decision summary */}
+                  <div className="text-[11px]">
+                    <span className={`font-medium ${auditData.decisionColor}`}>
+                      {auditData.decision}
+                    </span>
+                  </div>
+
+                  {/* Row 3: Time at bottom-left + Action link at bottom-right */}
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px]">
+                    <span className="text-slate-400 font-mono">{notif.time}</span>
+                    <span className="text-blue-600 font-medium flex items-center gap-0.5">
+                      查看速报详情 <ChevronRight className="w-3 h-3" />
+                    </span>
+                  </div>
+                </div>
+              );
+            }
+
+            // 3. 报送待审核通知 (Pending Audit Notification for Auditor)
+            const reporterInfo = relatedReport
+              ? `${relatedReport.author} · ${relatedReport.authorDept}`
+              : notif.publisher || '网格报送员';
+            const cleanReportTitle = relatedReport?.title || notif.title;
+
+            return (
+              <div
+                key={notif.id}
+                onClick={() => handleCardClick(notif)}
+                className={`rounded-xl p-3 bg-white border transition-all cursor-pointer relative space-y-2 shadow-2xs hover:border-amber-300 active:scale-[0.99] ${
+                  notif.isRead ? 'border-slate-200/80 text-slate-700' : 'border-amber-200 text-slate-800'
+                }`}
+              >
+                {/* Row 1: Badge + Title + Unread Indicator */}
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200/80">
+                    <Clock className="w-3 h-3 text-amber-600" />
+                    <span>待审核</span>
+                  </span>
+                  <h4 className="text-xs font-bold text-slate-900 leading-snug truncate flex-1">
+                    {cleanReportTitle}
+                  </h4>
+                  {!notif.isRead && (
+                    <span className="shrink-0 w-2 h-2 rounded-full bg-blue-600 ring-2 ring-blue-100" />
+                  )}
+                </div>
+
+                {/* Row 2: Reporter info */}
+                <div className="text-[11px] text-slate-500">
+                  <span>{reporterInfo}</span>
+                </div>
+
+                {/* Row 3: Time at bottom-left + Action link at bottom-right */}
+                <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px]">
+                  <span className="text-slate-400 font-mono">{notif.time}</span>
+                  <span className="text-amber-700 font-medium flex items-center gap-0.5">
+                    进入审核处理 <ChevronRight className="w-3 h-3" />
+                  </span>
+                </div>
               </div>
-
-              <h4 className="text-xs font-bold text-slate-800 leading-snug">
-                {formatNotificationTitle(notif)}
-              </h4>
-
-              <p className="text-[11px] leading-relaxed text-slate-600">
-                {formatNotificationContent(notif)}
-              </p>
-            </div>
-          ))
+            );
+          })
         )}
-        <p className="text-center text-[10px] text-slate-400 py-2">
-          默认显示近三个月的数据
-        </p>
       </div>
     </div>
   );
 };
+

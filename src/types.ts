@@ -71,7 +71,11 @@ export interface ReportTemplate {
   advicePlaceholder: string;
 }
 
-export type NotificationType = '待审核通知' | '审核中通知' | '审核结果通知';
+export type NotificationType =
+  | '平台公告'
+  | '审核结果通知'
+  | '待审核通知'
+  | '审核中通知';
 
 export interface AppNotification {
   id: string;
@@ -81,6 +85,8 @@ export interface AppNotification {
   time: string;
   isRead: boolean;
   relatedReportId?: string;
+  publisher?: string;
+  priority?: 'normal' | 'urgent' | 'important';
 }
 
 export type UserRole = '网格员' | '审核员' | '综合网格员';
@@ -99,4 +105,4 @@ export interface UserProfile {
   avatarUrl: string;
 }
 
-export type AppTab = 'home' | 'report' | 'audit' | 'profile';
+export type AppTab = 'home' | 'message' | 'report' | 'audit' | 'profile';

@@ -297,27 +297,6 @@ export const ReportView: React.FC<ReportViewProps> = ({
           <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5 pb-24">
             <BackNavigationBar onBack={handleReturnToPrevious} />
 
-            {/* Template selector tabs */}
-            <div className="bg-white rounded-xl p-3 border border-slate-200/90 shadow-2xs space-y-2">
-              <label className="block text-[11px] font-bold text-slate-600">选择速报模板</label>
-              <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
-                {REPORT_TEMPLATES.map((tpl) => (
-                  <button
-                    key={tpl.id}
-                    type="button"
-                    onClick={() => applyTemplate(tpl)}
-                    className={`px-3 py-1.5 rounded-xl text-xs whitespace-nowrap transition-all cursor-pointer ${
-                      selectedTemplate.id === tpl.id
-                        ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
-                    {tpl.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* Form Fields Card */}
             <div className="bg-white rounded-xl p-3.5 border border-slate-200/90 shadow-2xs space-y-3 text-xs">
               <div>

@@ -864,21 +864,11 @@ export const DetailModal: React.FC<DetailModalProps> = ({
           >
             {/* Header */}
             <div className="bg-gradient-to-r from-blue-600 via-sky-600 to-cyan-600 text-white px-3.5 py-3 flex items-center justify-between shrink-0">
-              <div className="flex items-center space-x-2 min-w-0">
-                <button
-                  type="button"
-                  onClick={() => setPreviewDetailReport(null)}
-                  className="p-1 rounded-lg hover:bg-white/10 active:scale-95 transition-all text-white/90 hover:text-white"
-                  title="返回"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <div className="min-w-0">
-                  <h3 className="text-xs sm:text-sm font-bold truncate">速报详情</h3>
-                  <p className="text-[10px] text-white/80 font-mono truncate">
-                    编号: {previewDetailReport.id}
-                  </p>
-                </div>
+              <div className="min-w-0">
+                <h3 className="text-xs sm:text-sm font-bold truncate">速报详情</h3>
+                <p className="text-[10px] text-white/80 font-mono truncate">
+                  编号: {previewDetailReport.id}
+                </p>
               </div>
 
               <div className="flex items-center space-x-1.5 shrink-0">
@@ -1017,30 +1007,6 @@ export const DetailModal: React.FC<DetailModalProps> = ({
                     {previewDetailReport.identificationReason}
                   </div>
                 </div>
-              )}
-            </div>
-
-            {/* Modal Footer Actions */}
-            <div className="p-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-end space-x-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => setPreviewDetailReport(null)}
-                className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-100 active:scale-95 transition-all"
-              >
-                关闭
-              </button>
-              {onSelectRelatedReport && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const target = previewDetailReport;
-                    setPreviewDetailReport(null);
-                    onSelectRelatedReport(target);
-                  }}
-                  className="px-3.5 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 active:scale-95 transition-all shadow-xs"
-                >
-                  切换至此速报
-                </button>
               )}
             </div>
           </div>
