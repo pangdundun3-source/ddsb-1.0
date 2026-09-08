@@ -195,7 +195,7 @@ export default function App() {
         onNavigate={handleNavigate}
       />
 
-      <main className="flex-1 max-w-[1920px] w-full mx-auto px-4 sm:px-6 lg:px-10 py-5">
+      <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-5">
         {activePage === 'home' && (
           <Home
             reports={reports}

@@ -21,8 +21,92 @@ import {
 } from '../services/reportWorkflowService';
 import { AuditRecordItem, LogItem, NewReportFormData, OrgItem, PageId, ReportItem } from '../types';
 
+const VALID_PAGES: PageId[] = [
+  'login',
+  'portal',
+  'home',
+  'report-summary',
+  'report-records',
+  'report-detail',
+  'report-audit',
+  'audit-detail',
+  'audit-records',
+  'audit-record-detail',
+  'negative-info',
+  'negative-detail',
+  'statistics',
+  'evaluation',
+  'org-management',
+  'role-permission',
+  'business-config',
+  'system-logs'
+];
+
+interface HashRouteInfo {
+  page: PageId;
+  extraModule?: string;
+  id?: number;
+  sourcePage?: PageId;
+}
+
+const parseHashRoute = (hash: string): HashRouteInfo => {
+  const clean = hash.replace(/^#\/?/, '').trim();
+  if (!clean) {
+    return { page: 'login' };
+  }
+  const [pathPart, queryPart] = clean.split('?');
+  const normalizedPage = pathPart.replace(/^\//, '').trim() as PageId;
+  const page = VALID_PAGES.includes(normalizedPage) ? normalizedPage : 'login';
+
+  let extraModule: string | undefined;
+  let id: number | undefined;
+  let sourcePage: PageId | undefined;
+
+  if (queryPart) {
+    const params = new URLSearchParams(queryPart);
+    const mod = params.get('module');
+    if (mod) extraModule = mod;
+    const idVal = params.get('id');
+    if (idVal && !isNaN(Number(idVal))) {
+      id = Number(idVal);
+    }
+    const srcVal = params.get('sourcePage') as PageId;
+    if (srcVal && VALID_PAGES.includes(srcVal)) {
+      sourcePage = srcVal;
+    }
+  }
+
+  return { page, extraModule, id, sourcePage };
+};
+
+const buildHashRoute = (page: PageId, extraModule?: string, id?: number, sourcePage?: PageId): string => {
+  let hash = `#/${page}`;
+  const params = new URLSearchParams();
+  if (extraModule && page === 'business-config') {
+    params.set('module', extraModule);
+  }
+  if (id !== undefined) {
+    params.set('id', String(id));
+  }
+  if (sourcePage && (page === 'report-detail' || page === 'audit-detail')) {
+    params.set('sourcePage', sourcePage);
+  }
+  const qs = params.toString();
+  if (qs) {
+    hash += `?${qs}`;
+  }
+  return hash;
+};
+
 export const useAppViewModel = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('ddsb_is_logged_in') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
   const [currentUser, setCurrentUser] = useState<string>(() => {
     try {
       return localStorage.getItem('ddsb_current_user') || '张三';
@@ -30,17 +114,29 @@ export const useAppViewModel = () => {
       return '张三';
     }
   });
-  const [activePage, setActivePage] = useState<PageId>('login');
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('ddsb_is_logged_in', 'false');
-      localStorage.setItem('ddsb_active_page', 'login');
-    } catch {
-      // Ignore storage failures in restricted browser contexts.
+  const [activePage, setActivePage] = useState<PageId>(() => {
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const parsed = parseHashRoute(window.location.hash);
+      return parsed.page;
     }
-  }, []);
-  const [businessConfigInitialModule, setBusinessConfigInitialModule] = useState('report_template');
+    try {
+      const savedPage = localStorage.getItem('ddsb_active_page') as PageId;
+      if (savedPage && VALID_PAGES.includes(savedPage)) {
+        return savedPage;
+      }
+    } catch {}
+    return 'login';
+  });
+
+  const [businessConfigInitialModule, setBusinessConfigInitialModule] = useState<string>(() => {
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const parsed = parseHashRoute(window.location.hash);
+      if (parsed.extraModule) return parsed.extraModule;
+    }
+    return 'report_template';
+  });
+
   const [reports, setReports] = useState<ReportItem[]>([
     ...initialAuditPending,
     ...initialReports
@@ -71,6 +167,76 @@ export const useAppViewModel = () => {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  // Hash Route Listening & Synchronization
+  useEffect(() => {
+    const handleHashChange = () => {
+      const currentHash = window.location.hash;
+      const route = parseHashRoute(currentHash);
+
+      const loggedIn = (() => {
+        try {
+          return localStorage.getItem('ddsb_is_logged_in') === 'true';
+        } catch {
+          return false;
+        }
+      })();
+
+      if (!loggedIn && route.page !== 'login') {
+        const loginHash = buildHashRoute('login');
+        if (window.location.hash !== loginHash) {
+          window.location.hash = loginHash;
+        }
+        setActivePage('login');
+        return;
+      }
+
+      setActivePage(route.page);
+      try {
+        localStorage.setItem('ddsb_active_page', route.page);
+      } catch {}
+
+      if (route.extraModule && route.page === 'business-config') {
+        setBusinessConfigInitialModule(route.extraModule);
+      }
+
+      if (route.sourcePage) {
+        setReportDetailSourcePage(route.sourcePage);
+      }
+
+      if (route.id !== undefined) {
+        const foundReport = reports.find((r) => r.id === route.id);
+        if (foundReport) {
+          if (route.page === 'report-detail') setSelectedReport(foundReport);
+          if (route.page === 'audit-detail') setSelectedAudit(foundReport);
+          if (route.page === 'negative-detail') setSelectedNegative(foundReport);
+        }
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      const currentHash = window.location.hash;
+      if (!currentHash || currentHash === '#' || currentHash === '#/') {
+        const loggedIn = (() => {
+          try {
+            return localStorage.getItem('ddsb_is_logged_in') === 'true';
+          } catch {
+            return false;
+          }
+        })();
+        const initialPage = loggedIn ? 'home' : 'login';
+        window.location.hash = buildHashRoute(initialPage);
+        setActivePage(initialPage);
+      } else {
+        handleHashChange();
+      }
+
+      window.addEventListener('hashchange', handleHashChange);
+      return () => {
+        window.removeEventListener('hashchange', handleHashChange);
+      };
+    }
+  }, [reports]);
+
   const handleLogin = (userName: string = '张三 (系统管理员)', targetPage: PageId = 'home') => {
     setIsLoggedIn(true);
     setCurrentUser(userName);
@@ -82,6 +248,10 @@ export const useAppViewModel = () => {
       // Ignore storage failures
     }
     setActivePage(targetPage);
+    const targetHash = buildHashRoute(targetPage);
+    if (typeof window !== 'undefined' && window.location.hash !== targetHash) {
+      window.location.hash = targetHash;
+    }
     showToast(`欢迎登录点点速豹·网络生态治理系统，当前身份：${userName}`);
   };
 
@@ -94,6 +264,10 @@ export const useAppViewModel = () => {
       // Ignore storage failures
     }
     setActivePage('login');
+    const targetHash = buildHashRoute('login');
+    if (typeof window !== 'undefined' && window.location.hash !== targetHash) {
+      window.location.hash = targetHash;
+    }
     showToast('已安全退出系统');
   };
 
@@ -110,6 +284,10 @@ export const useAppViewModel = () => {
     }
     if (extraModule && page === 'business-config') {
       setBusinessConfigInitialModule(extraModule);
+    }
+    const targetHash = buildHashRoute(page, extraModule);
+    if (typeof window !== 'undefined' && window.location.hash !== targetHash) {
+      window.location.hash = targetHash;
     }
   };
 
