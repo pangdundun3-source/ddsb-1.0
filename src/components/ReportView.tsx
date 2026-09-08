@@ -207,6 +207,12 @@ export const ReportView: React.FC<ReportViewProps> = ({
     reportSubmittedTotal - reportFirstPass - reportRepairPassed - reportRejectedTodo,
     0
   );
+  const reportFirstCount = submittedReports.filter(
+    (r) => r.identificationTag === 'official_first' || (r.status === 'approved' && r.identificationTag !== 'official_repeat')
+  ).length;
+  const reportRepeatCount = submittedReports.filter(
+    (r) => r.identificationTag === 'official_repeat'
+  ).length;
   const reportFirstPassRate =
     reportSubmittedTotal > 0 ? Math.round((reportFirstPass / reportSubmittedTotal) * 100) : 0;
   const reportOverallPassRate =
@@ -455,7 +461,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
               </div>
             </div>
 
-            <div className="relative z-10 grid grid-cols-4 gap-1.5">
+            <div className="relative z-10 grid grid-cols-[1fr_1.06fr_1fr_1fr] gap-1.5">
               <div className="rounded-xl border border-white/20 bg-white/15 p-2 min-w-0 overflow-hidden">
                 <p className="text-[9px] text-cyan-100 font-bold truncate">报送待办</p>
                 <p className="text-xl leading-none font-black font-mono text-white mt-1.5">{reportTodoCount}</p>
@@ -463,12 +469,19 @@ export const ReportView: React.FC<ReportViewProps> = ({
                   草稿 {reports.filter((r) => r.status === 'draft').length} / 驳回 {reportRejectedTodo}
                 </p>
               </div>
-              <div className="rounded-xl border border-white/20 bg-white/15 p-2 min-w-0 overflow-hidden">
+              <div className="rounded-xl border border-white/20 bg-white/15 px-1 py-2 min-w-0 overflow-hidden">
                 <p className="text-[9px] text-slate-200 font-bold truncate">累计上报</p>
                 <p className="text-xl leading-none font-black font-mono text-white mt-1.5">{reportSubmittedTotal}</p>
-                <p className="text-[8px] text-slate-300 truncate mt-1.5">
-                  通过 {reportApproved} / 待审 {reportPendingAudit}
-                </p>
+                <div
+                  className="text-[7.5px] tracking-tight text-slate-200 mt-1.5 whitespace-nowrap flex items-center justify-between"
+                  title={`首发 ${reportFirstCount} / 重复 ${reportRepeatCount} / 待审 ${reportPendingAudit}`}
+                >
+                  <span>首发 {reportFirstCount}</span>
+                  <span className="text-white/35 text-[7px]">/</span>
+                  <span>重复 {reportRepeatCount}</span>
+                  <span className="text-white/35 text-[7px]">/</span>
+                  <span>待审 {reportPendingAudit}</span>
+                </div>
               </div>
               <div className="rounded-xl border border-white/20 bg-white/15 p-2 min-w-0 overflow-hidden">
                 <p className="text-[9px] text-emerald-200 font-bold truncate">一次通过率</p>
