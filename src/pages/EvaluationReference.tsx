@@ -6,6 +6,7 @@ import {
   Calendar,
   CheckCircle2,
   CheckSquare,
+  ChevronDown,
   ChevronRight,
   Clock,
   Download,
@@ -638,51 +639,13 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
         </div>
 
         {/* SUB FILTER ROW */}
-        <div className="flex flex-col gap-3 pt-3 xl:flex-row xl:items-center xl:justify-between">
-          {scope === 'mine' ? (
-            /* Left Role Perspective for 'Mine' */
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPerspective('report')}
-                className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-1.5 text-xs font-semibold transition-all ${
-                  perspective === 'report'
-                    ? 'bg-[#1B5BD6] text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                }`}
-              >
-                <Send className="h-3.5 w-3.5 -rotate-12" />
-                上报员榜
-              </button>
-              <button
-                type="button"
-                onClick={() => setPerspective('audit')}
-                className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-1.5 text-xs font-semibold transition-all ${
-                  perspective === 'audit'
-                    ? 'bg-[#08B889] text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                }`}
-              >
-                <ShieldCheck className="h-3.5 w-3.5" />
-                审核员榜
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                <Globe2 className="h-3.5 w-3.5 text-[#1D58C9]" />
-                全域机构综合考核视角
-              </span>
-            </div>
-          )}
-
-          {/* Right Filter Controls */}
-          <div className="flex flex-wrap items-center gap-2.5">
+        {scope === 'all' ? (
+          <div className="flex flex-wrap items-center gap-2.5 pt-3">
             {/* Period Capsule */}
             <div className="flex items-center rounded-2xl border border-[#E4EDF7] bg-[#F0F5FA] p-1 text-xs">
               <span className="flex items-center gap-1 pl-2.5 pr-1.5 text-slate-500 select-none">
                 <Clock className="h-3.5 w-3.5 text-[#2F74FF]" />
-                <span>考核周期:</span>
+                <span>统计周期:</span>
               </span>
               {[
                 ['day', '日(今日)'],
@@ -742,20 +705,21 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
             </div>
 
             {/* Org select in 'All' scope */}
-            {scope === 'all' && (
+            <div className="relative flex items-center">
               <select
                 aria-label="统计主体"
                 value={selectedOrg}
                 onChange={(e) => setSelectedOrg(e.target.value)}
-                className="min-h-8 rounded-xl border border-blue-200 bg-white px-2.5 text-xs font-semibold text-blue-800 outline-none shadow-xs"
+                className="appearance-none cursor-pointer rounded-2xl border border-blue-200 bg-white pl-3.5 pr-8 py-1.5 text-xs font-semibold text-[#1D58C9] outline-none shadow-xs"
               >
                 {orgOptions.map((opt) => (
                   <option key={opt}>{opt}</option>
                 ))}
               </select>
-            )}
+              <ChevronDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-[#1D58C9]" />
+            </div>
 
-            {/* Reset Button */}
+            {/* Reset Button at the end */}
             <button
               type="button"
               onClick={resetFilters}
@@ -765,7 +729,113 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
               <RotateCcw className="h-3.5 w-3.5" />
             </button>
           </div>
-        </div>
+        ) : (
+          <div className="flex flex-col gap-3 pt-3 xl:flex-row xl:items-center xl:justify-between">
+            {/* Left Role Perspective for 'Mine' */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPerspective('report')}
+                className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-1.5 text-xs font-semibold transition-all ${
+                  perspective === 'report'
+                    ? 'bg-[#1B5BD6] text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <Send className="h-3.5 w-3.5 -rotate-12" />
+                上报员榜
+              </button>
+              <button
+                type="button"
+                onClick={() => setPerspective('audit')}
+                className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-1.5 text-xs font-semibold transition-all ${
+                  perspective === 'audit'
+                    ? 'bg-[#08B889] text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <ShieldCheck className="h-3.5 w-3.5" />
+                审核员榜
+              </button>
+            </div>
+
+            {/* Right Filter Controls for 'Mine' */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Period Capsule */}
+              <div className="flex items-center rounded-2xl border border-[#E4EDF7] bg-[#F0F5FA] p-1 text-xs">
+                <span className="flex items-center gap-1 pl-2.5 pr-1.5 text-slate-500 select-none">
+                  <Clock className="h-3.5 w-3.5 text-[#2F74FF]" />
+                  <span>考核周期:</span>
+                </span>
+                {[
+                  ['day', '日(今日)'],
+                  ['week', '周(本周)'],
+                  ['month', '月(本月)'],
+                  ['quarter', '季度'],
+                  ['year', '年度'],
+                  ['custom', '自定义'],
+                ].map(([key, label]) => {
+                  const active = period === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => handlePeriodChange(key as Period)}
+                      className={`rounded-xl px-3 py-1 text-xs transition-all ${
+                        active
+                          ? 'bg-white font-semibold text-[#1B5BD6] shadow-xs'
+                          : 'text-slate-700 hover:text-slate-900'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Date Range Card */}
+              <div className="relative flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs text-slate-700 shadow-xs">
+                <Calendar className="h-3.5 w-3.5 text-[#2F74FF] shrink-0" />
+                <span className="font-mono text-xs text-slate-700">{startDate}</span>
+                <Calendar className="h-3 w-3 text-slate-400 shrink-0" />
+                <span className="text-slate-400 select-none">至</span>
+                <span className="font-mono text-xs text-slate-700">{endDate}</span>
+                <Calendar className="h-3 w-3 text-slate-400 shrink-0" />
+
+                <input
+                  type="date"
+                  className="absolute left-6 top-0 h-full w-20 cursor-pointer opacity-0"
+                  title="选择开始日期"
+                  value={startDate.replaceAll('/', '-')}
+                  onChange={(e) => {
+                    setStartDate(e.target.value.replaceAll('-', '/'));
+                    setPeriod('custom');
+                  }}
+                />
+                <input
+                  type="date"
+                  className="absolute right-4 top-0 h-full w-20 cursor-pointer opacity-0"
+                  title="选择结束日期"
+                  value={endDate.replaceAll('/', '-')}
+                  onChange={(e) => {
+                    setEndDate(e.target.value.replaceAll('-', '/'));
+                    setPeriod('custom');
+                  }}
+                />
+              </div>
+
+              {/* Reset Button */}
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-xs transition hover:text-slate-800"
+                title="重置筛选"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* VIEW BODY: 'ALL' (全域视角) vs 'MINE' (我的视角) */}
@@ -871,13 +941,6 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                   <option value="directRate">按一次性通过率</option>
                   <option value="passRate">按整体通过率</option>
                 </select>
-                <button
-                  type="button"
-                  onClick={() => showToast('全域考核数据已刷新')}
-                  className="inline-flex min-h-8 items-center gap-1.5 rounded-xl bg-emerald-600 px-3 text-xs font-semibold text-white shadow-xs"
-                >
-                  <RefreshCw className="h-3.5 w-3.5" /> 刷新
-                </button>
               </div>
             </div>
 
@@ -895,7 +958,6 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                     <th className="px-3 py-3 text-center">平均响应</th>
                     <th className="px-3 py-3 text-center">人均报送量</th>
                     <th className="px-3 py-3 text-center">转办闭环率</th>
-                    <th className="px-3 py-3 text-center">操作</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -954,20 +1016,6 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                         <div className="mx-auto mt-1 h-1.5 w-10 rounded-full bg-slate-100">
                           <span className="block h-1.5 rounded-full bg-emerald-500" style={{ width: `${row.closedRate}%` }} />
                         </div>
-                      </td>
-                      <td className="px-3 py-3.5 text-center">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openOrgProfile(row);
-                          }}
-                          className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-blue-200 px-2 text-[10px] font-semibold text-blue-600 hover:bg-blue-50"
-                          title="查看机构画像"
-                        >
-                          画像分析
-                          <ChevronRight className="h-3 w-3" />
-                        </button>
                       </td>
                     </tr>
                   ))}
