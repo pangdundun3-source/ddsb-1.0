@@ -40,7 +40,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <nav className="bg-[#1E5ABB] text-white shadow-sm relative z-20 border-t border-white/10">
-      <div className="max-w-[1920px] mx-auto px-4 sm:px-8 flex items-center h-10 text-xs font-semibold">
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 flex items-center h-10 text-xs font-semibold">
         {/* Navigation Items Bar */}
         <div className="flex items-center space-x-1.5">
           {/* 首页 */}

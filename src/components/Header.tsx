@@ -58,20 +58,21 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="bg-white border-b border-gray-200/90 px-5 sm:px-8 py-2 flex items-center justify-between text-sm shadow-2xs relative z-30">
-      {/* Toast Notification */}
-      {switchToast && (
-        <div className="fixed top-4 right-4 z-50 bg-[#1E5ABB] text-white px-4 py-2.5 rounded-xl shadow-xl text-xs font-bold flex items-center space-x-2 animate-in fade-in slide-in-from-top-2 border border-white/20">
-          <Check className="w-4 h-4 text-sky-200" />
-          <span>{switchToast}</span>
-        </div>
-      )}
+    <header className="bg-white border-b border-gray-200/90 shadow-2xs relative z-30">
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between text-sm">
+        {/* Toast Notification */}
+        {switchToast && (
+          <div className="fixed top-4 right-4 z-50 bg-[#1E5ABB] text-white px-4 py-2.5 rounded-xl shadow-xl text-xs font-bold flex items-center space-x-2 animate-in fade-in slide-in-from-top-2 border border-white/20">
+            <Check className="w-4 h-4 text-sky-200" />
+            <span>{switchToast}</span>
+          </div>
+        )}
 
-      {/* Left Logo Section - 点点速豹 System Branding */}
-      <Logo variant="header" />
+        {/* Left Logo Section - 点点速豹 System Branding */}
+        <Logo variant="header" />
 
-      {/* Right Top Bar Tools & Avatar - 1:1 match with header screenshot */}
-      <div className="flex items-center space-x-2.5 sm:space-x-3">
+        {/* Right Top Bar Tools & Avatar - 1:1 match with header screenshot */}
+        <div className="flex items-center space-x-2.5 sm:space-x-3">
         {/* 1. Calendar / Daily Schedule Icon Button */}
         <div className="relative">
           <button
@@ -279,6 +280,7 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
         </div>
+      </div>
       </div>
 
       {/* ========================================================

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   AVAILABLE_ORGS,
   initialAuditPending,
@@ -31,6 +31,49 @@ import {
   ReportTemplateInput
 } from '../types';
 
+const VALID_PAGES: PageId[] = [
+  'login',
+  'home',
+  'report-summary',
+  'report-records',
+  'report-detail',
+  'report-audit',
+  'audit-detail',
+  'audit-records',
+  'audit-record-detail',
+  'negative-info',
+  'negative-detail',
+  'statistics',
+  'evaluation',
+  'personal-info',
+  'org-management',
+  'role-permission',
+  'business-config',
+  'system-logs'
+];
+
+export function getHashRoute(): { page: PageId; module?: string } | null {
+  if (typeof window === 'undefined') return null;
+  const hash = window.location.hash || '';
+  if (!hash || hash === '#' || hash === '#/') return null;
+
+  const rawPath = hash.replace(/^#\/?/, '');
+  const [pathPart, queryPart] = rawPath.split('?');
+  const pageCandidate = (pathPart?.trim() || '') as PageId;
+
+  let extraModule: string | undefined;
+  if (queryPart) {
+    const searchParams = new URLSearchParams(queryPart);
+    const m = searchParams.get('module');
+    if (m) extraModule = m;
+  }
+
+  if (VALID_PAGES.includes(pageCandidate)) {
+    return { page: pageCandidate, module: extraModule };
+  }
+  return null;
+}
+
 export const useAppViewModel = () => {
   const [currentOrg, setCurrentOrg] = useState<OrgAccount>(() => {
     try {
@@ -40,15 +83,65 @@ export const useAppViewModel = () => {
       return AVAILABLE_ORGS[0];
     }
   });
+
   const [activePage, setActivePage] = useState<PageId>(() => {
     try {
-      localStorage.setItem('ddsb_active_page', 'login');
+      const hashRoute = getHashRoute();
+      if (hashRoute) {
+        localStorage.setItem('ddsb_active_page', hashRoute.page);
+        return hashRoute.page;
+      }
+      const savedPage = localStorage.getItem('ddsb_active_page') as PageId | null;
+      if (savedPage && VALID_PAGES.includes(savedPage)) {
+        return savedPage;
+      }
       return 'login';
     } catch {
       return 'login';
     }
   });
-  const [businessConfigInitialModule, setBusinessConfigInitialModule] = useState('report_template');
+
+  const [businessConfigInitialModule, setBusinessConfigInitialModule] = useState<string>(() => {
+    const hashRoute = getHashRoute();
+    return hashRoute?.module || 'report_template';
+  });
+
+  // Sync hash changes (e.g. browser back/forward, manual address bar edit) with app state
+  useEffect(() => {
+    const syncFromHash = () => {
+      const hashRoute = getHashRoute();
+      if (hashRoute) {
+        setActivePage((prev) => {
+          if (prev !== hashRoute.page) {
+            try {
+              localStorage.setItem('ddsb_active_page', hashRoute.page);
+            } catch {
+              // Ignore storage failures
+            }
+            return hashRoute.page;
+          }
+          return prev;
+        });
+        if (hashRoute.module) {
+          setBusinessConfigInitialModule(hashRoute.module);
+        }
+      }
+    };
+
+    // Ensure initial hash reflects active page if hash was empty
+    const currentHash = window.location.hash;
+    if (!currentHash || currentHash === '#' || currentHash === '#/') {
+      const targetHash =
+        businessConfigInitialModule && activePage === 'business-config'
+          ? `#/${activePage}?module=${encodeURIComponent(businessConfigInitialModule)}`
+          : `#/${activePage}`;
+      window.location.hash = targetHash;
+    }
+
+    window.addEventListener('hashchange', syncFromHash);
+    return () => window.removeEventListener('hashchange', syncFromHash);
+  }, []);
+
   const [reports, setReports] = useState<ReportItem[]>([
     ...initialAuditPending,
     ...initialReports
@@ -90,6 +183,13 @@ export const useAppViewModel = () => {
     }
     if (extraModule && page === 'business-config') {
       setBusinessConfigInitialModule(extraModule);
+    }
+    const targetHash =
+      extraModule && page === 'business-config'
+        ? `#/${page}?module=${encodeURIComponent(extraModule)}`
+        : `#/${page}`;
+    if (window.location.hash !== targetHash) {
+      window.location.hash = targetHash;
     }
   };
 

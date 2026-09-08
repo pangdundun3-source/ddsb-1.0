@@ -304,7 +304,7 @@ export const Home: React.FC<HomeProps> = ({
   );
 
   return (
-    <div className="space-y-6 pb-12 max-w-[1720px] mx-auto">
+    <div className="space-y-6 pb-12">
       {/* ================= 1. 标准化上报模板专区（快捷上报入口） ================= */}
       <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/90 shadow-2xs space-y-4">
         {/* Section Header */}
