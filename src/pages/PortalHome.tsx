@@ -746,18 +746,69 @@ export const PortalHome: React.FC<PortalHomeProps> = ({
             )}
           </button>
 
-          {/* 3. Customer Service Headphone Icon Button */}
-          <button
-            onClick={() => setShowContactModal(true)}
-            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-2xs ${
-              activePortalTab === 'grid'
-                ? 'border border-white/50 bg-white/10 hover:bg-white/25 backdrop-blur-md text-white'
-                : 'border border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
-            }`}
-            title="技术支持 / 客服专线"
-          >
-            <Headphones className="w-4 h-4" />
-          </button>
+          {/* 3. Customer Service Headphone Icon Button (Hotline Support - 1:1 with Screenshot Image 1 & 2) */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setShowContactModal(!showContactModal);
+                setShowUserMenu(false);
+              }}
+              className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-2xs ${
+                showContactModal
+                  ? 'border border-blue-400 bg-blue-50 text-[#1E5ABB]'
+                  : activePortalTab === 'grid'
+                  ? 'border border-white/50 bg-white/10 hover:bg-white/25 backdrop-blur-md text-white'
+                  : 'border border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
+              }`}
+              title="技术支持热线"
+            >
+              <Headphones className="w-4 h-4" />
+            </button>
+
+            {/* Hotline Popover Dropdown - Exact 1:1 matching Image 2 */}
+            {showContactModal && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowContactModal(false)}
+                />
+                <div className="absolute right-0 top-full mt-2 w-[330px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-100/90 pt-7 pb-6 px-6 z-50 animate-in fade-in slide-in-from-top-2 duration-150 text-center text-slate-800">
+                  {/* Circular Phone Icon with Light Blue Background */}
+                  <div className="w-14 h-14 bg-[#EEF5FD] rounded-full flex items-center justify-center mx-auto mb-3.5">
+                    <Phone className="w-6 h-6 text-[#1A457D] stroke-[2.2]" />
+                  </div>
+
+                  {/* Title */}
+                  <h3 className="text-base font-bold text-slate-800 tracking-tight">
+                    技术支持热线
+                  </h3>
+
+                  {/* Phone Number */}
+                  <div className="text-[25px] font-extrabold text-[#173F80] tracking-wide my-2.5 font-sans">
+                    4000-999-363
+                  </div>
+
+                  {/* Service Hours */}
+                  <div className="text-xs text-slate-500 font-normal">
+                    服务时间：工作日 08:30 - 18:00
+                  </div>
+
+                  {/* Description */}
+                  <div className="text-[11px] text-slate-400 mt-1 mb-5 leading-relaxed">
+                    提供系统运维、突发舆情应急支援与技术指导
+                  </div>
+
+                  {/* Button */}
+                  <button
+                    onClick={() => setShowContactModal(false)}
+                    className="w-full py-2.5 px-4 bg-[#1E4E8C] hover:bg-[#163E72] active:bg-[#12315B] text-white font-medium text-sm rounded-xl transition-colors cursor-pointer shadow-xs"
+                  >
+                    我知道了
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
 
           {/* 4. User Profile & Avatar Menu (1:1 with screenshot: sunset circular avatar + .w. + ▼) */}
           <div className="relative">
@@ -2407,50 +2458,7 @@ export const PortalHome: React.FC<PortalHomeProps> = ({
         </div>
       )}
 
-      {/* MODAL 4: 客服与支持专线 */}
-      {showContactModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 text-slate-800">
-            <div className="px-6 py-4 bg-gradient-to-r from-[#1A3860] to-[#24508A] text-white flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Headphones className="w-5 h-5 text-cyan-300" />
-                <h3 className="font-bold text-sm">正管用技术支持中心</h3>
-              </div>
-              <button
-                onClick={() => setShowContactModal(false)}
-                className="p-1 rounded-lg hover:bg-white/10 text-white transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="p-6 space-y-3.5 text-xs text-slate-700">
-              <div className="p-3.5 bg-blue-50/80 rounded-xl border border-blue-100 flex items-start space-x-3">
-                <div className="p-2 bg-[#1A3860] text-white rounded-lg shrink-0">
-                  <Headphones className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="font-bold text-sm text-[#1A3860]">全国统一客服专线</div>
-                  <div className="text-base font-extrabold text-[#204E88] mt-0.5 font-mono">4000-999-363</div>
-                  <p className="text-[11px] text-slate-500 mt-1">服务时间：周一至周日 8:30 - 18:00 (7x24小时应急保障)</p>
-                </div>
-              </div>
-              <div className="space-y-1 text-slate-600">
-                <div>运营单位：西安康奈网络科技有限公司</div>
-                <div>门户网站：wxb.cn / knwl.cn</div>
-                <div>技术备案：陕ICP备14007110号-14</div>
-              </div>
-            </div>
-            <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 text-right">
-              <button
-                onClick={() => setShowContactModal(false)}
-                className="px-4 py-1.5 bg-[#1A3860] text-white text-xs font-bold rounded-lg cursor-pointer"
-              >
-                我知道了
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* MODAL 5: 业务应用状态/详情卡片 */}
       {activeAppModal && (

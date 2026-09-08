@@ -187,6 +187,9 @@ export default function App() {
         onLogout={handleLogout}
         onNavigate={handleNavigate}
         onNavigateToProfile={handleNavigateToProfile}
+        reports={reports}
+        onSelectReport={setSelectedReport}
+        onSelectAudit={setSelectedAudit}
       />
 
       <Navbar
