@@ -26,13 +26,27 @@ import { Toast, ToastMessage } from './components/Toast';
 import { OfficialAccountEntryView } from './components/OfficialAccountEntryView';
 import { ActivationH5View } from './components/ActivationH5View';
 import { calculatePreJudgment, resolveOfficialTag } from './utils/identification';
+import { parseHash, buildHash } from './utils/router';
 
 export default function App() {
-  // Application State with LocalStorage Persistence
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  // Read initial hash route if present
+  const initialRoute = parseHash();
 
-  // Always land on the official account home when the link is opened
-  const [isOfficialAccount, setIsOfficialAccount] = useState<boolean>(true);
+  // Application State with LocalStorage Persistence
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    if (initialRoute.isLogin) return false;
+    if (initialRoute.tab || initialRoute.viewMode || initialRoute.reportAction) return true;
+    const saved = localStorage.getItem('wechat_v8_logged');
+    return saved ? JSON.parse(saved) : false;
+  });
+
+  // Always land on the official account home when the link is opened without sub-routes
+  const [isOfficialAccount, setIsOfficialAccount] = useState<boolean>(() => {
+    if (initialRoute.isActivationH5View || initialRoute.isLogin || initialRoute.tab || initialRoute.viewMode) {
+      return false;
+    }
+    return true;
+  });
 
   const [user, setUser] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('wechat_v8_user');
@@ -40,29 +54,205 @@ export default function App() {
   });
 
   const [reports, setReports] = useState<SpeedReport[]>(() => {
-    return INITIAL_REPORTS;
+    const saved = localStorage.getItem('wechat_v8_reports');
+    return saved ? JSON.parse(saved) : INITIAL_REPORTS;
   });
 
   const [notifications, setNotifications] = useState<AppNotification[]>(() => {
-    return INITIAL_NOTIFICATIONS;
+    const saved = localStorage.getItem('wechat_v8_notifications');
+    return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
   });
 
   // UI Navigation State
-  const [currentTab, setCurrentTab] = useState<AppTab>('home');
-  const [viewMode, setViewMode] = useState<'main' | 'notifications'>('main');
-  const [selectedReport, setSelectedReport] = useState<SpeedReport | null>(null);
-  const [selectedReportEntry, setSelectedReportEntry] = useState<'report_pending' | 'audit_pending' | null>(null);
-  const [editingReport, setEditingReport] = useState<SpeedReport | null>(null);
-  const [isCreatingNewReport, setIsCreatingNewReport] = useState<boolean>(false);
+  const [currentTab, setCurrentTab] = useState<AppTab>(() => {
+    return initialRoute.tab || 'home';
+  });
+  const [viewMode, setViewMode] = useState<'main' | 'notifications'>(() => {
+    return initialRoute.viewMode || 'main';
+  });
+  const [selectedReport, setSelectedReport] = useState<SpeedReport | null>(() => {
+    if (initialRoute.reportAction === 'detail' && initialRoute.reportId) {
+      return INITIAL_REPORTS.find((r) => r.id === initialRoute.reportId) || null;
+    }
+    return null;
+  });
+  const [selectedReportEntry, setSelectedReportEntry] = useState<'report_pending' | 'audit_pending' | null>(() => {
+    if (initialRoute.auditEntry) return 'audit_pending';
+    return null;
+  });
+  const [editingReport, setEditingReport] = useState<SpeedReport | null>(() => {
+    if (initialRoute.reportAction === 'edit' && initialRoute.reportId) {
+      return INITIAL_REPORTS.find((r) => r.id === initialRoute.reportId) || null;
+    }
+    return null;
+  });
+  const [isCreatingNewReport, setIsCreatingNewReport] = useState<boolean>(() => {
+    return initialRoute.reportAction === 'new';
+  });
   const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
-  const [isFormMode, setIsFormMode] = useState<boolean>(false);
-  const [isProfileDetail, setIsProfileDetail] = useState<boolean>(false);
-  const [isActivationDetail, setIsActivationDetail] = useState<boolean>(false);
-  const [isActivationH5View, setIsActivationH5View] = useState<boolean>(false);
-  const [profileSubPage, setProfileSubPage] = useState<'report' | 'audit' | 'notifications' | null>(null);
+  const [isFormMode, setIsFormMode] = useState<boolean>(() => {
+    return initialRoute.reportAction === 'new' || initialRoute.reportAction === 'edit';
+  });
+  const [isProfileDetail, setIsProfileDetail] = useState<boolean>(() => {
+    return initialRoute.profileSub === 'user';
+  });
+  const [isActivationDetail, setIsActivationDetail] = useState<boolean>(() => {
+    return initialRoute.profileSub === 'activation';
+  });
+  const [isActivationH5View, setIsActivationH5View] = useState<boolean>(() => {
+    return !!initialRoute.isActivationH5View;
+  });
+  const [profileSubPage, setProfileSubPage] = useState<'report' | 'audit' | 'notifications' | null>(() => {
+    if (initialRoute.profileSub === 'report' || initialRoute.profileSub === 'audit') {
+      return initialRoute.profileSub;
+    }
+    return null;
+  });
   const [previousTab, setPreviousTab] = useState<AppTab | null>(null);
   const [isActionSheetOpen, setIsActionSheetOpen] = useState<boolean>(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
+
+  // Sync state changes to URL hash (Hash Mode for pure client-side routing & simple Nginx deployment)
+  useEffect(() => {
+    const targetHash = buildHash({
+      isOfficialAccount,
+      isActivationH5View,
+      isLoggedIn,
+      viewMode,
+      currentTab,
+      isCreatingNewReport,
+      editingReportId: editingReport?.id,
+      selectedReportId: selectedReport?.id,
+      selectedReportEntry,
+      isProfileDetail,
+      isActivationDetail,
+      profileSubPage,
+    });
+
+    if (window.location.hash !== targetHash) {
+      if (!window.location.hash && targetHash === '#/') {
+        window.history.replaceState(null, '', '#/');
+      } else {
+        window.location.hash = targetHash;
+      }
+    }
+  }, [
+    isOfficialAccount,
+    isActivationH5View,
+    isLoggedIn,
+    viewMode,
+    currentTab,
+    isCreatingNewReport,
+    editingReport,
+    selectedReport,
+    selectedReportEntry,
+    isProfileDetail,
+    isActivationDetail,
+    profileSubPage,
+  ]);
+
+  // Listen to hash change from browser history (Back / Forward / direct URL change)
+  useEffect(() => {
+    const handleHashChange = () => {
+      const route = parseHash(window.location.hash);
+
+      if (route.isActivationH5View) {
+        setIsActivationH5View(true);
+        setIsOfficialAccount(false);
+        return;
+      }
+
+      if (route.isOfficialAccount) {
+        setIsOfficialAccount(true);
+        setIsActivationH5View(false);
+        setSelectedReport(null);
+        setSelectedReportEntry(null);
+        setIsCreatingNewReport(false);
+        setEditingReport(null);
+        return;
+      }
+
+      setIsActivationH5View(false);
+      setIsOfficialAccount(false);
+
+      if (route.isLogin) {
+        setIsLoggedIn(false);
+        return;
+      }
+
+      setIsLoggedIn(true);
+
+      if (route.viewMode === 'notifications') {
+        setViewMode('notifications');
+        setSelectedReport(null);
+        setSelectedReportEntry(null);
+        return;
+      }
+
+      setViewMode('main');
+
+      if (route.tab) {
+        setCurrentTab(route.tab);
+      }
+
+      if (route.reportAction === 'new') {
+        setIsCreatingNewReport(true);
+        setIsFormMode(true);
+        setEditingReport(null);
+        setSelectedReport(null);
+        return;
+      } else {
+        setIsCreatingNewReport(false);
+      }
+
+      if (route.reportAction === 'edit' && route.reportId) {
+        const found = reports.find((r) => r.id === route.reportId);
+        if (found) {
+          setEditingReport(found);
+          setIsFormMode(true);
+          setSelectedReport(null);
+          return;
+        }
+      } else {
+        setEditingReport(null);
+      }
+
+      if (route.reportAction === 'detail' && route.reportId) {
+        const found = reports.find((r) => r.id === route.reportId);
+        if (found) {
+          setSelectedReport(found);
+          if (route.auditEntry) {
+            setSelectedReportEntry('audit_pending');
+          }
+          return;
+        }
+      } else {
+        setSelectedReport(null);
+        setSelectedReportEntry(null);
+      }
+
+      if (route.profileSub === 'user') {
+        setIsProfileDetail(true);
+        setIsActivationDetail(false);
+        setProfileSubPage(null);
+      } else if (route.profileSub === 'activation') {
+        setIsProfileDetail(false);
+        setIsActivationDetail(true);
+        setProfileSubPage(null);
+      } else if (route.profileSub === 'report' || route.profileSub === 'audit') {
+        setIsProfileDetail(false);
+        setIsActivationDetail(false);
+        setProfileSubPage(route.profileSub);
+      } else {
+        setIsProfileDetail(false);
+        setIsActivationDetail(false);
+        setProfileSubPage(null);
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [reports]);
 
   // Sync state to local storage
   useEffect(() => {
