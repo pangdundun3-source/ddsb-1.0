@@ -169,26 +169,17 @@ export default function App() {
           />
         )}
 
-        {activePage === 'report-audit' && (
+        {(activePage === 'report-audit' || activePage === 'audit-detail') && (
           <ReportAudit
             auditPendingList={reports.filter((report) => report.auditStatus === '待审核')}
             allReports={reports}
+            initialDrawerReport={activePage === 'audit-detail' ? selectedAudit : null}
             onSelectAudit={setSelectedAudit}
             onApproveAudit={handleApproveAudit}
             onRejectAudit={handleRejectAudit}
             onBatchApprove={handleBatchApprove}
             onBatchReject={handleBatchReject}
             onDeleteReport={handleDeleteReport}
-            onNavigate={handleNavigate}
-          />
-        )}
-
-        {activePage === 'audit-detail' && (
-          <AuditDetail
-            report={selectedAudit}
-            allReports={reports}
-            onApprove={handleApproveAudit}
-            onReject={handleRejectAudit}
             onNavigate={handleNavigate}
           />
         )}

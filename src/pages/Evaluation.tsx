@@ -35,7 +35,9 @@ import {
   FileEdit,
   CheckSquare,
   Target,
-  XCircle
+  XCircle,
+  ChevronDown,
+  Search
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -72,6 +74,8 @@ export interface DetailedEvaluationRecord {
   // 核心指标
   totalReports: number; // 本期累计上报数
   adoptedNum?: number; // 采纳数
+  adoptedFirstNum?: number; // 采纳中的首发数
+  adoptedRepeatNum?: number; // 采纳中的重复数
   rejectedNum?: number; // 驳回数
   pendingNum?: number; // 待审数
   oncePassNum: number; // 一次性通过分子
@@ -109,6 +113,8 @@ const MOCK_EVALUATION_DATA: DetailedEvaluationRecord[] = [
     dimension: 'person',
     totalReports: 42,
     adoptedNum: 36,
+    adoptedFirstNum: 28,
+    adoptedRepeatNum: 8,
     rejectedNum: 3,
     pendingNum: 3,
     oncePassNum: 36,
@@ -147,6 +153,8 @@ const MOCK_EVALUATION_DATA: DetailedEvaluationRecord[] = [
     dimension: 'person',
     totalReports: 38,
     adoptedNum: 33,
+    adoptedFirstNum: 25,
+    adoptedRepeatNum: 8,
     rejectedNum: 3,
     pendingNum: 2,
     oncePassNum: 32,
@@ -185,6 +193,8 @@ const MOCK_EVALUATION_DATA: DetailedEvaluationRecord[] = [
     dimension: 'person',
     totalReports: 35,
     adoptedNum: 29,
+    adoptedFirstNum: 22,
+    adoptedRepeatNum: 7,
     rejectedNum: 4,
     pendingNum: 2,
     oncePassNum: 28,
@@ -223,6 +233,8 @@ const MOCK_EVALUATION_DATA: DetailedEvaluationRecord[] = [
     dimension: 'person',
     totalReports: 31,
     adoptedNum: 25,
+    adoptedFirstNum: 19,
+    adoptedRepeatNum: 6,
     rejectedNum: 4,
     pendingNum: 2,
     oncePassNum: 24,
@@ -261,6 +273,8 @@ const MOCK_EVALUATION_DATA: DetailedEvaluationRecord[] = [
     dimension: 'person',
     totalReports: 28,
     adoptedNum: 22,
+    adoptedFirstNum: 17,
+    adoptedRepeatNum: 5,
     rejectedNum: 4,
     pendingNum: 2,
     oncePassNum: 21,
@@ -299,6 +313,8 @@ const MOCK_EVALUATION_DATA: DetailedEvaluationRecord[] = [
     dimension: 'person',
     totalReports: 24,
     adoptedNum: 18,
+    adoptedFirstNum: 14,
+    adoptedRepeatNum: 4,
     rejectedNum: 4,
     pendingNum: 2,
     oncePassNum: 17,
@@ -337,6 +353,8 @@ const MOCK_EVALUATION_DATA: DetailedEvaluationRecord[] = [
     dimension: 'person',
     totalReports: 20,
     adoptedNum: 14,
+    adoptedFirstNum: 11,
+    adoptedRepeatNum: 3,
     rejectedNum: 4,
     pendingNum: 2,
     oncePassNum: 13,
@@ -660,6 +678,7 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
   const [cardPerspective, setCardPerspective] = useState<'submitter' | 'auditor'>('submitter');
   const [selectedPersonName, setSelectedPersonName] = useState<string>('张三');
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<string>('adoptedNum');
   const [selectedRecord, setSelectedRecord] = useState<DetailedEvaluationRecord | null>(null);
   const [timePeriod, setTimePeriod] = useState<EvaluationTimeDimension>('week');
   const [startDate, setStartDate] = useState('2026-08-04');
@@ -696,6 +715,7 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
     setStartDate('2026-08-04');
     setEndDate('2026-08-11');
     setSearchQuery('');
+    setSortBy('adoptedNum');
   };
 
   // Submitter Evaluation Metrics by Time Period
@@ -707,6 +727,8 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
           totalSubmit: 4,
           totalSubmitMoM: '+33.3%',
           breakdown: { adopted: 2, rejected: 1, pending: 1 },
+          adoptedFirst: 2,
+          adoptedRepeat: 0,
           submitRank: 2,
           submitRankTotal: 28,
           submitRankMoM: '↑ 提升 1 位',
@@ -729,11 +751,11 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
           rejectRank: 2,
           rejectRankMoM: '↓ 优化 1 位',
           totalScore: 364.8,
-          totalScoreMoM: '+88.5 分',
+          totalScoreMoM: '+32.1%',
           totalScoreRank: 2,
           totalScoreRankMoM: '↑ 提升 1 位',
           avgScore: 91.2,
-          avgScoreMoM: '+1.5 分',
+          avgScoreMoM: '+1.7%',
           avgScoreRank: 3,
           avgScoreRankMoM: '↑ 提升 1 位',
           warnings: {
@@ -749,7 +771,9 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
           personName: selectedPersonName === '张三' || selectedPersonName === '王五' || selectedPersonName === '赵六' ? selectedPersonName : '张三',
           totalSubmit: 11,
           totalSubmitMoM: '+15.8%',
-          breakdown: { adopted: 1, rejected: 2, pending: 8 },
+          breakdown: { adopted: 9, rejected: 1, pending: 1 },
+          adoptedFirst: 7,
+          adoptedRepeat: 2,
           submitRank: 3,
           submitRankTotal: 28,
           submitRankMoM: '↑ 提升 1 位',
@@ -772,15 +796,15 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
           rejectRank: 2,
           rejectRankMoM: '↓ 优化 1 位',
           totalScore: 1020.8,
-          totalScoreMoM: '+185.0 分',
+          totalScoreMoM: '+22.1%',
           totalScoreRank: 2,
           totalScoreRankMoM: '↑ 提升 1 位',
           avgScore: 92.8,
-          avgScoreMoM: '+1.6 分',
+          avgScoreMoM: '+1.8%',
           avgScoreRank: 3,
           avgScoreRankMoM: '↑ 提升 1 位',
           warnings: {
-            submitTotalDiff: { personal: '11 件', orgAvg: '6 件', value: '+5 件', percentage: '+83.3%', text: '大幅超出机构平均数 5 件 (机构平均 6 件)' },
+            submitTotalDiff: { personal: '9 件', orgAvg: '5 件', value: '+4 件', percentage: '+80.0%', text: '大幅超出机构采纳平均数 4 件 (机构平均 5 件)' },
             passRateDiff: { personal: '90.9%', orgAvg: '80.0%', value: '+10.9%', percentage: '+10.9%', text: '高出机构平均整体通过率 10.9 个百分点 (机构平均 80.0%)' },
             rejectRateDiff: { personal: '18.2%', orgAvg: '22.7%', value: '-4.5%', percentage: '-4.5%', text: '优于机构平均驳回率 4.5 个百分点 (机构平均 22.7%)' },
             scoreDiff: { personal: '92.8 分', orgAvg: '88.6 分', value: '+4.2 分', percentage: '+4.7%', text: '优于机构平均得分 4.2 分 (机构平均 88.6 分)' }
@@ -792,6 +816,8 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
           totalSubmit: 512,
           totalSubmitMoM: '+28.4%',
           breakdown: { adopted: 468, rejected: 32, pending: 12 },
+          adoptedFirst: 372,
+          adoptedRepeat: 96,
           submitRank: 1,
           submitRankTotal: 28,
           submitRankMoM: '↑ 提升 2 位',
@@ -818,7 +844,7 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
           totalScoreRank: 1,
           totalScoreRankMoM: '↑ 提升 2 位',
           avgScore: 95.5,
-          avgScoreMoM: '+1.8 分',
+          avgScoreMoM: '+1.9%',
           avgScoreRank: 1,
           avgScoreRankMoM: '↑ 提升 1 位',
           warnings: {
@@ -834,6 +860,8 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
           totalSubmit: 128,
           totalSubmitMoM: '+18.5%',
           breakdown: { adopted: 116, rejected: 8, pending: 4 },
+          adoptedFirst: 92,
+          adoptedRepeat: 24,
           submitRank: 1,
           submitRankTotal: 28,
           submitRankMoM: '↑ 提升 2 位',
@@ -860,7 +888,7 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
           totalScoreRank: 1,
           totalScoreRankMoM: '↑ 提升 2 位',
           avgScore: 95.5,
-          avgScoreMoM: '+1.6 分',
+          avgScoreMoM: '+1.7%',
           avgScoreRank: 1,
           avgScoreRankMoM: '↑ 提升 1 位',
           warnings: {
@@ -877,6 +905,8 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
           totalSubmit: 42,
           totalSubmitMoM: '+16.7%',
           breakdown: { adopted: 36, rejected: 3, pending: 3 },
+          adoptedFirst: 28,
+          adoptedRepeat: 8,
           submitRank: 1,
           submitRankTotal: 28,
           submitRankMoM: '↑ 提升 2 位',
@@ -903,7 +933,7 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
           totalScoreRank: 1,
           totalScoreRankMoM: '↑ 提升 2 位',
           avgScore: 94.9,
-          avgScoreMoM: '+2.1 分',
+          avgScoreMoM: '+2.3%',
           avgScoreRank: 1,
           avgScoreRankMoM: '↑ 提升 1 位',
           warnings: {
@@ -1077,8 +1107,30 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
         return item.name.toLowerCase().includes(q) || item.orgName.toLowerCase().includes(q);
       }
       return true;
-    }).sort((a, b) => a.rank - b.rank);
-  }, [activeDimension, personSubRole, searchQuery]);
+    }).sort((a, b) => {
+      if (sortBy === 'totalReports') return b.totalReports - a.totalReports;
+      if (sortBy === 'adoptedNum') {
+        const getAdopted = (item: DetailedEvaluationRecord) => item.adoptedNum ?? item.oncePassNum ?? 0;
+        return getAdopted(b) - getAdopted(a);
+      }
+      if (sortBy === 'adoptedFirstNum') {
+        const getAdoptedFirst = (item: DetailedEvaluationRecord) => {
+          if (item.adoptedFirstNum !== undefined) return item.adoptedFirstNum;
+          const adopted = item.adoptedNum ?? item.oncePassNum ?? 0;
+          return Math.round(adopted * 0.78);
+        };
+        return getAdoptedFirst(b) - getAdoptedFirst(a);
+      }
+      if (sortBy === 'oncePassRate') return b.oncePassRate - a.oncePassRate;
+      if (sortBy === 'overallPassRate') return b.overallPassRate - a.overallPassRate;
+      if (sortBy === 'totalScore') return b.totalScore - a.totalScore;
+      if (sortBy === 'avgScore') return b.avgScore - a.avgScore;
+      if (sortBy === 'auditTotal') return b.auditTotal - a.auditTotal;
+      if (sortBy === 'auditProcessRate') return b.auditProcessRate - a.auditProcessRate;
+      if (sortBy === 'avgAuditTimeMin') return a.avgAuditTimeMin - b.avgAuditTimeMin;
+      return a.rank - b.rank;
+    });
+  }, [activeDimension, personSubRole, searchQuery, sortBy]);
 
   // Podium top 3
   const topThree = useMemo(() => {
@@ -1234,13 +1286,13 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
 
             {/* 5 张核心指标卡片 */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
-              {/* 卡片 1: 本期累计上报 */}
+              {/* 卡片 1: 累计采纳数 */}
               <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col justify-between hover:shadow-sm transition-all group">
                 <div>
                   <div className="flex items-center justify-between text-xs mb-2.5">
                     <span className="font-semibold text-slate-600 flex items-center space-x-1.5">
-                      <FileText className="w-3.5 h-3.5 text-blue-600" />
-                      <span>累计上报</span>
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>累计采纳数</span>
                     </span>
                     <span className="text-[11px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md font-bold flex items-center">
                       <TrendingUp className="w-3 h-3 mr-0.5" />
@@ -1248,24 +1300,22 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
                     </span>
                   </div>
                   <div className="flex items-baseline justify-between mb-3">
-                    <div className="text-2xl font-black text-slate-900 font-mono tracking-tight">
-                      {submitterMetrics.totalSubmit}
+                    <div className="text-2xl font-black text-emerald-700 font-mono tracking-tight">
+                      {submitterMetrics.breakdown.adopted}
                       <span className="text-xs font-normal text-slate-400 ml-1">件</span>
                     </div>
                     <div className="text-[10px] text-slate-500 font-mono flex items-center space-x-1">
-                      <span className="text-emerald-600 font-semibold">采{submitterMetrics.breakdown.adopted}</span>
+                      <span className="text-emerald-700 font-semibold">首发 {(submitterMetrics as any).adoptedFirst ?? Math.round(submitterMetrics.breakdown.adopted * 0.78)}</span>
                       <span className="text-slate-300">/</span>
-                      <span className="text-rose-500 font-semibold">驳{submitterMetrics.breakdown.rejected}</span>
-                      <span className="text-slate-300">/</span>
-                      <span className="text-amber-500 font-semibold">待{submitterMetrics.breakdown.pending}</span>
+                      <span className="text-slate-600 font-medium">重复 {(submitterMetrics as any).adoptedRepeat ?? (submitterMetrics.breakdown.adopted - Math.round(submitterMetrics.breakdown.adopted * 0.78))}</span>
                     </div>
                   </div>
                 </div>
                 <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
                   <span className="text-slate-600">
-                    第 <b className="text-blue-700 font-mono font-bold">{submitterMetrics.submitRank}</b> 名 <span className="text-slate-400 font-normal">/ {submitterMetrics.submitRankTotal}人</span>
+                    第 <b className="text-emerald-700 font-mono font-bold">{submitterMetrics.submitRank}</b> 名 <span className="text-slate-400 font-normal">/ {submitterMetrics.submitRankTotal}人</span>
                   </span>
-                  <span className="text-blue-600 font-medium">{submitterMetrics.submitRankMoM}</span>
+                  <span className="text-emerald-600 font-medium">{submitterMetrics.submitRankMoM}</span>
                 </div>
               </div>
 
@@ -1294,7 +1344,7 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
                   <span className="text-slate-600">
                     第 <b className="text-emerald-700 font-mono font-bold">{submitterMetrics.oncePassRank}</b> 名 <span className="text-slate-400 font-normal">/ {submitterMetrics.submitRankTotal}人</span>
                   </span>
-                  <span className="text-emerald-600 font-medium">无驳回重修</span>
+                  <span className="text-emerald-600 font-medium">{submitterMetrics.oncePassRankMoM}</span>
                 </div>
               </div>
 
@@ -1405,7 +1455,7 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 <div className="bg-white/80 rounded-lg px-3 py-2 border border-amber-100 text-xs space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-gray-700">上报总数</span>
+                    <span className="font-semibold text-gray-700">累计采纳数</span>
                     <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">
                       {submitterMetrics.warnings.submitTotalDiff.value}
                     </span>
@@ -1467,13 +1517,13 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
 
             {/* 3 张核心指标卡片 */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
-              {/* 卡片 1: 累计审核总数 */}
+              {/* 卡片 1: 累计审核数 */}
               <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col justify-between hover:shadow-sm transition-all group">
                 <div>
                   <div className="flex items-center justify-between text-xs mb-2.5">
                     <span className="font-semibold text-slate-600 flex items-center space-x-1.5">
                       <CheckSquare className="w-3.5 h-3.5 text-blue-600" />
-                      <span>累计审核</span>
+                      <span>累计审核数</span>
                     </span>
                     <span className="text-[11px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md font-bold flex items-center">
                       <TrendingUp className="w-3 h-3 mr-0.5" />
@@ -1521,7 +1571,7 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
                     <div className="text-[11px] text-slate-500 font-mono">
                       <span className="text-teal-700 font-semibold">已办 {auditorMetrics.processRateNumerator}</span>
                       <span className="mx-1.5 text-slate-300">/</span>
-                      <span className="text-amber-600 font-semibold">待办 {auditorMetrics.auditPendingCount ?? Math.max(0, auditorMetrics.processRateDenominator - auditorMetrics.processRateNumerator)}</span>
+                      <span className="text-slate-600 font-semibold">上报 {auditorMetrics.processRateDenominator}</span>
                     </div>
                   </div>
                 </div>
@@ -1585,7 +1635,7 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 <div className="bg-white/80 rounded-lg px-3 py-2 border border-amber-100 text-xs space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-gray-700">审核总数</span>
+                    <span className="font-semibold text-gray-700">累计审核数</span>
                     <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">
                       {auditorMetrics.warnings.auditTotalDiff.value}
                     </span>
@@ -1611,7 +1661,7 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
                 </div>
                 <div className="bg-white/80 rounded-lg px-3 py-2 border border-amber-100 text-xs space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-gray-700">审核时长</span>
+                    <span className="font-semibold text-gray-700">平均审核响应时长</span>
                     <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-md">
                       {auditorMetrics.warnings.avgTimeDiff.value}
                     </span>
@@ -1630,7 +1680,7 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
 
       {/* 4. Comprehensive Evaluation Indicators Table (明细表区分上报员和审核员) */}
       <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-2xs space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-gray-100 pb-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3.5">
           <div className="space-y-1">
             <div className="flex items-center space-x-2.5">
               <h3 className="font-extrabold text-base text-gray-900 flex items-center space-x-2">
@@ -1649,6 +1699,48 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
               </h3>
             </div>
           </div>
+
+          {/* 右侧排序选择框 */}
+          <div className="flex items-center self-end sm:self-auto">
+            <div className="relative">
+              <select
+                id="evaluation-table-sort-select"
+                value={
+                  activeDimension === 'person' && personSubRole === 'auditor'
+                    ? (['auditTotal', 'auditProcessRate', 'avgAuditTimeMin'].includes(sortBy) ? sortBy : 'auditTotal')
+                    : sortBy
+                }
+                onChange={(e) => setSortBy(e.target.value)}
+                className="appearance-none bg-white border border-slate-200 hover:border-blue-400 rounded-lg pl-3 pr-8 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer shadow-2xs transition-all"
+                title="选择排序方式"
+              >
+                {activeDimension === 'person' && personSubRole === 'submitter' ? (
+                  <>
+                    <option value="adoptedNum">按采纳数排名</option>
+                    <option value="adoptedFirstNum">按首发数排名</option>
+                    <option value="oncePassRate">按一次性通过率排名</option>
+                    <option value="overallPassRate">按整体通过率排名</option>
+                    <option value="totalScore">按综合得分排名</option>
+                    <option value="avgScore">按平均得分排名</option>
+                  </>
+                ) : activeDimension === 'person' && personSubRole === 'auditor' ? (
+                  <>
+                    <option value="auditTotal">按累计审核数排名</option>
+                    <option value="auditProcessRate">按审核处理率排名</option>
+                    <option value="avgAuditTimeMin">按平均审核响应时长排名</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="adoptedNum">按采纳数排名</option>
+                    <option value="overallPassRate">按整体通过率排名</option>
+                    <option value="totalScore">按综合得分排名</option>
+                    <option value="avgScore">按平均得分排名</option>
+                  </>
+                )}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -1659,23 +1751,19 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
                 <tr className="bg-slate-50 text-gray-700 font-bold border-b border-gray-200 text-[11px]">
                   <th className="py-3 px-3 text-center">排名</th>
                   <th className="py-3 px-4">上报员 / 所属机构</th>
-                  <th className="py-3 px-3 text-center">累计上报量 (采纳/驳回/待审)</th>
+                  <th className="py-3 px-3 text-center">累计采纳数（首发/重复）</th>
                   <th className="py-3 px-3 text-center">一次性通过率 (通过/总件数)</th>
                   <th className="py-3 px-3 text-center">整体通过率 (通过/总件数)</th>
                   <th className="py-3 px-3 text-center">综合得分</th>
                   <th className="py-3 px-3 text-center">平均得分</th>
-                  <th className="py-3 px-3 text-center">考评等次</th>
-                  <th className="py-3 px-3 text-center">操作</th>
                 </tr>
               ) : activeDimension === 'person' && personSubRole === 'auditor' ? (
                 <tr className="bg-slate-50 text-gray-700 font-bold border-b border-gray-200 text-[11px]">
                   <th className="py-3 px-3 text-center">排名</th>
                   <th className="py-3 px-4">审核员 / 所属机构</th>
-                  <th className="py-3 px-3 text-center">累计审核量 (已办/通过/驳回)</th>
-                  <th className="py-3 px-3 text-center">审核处理率 (已办/分母)</th>
+                  <th className="py-3 px-3 text-center">累计审核数 (已办/通过/驳回)</th>
+                  <th className="py-3 px-3 text-center">审核处理率 (已办/上报)</th>
                   <th className="py-3 px-3 text-center">平均审核响应时长</th>
-                  <th className="py-3 px-3 text-center">考评等次</th>
-                  <th className="py-3 px-3 text-center">操作</th>
                 </tr>
               ) : (
                 <tr className="bg-slate-50 text-gray-700 font-bold border-b border-gray-200 text-[11px]">
@@ -1696,10 +1784,13 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
               )}
             </thead>
             <tbody className="divide-y divide-gray-100 text-gray-700">
-              {filteredList.map((row) => {
+              {filteredList.map((row, idx) => {
+                const currentRank = idx + 1;
                 // 上报员专属行展示
                 if (activeDimension === 'person' && personSubRole === 'submitter') {
                   const adopted = row.adoptedNum ?? row.oncePassNum ?? 0;
+                  const adoptedFirst = row.adoptedFirstNum ?? Math.round(adopted * 0.78);
+                  const adoptedRepeat = row.adoptedRepeatNum ?? Math.max(0, adopted - adoptedFirst);
                   const rejected = row.rejectedNum ?? Math.max(0, row.totalReports - (row.overallPassNum ?? row.totalReports));
                   const pending = row.pendingNum ?? Math.max(0, row.totalReports - adopted - rejected);
 
@@ -1708,14 +1799,14 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
                       {/* 排名与升降 */}
                       <td className="py-3.5 px-3 text-center font-mono">
                         <div className="flex flex-col items-center justify-center">
-                          {row.rank === 1 ? (
+                          {currentRank === 1 ? (
                             <span className="inline-block px-2 py-0.5 bg-amber-100 text-amber-900 rounded font-black text-xs">🥇 1</span>
-                          ) : row.rank === 2 ? (
+                          ) : currentRank === 2 ? (
                             <span className="inline-block px-2 py-0.5 bg-slate-200 text-slate-800 rounded font-black text-xs">🥈 2</span>
-                          ) : row.rank === 3 ? (
+                          ) : currentRank === 3 ? (
                             <span className="inline-block px-2 py-0.5 bg-amber-50 text-amber-800 rounded font-black text-xs">🥉 3</span>
                           ) : (
-                            <span className="text-gray-700 font-bold font-mono text-sm">{row.rank}</span>
+                            <span className="text-gray-700 font-bold font-mono text-sm">{currentRank}</span>
                           )}
                           <span className="text-[10px] text-blue-600 font-medium mt-0.5">{row.rankChange}</span>
                         </div>
@@ -1725,28 +1816,26 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
                       <td className="py-3.5 px-4">
                         <div className="font-extrabold text-gray-900 text-sm flex items-center space-x-1.5">
                           <span>{row.name}</span>
-                          {row.rank === 1 && (
+                          {currentRank === 1 && (
                             <span className="bg-amber-100 text-amber-900 text-[10px] px-1.5 py-0.2 rounded font-bold">领跑者</span>
                           )}
                         </div>
                         <div className="text-[11px] text-gray-500 mt-0.5">{row.orgName}</div>
                       </td>
 
-                      {/* 1. 累计上报量 (采纳/驳回/待审) */}
+                      {/* 1. 采纳量 (首发/重复) */}
                       <td className="py-3.5 px-3 text-center">
-                        <div className="font-mono font-black text-slate-900 text-sm">
-                          {row.totalReports} <span className="text-[11px] font-normal text-slate-400">件</span>
+                        <div className="font-mono font-black text-emerald-700 text-sm">
+                          {adopted} <span className="text-[11px] font-normal text-slate-400">件</span>
                         </div>
                         <div className="text-[10px] font-mono flex items-center justify-center space-x-1 mt-0.5">
-                          <span className="text-emerald-700 font-bold">采纳 {adopted}</span>
+                          <span className="text-emerald-700 font-bold">首发 {adoptedFirst}</span>
                           <span className="text-slate-300">/</span>
-                          <span className="text-rose-600 font-bold">驳回 {rejected}</span>
-                          <span className="text-slate-300">/</span>
-                          <span className="text-amber-600 font-bold">待审 {pending}</span>
+                          <span className="text-blue-600 font-bold">重复 {adoptedRepeat}</span>
                         </div>
                       </td>
 
-                      {/* 2. 一次性通过率 (分子/分母) */}
+                      {/* 3. 一次性通过率 (分子/分母) */}
                       <td className="py-3.5 px-3 text-center">
                         <div className="font-mono font-black text-emerald-700 text-sm">
                           {row.oncePassRate}%
@@ -1783,31 +1872,6 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
                         </div>
                         <div className="text-[10px] text-slate-400 mt-0.5">每条均分</div>
                       </td>
-
-                      {/* 考评等次 */}
-                      <td className="py-3.5 px-3 text-center">
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            row.grade === '卓越'
-                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                              : row.grade === '优秀'
-                              ? 'bg-blue-50 text-blue-800 border border-blue-200'
-                              : 'bg-amber-50 text-amber-800 border border-amber-200'
-                          }`}
-                        >
-                          {row.grade}
-                        </span>
-                      </td>
-
-                      {/* 操作 */}
-                      <td className="py-3.5 px-3 text-center">
-                        <button
-                          onClick={() => setSelectedRecord(row)}
-                          className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-[#1E5ABB] font-bold rounded-md transition-colors cursor-pointer text-[11px]"
-                        >
-                          画像剖析
-                        </button>
-                      </td>
                     </tr>
                   );
                 }
@@ -1824,12 +1888,14 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
                     <tr key={row.id} className="hover:bg-blue-50/40 transition-colors">
                       <td className="py-3.5 px-3 text-center font-mono">
                         <div className="flex flex-col items-center justify-center">
-                          {row.rank === 1 ? (
+                          {currentRank === 1 ? (
                             <span className="inline-block px-2 py-0.5 bg-amber-100 text-amber-900 rounded font-black text-xs">🥇 1</span>
-                          ) : row.rank === 2 ? (
+                          ) : currentRank === 2 ? (
                             <span className="inline-block px-2 py-0.5 bg-slate-200 text-slate-800 rounded font-black text-xs">🥈 2</span>
+                          ) : currentRank === 3 ? (
+                            <span className="inline-block px-2 py-0.5 bg-amber-50 text-amber-800 rounded font-black text-xs">🥉 3</span>
                           ) : (
-                            <span className="text-gray-700 font-bold font-mono text-sm">{row.rank}</span>
+                            <span className="text-gray-700 font-bold font-mono text-sm">{currentRank}</span>
                           )}
                           <span className="text-[10px] text-teal-600 font-medium mt-0.5">{row.rankChange}</span>
                         </div>
@@ -1853,24 +1919,11 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
                       <td className="py-3.5 px-3 text-center">
                         <div className="font-mono font-black text-teal-700 text-sm">{row.auditProcessRate}%</div>
                         <div className="text-[10px] font-mono text-slate-500">
-                          已办 {completed}/{processTotal} 件
+                          已办 {completed} / 上报 {processTotal} 件
                         </div>
                       </td>
                       <td className="py-3.5 px-3 text-center font-mono font-bold text-purple-700 text-sm">
                         {row.avgAuditTimeMin} <span className="text-[11px] font-normal text-purple-600">分钟</span>
-                      </td>
-                      <td className="py-3.5 px-3 text-center">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                          {row.grade}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-3 text-center">
-                        <button
-                          onClick={() => setSelectedRecord(row)}
-                          className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-[#1E5ABB] font-bold rounded-md transition-colors cursor-pointer text-[11px]"
-                        >
-                          画像剖析
-                        </button>
                       </td>
                     </tr>
                   );
@@ -1880,14 +1933,14 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
                 return (
                   <tr key={row.id} className="hover:bg-blue-50/40 transition-colors">
                     <td className="py-3.5 px-3 text-center font-mono font-bold">
-                      {row.rank === 1 ? (
+                      {currentRank === 1 ? (
                         <span className="inline-block px-2 py-0.5 bg-amber-100 text-amber-900 rounded font-black text-xs">🥇 1</span>
-                      ) : row.rank === 2 ? (
+                      ) : currentRank === 2 ? (
                         <span className="inline-block px-2 py-0.5 bg-slate-200 text-slate-800 rounded font-black text-xs">🥈 2</span>
-                      ) : row.rank === 3 ? (
+                      ) : currentRank === 3 ? (
                         <span className="inline-block px-2 py-0.5 bg-amber-50 text-amber-800 rounded font-black text-xs">🥉 3</span>
                       ) : (
-                        <span className="text-gray-500 font-mono">{row.rank}</span>
+                        <span className="text-gray-500 font-mono">{currentRank}</span>
                       )}
                     </td>
                     <td className="py-3.5 px-4">
@@ -2080,7 +2133,7 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
                   <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                    <span className="text-gray-500 text-[11px]">累计审核总数</span>
+                    <span className="text-gray-500 text-[11px]">累计审核数</span>
                     <div className="font-mono font-bold text-gray-900 text-sm mt-0.5">{selectedRecord.auditTotal || '--'} 件</div>
                   </div>
                   <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
@@ -2088,7 +2141,7 @@ export const Evaluation: React.FC<EvaluationProps> = ({ onNavigate }) => {
                     <div className="font-mono font-bold text-teal-700 text-sm mt-0.5">{selectedRecord.auditProcessRate ? `${selectedRecord.auditProcessRate}%` : '--'}</div>
                   </div>
                   <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                    <span className="text-gray-500 text-[11px]">平均审核时长</span>
+                    <span className="text-gray-500 text-[11px]">平均审核响应时长</span>
                     <div className="font-mono font-bold text-purple-700 text-sm mt-0.5">{selectedRecord.avgAuditTimeMin ? `${selectedRecord.avgAuditTimeMin} 分钟` : '--'}</div>
                   </div>
                 </div>

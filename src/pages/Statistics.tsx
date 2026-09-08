@@ -773,20 +773,8 @@ export const Statistics: React.FC = () => {
             </div>
           </div>
 
-          {/* Org Filter & Reset */}
+          {/* Reset */}
           <div className="flex items-center gap-2 text-xs">
-            <select
-              value={selectedOrg}
-              onChange={(e) => setSelectedOrg(e.target.value)}
-              className="bg-white border border-gray-300 text-gray-700 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium text-xs cursor-pointer shadow-2xs"
-            >
-              <option value="all">所属机构: 全部部门 (4家)</option>
-              <option value="dept1">台中市网信办</option>
-              <option value="dept2">市委宣传部舆情科</option>
-              <option value="dept3">西坝区网格化治理中心</option>
-              <option value="dept4">西坝区应急管理局</option>
-            </select>
-
             <button
               onClick={handleReset}
               className="p-1.5 bg-slate-100 hover:bg-slate-200 text-gray-600 font-bold rounded-lg border border-gray-200 cursor-pointer transition-colors"
@@ -914,8 +902,8 @@ export const Statistics: React.FC = () => {
                     <PieChartIcon className="w-4 h-4 text-[#1E5ABB]" />
                     <span>上报员报送统计</span>
                   </h3>
-                  <span className="text-xs font-semibold text-blue-600">
-                    统计时间段：{metricsData.timeLabel}
+                  <span className="text-xs text-slate-500 font-normal">
+                    统计时间范围 {startDate.replace(/-/g, '/')} - {endDate.replace(/-/g, '/')}
                   </span>
                 </div>
 
@@ -1111,8 +1099,8 @@ export const Statistics: React.FC = () => {
                     <PieChartIcon className="w-4 h-4 text-emerald-600" />
                     <span>审核员审核统计</span>
                   </h3>
-                  <span className="text-xs font-semibold text-emerald-600">
-                    统计时间段：{metricsData.timeLabel}
+                  <span className="text-xs text-slate-500 font-normal">
+                    统计时间范围 {startDate.replace(/-/g, '/')} - {endDate.replace(/-/g, '/')}
                   </span>
               </div>
 

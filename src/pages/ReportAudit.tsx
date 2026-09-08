@@ -5,6 +5,7 @@ import { AuditStatusBadge } from '../components/AuditStatusBadge';
 import { ReportOriginBadge } from '../components/ReportOriginBadge';
 import { ReportItem, PageId } from '../types';
 import { isFinalAuditStage } from '../auditStage';
+import { AuditDetail } from './AuditDetail';
 import {
   Search,
   RotateCcw,
@@ -33,6 +34,7 @@ import {
 interface ReportAuditProps {
   auditPendingList: ReportItem[];
   allReports?: ReportItem[];
+  initialDrawerReport?: ReportItem | null;
   onSelectAudit: (report: ReportItem) => void;
   onApproveAudit?: (id: number, score?: number, isBatch?: boolean) => void;
   onRejectAudit?: (id: number, reason: string, detail: string) => void;
@@ -45,6 +47,7 @@ interface ReportAuditProps {
 export const ReportAudit: React.FC<ReportAuditProps> = ({
   auditPendingList,
   allReports = [],
+  initialDrawerReport,
   onSelectAudit,
   onApproveAudit,
   onRejectAudit,
@@ -61,6 +64,25 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
   const [endDate, setEndDate] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [isBatchMatchActive, setIsBatchMatchActive] = useState(false);
+
+  // 50% Right Drawer State
+  const [drawerReport, setDrawerReport] = useState<ReportItem | null>(initialDrawerReport || null);
+
+  useEffect(() => {
+    if (initialDrawerReport) {
+      setDrawerReport(initialDrawerReport);
+    }
+  }, [initialDrawerReport]);
+
+  const handleOpenAuditDrawer = (item: ReportItem) => {
+    onSelectAudit(item);
+    setDrawerReport(item);
+  };
+
+  const handleCloseAuditDrawer = () => {
+    setDrawerReport(null);
+    onNavigate('report-audit');
+  };
 
   // Modal States
   const [batchModalGroup, setBatchModalGroup] = useState<{ url: string; items: ReportItem[] } | null>(null);
@@ -546,10 +568,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                               <td className="py-3 px-4">
                                 <div className="flex items-center gap-2">
                                   <button
-                                    onClick={() => {
-                                      onSelectAudit(item);
-                                      onNavigate('audit-detail');
-                                    }}
+                                    onClick={() => handleOpenAuditDrawer(item)}
                                     className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer block leading-snug"
                                   >
                                     {item.title}
@@ -620,10 +639,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                                     已匹配
                                   </span>
                                   <button
-                                    onClick={() => {
-                                      onSelectAudit(item);
-                                      onNavigate('audit-detail');
-                                    }}
+                                    onClick={() => handleOpenAuditDrawer(item)}
                                     className="text-[#1E5ABB] hover:underline font-bold text-xs cursor-pointer"
                                   >
                                     {isPending ? '审核' : '详情'}
@@ -660,10 +676,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-2">
                               <button
-                                onClick={() => {
-                                  onSelectAudit(item);
-                                  onNavigate('audit-detail');
-                                }}
+                                onClick={() => handleOpenAuditDrawer(item)}
                                 className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer block leading-snug"
                               >
                                 {item.title}
@@ -731,10 +744,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                           <td className="py-3 px-4 text-center whitespace-nowrap">
                             <div className="flex items-center justify-center space-x-2">
                               <button
-                                onClick={() => {
-                                  onSelectAudit(item);
-                                  onNavigate('audit-detail');
-                                }}
+                                onClick={() => handleOpenAuditDrawer(item)}
                                 className="text-[#1E5ABB] hover:text-[#134092] hover:underline font-bold text-xs cursor-pointer"
                               >
                                 {isPending ? '审核' : '详情'}
@@ -758,10 +768,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => {
-                                onSelectAudit(item);
-                                onNavigate('audit-detail');
-                              }}
+                              onClick={() => handleOpenAuditDrawer(item)}
                               className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer block leading-snug"
                             >
                               {item.title}
@@ -829,10 +836,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                         <td className="py-3 px-4 text-center whitespace-nowrap">
                           <div className="flex items-center justify-center space-x-2">
                             <button
-                              onClick={() => {
-                                onSelectAudit(item);
-                                onNavigate('audit-detail');
-                              }}
+                              onClick={() => handleOpenAuditDrawer(item)}
                               className="text-[#1E5ABB] hover:text-[#134092] hover:underline font-bold text-xs cursor-pointer"
                             >
                                 {isPending ? '审核' : '详情'}
@@ -885,10 +889,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <h4
-                          onClick={() => {
-                            onSelectAudit(item);
-                            onNavigate('audit-detail');
-                          }}
+                          onClick={() => handleOpenAuditDrawer(item)}
                           className="text-xs font-bold text-gray-900 hover:text-[#1E5ABB] cursor-pointer line-clamp-2 leading-snug"
                         >
                           {item.title}
@@ -929,10 +930,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                     </div>
 
                     <button
-                      onClick={() => {
-                        onSelectAudit(item);
-                        onNavigate('audit-detail');
-                      }}
+                      onClick={() => handleOpenAuditDrawer(item)}
                       className="px-3 py-1 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg font-bold text-xs flex items-center space-x-0.5 cursor-pointer shadow-2xs"
                     >
                       <span>{isPending ? '审核' : '详情'}</span>
@@ -1280,6 +1278,25 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* 50% 占屏右侧抽屉展示审核详情 */}
+      {drawerReport && (
+        <AuditDetail
+          report={drawerReport}
+          allReports={allReports}
+          isDrawer={true}
+          onClose={handleCloseAuditDrawer}
+          onApprove={(id, score, isBatch) => {
+            onApproveAudit?.(id, score, isBatch);
+            handleCloseAuditDrawer();
+          }}
+          onReject={(id, reason, detail) => {
+            onRejectAudit?.(id, reason, detail);
+            handleCloseAuditDrawer();
+          }}
+          onNavigate={onNavigate}
+        />
       )}
     </div>
   );

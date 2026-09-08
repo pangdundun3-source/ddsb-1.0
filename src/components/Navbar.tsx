@@ -10,8 +10,7 @@ import {
   LayoutGrid,
   ChevronDown,
   Clock,
-  CheckCircle2,
-  Shield
+  CheckCircle2
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -57,8 +56,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       'audit-records',
       'audit-record-detail'
     ].includes(activePage) || isFromAudit;
-
-  const isNegativeActive = ['negative-info', 'negative-detail'].includes(activePage);
 
   return (
     <nav className="bg-[#1E5ABB] text-white shadow-sm relative z-20 border-t border-white/15">
@@ -218,19 +215,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
           </div>
-
-          {/* 不良信息库 */}
-          <button
-            onClick={() => onNavigate('negative-info')}
-            className={`px-4 sm:px-4.5 h-9 transition-all cursor-pointer rounded flex items-center space-x-2 ${
-              isNegativeActive
-                ? 'bg-blue-600 font-bold text-white shadow-xs'
-                : 'hover:bg-white/12 text-white/90 hover:text-white'
-            }`}
-          >
-            <Shield className="w-4 h-4" />
-            <span>不良信息库</span>
-          </button>
 
           {/* 统计管理 */}
           <button

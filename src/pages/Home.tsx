@@ -526,6 +526,8 @@ export const Home: React.FC<HomeProps> = ({
                     <span className="text-emerald-300">首发:{currentStats.submitFirst}</span>
                     <span>·</span>
                     <span className="text-cyan-200">重复:{currentStats.submitRepeat}</span>
+                    <span>·</span>
+                    <span className="text-amber-300">待审:{currentStats.submitPending || 0}</span>
                   </div>
                 </div>
 

@@ -215,6 +215,8 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                 <span className="text-emerald-300">首发 <strong className="font-mono text-white font-bold">{firstCount}</strong></span>
                 <span>·</span>
                 <span className="text-cyan-200">重复 <strong className="font-mono text-white font-bold">{duplicateCount}</strong></span>
+                <span>·</span>
+                <span className="text-amber-300">待审 <strong className="font-mono text-white font-bold">{pendingCount}</strong></span>
               </span>
             </div>
           </div>
