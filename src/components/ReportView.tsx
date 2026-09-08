@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { SpeedReport, ReportTemplate, UserProfile, ReportStatus, ReportType, ReportSource, IdentificationTag } from '../types';
 import { REPORT_TEMPLATES, DISTRICT_OPTIONS, TYPE_OPTIONS, SOURCE_OPTIONS } from '../data/mockData';
-import { Plus, Save, Send, ChevronRight, X, Sparkles, Filter, Link, FileText, Trash2, CheckCircle2 } from 'lucide-react';
+import { Plus, Save, Send, ChevronRight, X, Sparkles, Filter, Link, FileText, Trash2, CheckCircle2, Clock } from 'lucide-react';
 import { BackNavigationBar } from './BackNavigationBar';
 import { RecallConfirmDialog } from './RecallConfirmDialog';
 import { IdentificationBadge } from './IdentificationBadge';
@@ -519,7 +519,9 @@ export const ReportView: React.FC<ReportViewProps> = ({
             {filteredReports.length === 0 ? (
               <div className="bg-white rounded-2xl p-8 text-center text-slate-400 border border-slate-200">
                 <FileText className="w-8 h-8 mx-auto mb-2 opacity-40 text-slate-400" />
-                <p className="text-xs">暂无匹配的速报记录</p>
+                <p className="text-xs">
+                  {activeFilter === 'draft' ? '暂无草稿记录' : '暂无匹配的速报记录'}
+                </p>
               </div>
             ) : (
               filteredReports.map((report) => (
@@ -590,8 +592,21 @@ export const ReportView: React.FC<ReportViewProps> = ({
                 </div>
               ))
             )}
-            <p className="text-center text-[10px] text-slate-400 py-2">
-              默认显示近三个月的数据
+            <p
+              className={`text-center transition-all ${
+                activeFilter === 'draft'
+                  ? 'text-[11px] text-amber-700 bg-amber-50/90 border border-amber-200/80 rounded-xl py-2 px-3 flex items-center justify-center gap-1.5 font-medium shadow-2xs'
+                  : 'text-[10px] text-slate-400 py-2'
+              }`}
+            >
+              {activeFilter === 'draft' ? (
+                <>
+                  <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <span>草稿数据仅保留3天，请尽快完善提交，到期将自动清空</span>
+                </>
+              ) : (
+                '默认显示近三个月的数据'
+              )}
             </p>
           </div>
         </>

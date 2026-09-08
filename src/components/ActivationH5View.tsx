@@ -3,13 +3,10 @@ import {
   ShieldCheck,
   Smartphone,
   User,
-  CreditCard,
   Sparkles,
   ArrowRight,
   ChevronLeft,
   RefreshCw,
-  Eye,
-  EyeOff,
   ScanLine,
   QrCode,
   Upload,
@@ -19,6 +16,8 @@ import {
   Building2,
   BadgeCheck,
   Lock,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { UserProfile, UserRole } from '../types';
 
@@ -58,9 +57,18 @@ export const ActivationH5View: React.FC<ActivationH5ViewProps> = ({
   const [ticketNo, setTicketNo] = useState<string>(user.ticketNo || 'WB-2026-0813');
   const [idCard, setIdCard] = useState<string>('440106199003071234');
   const [showIdCard, setShowIdCard] = useState<boolean>(false);
-  const [bankCard, setBankCard] = useState<string>('6222021001083921882');
   const [bankName, setBankName] = useState<string>('中国工商银行台中市西坝支行');
+  const [bankCard, setBankCard] = useState<string>('6222021001083921882');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  // Mask helper for ID card (matching exact 440106*********1234 format)
+  const formatIdCardDisplay = (val: string) => {
+    if (!val || showIdCard) return val;
+    if (val.length >= 14) {
+      return `${val.slice(0, 6)}*********${val.slice(-4)}`;
+    }
+    return val;
+  };
 
   // Activation Code to Organization mapping
   const CODE_DEPT_MAP: Record<string, string> = {
@@ -222,9 +230,9 @@ export const ActivationH5View: React.FC<ActivationH5ViewProps> = ({
       setGridCode(profile.gridCode || matchedProfile.gridCode);
       setGridName(profile.gridName || matchedProfile.gridName);
       setTicketNo(profile.ticketNo || matchedProfile.ticketNo);
-      setIdCard(matchedProfile.idCard);
-      setBankCard(matchedProfile.bankCard);
-      setBankName(matchedProfile.bankName);
+      if (matchedProfile.idCard) setIdCard(matchedProfile.idCard);
+      if (matchedProfile.bankCard) setBankCard(matchedProfile.bankCard);
+      if (matchedProfile.bankName) setBankName(matchedProfile.bankName);
       setScanResultTag(`已核验【${matchedProfile.name} · ${profile.role}】`);
 
       onToast(`✅ 扫码识别成功！机构与【${profile.role}】角色已代入，请完善信息`, 'success');
@@ -272,6 +280,9 @@ export const ActivationH5View: React.FC<ActivationH5ViewProps> = ({
     if (profile.ticketNo) setTicketNo(profile.ticketNo);
     if (profile.name && profile.name !== '张三') setRealName(profile.name);
     if (profile.phone && profile.phone !== '13800138000') setPhone(profile.phone);
+    if (profile.idCard) setIdCard(profile.idCard);
+    if (profile.bankCard) setBankCard(profile.bankCard);
+    if (profile.bankName) setBankName(profile.bankName);
 
     onToast(`✅ 激活码核验通过！机构【${profile.department.split('·')[0].trim()}】与【${profile.role}】角色已代入`, 'success');
     setCurrentStep(2);
@@ -336,19 +347,13 @@ export const ActivationH5View: React.FC<ActivationH5ViewProps> = ({
           department,
           gridCode,
           ticketNo,
+          idCard: idCard.trim(),
+          bankCard: bankCard.trim(),
+          bankName: bankName.trim(),
         },
         assignedRole
       );
     }, 700);
-  };
-
-  // Mask helper for ID card
-  const formatIdCardDisplay = (val: string) => {
-    if (!val || showIdCard) return val;
-    if (val.length >= 14) {
-      return `${val.slice(0, 6)}********${val.slice(-4)}`;
-    }
-    return val;
   };
 
   return (
@@ -429,12 +434,6 @@ export const ActivationH5View: React.FC<ActivationH5ViewProps> = ({
                     请输入单位配发的履职专属激活码，系统将自动核验所属机构并代入身份角色。
                   </p>
                 </div>
-                {scanResultTag && (
-                  <span className="shrink-0 text-[10px] text-emerald-800 font-bold bg-emerald-100/90 px-2 py-0.5 rounded-full flex items-center shadow-2xs">
-                    <Check className="w-3 h-3 mr-0.5 text-emerald-700" />
-                    {scanResultTag}
-                  </span>
-                )}
               </div>
             </div>
 
@@ -489,7 +488,7 @@ export const ActivationH5View: React.FC<ActivationH5ViewProps> = ({
             <div className="bg-blue-50/50 rounded-2xl p-3 border border-blue-100/70 text-[11px] text-slate-600 flex items-start gap-2 leading-relaxed">
               <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
               <span>
-                工作激活码由所属治理中心统一配发，核验后系统将自动代入机构归属与履职角色入参，进入第二步完善个人信息。
+                工作激活码由所属治理中心统一配发，核验后将确认所属机构与履职角色，进入第二步完善个人信息。
               </span>
             </div>
           </div>
@@ -498,106 +497,65 @@ export const ActivationH5View: React.FC<ActivationH5ViewProps> = ({
         {/* STEP 2: Information Supplementation View */}
         {currentStep === 2 && (
           <div className="space-y-3 animate-in fade-in slide-in-from-right-2 duration-200">
-            {/* Step 2 Title & Description Banner (Synchronized with Step 1 style) */}
+            {/* Step 2 Title & Description Banner */}
             <div className="bg-gradient-to-r from-blue-600 via-sky-600 to-cyan-500 rounded-2xl p-4 text-white shadow-md shadow-blue-500/20 relative overflow-hidden">
               <div className="absolute -right-6 -top-8 w-24 h-24 rounded-full border border-white/15" />
               <div className="absolute right-8 -bottom-10 w-20 h-20 rounded-full bg-white/10" />
 
-              <div className="relative z-10 flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-sm font-black tracking-tight">完善个人实名履职备案</h2>
-                  <p className="text-[11px] text-blue-50/90 mt-1 leading-relaxed">
-                    机构信息与履职角色已由激活码自动代入，请补充实名信息与联系方式以完成激活。
-                  </p>
-                </div>
-                <span className="shrink-0 text-[10px] text-emerald-800 font-bold bg-emerald-100/90 px-2 py-0.5 rounded-full flex items-center shadow-2xs">
-                  <Check className="w-3 h-3 mr-0.5 text-emerald-700" />
-                  激活码已核验
-                </span>
+              <div className="relative z-10">
+                <h2 className="text-sm font-black tracking-tight">补充实名信息</h2>
+                <p className="text-[11px] text-blue-50/90 mt-1 leading-relaxed">
+                  请完善姓名与手机号码，确认无误后即可完成激活。
+                </p>
               </div>
             </div>
 
-            {/* Card 1: 机构信息与身份角色作为入参代入 (Incoming parameters display) */}
+            {/* Card 1: 激活信息 (所属机构、角色由激活信息带入展示) */}
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs divide-y divide-slate-100 overflow-hidden">
-              <div className="px-3.5 py-2 bg-slate-50/80 flex items-center justify-between border-b border-slate-100">
+              <div className="px-3.5 py-2.5 bg-slate-50/70 flex items-center justify-between border-b border-slate-100">
                 <div className="flex items-center space-x-1.5 text-slate-700">
                   <Building2 className="w-3.5 h-3.5 text-blue-600" />
-                  <span className="text-xs font-bold">已代入入参 · 机构与履职角色</span>
+                  <span className="text-xs font-bold">激活信息</span>
                 </div>
-                <span className="text-[10px] font-semibold text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded-full">
-                  自动代入
-                </span>
               </div>
 
               {/* Row: 所属机构 */}
               <div className="px-3.5 py-2.5 flex items-center justify-between gap-2">
-                <span className="w-20 shrink-0 text-xs font-semibold text-slate-500 flex items-center gap-1">
-                  <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                  <span>所属机构</span>
+                <span className="w-20 shrink-0 text-xs font-medium text-slate-500">
+                  所属机构
                 </span>
                 <div className="flex-1 min-w-0 text-right">
                   <span className="text-xs font-bold text-slate-800 truncate block">
                     {department}
                   </span>
                 </div>
-                <span className="shrink-0 text-[9.5px] text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded font-medium">
-                  已关联
-                </span>
               </div>
 
-              {/* Row: 履职角色 */}
+              {/* Row: 角色 */}
               <div className="px-3.5 py-2.5 flex items-center justify-between gap-2">
-                <span className="w-20 shrink-0 text-xs font-semibold text-slate-500 flex items-center gap-1">
-                  <BadgeCheck className="w-3.5 h-3.5 text-blue-600" />
-                  <span>履职角色</span>
+                <span className="w-20 shrink-0 text-xs font-medium text-slate-500">
+                  角色
                 </span>
                 <div className="flex-1 min-w-0 text-right">
-                  <div className="flex items-center justify-end gap-1.5">
-                    <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200/60">
-                      {assignedRole}
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-slate-400 mt-0.5 truncate">
-                    {assignedRoleDesc}
-                  </div>
-                </div>
-                <span className="shrink-0 text-[9.5px] text-blue-700 bg-blue-50 border border-blue-200/60 px-1.5 py-0.5 rounded font-medium">
-                  入参代入
-                </span>
-              </div>
-
-              {/* Row: 关联激活码 */}
-              <div className="px-3.5 py-2.5 flex items-center justify-between gap-2">
-                <span className="w-20 shrink-0 text-xs font-semibold text-slate-500 flex items-center gap-1">
-                  <KeyRound className="w-3.5 h-3.5 text-slate-400" />
-                  <span>关联激活码</span>
-                </span>
-                <div className="flex-1 min-w-0 text-right">
-                  <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
-                    {activationCode}
+                  <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200/60 inline-block">
+                    {assignedRole}
                   </span>
                 </div>
-                <span className="shrink-0 text-[9.5px] text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded font-medium flex items-center">
-                  <Check className="w-2.5 h-2.5 mr-0.5 text-emerald-600" />
-                  已核验
-                </span>
               </div>
             </div>
 
-            {/* Card 2: 真实姓名与手机号 (必填补充信息) */}
+            {/* Card 2: 补充个人信息 */}
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs divide-y divide-slate-100 overflow-hidden">
-              <div className="px-3.5 py-2 bg-slate-50/60 flex items-center justify-between border-b border-slate-100">
+              <div className="px-3.5 py-2.5 bg-slate-50/70 flex items-center justify-between border-b border-slate-100">
                 <div className="flex items-center space-x-1.5 text-slate-700">
                   <User className="w-3.5 h-3.5 text-blue-600" />
-                  <span className="text-xs font-bold">基本个人信息</span>
+                  <span className="text-xs font-bold">补充个人信息</span>
                 </div>
-                <span className="text-[10px] text-rose-500 font-medium">* 必填项</span>
               </div>
 
               {/* Row: 真实姓名 */}
               <div className="px-3.5 py-2.5 flex items-center justify-between">
-                <span className="w-20 shrink-0 text-xs font-semibold text-slate-700 flex items-center gap-1">
-                  <User className="w-3.5 h-3.5 text-slate-400" />
+                <span className="w-20 shrink-0 text-xs font-medium text-slate-700 flex items-center gap-1">
                   <span>真实姓名</span>
                   <span className="text-rose-500">*</span>
                 </span>
@@ -605,43 +563,42 @@ export const ActivationH5View: React.FC<ActivationH5ViewProps> = ({
                   type="text"
                   value={realName}
                   onChange={(e) => setRealName(e.target.value)}
-                  placeholder="请输入姓名"
-                  className="flex-1 min-w-0 bg-transparent font-semibold text-xs text-slate-900 focus:outline-none placeholder:text-slate-400"
+                  placeholder="请输入真实姓名"
+                  className="flex-1 min-w-0 bg-transparent font-semibold text-xs text-slate-900 focus:outline-none placeholder:text-slate-400 text-right"
                 />
               </div>
 
               {/* Row: 联系手机 */}
               <div className="px-3.5 py-2.5 flex items-center justify-between">
-                <span className="w-20 shrink-0 text-xs font-semibold text-slate-700 flex items-center gap-1">
-                  <Smartphone className="w-3.5 h-3.5 text-slate-400" />
+                <span className="w-20 shrink-0 text-xs font-medium text-slate-700 flex items-center gap-1">
                   <span>手机号码</span>
                   <span className="text-rose-500">*</span>
                 </span>
-                <div className="flex-1 flex items-center">
+                <div className="flex-1 flex items-center justify-end">
                   <span className="text-xs text-slate-400 font-mono mr-2">+86</span>
                   <input
                     type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="请输入11位手机号"
-                    className="flex-1 min-w-0 bg-transparent font-mono font-bold text-xs text-slate-900 focus:outline-none placeholder:text-slate-400"
+                    className="w-32 bg-transparent font-mono font-bold text-xs text-slate-900 focus:outline-none placeholder:text-slate-400 text-right"
                   />
                 </div>
               </div>
 
               {/* Row: 短信验证码 */}
               <div className="px-3.5 py-2.5 flex items-center justify-between">
-                <span className="w-20 shrink-0 text-xs font-semibold text-slate-700">
+                <span className="w-20 shrink-0 text-xs font-medium text-slate-700">
                   验证码 <span className="text-rose-500">*</span>
                 </span>
-                <div className="flex-1 flex items-center space-x-2">
+                <div className="flex-1 flex items-center justify-end space-x-2">
                   <input
                     type="text"
                     maxLength={6}
                     value={verifyCode}
                     onChange={(e) => setVerifyCode(e.target.value)}
-                    placeholder="请输入6位验证码"
-                    className="flex-1 min-w-0 bg-transparent font-mono font-bold tracking-wider text-xs text-slate-900 focus:outline-none placeholder:text-slate-400"
+                    placeholder="6位验证码"
+                    className="w-24 bg-transparent font-mono font-bold tracking-wider text-xs text-slate-900 focus:outline-none placeholder:text-slate-400 text-right"
                   />
                   <button
                     type="button"
@@ -661,24 +618,13 @@ export const ActivationH5View: React.FC<ActivationH5ViewProps> = ({
                   </button>
                 </div>
               </div>
-            </div>
 
-            {/* Card 3: 实名与结算津贴 (选填补充信息) */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs divide-y divide-slate-100 overflow-hidden">
-              <div className="px-3.5 py-2 bg-slate-50/60 flex items-center justify-between border-b border-slate-100">
-                <div className="flex items-center space-x-1.5 text-slate-700">
-                  <CreditCard className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="text-xs font-bold">履职津贴与结算账户</span>
-                </div>
-                <span className="text-[10px] text-slate-400 font-medium">选填项</span>
-              </div>
-
-              {/* Row 1: 身份证号码 */}
+              {/* Row: 身份证号 */}
               <div className="px-3.5 py-2.5 flex items-center justify-between">
-                <span className="w-20 shrink-0 text-xs font-semibold text-slate-700">
+                <span className="w-20 shrink-0 text-xs font-medium text-slate-700">
                   身份证号
                 </span>
-                <div className="flex-1 flex items-center space-x-2">
+                <div className="flex-1 flex items-center justify-between ml-2">
                   <input
                     type="text"
                     value={showIdCard ? idCard : formatIdCardDisplay(idCard)}
@@ -689,17 +635,17 @@ export const ActivationH5View: React.FC<ActivationH5ViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowIdCard(!showIdCard)}
-                    className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                    className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer shrink-0 ml-2"
                     title={showIdCard ? '隐藏' : '显示'}
                   >
-                    {showIdCard ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    {showIdCard ? <EyeOff className="w-4 h-4 text-slate-500" /> : <Eye className="w-4 h-4 text-slate-400" />}
                   </button>
                 </div>
               </div>
 
-              {/* Row 2: 开户银行 */}
-              <div className="px-3.5 py-2.5 flex items-center justify-between">
-                <span className="w-20 shrink-0 text-xs font-semibold text-slate-700">
+              {/* Row: 开户银行 */}
+              <div className="px-3.5 py-2.5 flex items-center">
+                <span className="w-20 shrink-0 text-xs font-medium text-slate-700">
                   开户银行
                 </span>
                 <input
@@ -707,31 +653,30 @@ export const ActivationH5View: React.FC<ActivationH5ViewProps> = ({
                   value={bankName}
                   onChange={(e) => setBankName(e.target.value)}
                   placeholder="请输入开户银行"
-                  className="flex-1 min-w-0 bg-transparent text-xs text-slate-800 font-medium focus:outline-none placeholder:text-slate-400"
+                  className="flex-1 min-w-0 bg-transparent text-xs text-slate-900 font-medium focus:outline-none placeholder:text-slate-400 ml-2"
                 />
               </div>
 
-              {/* Row 3: 银行卡号 */}
-              <div className="px-3.5 py-2.5 flex items-center justify-between">
-                <span className="w-20 shrink-0 text-xs font-semibold text-slate-700 flex items-center gap-1">
-                  <CreditCard className="w-3.5 h-3.5 text-slate-400" />
-                  <span>银行卡号</span>
+              {/* Row: 银行卡号 */}
+              <div className="px-3.5 py-2.5 flex items-center">
+                <span className="w-20 shrink-0 text-xs font-medium text-slate-700">
+                  银行卡号
                 </span>
                 <input
                   type="text"
                   value={bankCard}
                   onChange={(e) => setBankCard(e.target.value)}
                   placeholder="请输入银行卡号"
-                  className="flex-1 min-w-0 bg-transparent font-mono font-bold text-xs text-slate-900 focus:outline-none placeholder:text-slate-400"
+                  className="flex-1 min-w-0 bg-transparent font-mono font-bold text-xs text-slate-900 focus:outline-none placeholder:text-slate-400 ml-2"
                 />
               </div>
             </div>
 
-            {/* System Security Notice (Synchronized with Step 1 style) */}
+            {/* Security Notice */}
             <div className="bg-blue-50/50 rounded-2xl p-3 border border-blue-100/70 text-[11px] text-slate-600 flex items-start gap-2 leading-relaxed">
               <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
               <span>
-                政务系统已开启端到端加密传输，补充的信息仅用于职务履职实名备案与工作津贴发放。
+                政务系统已开启信息安全保护，激活成功后即可进入工作台。
               </span>
             </div>
           </div>
@@ -805,7 +750,7 @@ export const ActivationH5View: React.FC<ActivationH5ViewProps> = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">激活码扫码识别</h3>
-                  <p className="text-[10.5px] text-slate-500">上传本地激活码图片识别并自动代入参数</p>
+                  <p className="text-[10.5px] text-slate-500">上传本地激活码图片识别并自动填入</p>
                 </div>
               </div>
               <button
@@ -857,7 +802,7 @@ export const ActivationH5View: React.FC<ActivationH5ViewProps> = ({
                 {scanStatus === 'scanning' && (
                   <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-2xs flex flex-col items-center justify-center text-white space-y-1.5">
                     <RefreshCw className="w-6 h-6 text-cyan-400 animate-spin" />
-                    <span className="text-xs font-bold text-cyan-200">正在光学解析激活码与参数...</span>
+                    <span className="text-xs font-bold text-cyan-200">正在解析激活码...</span>
                   </div>
                 )}
 

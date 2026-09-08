@@ -103,6 +103,9 @@ export interface UserProfile {
   ticketNo: string;
   phone: string;
   avatarUrl: string;
+  idCard?: string;
+  bankCard?: string;
+  bankName?: string;
 }
 
 export type AppTab = 'home' | 'message' | 'report' | 'audit' | 'profile';
