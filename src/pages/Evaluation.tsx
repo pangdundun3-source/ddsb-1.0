@@ -112,6 +112,8 @@ interface OrgEvalRecord {
   type: string;
   totalReports: number;
   adoptedReports: number;
+  firstReports?: number;
+  repeatReports?: number;
   rejectedReports: number;
   pendingReports: number;
   oneTimePassRate: number; // 一次性直通率 %
@@ -1697,6 +1699,7 @@ export const Evaluation: React.FC<EvaluationProps> = ({ evaluationList, onNaviga
                   <th className="py-3 px-4">机构名称 / 机构属性</th>
                   <th className="py-3 px-3 text-center">在册编制</th>
                   <th className="py-3 px-4">累计报送 (采纳/驳回/待审)</th>
+                  <th className="py-3 px-3 text-center">累计采纳数 (首发/重复)</th>
                   <th className="py-3 px-3 text-center">首审直通率</th>
                   <th className="py-3 px-3 text-center">整体通过率</th>
                   <th className="py-3 px-3 text-center">平均响应</th>
@@ -1742,6 +1745,17 @@ export const Evaluation: React.FC<EvaluationProps> = ({ evaluationList, onNaviga
                       <div className="font-extrabold text-gray-900">{row.totalReports} 件</div>
                       <div className="text-[10px] text-gray-400 mt-0.5">
                         <span className="text-emerald-600">采纳 {row.adoptedReports}</span> / <span className="text-rose-600">驳回 {row.rejectedReports}</span> / <span className="text-amber-600">待审 {row.pendingReports}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono">
+                      <div className="font-mono text-xs">
+                        <strong className="font-bold text-[#08B889]">{row.adoptedReports.toLocaleString()}</strong>
+                        <span className="ml-1 text-[10px] text-slate-400 font-normal">件</span>
+                      </div>
+                      <div className="mt-0.5 text-[10px]">
+                        <span className="font-medium text-[#08B889]">首发 {(row.firstReports ?? Math.round(row.adoptedReports * 0.77)).toLocaleString()}</span>
+                        <span className="mx-1 text-slate-300">/</span>
+                        <span className="font-medium text-[#2F74FF]">重复 {(row.repeatReports ?? (row.adoptedReports - Math.round(row.adoptedReports * 0.77))).toLocaleString()}</span>
                       </div>
                     </td>
                     <td className="py-3 px-3 text-center font-mono font-bold text-emerald-700">

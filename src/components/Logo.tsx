@@ -103,9 +103,9 @@ export const Logo: React.FC<LogoProps> = ({
           <span className="hidden sm:inline-block px-2.5 py-0.5 bg-slate-100 text-slate-700 text-xs font-medium rounded-md border border-slate-200">
             台中市网信办
           </span>
-          <div className="hidden md:flex items-center space-x-1 ml-1">
-            <span className="px-1.5 py-0.5 bg-[#1E5ABB] text-white font-bold rounded-xs text-[10px]">正式版</span>
-            <span className="text-slate-500 font-mono text-[10px] font-medium">2026-09-29</span>
+          <div className="hidden md:flex items-center gap-1.5 ml-1 px-2.5 py-0.5 bg-slate-100 text-slate-700 text-xs font-medium rounded-md border border-slate-200">
+            <span className="px-1.5 py-0.5 bg-[#1E5ABB] text-white font-semibold rounded text-[11px] leading-tight">正式版</span>
+            <span className="text-slate-700 font-mono text-xs font-medium tracking-tight">2026-09-29</span>
           </div>
         </div>
       </div>

@@ -3,11 +3,8 @@ import {
   BarChart3,
   Calendar,
   CalendarDays,
-  CheckCircle2,
   Clock,
-  Clock3,
   Download,
-  FileCheck2,
   FileText,
   Globe2,
   RefreshCw,
@@ -17,7 +14,6 @@ import {
   TrendingUp,
   UserRound,
   UsersRound,
-  Zap,
 } from 'lucide-react';
 import {
   CartesianGrid,
@@ -217,9 +213,18 @@ const DonutPanel: React.FC<{
       </div>
     </div>
 
-    <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 sm:grid-cols-4">
-      {footer.map((item) => (
-        <div key={item.label} className="rounded-md bg-slate-50 px-2 py-2 text-center">
+    <div
+      className={`grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 ${
+        footer.length === 5 ? 'sm:grid-cols-5' : 'sm:grid-cols-4'
+      }`}
+    >
+      {footer.map((item, index) => (
+        <div
+          key={item.label}
+          className={`rounded-md bg-slate-50 px-2 py-2 text-center ${
+            footer.length === 5 && index === 4 ? 'col-span-2 sm:col-span-1' : ''
+          }`}
+        >
           <div className="text-[10px] text-slate-400">{item.label}</div>
           <div className="mt-0.5 text-xs font-bold" style={{ color: item.color }}>
             {item.value}
@@ -231,7 +236,7 @@ const DonutPanel: React.FC<{
 );
 
 export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavigate }) => {
-  const [scope, setScope] = useState<Scope>('mine');
+  const [scope, setScope] = useState<Scope>('all');
   const [timeRange, setTimeRange] = useState<TimeRange>('week');
   const [startDate, setStartDate] = useState('2026-08-04');
   const [endDate, setEndDate] = useState('2026-08-11');
@@ -465,50 +470,6 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
 
       {!personal ? (
         <>
-          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              { title: '全域有效采纳', value: '9,370', unit: '件', note: '采纳率 89.4%', sub: '累计报送 10,480件', icon: FileCheck2, color: '#08B889', tone: 'green' },
-              { title: '首审直通率', value: '77.4', unit: '%', note: '89.4%', sub: '整体通过率', icon: Zap, color: '#8656F4', tone: 'purple' },
-              { title: '全域审核响应时长', value: '13.8', unit: '分钟', note: '6.8分', sub: '最快响应: 市委宣传部', icon: Clock3, color: '#F5A400', tone: 'amber' },
-              { title: '综合考核均分', value: '88.5', unit: '分', note: '28家全评', sub: '达标率 100%', icon: CheckCircle2, color: '#5C6FE7', tone: 'indigo' },
-            ].map((item) => {
-              const Icon = item.icon;
-              const backgrounds: Record<string, string> = {
-                blue: 'from-blue-50/80',
-                green: 'from-emerald-50/80',
-                purple: 'from-purple-50/80',
-                amber: 'from-amber-50/80',
-                indigo: 'from-indigo-50/80',
-              };
-              return (
-                <div
-                  key={item.title}
-                  className={`min-w-0 rounded-xl border border-slate-200 bg-gradient-to-br ${backgrounds[item.tone]} to-white p-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="flex min-w-0 items-center gap-1.5 truncate text-[11px] font-bold text-slate-600">
-                      <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: item.color }} />
-                      {item.title}
-                    </span>
-                    <span className="shrink-0 rounded bg-white/80 px-1.5 py-0.5 text-[9px] font-bold text-slate-500">
-                      {item.title === '首审直通率' ? '质效高地' : (item.title === '全域审核响应' || item.title === '全域审核响应时长') ? '流转时效' : item.title === '综合考核均分' ? '全域考评' : '采纳率'}
-                    </span>
-                  </div>
-                  <div className="mt-2 flex items-baseline gap-1.5">
-                    <strong className="font-mono text-xl tracking-tight" style={{ color: item.color }}>
-                      {item.value}
-                    </strong>
-                    <span className="text-[10px] text-slate-400">{item.unit}</span>
-                  </div>
-                  <div className="mt-1 flex items-center justify-between gap-2 border-t border-white/80 pt-1.5 text-[10px]">
-                    <span className="truncate text-slate-500">{item.sub}</span>
-                    <strong className="shrink-0" style={{ color: item.color }}>{item.note}</strong>
-                  </div>
-                </div>
-              );
-            })}
-          </section>
-
           <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] sm:p-5">
             <PanelTitle
               icon={<TrendingUp className="h-3.5 w-3.5" />}
@@ -571,6 +532,7 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
                 { label: '一次性通过率', value: '77.4%', color: '#1D58C9' },
                 { label: '在册上报员', value: '486人', color: '#8656F4' },
                 { label: '人均上报量', value: '21.6件', color: '#F5A400' },
+                { label: '人均考核均分', value: '88.5分', color: '#5C6FE7' },
               ]}
             />
             <DonutPanel
