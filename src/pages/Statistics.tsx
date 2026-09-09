@@ -787,20 +787,17 @@ export const Statistics: React.FC = () => {
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. 上报员趋势图与报送统计 */}
+      {/* 2. 上报趋势图与报送统计 */}
       {/* ========================================================================= */}
       <div className="space-y-5 animate-in fade-in duration-200">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          {/* 左侧 2 列: 上报员趋势图 (包含全部6大指标) */}
+          {/* 左侧 2 列: 上报趋势图 (包含全部6大指标) */}
           <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-slate-200/90 shadow-2xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
               <div>
                 <h3 className="font-extrabold text-sm text-gray-900 flex items-center space-x-2">
                   <Send className="w-4 h-4 text-[#1E5ABB]" />
-                  <span>上报员趋势图</span>
-                  <span className="bg-blue-50 text-[#1E5ABB] text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200">
-                    上报质效走势
-                  </span>
+                  <span>上报趋势图</span>
                 </h3>
               </div>
 
@@ -900,7 +897,7 @@ export const Statistics: React.FC = () => {
                 <div className="flex items-center justify-between border-b border-gray-100 pb-3">
                   <h3 className="font-extrabold text-sm text-gray-900 tracking-tight flex items-center space-x-2">
                     <PieChartIcon className="w-4 h-4 text-[#1E5ABB]" />
-                    <span>上报员报送统计</span>
+                    <span>报送统计</span>
                   </h3>
                   <span className="text-xs text-slate-500 font-normal">
                     统计时间范围 {startDate.replace(/-/g, '/')} - {endDate.replace(/-/g, '/')}
@@ -997,21 +994,18 @@ export const Statistics: React.FC = () => {
         </div>
 
       {/* ========================================================================= */}
-      {/* 3. 审核员趋势图与审核统计 */}
+      {/* 3. 审核趋势图与审核统计 */}
       {/* ========================================================================= */}
       <div className="space-y-5 animate-in fade-in duration-200">
-        {/* 3.1 审核员趋势图与审核统计环状图 (并排置于同一行展示) */}
+        {/* 3.1 审核趋势图与审核统计环状图 (并排置于同一行展示) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          {/* 左侧 2 列: 审核员趋势图 (审核总量、通过量、驳回量、平均审核时长) */}
+          {/* 左侧 2 列: 审核趋势图 (审核总量、通过量、驳回量、平均审核时长) */}
           <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-slate-200/90 shadow-2xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
               <div>
                 <h3 className="font-extrabold text-sm text-gray-900 flex items-center space-x-2">
                   <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                  <span>审核员趋势图</span>
-                  <span className="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200">
-                    审核效能走势
-                  </span>
+                  <span>审核趋势图</span>
                 </h3>
               </div>
 
@@ -1097,7 +1091,7 @@ export const Statistics: React.FC = () => {
               <div className="flex items-center justify-between border-b border-gray-100 pb-3">
                   <h3 className="font-extrabold text-sm text-gray-900 tracking-tight flex items-center space-x-2">
                     <PieChartIcon className="w-4 h-4 text-emerald-600" />
-                    <span>审核员审核统计</span>
+                    <span>审核统计</span>
                   </h3>
                   <span className="text-xs text-slate-500 font-normal">
                     统计时间范围 {startDate.replace(/-/g, '/')} - {endDate.replace(/-/g, '/')}
