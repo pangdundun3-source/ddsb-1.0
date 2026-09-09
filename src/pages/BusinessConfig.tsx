@@ -35,8 +35,13 @@ import {
   XCircle,
   CheckSquare,
   Square,
-  GripVertical
+  GripVertical,
+  ChevronRight,
+  Smartphone,
+  ArrowRight,
+  Copy
 } from 'lucide-react';
+import { TemplateOtherConfigPanel } from '../components/TemplateOtherConfigPanel';
 
 export type FieldType = 'text' | 'number' | 'date' | 'file' | 'link' | 'select' | 'phone' | 'gender' | 'id_card' | 'bank_card' | 'email' | 'address' | 'identity';
 
@@ -769,7 +774,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
   const [formDesc, setFormDesc] = useState('');
   const [formFields, setFormFields] = useState<TemplateField[]>([]);
   const [modalActiveTab, setModalActiveTab] = useState<'build' | 'preview'>('build');
-  const [quickFieldType, setQuickFieldType] = useState<FieldType>('text');
   const [draggingFieldIndex, setDraggingFieldIndex] = useState<number | null>(null);
   const [fieldAddNotice, setFieldAddNotice] = useState('');
   const latestFieldRef = useRef<HTMLDivElement | null>(null);
@@ -863,12 +867,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     }, 3000);
   };
 
-  useEffect(() => {
-    const options = formTemplateType === '激活' ? activationFieldTypeOptions : reportFieldTypeOptions;
-    if (!options.includes(quickFieldType)) {
-      setQuickFieldType(options[0]);
-    }
-  }, [formTemplateType, quickFieldType]);
 
   const metricPageOptions: Array<{ id: MetricDisplayPage; label: string; description: string }> = [
     { id: 'home_kpi', label: '首页核心指标', description: '首页顶部 7 大核心数据卡片' },
@@ -1551,7 +1549,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
   };
 
   // Field element handlers
-  const handleAddField = (type: FieldType) => {
+  const handleAddField = (type: FieldType = 'text') => {
     const meta = getFieldTypeMeta(type);
     const newField: TemplateField = {
       id: 'f_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
@@ -1676,7 +1674,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     variant: 'compact' | 'full' = 'compact'
   ) => (
     <div className="bg-slate-100 rounded-lg border border-gray-200 overflow-hidden">
-      <div className={`${variant === 'full' ? 'w-full' : 'mx-auto max-w-[430px]'} bg-white min-h-[520px] shadow-2xs`}>
+      <div className={`${variant === 'full' ? 'w-full' : 'mx-auto max-w-[430px]'} bg-white shadow-2xs`}>
         <div className="h-11 bg-[#1E5ABB] text-white flex items-center justify-center px-3">
           <span className="text-sm font-bold">{templateType === '激活' ? '账号激活' : '快速上报'}</span>
         </div>
@@ -2088,6 +2086,33 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     setFormFields(formFields.map(f => ({ ...f, id: `f_${Date.now()}_${Math.random().toString(36).substring(2, 7)}` })));
     setTemplateDetailMode('create');
     showConfigToast('已基于该模板复制生成副本，您可自由调整字段并保存');
+  };
+
+  const handleDuplicateTemplate = (item: ConfigModuleItem) => {
+    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const duplicatedFields = (item.fields || []).map(f => ({
+      ...f,
+      id: `f_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
+    }));
+    const newItem: ConfigModuleItem = {
+      id: String(Date.now()),
+      name: `${item.name} (副本)`,
+      templateType: item.templateType || '报送',
+      isDefault: false,
+      status: '启用',
+      updateTime: nowStr,
+      description: item.description ? `${item.description} (副本)` : '基于模板复制生成',
+      fields: duplicatedFields
+    };
+    setDataStore(prev => ({
+      ...prev,
+      report_template: [
+        ...(prev.report_template || []),
+        newItem
+      ]
+    }));
+    setSelectedTemplateId(newItem.id);
+    showConfigToast(`已成功复制并生成新模板「${newItem.name}」`);
   };
 
   const handleSaveTemplateDetailPage = (e?: React.FormEvent) => {
@@ -3306,20 +3331,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                         <ArrowLeft className="w-3.5 h-3.5" />
                         <span>返回模板列表</span>
                       </button>
-                      <span className="text-gray-300">/</span>
-                      <span className={`px-2.5 py-1 text-xs font-bold rounded-md border ${
-                        templateDetailMode === 'create'
-                          ? formTemplateType === '激活' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-blue-50 text-blue-700 border-blue-200'
-                          : editingItem?.isDefault
-                          ? 'bg-gray-100 text-gray-700 border-gray-200'
-                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      }`}>
-                        {templateDetailMode === 'create'
-                          ? (formTemplateType === '激活' ? '新增激活模板' : '新增报送模板')
-                          : editingItem?.isDefault
-                          ? '系统默认模板详情'
-                          : (formTemplateType === '激活' ? '编辑激活模板' : '编辑报送模板')}
-                      </span>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -3424,66 +3435,49 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(340px,1fr)] xl:grid-cols-[minmax(0,1.3fr)_minmax(400px,1fr)] gap-5 items-start">
                       {/* Left Column: Field Builder */}
                       <div className="space-y-3 min-w-0">
-                        {!editingItem?.isDefault && (
-                          <div className="relative bg-blue-50/40 p-3 rounded-lg border border-blue-100/80 space-y-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-bold text-[#1E5ABB] flex items-center space-x-1 text-xs">
-                                <PlusCircle className="w-3.5 h-3.5 text-blue-600" />
-                                <span>快速添加字段</span>
-                              </span>
+                        <div className="relative bg-white rounded-lg border border-gray-200 overflow-hidden">
+                          {fieldAddNotice && (
+                            <div className="absolute left-1/2 top-2 z-20 -translate-x-1/2 px-3 py-1.5 bg-gray-900/90 text-white rounded-md shadow-lg text-xs font-bold flex items-center gap-1.5 animate-in fade-in zoom-in-95 pointer-events-none">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
+                              <span>{fieldAddNotice}</span>
+                            </div>
+                          )}
+
+                          <div className="px-3 py-2 bg-gray-50/80 border-b border-gray-100 flex items-center justify-between">
+                            <span className="font-bold text-gray-800 text-xs">已配置字段列表 ({formFields.length})</span>
+                            {editingItem?.isDefault ? (
+                              <span className="text-[11px] text-gray-400">系统默认字段（只读展示）</span>
+                            ) : (
                               <button
                                 type="button"
                                 onClick={handleLoadStandardPreset}
-                                className="px-2.5 py-1 text-[11px] font-bold text-blue-700 bg-white border border-blue-200 rounded hover:bg-blue-50 cursor-pointer"
+                                className="px-2.5 py-1 text-xs font-bold text-[#1E5ABB] hover:text-white bg-blue-50 hover:bg-[#1E5ABB] border border-blue-200 hover:border-[#1E5ABB] rounded transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
                               >
-                                使用标准模板预设
+                                <Sparkles className="w-3.5 h-3.5" />
+                                <span>使用标准模板预设</span>
                               </button>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <select
-                                value={quickFieldType}
-                                onChange={e => setQuickFieldType(e.target.value as FieldType)}
-                                className="flex-1 px-3 py-1.5 bg-white border border-gray-200 rounded text-xs text-gray-700 font-medium focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] cursor-pointer"
-                              >
-                                {(formTemplateType === '激活' ? activationFieldTypeOptions : reportFieldTypeOptions).map(type => (
-                                  <option key={type} value={type}>{getFieldTypeMeta(type).label}</option>
-                                ))}
-                              </select>
-                              <button
-                                type="button"
-                                onClick={() => handleAddField(quickFieldType)}
-                                className="px-3 py-1.5 bg-[#1E5ABB] text-white text-xs font-bold rounded hover:bg-[#134092] cursor-pointer flex items-center gap-1 shrink-0 shadow-2xs"
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                                添加字段
-                              </button>
-                            </div>
-
-                            {fieldAddNotice && (
-                              <div className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900/90 text-white rounded-md shadow-lg text-xs font-bold flex items-center gap-1.5 animate-in fade-in zoom-in-95 pointer-events-none">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
-                                <span>{fieldAddNotice}</span>
-                              </div>
                             )}
-                          </div>
-                        )}
-
-                        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                          <div className="px-3 py-2 bg-gray-50/80 border-b border-gray-100 flex items-center justify-between">
-                            <span className="font-bold text-gray-800 text-xs">已配置字段列表 ({formFields.length})</span>
-                            <span className="text-[11px] text-gray-400">
-                              {editingItem?.isDefault ? '系统默认字段（只读展示）' : '可拖拽手柄调整字段排序'}
-                            </span>
                           </div>
 
                           {formFields.length === 0 ? (
-                            <div className="p-8 text-center bg-gray-50 text-gray-400 space-y-2">
+                            <div className="p-8 text-center bg-gray-50 text-gray-400 space-y-3">
                               <Layers className="w-8 h-8 text-gray-300 mx-auto" />
-                              <p className="text-xs">暂未添加字段，请点击上方“添加字段”或“使用标准模板预设”。</p>
+                              <p className="text-xs">暂未添加字段，请点击下方“添加字段”或右上角“使用标准模板预设”。</p>
+                              {!editingItem?.isDefault && (
+                                <div className="pt-2 flex items-center justify-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddField('text')}
+                                    className="w-full max-w-xs py-2 px-4 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                                  >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    <span>添加字段</span>
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           ) : (
-                            <div className="p-3 space-y-2 max-h-[640px] overflow-y-auto scroll-smooth">
+                            <div className="p-3 space-y-2">
                               {formFields.map((field, index) => {
                                 const meta = getFieldTypeMeta(field.type);
                                 const IconComp = meta.icon;
@@ -3533,7 +3527,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                             value={field.name}
                                             onChange={e => handleUpdateField(index, { name: e.target.value })}
                                             placeholder="字段名称，例如: 事件主题"
-                                            className="w-full px-2.5 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] font-bold text-gray-800 disabled:bg-gray-50 disabled:text-gray-600"
+                                            className="w-full px-2.5 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] text-xs font-medium text-gray-800 disabled:bg-gray-50 disabled:text-gray-600"
                                           />
                                         </div>
 
@@ -3543,7 +3537,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                           value={field.placeholder || ''}
                                           onChange={e => handleUpdateField(index, { placeholder: e.target.value })}
                                           placeholder="给填报人员看的填写提示，例如：请简要说明事件经过"
-                                          className="w-full px-2.5 py-1.5 text-[11px] bg-gray-50/60 border border-gray-200 rounded text-gray-600 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] disabled:bg-gray-100 disabled:text-gray-500"
+                                          className="w-full px-2.5 py-1.5 text-xs bg-gray-50/60 border border-gray-200 rounded text-gray-600 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] disabled:bg-gray-100 disabled:text-gray-500"
                                         />
 
                                         {field.type === 'select' && (
@@ -3649,13 +3643,26 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                   </div>
                                 );
                               })}
+
+                              {!editingItem?.isDefault && (
+                                <div className="pt-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddField('text')}
+                                    className="w-full py-2.5 px-3 border-2 border-dashed border-[#1E5ABB]/30 hover:border-[#1E5ABB] bg-blue-50/40 hover:bg-blue-50/80 text-[#1E5ABB] hover:text-[#134092] rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs group"
+                                  >
+                                    <Plus className="w-4 h-4 transition-transform group-hover:scale-110 text-[#1E5ABB]" />
+                                    <span>添加字段</span>
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
                       </div>
 
                       {/* Right Column: Live User Preview */}
-                      <div className="sticky top-20 bg-gray-50/80 rounded-lg border border-gray-200/80 p-4 space-y-3">
+                      <div className="bg-gray-50/80 rounded-lg border border-gray-200/80 p-4 space-y-3">
                         <div className="flex items-center justify-between text-xs pb-2 border-b border-gray-200">
                           <div className="flex items-center gap-1.5 font-bold text-gray-800">
                             <Eye className="w-3.5 h-3.5 text-[#1E5ABB]" />
@@ -3681,46 +3688,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                       </div>
                     </div>
                   </div>
-
-                  {/* 4. Bottom Sticky Action Bar */}
-                  <div className="sticky -bottom-5 z-10 -mx-5 -mb-5 mt-4 flex items-center justify-between border-t border-gray-200 bg-white/95 backdrop-blur-xs px-6 py-3 shadow-lg">
-                    <div className="text-xs text-gray-500">
-                      已配置 <span className="font-bold text-gray-800 font-mono">{formFields.length}</span> 个表单字段 ·
-                      必填项 <span className="font-bold text-rose-600 font-mono">{formFields.filter(f => f.required).length}</span> 个
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsTemplateDetailPageOpen(false);
-                          setEditingItem(null);
-                        }}
-                        className="px-4 py-1.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50 text-xs font-medium cursor-pointer"
-                      >
-                        返回列表
-                      </button>
-                      {editingItem?.isDefault ? (
-                        <button
-                          type="button"
-                          onClick={handleCloneDefaultTemplate}
-                          className="px-4 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded text-xs font-bold shadow-2xs flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <Sparkles className="w-3.5 h-3.5" />
-                          <span>基于此模板新建自定义模板</span>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleSaveTemplateDetailPage()}
-                          className="px-5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded text-xs font-bold shadow-2xs flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <Save className="w-3.5 h-3.5" />
-                          <span>保存模板配置</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -3731,7 +3698,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                         { id: '激活' as const, label: '激活模板', icon: Zap }
                       ]).map(tab => {
                         const TabIcon = tab.icon;
-                        const tabCount = currentList.filter(item => (item.templateType || '报送') === tab.id).length;
                         const isActive = templateTypeFilter === tab.id;
 
                         return (
@@ -3748,9 +3714,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                           >
                             <TabIcon className="w-3.5 h-3.5" />
                             <span>{tab.label}</span>
-                            <span className={`text-[10px] ${isActive ? 'text-[#1E5ABB]' : 'text-gray-400'}`}>
-                              {tabCount}
-                            </span>
                           </button>
                         );
                       })}
@@ -3765,164 +3728,280 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-[repeat(auto-fill,minmax(285px,1fr))] gap-3">
-                    {filteredList.length === 0 ? (
-                      <div className="col-span-full py-12 text-center text-gray-400 text-xs bg-white rounded-lg border border-gray-100">
-                        暂无匹配的模板配置
-                      </div>
-                    ) : (
-                      filteredList.map(item => {
-                        const isSelected = selectedTemplateId === item.id;
-                        const isEnabled = item.status === '启用';
-                        const fieldCount = item.fields?.length || 0;
+                  {(() => {
+                    const activeSelectedTemplate = filteredList.find(item => item.id === selectedTemplateId) || filteredList[0] || null;
 
-                        return (
-                          <div
-                            key={item.id}
-                            onClick={() => openViewTemplatePage(item)}
-                            className={`bg-white border rounded-lg transition-all cursor-pointer group overflow-hidden ${
-                              isSelected
-                                ? 'border-[#1E5ABB] shadow-sm'
-                                : isEnabled
-                                  ? 'border-emerald-200 shadow-sm hover:border-emerald-300 hover:shadow-md'
-                                  : 'border-gray-200/80 hover:border-blue-200 hover:shadow-md'
-                            }`}
+                    if (filteredList.length === 0) {
+                      return (
+                        <div className="py-16 text-center text-gray-400 text-xs bg-white rounded-lg border border-gray-100 space-y-2">
+                          <Layers className="w-8 h-8 text-gray-300 mx-auto" />
+                          <p>暂无匹配的模板配置</p>
+                          <button
+                            type="button"
+                            onClick={openAddTemplatePage}
+                            className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded cursor-pointer"
                           >
-                            <div className="p-3 space-y-3">
-                              <div className="space-y-1.5">
-                                <div className="flex items-start justify-between gap-3">
-                                  <h3 className="min-w-0 font-bold text-sm text-gray-900 group-hover:text-[#1E5ABB] break-words">
-                                    {item.name}
-                                  </h3>
-                                  <button
-                                    type="button"
-                                    onClick={e => {
-                                      e.stopPropagation();
-                                      handleToggleStatus(item.id);
-                                    }}
-                                    className={`shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-full border cursor-pointer transition-colors ${
-                                      item.status === '启用'
-                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                                        : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-blue-50 hover:text-[#1E5ABB] hover:border-blue-200'
-                                    }`}
-                                    title={item.status === '启用' ? '点击停用' : '点击启用'}
-                                  >
-                                    <span className="text-[10px] font-bold">{item.status}</span>
-                                    <div className={`w-7 h-3.5 flex items-center rounded-full p-0.5 transition-colors ${item.status === '启用' ? 'bg-emerald-500 justify-end' : 'bg-gray-300 justify-start'}`}>
-                                      <div className="w-2.5 h-2.5 bg-white rounded-full shadow-2xs" />
-                                    </div>
-                                  </button>
-                                </div>
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>立即新增模板</span>
+                          </button>
+                        </div>
+                      );
+                    }
 
-                                <div className="flex items-center justify-between gap-2 min-w-0">
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    {item.isDefault ? (
-                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 font-bold rounded border border-gray-200 shrink-0">
-                                        <Lock className="w-2.5 h-2.5 text-gray-400" />
-                                        系统默认
-                                      </span>
-                                    ) : (
-                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] bg-emerald-50 text-emerald-700 font-bold rounded border border-emerald-200 shrink-0">
-                                        <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
-                                        自定义
-                                      </span>
-                                    )}
-                                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded border shrink-0 ${
-                                      item.templateType === '激活'
-                                        ? 'bg-purple-50 text-purple-700 border-purple-200'
-                                        : 'bg-blue-50 text-blue-700 border-blue-200'
-                                    }`}>
-                                      {item.templateType === '激活' ? (
-                                        <Zap className="w-2.5 h-2.5 text-purple-600" />
-                                      ) : (
-                                        <FileText className="w-2.5 h-2.5 text-blue-600" />
-                                      )}
-                                      {item.templateType || '报送'}
-                                    </span>
-                                  </div>
-                                  <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 shrink-0">
-                                    <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                    <span className="font-mono whitespace-nowrap">{item.updateTime}</span>
-                                  </span>
-                                </div>
+                    return (
+                      <div className="bg-white rounded-xl border border-gray-200/90 shadow-2xs overflow-hidden">
+                        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] xl:grid-cols-[280px_1fr_360px] 2xl:grid-cols-[300px_1fr_390px] divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
+                          {/* Left Master Column: Template directory with key essential information */}
+                          <div className="flex flex-col min-h-0 bg-white">
+                            <div className="h-12 px-4 bg-gray-50/70 border-b border-gray-200 flex items-center justify-between shrink-0">
+                              <div className="flex items-center gap-2">
+                                <Layers className="w-3.5 h-3.5 text-[#1E5ABB]" />
+                                <span className="font-bold text-xs text-gray-800">模板目录</span>
+                                <span className="px-1.5 py-0.5 text-[10px] bg-white border border-gray-200 text-gray-600 rounded-full font-mono font-medium">
+                                  {filteredList.length}
+                                </span>
                               </div>
-
-                              <div className="rounded-md border border-gray-100 bg-gray-50/70 px-2.5 py-2">
-                                {fieldCount > 0 ? (
-                                  <div className="flex items-center gap-1.5 overflow-hidden whitespace-nowrap">
-                                    {(item.fields || []).slice(0, 3).map(field => (
-                                      <span
-                                        key={field.id}
-                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] bg-white text-gray-600 border border-gray-200 rounded min-w-0 shrink"
-                                        title={field.name}
-                                      >
-                                        {field.required && <span className="text-rose-500 font-bold">*</span>}
-                                        <span className="truncate">{field.name}</span>
-                                      </span>
-                                    ))}
-                                    {fieldCount > 3 && (
-                                      <span className="px-1.5 py-0.5 text-[10px] text-gray-400 shrink-0">+{fieldCount - 3} 个字段</span>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span className="text-[11px] text-gray-400">暂未配置字段</span>
-                                )}
-                              </div>
-
-                              <div className="rounded-md border border-gray-100 bg-gray-50/80 px-2.5 py-2">
-                                <p className="text-[11px] text-gray-500 truncate" title={item.description || '暂无模板说明'}>
-                                  {item.description || '暂无模板说明'}
-                                </p>
-                              </div>
+                              <span className="text-[11px] text-gray-400">点击切换右侧预览</span>
                             </div>
 
-                            <div className="px-3 py-2 border-t border-gray-100 bg-gray-50/40 flex items-center justify-between">
-                              <span className="text-[10px] text-gray-400">
-                                点击卡片进入详情页
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={e => {
-                                    e.stopPropagation();
-                                    openViewTemplatePage(item);
-                                  }}
-                                  className="p-1.5 text-gray-400 hover:text-[#1E5ABB] cursor-pointer"
-                                  title="查看详情"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={item.isDefault}
-                                  onClick={e => {
-                                    e.stopPropagation();
-                                    openEditTemplatePage(item);
-                                  }}
-                                  className={item.isDefault ? 'p-1.5 text-gray-300 cursor-not-allowed' : 'p-1.5 text-[#1E5ABB] hover:bg-blue-50 rounded cursor-pointer'}
-                                  title={item.isDefault ? '系统默认模板不支持修改' : '编辑模板'}
-                                >
-                                  <Edit3 className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={item.isDefault}
-                                  onClick={e => {
-                                    e.stopPropagation();
-                                    handleDelete(item);
-                                  }}
-                                  className={item.isDefault ? 'p-1.5 text-gray-300 cursor-not-allowed' : 'p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer'}
-                                  title={item.isDefault ? '系统默认模板不支持删除' : '删除模板'}
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
+                            <div className="p-3 space-y-2 bg-gray-50/20 max-h-[750px] overflow-y-auto">
+                              {filteredList.map(item => {
+                                const isSelected = activeSelectedTemplate?.id === item.id;
+                                const isEnabled = item.status === '启用';
+
+                                return (
+                                  <div
+                                    key={item.id}
+                                    onClick={() => setSelectedTemplateId(item.id)}
+                                    className={`p-3 rounded-lg border transition-all cursor-pointer relative group ${
+                                      isSelected
+                                        ? 'border-l-4 border-l-[#1E5ABB] border-t-blue-200 border-r-blue-200 border-b-blue-200 bg-blue-50/50 shadow-xs ring-1 ring-[#1E5ABB]/20'
+                                        : 'border-gray-200/80 bg-white hover:border-blue-200 hover:bg-gray-50/50 hover:shadow-2xs'
+                                    }`}
+                                  >
+                                    {/* Top Row: Template Name + Badges + Status Switch */}
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <h3 className={`font-bold text-xs truncate ${isSelected ? 'text-[#1E5ABB]' : 'text-gray-900'}`} title={item.name}>
+                                            {item.name}
+                                          </h3>
+                                          {item.isDefault ? (
+                                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 font-bold rounded border border-gray-200 shrink-0">
+                                              <Lock className="w-2.5 h-2.5 text-gray-400" />
+                                              系统默认
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] bg-emerald-50 text-emerald-700 font-bold rounded border border-emerald-200 shrink-0">
+                                              <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+                                              自定义
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Status Toggle */}
+                                      <button
+                                        type="button"
+                                        onClick={e => {
+                                          e.stopPropagation();
+                                          handleToggleStatus(item.id);
+                                        }}
+                                        className={`shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-full border cursor-pointer transition-colors ${
+                                          isEnabled
+                                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                            : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-blue-50 hover:text-[#1E5ABB]'
+                                        }`}
+                                        title={isEnabled ? '点击停用' : '点击启用'}
+                                      >
+                                        <span className="text-[10px] font-bold">{item.status}</span>
+                                        <div className={`w-5 h-2.5 flex items-center rounded-full p-0.5 transition-colors ${isEnabled ? 'bg-emerald-500 justify-end' : 'bg-gray-300 justify-start'}`}>
+                                          <div className="w-1.5 h-1.5 bg-white rounded-full shadow-2xs" />
+                                        </div>
+                                      </button>
+                                    </div>
+
+                                    {/* Description & Update Time */}
+                                    <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-gray-500">
+                                      <p className="truncate flex-1 text-gray-500" title={item.description || ''}>
+                                        {item.description || '暂无模板说明'}
+                                      </p>
+                                      {item.updateTime && (
+                                        <span className="text-[10px] text-gray-400 font-mono shrink-0">
+                                          {item.updateTime}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Card bottom bar: selection state + actions */}
+                                    <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center justify-between">
+                                      {isSelected ? (
+                                        <div className="flex items-center gap-1 text-[11px] font-bold text-[#1E5ABB]">
+                                          <span className="text-[10px]">● 正在右侧预览</span>
+                                          <ChevronRight className="w-3.5 h-3.5 text-[#1E5ABB]" />
+                                        </div>
+                                      ) : (
+                                        <span className="text-[10px] text-gray-400 group-hover:text-gray-600">
+                                          点击查看右侧预览
+                                        </span>
+                                      )}
+
+                                      <div className="flex items-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={e => {
+                                            e.stopPropagation();
+                                            handleDuplicateTemplate(item);
+                                          }}
+                                          className="px-2 py-0.5 text-[11px] text-gray-600 hover:text-[#1E5ABB] hover:bg-blue-50 border border-transparent hover:border-blue-200 rounded font-medium cursor-pointer transition-colors flex items-center gap-1"
+                                          title="复制并生成新模板"
+                                        >
+                                          <Copy className="w-3 h-3 text-gray-500" />
+                                          <span>复制</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={e => {
+                                            e.stopPropagation();
+                                            openEditTemplatePage(item);
+                                          }}
+                                          className="px-2 py-0.5 text-[11px] text-[#1E5ABB] hover:bg-blue-50 border border-transparent hover:border-blue-200 rounded font-medium cursor-pointer transition-colors flex items-center gap-1"
+                                          title={item.isDefault ? '查看详情' : '编辑模板'}
+                                        >
+                                          <Edit3 className="w-3 h-3" />
+                                          <span>{item.isDefault ? '详情' : '编辑'}</span>
+                                        </button>
+                                        {!item.isDefault && (
+                                          <button
+                                            type="button"
+                                            onClick={e => {
+                                              e.stopPropagation();
+                                              handleDelete(item);
+                                            }}
+                                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer transition-colors"
+                                            title="删除模板"
+                                          >
+                                            <Trash2 className="w-3 h-3" />
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
-                        );
-                      })
-                    )}
-                  </div>
+
+                          {/* Right Detail & Simulation Column: Synchronized Preview Studio */}
+                          {activeSelectedTemplate && (
+                            <div className="flex flex-col min-h-0 bg-white">
+                              {/* Preview Header & Edit Entry */}
+                              <div className="h-12 px-5 bg-gray-50/70 border-b border-gray-200 flex items-center justify-between gap-3 shrink-0">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
+                                  <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                                    <span className="text-xs text-gray-500 font-medium shrink-0">当前预览:</span>
+                                    <span className="text-xs font-bold text-gray-900 truncate max-w-[200px]" title={activeSelectedTemplate.name}>
+                                      {activeSelectedTemplate.name}
+                                    </span>
+                                    <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded border shrink-0 ${
+                                      activeSelectedTemplate.status === '启用'
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        : 'bg-gray-100 text-gray-500 border-gray-200'
+                                    }`}>
+                                      {activeSelectedTemplate.status}
+                                    </span>
+                                    {activeSelectedTemplate.isDefault && (
+                                      <span className="px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 border border-gray-200 font-bold rounded shrink-0">
+                                        系统默认
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Action Buttons: Edit into Detail Page */}
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditTemplatePage(activeSelectedTemplate)}
+                                    className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                    <span>{activeSelectedTemplate.isDefault ? '查看 / 复制模板' : '编辑此模板配置'}</span>
+                                    <ArrowRight className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Simulation Stage Canvas */}
+                              <div className="p-6 bg-slate-50/60 flex-1 flex flex-col items-center justify-start min-h-[640px]">
+                                {/* Device Mockup Toolbar */}
+                                <div className="w-full max-w-[430px] mb-3 flex items-center justify-between text-xs text-gray-500">
+                                  <div className="flex items-center gap-1.5 font-bold text-gray-700">
+                                    <Smartphone className="w-3.5 h-3.5 text-[#1E5ABB]" />
+                                    <span>移动端填报实时模拟</span>
+                                  </div>
+                                  <span className="text-[11px] text-gray-400">
+                                    共 {activeSelectedTemplate.fields?.length || 0} 个表单项 · 可直接体验输入
+                                  </span>
+                                </div>
+
+                                {/* Mobile Phone Mockup Frame */}
+                                <div className="w-full max-w-[430px] bg-white rounded-2xl shadow-md border border-gray-300/80 overflow-hidden">
+                                  {/* Simulated Phone Notch / Status Bar */}
+                                  <div className="bg-gray-900 text-white px-5 py-2 flex items-center justify-between text-[11px] font-medium select-none">
+                                    <span>09:41</span>
+                                    <div className="w-16 h-3 bg-black rounded-full" />
+                                    <div className="flex items-center gap-1 text-[10px]">
+                                      <span>5G</span>
+                                      <div className="w-3 h-2 border border-white rounded-[2px] p-[1px]">
+                                        <div className="w-full h-full bg-white rounded-[1px]" />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Interactive Form Component */}
+                                  {renderUserReportPreview(
+                                    activeSelectedTemplate.fields || [],
+                                    '当前模板暂未配置表单字段，请点击上方“编辑此模板配置”添加',
+                                    activeSelectedTemplate.templateType || '报送',
+                                    'full'
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Right Column: Other configurations for this template (Scoring rule & Audit flow associations only) */}
+                          {activeSelectedTemplate && (
+                            <TemplateOtherConfigPanel
+                              template={activeSelectedTemplate}
+                              scoreRules={dataStore.audit_score || []}
+                              auditFlows={dataStore.audit_flow || []}
+                              onSave={(updatedConfig) => {
+                                const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+                                setDataStore(prev => ({
+                                  ...prev,
+                                  report_template: (prev.report_template || []).map(item => {
+                                    if (item.id === activeSelectedTemplate.id) {
+                                      return {
+                                        ...item,
+                                        ...updatedConfig,
+                                        updateTime: nowStr
+                                      };
+                                    }
+                                    return item;
+                                  })
+                                }));
+                                showConfigToast(`已成功保存模板「${activeSelectedTemplate.name}」的打分与流程关联`);
+                              }}
+                              onNavigateToModule={(moduleId) => setActiveModule(moduleId)}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )
             ) : activeModule === 'evaluation_rule' ? (
@@ -6710,61 +6789,43 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                 <div className="pt-2 border-t border-gray-200">
                     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_390px] gap-4">
                       <div className="space-y-3 min-w-0">
-                        <div className="relative bg-blue-50/40 p-3 rounded-lg border border-blue-100/80 space-y-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-bold text-[#1E5ABB] flex items-center space-x-1">
-                              <PlusCircle className="w-3.5 h-3.5 text-blue-600" />
-                              <span>快速添加字段</span>
-                            </span>
-                            <button
-                              type="button"
-                              onClick={handleLoadStandardPreset}
-                              className="px-2.5 py-1 text-[11px] font-bold text-blue-700 bg-white border border-blue-200 rounded hover:bg-blue-50 cursor-pointer"
-                            >
-                              使用标准模板
-                            </button>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <select
-                              value={quickFieldType}
-                              onChange={e => setQuickFieldType(e.target.value as FieldType)}
-                              className="flex-1 px-3 py-1.5 bg-white border border-gray-200 rounded text-xs text-gray-700 font-medium focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] cursor-pointer"
-                            >
-                              {(formTemplateType === '激活' ? activationFieldTypeOptions : reportFieldTypeOptions).map(type => (
-                                <option key={type} value={type}>{getFieldTypeMeta(type).label}</option>
-                              ))}
-                            </select>
-                            <button
-                              type="button"
-                              onClick={() => handleAddField(quickFieldType)}
-                              className="px-3 py-1.5 bg-[#1E5ABB] text-white text-xs font-bold rounded hover:bg-[#134092] cursor-pointer flex items-center gap-1 shrink-0"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                              添加字段
-                            </button>
-                          </div>
+                        <div className="relative bg-white rounded-lg border border-gray-200 overflow-hidden">
                           {fieldAddNotice && (
-                            <div className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900/90 text-white rounded-md shadow-lg text-xs font-bold flex items-center gap-1.5 animate-in fade-in zoom-in-95 pointer-events-none">
+                            <div className="absolute left-1/2 top-2 z-20 -translate-x-1/2 px-3 py-1.5 bg-gray-900/90 text-white rounded-md shadow-lg text-xs font-bold flex items-center gap-1.5 animate-in fade-in zoom-in-95 pointer-events-none">
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
                               <span>{fieldAddNotice}</span>
                             </div>
                           )}
-                        </div>
 
-                        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                           <div className="px-3 py-2 bg-gray-50/80 border-b border-gray-100 flex items-center justify-between">
                             <span className="font-bold text-gray-800 text-xs">字段配置 ({formFields.length} 项)</span>
-                            <span className="text-[11px] text-gray-400">拖拽字段卡片可调整排序</span>
+                            <button
+                              type="button"
+                              onClick={handleLoadStandardPreset}
+                              className="px-2.5 py-1 text-xs font-bold text-[#1E5ABB] hover:text-white bg-blue-50 hover:bg-[#1E5ABB] border border-blue-200 hover:border-[#1E5ABB] rounded transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                            >
+                              <Sparkles className="w-3.5 h-3.5" />
+                              <span>使用标准模板预设</span>
+                            </button>
                           </div>
 
                           {formFields.length === 0 ? (
-                            <div className="p-8 text-center bg-gray-50 text-gray-400 space-y-2">
+                            <div className="p-8 text-center bg-gray-50 text-gray-400 space-y-3">
                               <Layers className="w-8 h-8 text-gray-300 mx-auto" />
-                              <p>暂未添加字段，请先选择上方字段类型。</p>
+                              <p className="text-xs">暂未添加字段，请点击下方“添加字段”或右上角“使用标准模板预设”。</p>
+                              <div className="pt-2 flex items-center justify-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddField('text')}
+                                  className="w-full max-w-xs py-2 px-4 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                  <span>添加字段</span>
+                                </button>
+                              </div>
                             </div>
                           ) : (
-                            <div className="p-3 space-y-2 max-h-[560px] overflow-y-auto scroll-smooth">
+                            <div className="p-3 space-y-2">
                               {formFields.map((field, index) => {
                                 const meta = getFieldTypeMeta(field.type);
                                 const IconComp = meta.icon;
@@ -6808,7 +6869,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                             value={field.name}
                                             onChange={e => handleUpdateField(index, { name: e.target.value })}
                                             placeholder="字段名称，例如: 事件主题"
-                                            className="w-full px-2.5 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] font-bold text-gray-800"
+                                            className="w-full px-2.5 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] text-xs font-medium text-gray-800"
                                           />
                                         </div>
 
@@ -6817,7 +6878,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                           value={field.placeholder || ''}
                                           onChange={e => handleUpdateField(index, { placeholder: e.target.value })}
                                           placeholder="给提报人员看的填写提示，例如：请简要说明事件经过"
-                                          className="w-full px-2.5 py-1.5 text-[11px] bg-gray-50/60 border border-gray-200 rounded text-gray-600 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                                          className="w-full px-2.5 py-1.5 text-xs bg-gray-50/60 border border-gray-200 rounded text-gray-600 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
                                         />
                                         {field.type === 'select' && (
                                           <div className="p-2 bg-rose-50/40 border border-rose-100 rounded space-y-1.5">
@@ -6907,13 +6968,24 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                   </div>
                                 );
                               })}
+
+                              <div className="pt-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddField('text')}
+                                  className="w-full py-2.5 px-3 border-2 border-dashed border-[#1E5ABB]/30 hover:border-[#1E5ABB] bg-blue-50/40 hover:bg-blue-50/80 text-[#1E5ABB] hover:text-[#134092] rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs group"
+                                >
+                                  <Plus className="w-4 h-4 transition-transform group-hover:scale-110 text-[#1E5ABB]" />
+                                  <span>添加字段</span>
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>
                       </div>
 
                       <div className="block">
-                        <div className="sticky top-0 space-y-2">
+                        <div className="space-y-2">
                           <div className="flex items-center justify-between text-xs">
                             <span className="font-bold text-gray-800">实时预览</span>
                             <span className="text-[11px] text-gray-400">模拟用户真实上报界面</span>
