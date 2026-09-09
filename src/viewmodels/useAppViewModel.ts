@@ -38,6 +38,9 @@ const VALID_PAGES: PageId[] = [
   'evaluation',
   'notice-management',
   'org-management',
+  'template-management',
+  'dict-management',
+  'value-added-services',
   'role-permission',
   'business-config',
   'system-logs'
@@ -196,7 +199,13 @@ export const useAppViewModel = () => {
         localStorage.setItem('ddsb_active_page', route.page);
       } catch {}
 
-      if (route.extraModule && route.page === 'business-config') {
+      if (route.page === 'template-management') {
+        setBusinessConfigInitialModule('report_template');
+      } else if (route.page === 'dict-management') {
+        setBusinessConfigInitialModule('data_dict');
+      } else if (route.page === 'value-added-services') {
+        setBusinessConfigInitialModule('value_added');
+      } else if (route.extraModule && route.page === 'business-config') {
         setBusinessConfigInitialModule(route.extraModule);
       }
 
@@ -283,7 +292,13 @@ export const useAppViewModel = () => {
     } catch {
       // Ignore storage failures in restricted browser contexts.
     }
-    if (extraModule && page === 'business-config') {
+    if (page === 'template-management') {
+      setBusinessConfigInitialModule('report_template');
+    } else if (page === 'dict-management') {
+      setBusinessConfigInitialModule('data_dict');
+    } else if (page === 'value-added-services') {
+      setBusinessConfigInitialModule('value_added');
+    } else if (extraModule && page === 'business-config') {
       setBusinessConfigInitialModule(extraModule);
     }
     const targetHash = buildHashRoute(page, extraModule);

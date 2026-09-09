@@ -192,6 +192,40 @@ const permissionGroups: PermissionGroup[] = [
         ],
       },
       {
+        id: 'system_template',
+        label: '模板管理',
+        actions: [
+          { key: 'view', label: '查看模板' },
+          { key: 'add', label: '新建模板' },
+          { key: 'edit', label: '编辑模板' },
+          { key: 'delete', label: '删除模板' },
+          { key: 'status', label: '启用/停用' },
+          { key: 'preview', label: '预览' },
+        ],
+      },
+      {
+        id: 'system_dict',
+        label: '数据字典管理',
+        actions: [
+          { key: 'view', label: '查看字典' },
+          { key: 'add', label: '新增字典项' },
+          { key: 'edit', label: '编辑字典项' },
+          { key: 'delete', label: '删除字典项' },
+          { key: 'sort', label: '排序调整' },
+          { key: 'export', label: '导出字典' },
+        ],
+      },
+      {
+        id: 'system_value_added',
+        label: '增值业务申请',
+        actions: [
+          { key: 'view', label: '查看功能' },
+          { key: 'apply', label: '提交申请' },
+          { key: 'record', label: '查看申请单' },
+          { key: 'config', label: '授权开通' },
+        ],
+      },
+      {
         id: 'system_role',
         label: '角色权限配置',
         actions: [
@@ -899,6 +933,234 @@ export const RolePermission: React.FC = () => {
                   </label>
                   {openGroups['system'] ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                 </div>
+
+                {openGroups['system'] && (
+                  <div className="p-4 bg-white space-y-4 divide-y divide-gray-100 text-xs">
+                    {/* Sub 1: 组织架构管理 */}
+                    <div className="space-y-2">
+                      <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          disabled={selectedRole.isDefault}
+                          checked={!!checkedPerms['system_org_all']}
+                          onChange={() => handleToggleCheck('system_org_all')}
+                          className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
+                        />
+                        <span>组织架构管理</span>
+                      </label>
+                      <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
+                        {['view:查看', 'add_org:新增机构', 'edit_org:编辑机构', 'delete_org:删除机构', 'add_user:新增人员', 'edit_user:编辑人员', 'delete_user:删除人员', 'reset_password:重置密码', 'qrcode:二维码配置', 'export:导出'].map(item => {
+                          const [key, label] = item.split(':');
+                          const permKey = `system_org_${key}`;
+                          return (
+                            <label key={permKey} className="flex items-center space-x-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                disabled={selectedRole.isDefault}
+                                checked={!!checkedPerms[permKey]}
+                                onChange={() => handleToggleCheck(permKey)}
+                                className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
+                              />
+                              <span>{label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Sub 2: 模板管理 */}
+                    <div className="space-y-2 pt-3">
+                      <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          disabled={selectedRole.isDefault}
+                          checked={!!checkedPerms['system_template_all']}
+                          onChange={() => handleToggleCheck('system_template_all')}
+                          className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
+                        />
+                        <span>模板管理</span>
+                      </label>
+                      <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
+                        {['view:查看模板', 'add:新建模板', 'edit:编辑模板', 'delete:删除模板', 'status:启用/停用', 'preview:预览'].map(item => {
+                          const [key, label] = item.split(':');
+                          const permKey = `system_template_${key}`;
+                          return (
+                            <label key={permKey} className="flex items-center space-x-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                disabled={selectedRole.isDefault}
+                                checked={!!checkedPerms[permKey]}
+                                onChange={() => handleToggleCheck(permKey)}
+                                className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
+                              />
+                              <span>{label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Sub 3: 数据字典管理 */}
+                    <div className="space-y-2 pt-3">
+                      <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          disabled={selectedRole.isDefault}
+                          checked={!!checkedPerms['system_dict_all']}
+                          onChange={() => handleToggleCheck('system_dict_all')}
+                          className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
+                        />
+                        <span>数据字典管理</span>
+                      </label>
+                      <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
+                        {['view:查看字典', 'add:新增字典项', 'edit:编辑字典项', 'delete:删除字典项', 'sort:排序调整', 'export:导出字典'].map(item => {
+                          const [key, label] = item.split(':');
+                          const permKey = `system_dict_${key}`;
+                          return (
+                            <label key={permKey} className="flex items-center space-x-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                disabled={selectedRole.isDefault}
+                                checked={!!checkedPerms[permKey]}
+                                onChange={() => handleToggleCheck(permKey)}
+                                className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
+                              />
+                              <span>{label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Sub 4: 增值业务申请 */}
+                    <div className="space-y-2 pt-3">
+                      <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          disabled={selectedRole.isDefault}
+                          checked={!!checkedPerms['system_value_added_all']}
+                          onChange={() => handleToggleCheck('system_value_added_all')}
+                          className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
+                        />
+                        <span>增值业务申请</span>
+                      </label>
+                      <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
+                        {['view:查看功能', 'apply:提交申请', 'record:查看申请单', 'config:授权开通'].map(item => {
+                          const [key, label] = item.split(':');
+                          const permKey = `system_value_added_${key}`;
+                          return (
+                            <label key={permKey} className="flex items-center space-x-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                disabled={selectedRole.isDefault}
+                                checked={!!checkedPerms[permKey]}
+                                onChange={() => handleToggleCheck(permKey)}
+                                className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
+                              />
+                              <span>{label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Sub 5: 角色权限配置 */}
+                    <div className="space-y-2 pt-3">
+                      <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          disabled={selectedRole.isDefault}
+                          checked={!!checkedPerms['system_role_all']}
+                          onChange={() => handleToggleCheck('system_role_all')}
+                          className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
+                        />
+                        <span>角色权限配置</span>
+                      </label>
+                      <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
+                        {['view:查看', 'add:新增角色', 'edit:编辑角色', 'delete:删除角色', 'config:配置权限', 'save:保存配置'].map(item => {
+                          const [key, label] = item.split(':');
+                          const permKey = `system_role_${key}`;
+                          return (
+                            <label key={permKey} className="flex items-center space-x-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                disabled={selectedRole.isDefault}
+                                checked={!!checkedPerms[permKey]}
+                                onChange={() => handleToggleCheck(permKey)}
+                                className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
+                              />
+                              <span>{label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Sub 6: 业务配置维护 */}
+                    <div className="space-y-2 pt-3">
+                      <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          disabled={selectedRole.isDefault}
+                          checked={!!checkedPerms['system_business_all']}
+                          onChange={() => handleToggleCheck('system_business_all')}
+                          className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
+                        />
+                        <span>业务配置维护</span>
+                      </label>
+                      <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
+                        {['view:查看', 'add:新增', 'edit:编辑', 'delete:删除', 'enable:启用/停用', 'copy:复制', 'export:导出'].map(item => {
+                          const [key, label] = item.split(':');
+                          const permKey = `system_business_${key}`;
+                          return (
+                            <label key={permKey} className="flex items-center space-x-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                disabled={selectedRole.isDefault}
+                                checked={!!checkedPerms[permKey]}
+                                onChange={() => handleToggleCheck(permKey)}
+                                className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
+                              />
+                              <span>{label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Sub 7: 系统审计日志 */}
+                    <div className="space-y-2 pt-3">
+                      <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          disabled={selectedRole.isDefault}
+                          checked={!!checkedPerms['system_logs_all']}
+                          onChange={() => handleToggleCheck('system_logs_all')}
+                          className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
+                        />
+                        <span>系统审计日志</span>
+                      </label>
+                      <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
+                        {['view:查看', 'detail:查看详情', 'filter:筛选', 'export:导出'].map(item => {
+                          const [key, label] = item.split(':');
+                          const permKey = `system_logs_${key}`;
+                          return (
+                            <label key={permKey} className="flex items-center space-x-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                disabled={selectedRole.isDefault}
+                                checked={!!checkedPerms[permKey]}
+                                onChange={() => handleToggleCheck(permKey)}
+                                className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
+                              />
+                              <span>{label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
             )}

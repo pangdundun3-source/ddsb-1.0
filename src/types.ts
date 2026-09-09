@@ -15,6 +15,9 @@ export type PageId =
   | 'evaluation'
   | 'notice-management'
   | 'org-management'
+  | 'template-management'
+  | 'dict-management'
+  | 'value-added-services'
   | 'role-permission'
   | 'business-config'
   | 'system-logs';

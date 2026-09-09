@@ -20,7 +20,9 @@ import {
   CheckCircle2,
   SlidersHorizontal,
   Building2,
-  FileText
+  FileText,
+  ListFilter,
+  Sparkles
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -56,6 +58,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isSystemActive = [
     'notice-management',
     'org-management',
+    'template-management',
+    'dict-management',
+    'value-added-services',
     'business-config',
     'system-logs'
   ].includes(activePage);
@@ -425,6 +430,46 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <Building2 className="w-4 h-4 text-blue-600" />
                   <span>组织架构管理</span>
                 </button>
+
+                <button
+                  onClick={() => {
+                    onNavigate('template-management');
+                    setSystemMenuOpen(false);
+                  }}
+                  className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center space-x-2.5 cursor-pointer transition-colors ${
+                    activePage === 'template-management' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
+                  }`}
+                >
+                  <FileText className="w-4 h-4 text-indigo-600" />
+                  <span>模板管理</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    onNavigate('dict-management');
+                    setSystemMenuOpen(false);
+                  }}
+                  className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center space-x-2.5 cursor-pointer transition-colors ${
+                    activePage === 'dict-management' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
+                  }`}
+                >
+                  <ListFilter className="w-4 h-4 text-teal-600" />
+                  <span>数据字典管理</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    onNavigate('value-added-services');
+                    setSystemMenuOpen(false);
+                  }}
+                  className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center space-x-2.5 cursor-pointer transition-colors ${
+                    activePage === 'value-added-services' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4 text-purple-600" />
+                  <span>增值业务申请</span>
+                </button>
+
                 <button
                   onClick={() => {
                     onNavigate('business-config');
