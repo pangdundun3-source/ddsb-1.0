@@ -6524,161 +6524,148 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                 const selectedNode = formAuditNodes[selectedIndex] || formAuditNodes[0];
                 return (
                   <div className="space-y-4 pt-3 border-t border-gray-200">
-                    {/* 节点配置与流转主区域 */}
-                    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_310px] gap-4">
-                      {/* 左侧：节点链可视化 */}
-                      <div className="min-w-0 bg-gray-50/70 p-3.5 rounded-xl border border-gray-200 space-y-3">
-                        <div className="flex items-center justify-between">
+                    {/* 节点配置与流转主区域：左右平衡响应式双列布局 (50% : 50%) */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+                      {/* 左侧：节点链可视化 (6列) */}
+                      <div className="lg:col-span-6 min-w-0 bg-gray-50/80 p-3.5 rounded-xl border border-gray-200 space-y-3 flex flex-col">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
                           <div className="flex items-center space-x-2">
                             <GitBranch className="w-4 h-4 text-[#1E5ABB]" />
                             <span className="font-bold text-gray-800 text-xs">
                               审核节点流转链（共 {formAuditNodes.length} 个阶段）
                             </span>
                           </div>
+                          <span className="text-[11px] text-gray-400">
+                            点击节点在右侧编辑
+                          </span>
                         </div>
 
-                        {/* 节点卡片横向网格 */}
-                        <div className="w-full min-w-0 max-w-full bg-white rounded-xl border border-gray-200/80 p-3 shadow-2xs">
-                          <div className="grid grid-cols-[repeat(auto-fill,188px)] items-start gap-2.5 min-h-[160px]">
+                        {/* 节点卡片流转网格 */}
+                        <div className="w-full min-w-0 bg-white rounded-xl border border-gray-200/80 p-3 shadow-2xs">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch">
                             {formAuditNodes.map((node, index) => {
                               const isSelected = selectedNode?.id === node.id;
                               const isFinalNode = Boolean(node.isUnifiedFinalNode || index === formAuditNodes.length - 1);
                               return (
-                                <React.Fragment key={node.id || index}>
-                                  <div
-                                    draggable={!isFinalNode}
-                                    onDragStart={e => e.dataTransfer.setData('text/plain', String(index))}
-                                    onDragOver={e => e.preventDefault()}
-                                    onDrop={e => {
-                                      e.preventDefault();
-                                      handleDragAuditNode(Number(e.dataTransfer.getData('text/plain')), index);
-                                    }}
-                                    onClick={() => setSelectedAuditNodeId(node.id)}
-                                    className={`relative w-[188px] min-h-[160px] shrink-0 p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
-                                      isFinalNode
-                                        ? isSelected
-                                          ? 'border-amber-500 bg-gradient-to-br from-amber-50 to-orange-50/60 shadow-xs ring-2 ring-amber-400/30'
-                                          : 'border-amber-300 bg-gradient-to-br from-amber-50/40 to-yellow-50/20 hover:border-amber-400'
-                                        : isSelected
-                                        ? 'border-[#1E5ABB] bg-blue-50/70 shadow-xs ring-2 ring-[#1E5ABB]/20'
-                                        : 'border-gray-200 bg-white hover:border-blue-200 hover:bg-gray-50/80'
-                                    }`}
-                                  >
-                                    {index < formAuditNodes.length - 1 && (
-                                      <span className="absolute -right-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none z-10 font-bold">
-                                        →
-                                      </span>
-                                    )}
-
-                                    <div className="space-y-2">
-                                      <div className="flex items-center justify-between gap-1.5">
-                                        <div className="flex items-center space-x-1.5">
-                                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                                            isFinalNode
-                                              ? 'bg-amber-500 text-white'
-                                              : isSelected
-                                              ? 'bg-[#1E5ABB] text-white'
-                                              : 'bg-gray-100 text-gray-700'
-                                          }`}>
-                                            {index + 1}
+                                <div
+                                  key={node.id || index}
+                                  draggable={!isFinalNode}
+                                  onDragStart={e => e.dataTransfer.setData('text/plain', String(index))}
+                                  onDragOver={e => e.preventDefault()}
+                                  onDrop={e => {
+                                    e.preventDefault();
+                                    handleDragAuditNode(Number(e.dataTransfer.getData('text/plain')), index);
+                                  }}
+                                  onClick={() => setSelectedAuditNodeId(node.id)}
+                                  className={`relative p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between min-h-[148px] ${
+                                    isFinalNode
+                                      ? isSelected
+                                        ? 'border-amber-500 bg-gradient-to-br from-amber-50 to-orange-50/60 shadow-xs ring-2 ring-amber-400/30'
+                                        : 'border-amber-300 bg-gradient-to-br from-amber-50/40 to-yellow-50/20 hover:border-amber-400'
+                                      : isSelected
+                                      ? 'border-[#1E5ABB] bg-blue-50/70 shadow-xs ring-2 ring-[#1E5ABB]/20'
+                                      : 'border-gray-200 bg-white hover:border-blue-200 hover:bg-gray-50/80'
+                                  }`}
+                                >
+                                  <div className="space-y-2">
+                                    <div className="flex items-center justify-between gap-1.5">
+                                      <div className="flex items-center space-x-1.5">
+                                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                                          isFinalNode
+                                            ? 'bg-amber-500 text-white'
+                                            : isSelected
+                                            ? 'bg-[#1E5ABB] text-white'
+                                            : 'bg-gray-100 text-gray-700'
+                                        }`}>
+                                          {index + 1}
+                                        </span>
+                                        {isFinalNode ? (
+                                          <span className="text-[10px] font-bold text-amber-700 bg-amber-100/80 px-1.5 py-0.2 rounded border border-amber-200 flex items-center gap-0.5">
+                                            <Award className="w-2.5 h-2.5" />
+                                            终审评分
                                           </span>
-                                          {isFinalNode && (
-                                            <span className="text-[10px] font-bold text-amber-700 bg-amber-100/80 px-1.5 py-0.2 rounded border border-amber-200 flex items-center gap-0.5">
-                                              <Award className="w-2.5 h-2.5" />
-                                              终审评分
-                                            </span>
-                                          )}
-                                        </div>
+                                        ) : (
+                                          <span className="text-[10px] text-gray-500 font-medium">
+                                            第 {index + 1} 阶段
+                                          </span>
+                                        )}
+                                      </div>
 
-                                        <div className="flex items-center gap-1">
+                                      <div className="flex items-center gap-1.5">
+                                        {!isFinalNode ? (
                                           <span
-                                            title="流程模式标准节点已固定，不可删除"
-                                            className={`p-0.5 flex items-center justify-center ${
-                                              isFinalNode ? 'text-amber-500/80' : 'text-gray-400'
-                                            }`}
+                                            className="w-5 h-5 flex items-center justify-center rounded-full bg-blue-50 text-[#1E5ABB] border border-blue-200"
+                                            title={`流向第 ${index + 2} 阶段：${formAuditNodes[index + 1]?.nodeName || '下级审核'}`}
                                           >
-                                            <Lock className="w-3 h-3" />
+                                            <ArrowRight className="w-3 h-3 stroke-[2.5]" />
                                           </span>
-                                        </div>
-                                      </div>
+                                        ) : (
+                                          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                            终点
+                                          </span>
+                                        )}
 
-                                      <div>
-                                        <div className="font-bold text-gray-900 text-xs truncate">
-                                          {node.nodeName}
-                                        </div>
-                                        <div className="text-[10px] text-gray-500 mt-0.5 truncate">
-                                          {getAuditAssigneeSourceLabel(node.assigneeSource)}
-                                        </div>
-                                      </div>
-
-                                      <div className={`text-[10px] p-1.5 rounded border leading-tight ${
-                                        isFinalNode
-                                          ? 'bg-amber-100/50 border-amber-200/80 text-amber-900 font-bold'
-                                          : 'bg-gray-50 border-gray-100 text-gray-600'
-                                      }`}>
-                                        {node.assigneeSource === 'org_owner'
-                                          ? '归属机构负责人'
-                                          : node.assigneeSource === 'user'
-                                          ? node.assigneeUserName || node.approverRole
-                                          : node.approverRole}
+                                        <span
+                                          title="流程模式标准节点已固定"
+                                          className={`p-0.5 flex items-center justify-center ${
+                                            isFinalNode ? 'text-amber-500/80' : 'text-gray-400'
+                                          }`}
+                                        >
+                                          <Lock className="w-3 h-3" />
+                                        </span>
                                       </div>
                                     </div>
 
-                                    <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-2">
-                                      {node.enableTimeout !== false && (node.timeLimitMinutes ?? 0) > 0 ? (
-                                        <span className="text-[10px] text-blue-600 font-mono flex items-center gap-1 font-medium" title={`超时提醒时限：${node.timeLimitMinutes}分钟`}>
-                                          <Clock className="w-2.5 h-2.5 text-blue-600" />
-                                          {node.timeLimitMinutes >= 60 && node.timeLimitMinutes % 60 === 0
-                                            ? `${node.timeLimitMinutes / 60}小时`
-                                            : `${node.timeLimitMinutes}分`}
-                                        </span>
-                                      ) : (
-                                        <span className="text-[10px] text-gray-400 flex items-center gap-1" title="未开启超时提醒">
-                                          <Clock className="w-2.5 h-2.5 text-gray-300" />
-                                          无提醒
-                                        </span>
-                                      )}
-                                      <div className="flex items-center gap-0.5">
-                                        <button
-                                          type="button"
-                                          onClick={e => {
-                                            e.stopPropagation();
-                                            handleMoveAuditNode(index, 'up');
-                                          }}
-                                          disabled={index === 0 || isFinalNode}
-                                          className="p-0.5 text-gray-400 hover:text-[#1E5ABB] disabled:opacity-20 cursor-pointer"
-                                          title="上移"
-                                        >
-                                          <ArrowUp className="w-3 h-3" />
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={e => {
-                                            e.stopPropagation();
-                                            handleMoveAuditNode(index, 'down');
-                                          }}
-                                          disabled={index >= formAuditNodes.length - 2 || isFinalNode}
-                                          className="p-0.5 text-gray-400 hover:text-[#1E5ABB] disabled:opacity-20 cursor-pointer"
-                                          title="下移"
-                                        >
-                                          <ArrowDown className="w-3 h-3" />
-                                        </button>
+                                    <div>
+                                      <div className="font-bold text-gray-900 text-xs truncate">
+                                        {node.nodeName}
                                       </div>
+                                      <div className="text-[10px] text-gray-500 mt-0.5 truncate">
+                                        {getAuditAssigneeSourceLabel(node.assigneeSource)}
+                                      </div>
+                                    </div>
+
+                                    <div className={`text-[10px] p-1.5 rounded border leading-tight ${
+                                      isFinalNode
+                                        ? 'bg-amber-100/50 border-amber-200/80 text-amber-900 font-bold'
+                                        : 'bg-gray-50 border-gray-100 text-gray-600'
+                                    }`}>
+                                      {node.assigneeSource === 'org_owner'
+                                        ? '归属机构负责人'
+                                        : node.assigneeSource === 'user'
+                                        ? node.assigneeUserName || node.approverRole
+                                        : node.approverRole}
                                     </div>
                                   </div>
-                                </React.Fragment>
+
+                                  <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-2">
+                                    {node.enableTimeout !== false && (node.timeLimitMinutes ?? 0) > 0 ? (
+                                      <span className="text-[10px] text-blue-600 font-mono flex items-center gap-1 font-medium" title={`超时提醒时限：${node.timeLimitMinutes}分钟`}>
+                                        <Clock className="w-2.5 h-2.5 text-blue-600" />
+                                        {node.timeLimitMinutes >= 60 && node.timeLimitMinutes % 60 === 0
+                                          ? `${node.timeLimitMinutes / 60}小时`
+                                          : `${node.timeLimitMinutes}分`}
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-gray-400 flex items-center gap-1" title="未开启超时提醒">
+                                        <Clock className="w-2.5 h-2.5 text-gray-300" />
+                                        无提醒
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
                               );
                             })}
                           </div>
                         </div>
                       </div>
 
-                      {/* 右侧：选中节点属性面板 */}
-                      <div className="min-w-0 bg-white p-3.5 rounded-xl border border-gray-200 space-y-3 shadow-2xs">
+                      {/* 右侧：选中节点属性面板 (6列，宽敞紧凑) */}
+                      <div className="lg:col-span-6 min-w-0 bg-white p-3.5 rounded-xl border border-gray-200 space-y-3 shadow-2xs">
                         <div className="flex items-center justify-between pb-2 border-b border-gray-100">
                           <span className="font-bold text-gray-800 text-xs flex items-center gap-1.5">
                             <Sliders className="w-3.5 h-3.5 text-[#1E5ABB]" />
-                            <span>节点属性编辑</span>
+                            <span>节点属性编辑（第 {selectedIndex + 1} 阶段：{selectedNode?.nodeName}）</span>
                           </span>
                           {selectedNode && (
                             <span className="text-[10px] text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-gray-200 font-medium flex items-center gap-1" title="流程模式标准节点已固定，不可删除">
@@ -6697,117 +6684,48 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               </div>
                             )}
 
-                            <div>
-                              <label className="block text-[11px] text-gray-600 font-medium mb-1">节点名称 *</label>
-                              <input
-                                type="text"
-                                required
-                                value={selectedNode.nodeName}
-                                onChange={e => handleUpdateAuditNode(selectedIndex, { nodeName: e.target.value })}
-                                className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] font-medium"
-                              />
-                            </div>
-
-                            <div>
-                              <label className="block text-[11px] text-gray-600 font-medium mb-1">处理人来源 *</label>
-                              <select
-                                value={selectedNode.assigneeSource || 'role'}
-                                onChange={e => {
-                                  const source = e.target.value as AuditNode['assigneeSource'];
-                                  handleUpdateAuditNode(selectedIndex, {
-                                    assigneeSource: source,
-                                    approverRole: source === 'org_owner' ? '归属机构负责人' : selectedNode.approverRole
-                                  });
-                                }}
-                                className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                              >
-                                {auditAssigneeSourceOptions.map(option => (
-                                  <option key={option.id} value={option.id}>{option.label}</option>
-                                ))}
-                              </select>
-                            </div>
-
-                            {selectedNode.assigneeSource === 'user' ? (
+                            {/* Row 1: 节点名称 & 处理人来源 (双列并排) */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <div>
-                                <label className="block text-[11px] text-gray-600 font-medium mb-1">指定人员 *</label>
+                                <label className="block text-[11px] text-gray-600 font-medium mb-1">节点名称 *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={selectedNode.nodeName}
+                                  onChange={e => handleUpdateAuditNode(selectedIndex, { nodeName: e.target.value })}
+                                  className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] font-medium"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-[11px] text-gray-600 font-medium mb-1">处理人来源 *</label>
                                 <select
-                                  value={selectedNode.assigneeUserName || ''}
-                                  onChange={e => handleUpdateAuditNode(selectedIndex, { assigneeUserName: e.target.value, approverRole: e.target.value })}
+                                  value={selectedNode.assigneeSource || 'role'}
+                                  onChange={e => {
+                                    const source = e.target.value as AuditNode['assigneeSource'];
+                                    handleUpdateAuditNode(selectedIndex, {
+                                      assigneeSource: source,
+                                      approverRole: source === 'org_owner' ? '归属机构负责人' : selectedNode.approverRole
+                                    });
+                                  }}
                                   className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
                                 >
-                                  <option value="">请选择人员</option>
-                                  {auditUserOptions.map(user => (
-                                    <option key={user} value={user}>{user}</option>
+                                  {auditAssigneeSourceOptions.map(option => (
+                                    <option key={option.id} value={option.id}>{option.label}</option>
                                   ))}
                                 </select>
                               </div>
-                            ) : selectedNode.assigneeSource === 'org_owner' ? (
-                              <div className="p-2 rounded border border-emerald-100 bg-emerald-50/50 text-[11px] text-emerald-800">
-                                沿组织树动态匹配归属机构负责人审核
-                              </div>
-                            ) : (
-                              <div>
-                                <label className="block text-[11px] text-gray-600 font-medium mb-1">处理角色 *</label>
-                                <select
-                                  value={selectedNode.approverRole}
-                                  onChange={e => handleUpdateAuditNode(selectedIndex, { approverRole: e.target.value })}
-                                  className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                                >
-                                  {auditRoleOptions.map(role => (
-                                    <option key={role} value={role}>{role}</option>
-                                  ))}
-                                </select>
-                              </div>
-                            )}
+                            </div>
 
-                            {/* 无负责人处理规则 */}
-                            <div className="rounded-lg border border-amber-200/80 bg-amber-50/30 p-2.5 space-y-2">
-                              <label className="block text-[11px] text-amber-900 font-bold mb-0.5">无负责人规则</label>
-                              <select
-                                value={selectedNode.ownerMissingStrategy || formOwnerMissingStrategy}
-                                onChange={e => {
-                                  const strat = e.target.value as AuditOwnerMissingStrategy;
-                                  handleUpdateAuditNode(selectedIndex, { ownerMissingStrategy: strat });
-                                  setFormOwnerMissingStrategy(strat);
-                                }}
-                                className="w-full px-2.5 py-1.5 border border-amber-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                              >
-                                {ownerMissingStrategyOptions.map(option => (
-                                  <option key={option.id} value={option.id}>{option.label}</option>
-                                ))}
-                              </select>
-                              <p className="text-[10px] text-gray-500 leading-tight">
-                                {ownerMissingStrategyOptions.find(option => option.id === (selectedNode.ownerMissingStrategy || formOwnerMissingStrategy))?.description}
-                              </p>
-                              {(selectedNode.ownerMissingStrategy || formOwnerMissingStrategy) === 'fallback_role' && (
-                                <div className="pt-2 border-t border-amber-200/60">
-                                  <label className="block text-[11px] text-gray-700 font-medium mb-1">兜底角色</label>
+                            {/* Row 2: 处理人角色/指定人 & 退回规则 (双列并排) */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {selectedNode.assigneeSource === 'user' ? (
+                                <div>
+                                  <label className="block text-[11px] text-gray-600 font-medium mb-1">指定人员 *</label>
                                   <select
-                                    value={selectedNode.ownerMissingFallbackRole || formOwnerMissingFallbackRole}
-                                    onChange={e => {
-                                      const role = e.target.value;
-                                      handleUpdateAuditNode(selectedIndex, { ownerMissingFallbackRole: role });
-                                      setFormOwnerMissingFallbackRole(role);
-                                    }}
-                                    className="w-full px-2.5 py-1.5 border border-amber-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                                  >
-                                    {auditRoleOptions.map(role => (
-                                      <option key={role} value={role}>{role}</option>
-                                    ))}
-                                  </select>
-                                </div>
-                              )}
-                              {(selectedNode.ownerMissingStrategy || formOwnerMissingStrategy) === 'fallback_user' && (
-                                <div className="pt-2 border-t border-amber-200/60">
-                                  <label className="block text-[11px] text-gray-700 font-medium mb-1">兜底人员</label>
-                                  <select
-                                    value={selectedNode.ownerMissingFallbackUserName || formOwnerMissingFallbackUserName}
-                                    onChange={e => {
-                                      const user = e.target.value;
-                                      handleUpdateAuditNode(selectedIndex, { ownerMissingFallbackUserName: user });
-                                      setFormOwnerMissingFallbackUserName(user);
-                                    }}
-                                    className="w-full px-2.5 py-1.5 border border-amber-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                                    value={selectedNode.assigneeUserName || ''}
+                                    onChange={e => handleUpdateAuditNode(selectedIndex, { assigneeUserName: e.target.value, approverRole: e.target.value })}
+                                    className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
                                   >
                                     <option value="">请选择人员</option>
                                     {auditUserOptions.map(user => (
@@ -6815,11 +6733,107 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                     ))}
                                   </select>
                                 </div>
+                              ) : selectedNode.assigneeSource === 'org_owner' ? (
+                                <div>
+                                  <label className="block text-[11px] text-gray-600 font-medium mb-1">动态处理机制</label>
+                                  <div className="px-2.5 py-1.5 rounded-lg border border-emerald-100 bg-emerald-50/50 text-[11px] text-emerald-800 flex items-center h-[34px]">
+                                    动态匹配归属机构负责人
+                                  </div>
+                                </div>
+                              ) : (
+                                <div>
+                                  <label className="block text-[11px] text-gray-600 font-medium mb-1">处理角色 *</label>
+                                  <select
+                                    value={selectedNode.approverRole}
+                                    onChange={e => handleUpdateAuditNode(selectedIndex, { approverRole: e.target.value })}
+                                    className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                                  >
+                                    {auditRoleOptions.map(role => (
+                                      <option key={role} value={role}>{role}</option>
+                                    ))}
+                                  </select>
+                                </div>
                               )}
+
+                              <div>
+                                <label className="block text-[11px] text-gray-600 font-medium mb-1">退回规则 *</label>
+                                <select
+                                  value={selectedNode.rejectStrategy || 'return_submitter'}
+                                  onChange={e => handleUpdateAuditNode(selectedIndex, { rejectStrategy: e.target.value as AuditNode['rejectStrategy'] })}
+                                  className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                                >
+                                  <option value="return_submitter">退回上报人修改</option>
+                                  <option value="return_previous">退回上一节点</option>
+                                </select>
+                              </div>
                             </div>
 
-                            {/* 审核超时提醒开关与配置 */}
-                            <div className="rounded-lg border border-gray-200 bg-gray-50/60 p-2.5 space-y-2.5">
+                            {/* Row 3: 无负责人处理规则 (紧凑双列结构) */}
+                            <div className="rounded-lg border border-amber-200/80 bg-amber-50/30 p-2.5 space-y-2">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-start">
+                                <div>
+                                  <label className="block text-[11px] text-amber-900 font-bold mb-1">无负责人处理规则</label>
+                                  <select
+                                    value={selectedNode.ownerMissingStrategy || formOwnerMissingStrategy}
+                                    onChange={e => {
+                                      const strat = e.target.value as AuditOwnerMissingStrategy;
+                                      handleUpdateAuditNode(selectedIndex, { ownerMissingStrategy: strat });
+                                      setFormOwnerMissingStrategy(strat);
+                                    }}
+                                    className="w-full px-2.5 py-1.5 border border-amber-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                                  >
+                                    {ownerMissingStrategyOptions.map(option => (
+                                      <option key={option.id} value={option.id}>{option.label}</option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                {(selectedNode.ownerMissingStrategy || formOwnerMissingStrategy) === 'fallback_role' && (
+                                  <div>
+                                    <label className="block text-[11px] text-gray-700 font-medium mb-1">指定兜底角色 *</label>
+                                    <select
+                                      value={selectedNode.ownerMissingFallbackRole || formOwnerMissingFallbackRole}
+                                      onChange={e => {
+                                        const role = e.target.value;
+                                        handleUpdateAuditNode(selectedIndex, { ownerMissingFallbackRole: role });
+                                        setFormOwnerMissingFallbackRole(role);
+                                      }}
+                                      className="w-full px-2.5 py-1.5 border border-amber-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                                    >
+                                      {auditRoleOptions.map(role => (
+                                        <option key={role} value={role}>{role}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                )}
+
+                                {(selectedNode.ownerMissingStrategy || formOwnerMissingStrategy) === 'fallback_user' && (
+                                  <div>
+                                    <label className="block text-[11px] text-gray-700 font-medium mb-1">指定兜底人员 *</label>
+                                    <select
+                                      value={selectedNode.ownerMissingFallbackUserName || formOwnerMissingFallbackUserName}
+                                      onChange={e => {
+                                        const user = e.target.value;
+                                        handleUpdateAuditNode(selectedIndex, { ownerMissingFallbackUserName: user });
+                                        setFormOwnerMissingFallbackUserName(user);
+                                      }}
+                                      className="w-full px-2.5 py-1.5 border border-amber-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                                    >
+                                      <option value="">请选择人员</option>
+                                      {auditUserOptions.map(user => (
+                                        <option key={user} value={user}>{user}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-gray-500 leading-tight">
+                                {ownerMissingStrategyOptions.find(option => option.id === (selectedNode.ownerMissingStrategy || formOwnerMissingStrategy))?.description}
+                              </p>
+                            </div>
+
+                            {/* Row 4: 审核超时提醒开关与配置 (水平紧凑排布) */}
+                            <div className="rounded-lg border border-gray-200 bg-gray-50/60 p-2.5 space-y-2">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-1.5">
                                   <Clock className={`w-3.5 h-3.5 ${selectedNode.enableTimeout !== false ? 'text-[#1E5ABB]' : 'text-gray-400'}`} />
@@ -6851,9 +6865,8 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               </div>
 
                               {selectedNode.enableTimeout !== false ? (
-                                <div className="pt-2 border-t border-gray-200/80 space-y-2">
-                                  <div className="flex items-center justify-between">
-                                    <label className="text-[11px] text-gray-600 font-medium">提醒时限</label>
+                                <div className="pt-2 border-t border-gray-200/80 space-y-1.5">
+                                  <div className="flex items-center justify-between flex-wrap gap-2">
                                     <div className="flex items-center space-x-1">
                                       {[15, 30, 60, 120].map(mins => (
                                         <button
@@ -6870,39 +6883,28 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                         </button>
                                       ))}
                                     </div>
-                                  </div>
-                                  <div className="flex items-center gap-1.5">
-                                    <input
-                                      type="number"
-                                      min="1"
-                                      value={selectedNode.timeLimitMinutes || 15}
-                                      onChange={e => handleUpdateAuditNode(selectedIndex, { timeLimitMinutes: Math.max(1, Number(e.target.value) || 1), enableTimeout: true })}
-                                      className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-mono bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                                      placeholder="输入超时分钟数"
-                                    />
-                                    <span className="text-[11px] text-gray-500 shrink-0">分钟</span>
+
+                                    <div className="flex items-center gap-1">
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        value={selectedNode.timeLimitMinutes || 15}
+                                        onChange={e => handleUpdateAuditNode(selectedIndex, { timeLimitMinutes: Math.max(1, Number(e.target.value) || 1), enableTimeout: true })}
+                                        className="w-20 px-2 py-1 border border-gray-200 rounded text-xs font-mono bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] text-center"
+                                        placeholder="分钟"
+                                      />
+                                      <span className="text-[11px] text-gray-500 shrink-0">分钟</span>
+                                    </div>
                                   </div>
                                   <p className="text-[10px] text-gray-400 leading-tight">
-                                    开启后，该节点审核超过设定时长将触发待办超时催办提醒。
+                                    超过设定时限未处理将自动触发超时催办通知。
                                   </p>
                                 </div>
                               ) : (
-                                <div className="text-[11px] text-gray-400 bg-white p-2 rounded border border-gray-100 leading-relaxed">
-                                  当前已关停超时提醒，此审批节点不设时间限制，不推送超时催办通知。
+                                <div className="text-[11px] text-gray-400 bg-white p-1.5 rounded border border-gray-100">
+                                  未开启超时提醒，审批不设时限。
                                 </div>
                               )}
-                            </div>
-
-                            <div>
-                              <label className="block text-[11px] text-gray-600 font-medium mb-1">退回规则</label>
-                              <select
-                                value={selectedNode.rejectStrategy || 'return_submitter'}
-                                onChange={e => handleUpdateAuditNode(selectedIndex, { rejectStrategy: e.target.value as AuditNode['rejectStrategy'] })}
-                                className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                              >
-                                <option value="return_submitter">退回上报人修改</option>
-                                <option value="return_previous">退回上一节点</option>
-                              </select>
                             </div>
                           </div>
                         ) : (

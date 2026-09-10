@@ -336,11 +336,6 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
         <div className="flex items-center gap-2 min-w-0">
           <Sliders className="w-3.5 h-3.5 text-[#1E5ABB]" />
           <span className="font-bold text-xs text-gray-800 shrink-0">其他业务配置</span>
-          {isActivationTemplate && (
-            <span className="px-1.5 py-0.2 text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 rounded">
-              激活模板
-            </span>
-          )}
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
@@ -380,290 +375,181 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
         </div>
       </div>
 
-      {/* 2. Activation Template View: Verification Switches & Adapted Roles */}
+      {/* 2. Activation Template View: Streamlined Verification Switches & Adapted Roles */}
       {isActivationTemplate ? (
         <div className="p-4 overflow-y-auto max-h-[750px] space-y-4 text-xs">
-          {/* Section A: Verification Switches */}
-          <div className="space-y-2.5">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-gray-800 pb-1 border-b border-gray-100">
-              <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
-              <span>验证规则开关</span>
-              <span className="text-[10px] text-gray-400 font-normal ml-auto">
-                控制激活时的实名核验项
+          {/* Section A: Verification Switches (Clean Compact List) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between pb-1.5 border-b border-gray-100">
+              <span className="font-bold text-gray-800 flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-[#1E5ABB]" />
+                实名核验开关
+              </span>
+              <span className="text-[10px] text-gray-400 font-mono">
+                已开启 {[verifyPhone, verifyIdCard, verifyBankCard].filter(Boolean).length}/3 项
               </span>
             </div>
 
-            <div className="space-y-2">
-              {/* 1. Phone Number Verification Switch */}
+            <div className="space-y-1.5">
+              {/* 1. Phone Verification */}
               <div
                 onClick={() => {
                   setVerifyPhone(!verifyPhone);
                   setIsDirty(true);
                   setSavedSuccess(false);
                 }}
-                className={`p-3 rounded-lg border transition-all cursor-pointer ${
+                className={`p-2.5 rounded-lg border flex items-center justify-between transition-all cursor-pointer ${
                   verifyPhone
-                    ? 'bg-emerald-50/40 border-emerald-200/80 shadow-2xs'
-                    : 'bg-gray-50/60 border-gray-200 opacity-80 hover:opacity-100'
+                    ? 'bg-blue-50/40 border-blue-200'
+                    : 'bg-gray-50/50 border-gray-200 hover:bg-gray-50'
                 }`}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-2.5 min-w-0">
-                    <div
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                        verifyPhone
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-gray-200 text-gray-500'
-                      }`}
-                    >
-                      <Smartphone className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-gray-900 text-xs">手机号码验证开关</span>
-                        <span
-                          className={`px-1.5 py-0.2 text-[9px] font-bold rounded ${
-                            verifyPhone
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-gray-200 text-gray-600'
-                          }`}
-                        >
-                          {verifyPhone ? '已开启' : '已关闭'}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">
-                        开启后，用户在激活时需填写 11 位有效手机号码并进行校验
-                      </p>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setVerifyPhone(!verifyPhone);
-                      setIsDirty(true);
-                      setSavedSuccess(false);
-                    }}
-                    className={`w-9 h-5 flex items-center rounded-full p-0.5 transition-colors cursor-pointer shrink-0 mt-1 ${
-                      verifyPhone ? 'bg-emerald-500 justify-end' : 'bg-gray-300 justify-start'
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${
+                      verifyPhone ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'
                     }`}
                   >
-                    <div className="w-4 h-4 bg-white rounded-full shadow-xs" />
-                  </button>
+                    <Smartphone className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-xs text-gray-900">手机号码验证</div>
+                    <div className="text-[11px] text-gray-500">填写并校验 11 位有效手机号码</div>
+                  </div>
+                </div>
+
+                <div
+                  className={`w-8 h-4.5 flex items-center rounded-full p-0.5 transition-colors shrink-0 ${
+                    verifyPhone ? 'bg-[#1E5ABB] justify-end' : 'bg-gray-300 justify-start'
+                  }`}
+                >
+                  <div className="w-3.5 h-3.5 bg-white rounded-full shadow-xs" />
                 </div>
               </div>
 
-              {/* 2. ID Card Verification Switch */}
+              {/* 2. ID Card Verification */}
               <div
                 onClick={() => {
                   setVerifyIdCard(!verifyIdCard);
                   setIsDirty(true);
                   setSavedSuccess(false);
                 }}
-                className={`p-3 rounded-lg border transition-all cursor-pointer ${
+                className={`p-2.5 rounded-lg border flex items-center justify-between transition-all cursor-pointer ${
                   verifyIdCard
-                    ? 'bg-blue-50/40 border-blue-200/80 shadow-2xs'
-                    : 'bg-gray-50/60 border-gray-200 opacity-80 hover:opacity-100'
+                    ? 'bg-blue-50/40 border-blue-200'
+                    : 'bg-gray-50/50 border-gray-200 hover:bg-gray-50'
                 }`}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-2.5 min-w-0">
-                    <div
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                        verifyIdCard
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-gray-200 text-gray-500'
-                      }`}
-                    >
-                      <ShieldCheck className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-gray-900 text-xs">身份证号码验证开关</span>
-                        <span
-                          className={`px-1.5 py-0.2 text-[9px] font-bold rounded ${
-                            verifyIdCard
-                              ? 'bg-blue-100 text-blue-800'
-                              : 'bg-gray-200 text-gray-600'
-                          }`}
-                        >
-                          {verifyIdCard ? '已开启' : '已关闭'}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">
-                        开启后，需验证中国二代居民身份证 18 位格式与校验码，确保实名身份真实有效
-                      </p>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setVerifyIdCard(!verifyIdCard);
-                      setIsDirty(true);
-                      setSavedSuccess(false);
-                    }}
-                    className={`w-9 h-5 flex items-center rounded-full p-0.5 transition-colors cursor-pointer shrink-0 mt-1 ${
-                      verifyIdCard ? 'bg-blue-600 justify-end' : 'bg-gray-300 justify-start'
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${
+                      verifyIdCard ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'
                     }`}
                   >
-                    <div className="w-4 h-4 bg-white rounded-full shadow-xs" />
-                  </button>
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-xs text-gray-900">身份证号码验证</div>
+                    <div className="text-[11px] text-gray-500">核验 18 位身份证号码与校验位</div>
+                  </div>
+                </div>
+
+                <div
+                  className={`w-8 h-4.5 flex items-center rounded-full p-0.5 transition-colors shrink-0 ${
+                    verifyIdCard ? 'bg-[#1E5ABB] justify-end' : 'bg-gray-300 justify-start'
+                  }`}
+                >
+                  <div className="w-3.5 h-3.5 bg-white rounded-full shadow-xs" />
                 </div>
               </div>
 
-              {/* 3. Bank Card Verification Switch */}
+              {/* 3. Bank Card Verification */}
               <div
                 onClick={() => {
                   setVerifyBankCard(!verifyBankCard);
                   setIsDirty(true);
                   setSavedSuccess(false);
                 }}
-                className={`p-3 rounded-lg border transition-all cursor-pointer ${
+                className={`p-2.5 rounded-lg border flex items-center justify-between transition-all cursor-pointer ${
                   verifyBankCard
-                    ? 'bg-amber-50/40 border-amber-200/80 shadow-2xs'
-                    : 'bg-gray-50/60 border-gray-200 opacity-80 hover:opacity-100'
+                    ? 'bg-blue-50/40 border-blue-200'
+                    : 'bg-gray-50/50 border-gray-200 hover:bg-gray-50'
                 }`}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-2.5 min-w-0">
-                    <div
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                        verifyBankCard
-                          ? 'bg-amber-100 text-amber-700'
-                          : 'bg-gray-200 text-gray-500'
-                      }`}
-                    >
-                      <CreditCard className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-gray-900 text-xs">银行卡号验证开关</span>
-                        <span
-                          className={`px-1.5 py-0.2 text-[9px] font-bold rounded ${
-                            verifyBankCard
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-gray-200 text-gray-600'
-                          }`}
-                        >
-                          {verifyBankCard ? '已开启' : '已关闭'}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">
-                        开启后，需输入银联 16-19 位卡号并校验卡号合法性，用于补贴/稿酬结算认证
-                      </p>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setVerifyBankCard(!verifyBankCard);
-                      setIsDirty(true);
-                      setSavedSuccess(false);
-                    }}
-                    className={`w-9 h-5 flex items-center rounded-full p-0.5 transition-colors cursor-pointer shrink-0 mt-1 ${
-                      verifyBankCard ? 'bg-amber-500 justify-end' : 'bg-gray-300 justify-start'
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${
+                      verifyBankCard ? 'bg-amber-100 text-amber-700' : 'bg-gray-200 text-gray-500'
                     }`}
                   >
-                    <div className="w-4 h-4 bg-white rounded-full shadow-xs" />
-                  </button>
+                    <CreditCard className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-xs text-gray-900">银行卡号验证</div>
+                    <div className="text-[11px] text-gray-500">校验银联 16-19 位卡号 (用于补贴结算)</div>
+                  </div>
+                </div>
+
+                <div
+                  className={`w-8 h-4.5 flex items-center rounded-full p-0.5 transition-colors shrink-0 ${
+                    verifyBankCard ? 'bg-[#1E5ABB] justify-end' : 'bg-gray-300 justify-start'
+                  }`}
+                >
+                  <div className="w-3.5 h-3.5 bg-white rounded-full shadow-xs" />
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Section B: Adapted Personnel Roles Configuration */}
-          <div className="space-y-2.5 pt-2 border-t border-gray-100">
-            <div className="flex items-center justify-between pb-1 border-b border-gray-100">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-gray-800">
+          {/* Section B: Adapted Roles (Clean Pill Badges) */}
+          <div className="space-y-2 pt-2 border-t border-gray-100">
+            <div className="flex items-center justify-between pb-1.5 border-b border-gray-100">
+              <span className="font-bold text-gray-800 flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-purple-600" />
-                <span>适配激活人员角色</span>
-              </div>
+                适配注册角色
+              </span>
               <span className="text-[10px] text-gray-400">
-                已选 {adaptedRoles.length} 个角色
+                已选 {adaptedRoles.length} 个
               </span>
             </div>
 
-            <p className="text-[11px] text-gray-500 leading-tight">
-              指定使用此激活模板进行账号核验与注册的人员角色类型（支持多选）：
-            </p>
-
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {AVAILABLE_ACTIVATION_ROLES.map(role => {
                 const isSelected = adaptedRoles.includes(role.id);
                 return (
-                  <div
+                  <button
                     key={role.id}
+                    type="button"
                     onClick={() => toggleAdaptedRole(role.id)}
-                    className={`p-3 rounded-lg border transition-all cursor-pointer flex items-start justify-between gap-3 ${
+                    className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer flex items-center justify-between ${
                       isSelected
-                        ? role.id === '上报员'
-                          ? 'bg-blue-50/50 border-blue-300 ring-1 ring-blue-400/20'
-                          : 'bg-purple-50/50 border-purple-300 ring-1 ring-purple-400/20'
-                        : 'bg-gray-50/40 border-gray-200 hover:bg-gray-50'
+                        ? 'bg-purple-50/60 border-purple-200 text-purple-900 font-bold'
+                        : 'bg-gray-50/60 border-gray-200 text-gray-600 hover:bg-gray-100'
                     }`}
                   >
-                    <div className="flex items-start gap-2.5 min-w-0">
-                      <div
-                        className={`w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
-                          isSelected
-                            ? role.id === '上报员'
-                              ? 'bg-[#1E5ABB] text-white'
-                              : 'bg-purple-600 text-white'
-                            : 'border border-gray-300 bg-white'
-                        }`}
-                      >
-                        {isSelected && <Check className="w-3.5 h-3.5 stroke-[2.5]" />}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-xs text-gray-900">{role.name}</span>
-                          <span
-                            className={`px-1.5 py-0.2 text-[9px] font-bold rounded ${
-                              role.id === '上报员'
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-purple-100 text-purple-800'
-                            }`}
-                          >
-                            {role.id === '上报员' ? '业务填报岗' : '审核把关岗'}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">
-                          {role.description}
-                        </p>
+                    <div className="min-w-0">
+                      <div className="text-xs">{role.name}</div>
+                      <div className="text-[10px] text-gray-400 font-normal">
+                        {role.id === '上报员' ? '填报岗' : '审核岗'}
                       </div>
                     </div>
-
-                    <span
-                      className={`text-[11px] font-bold shrink-0 mt-0.5 ${
-                        isSelected
-                          ? role.id === '上报员'
-                            ? 'text-blue-700'
-                            : 'text-purple-700'
-                          : 'text-gray-400'
+                    <div
+                      className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${
+                        isSelected ? 'bg-purple-600 text-white' : 'border border-gray-300 bg-white'
                       }`}
                     >
-                      {isSelected ? '已适配' : '未选择'}
-                    </span>
-                  </div>
+                      {isSelected && <Check className="w-3 h-3 stroke-[2.5]" />}
+                    </div>
+                  </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Section C: Summary Note */}
-          <div className="p-3 bg-purple-50/40 rounded-lg border border-purple-100/80 space-y-1.5">
-            <div className="flex items-center gap-1.5 text-[11px] font-bold text-purple-800">
-              <Info className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-              <span>激活流程生效说明</span>
-            </div>
-            <p className="text-[10px] text-purple-700 leading-relaxed">
-              当前激活模板专门用于新人员注册激活、身份核验与角色分配。所配置的验证开关与角色范围将直接应用于移动端/网页端的实名激活界面。
-            </p>
+          {/* Section C: Minimal Note */}
+          <div className="pt-2 text-[11px] text-gray-400 leading-normal flex items-start gap-1">
+            <Info className="w-3 h-3 text-gray-400 shrink-0 mt-0.5" />
+            <span>配置直接生效于新人员实名核验与角色注册。</span>
           </div>
         </div>
       ) : (
