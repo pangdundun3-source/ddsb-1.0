@@ -19,6 +19,7 @@ import {
   Link2,
   X,
   ChevronLeft,
+  Trash2,
 } from 'lucide-react';
 import { BackNavigationBar } from './BackNavigationBar';
 import { RecallConfirmDialog } from './RecallConfirmDialog';
@@ -36,6 +37,7 @@ interface DetailModalProps {
   onBatchApprove?: (ids: string[], score?: number) => void;
   onBatchReject?: (ids: string[], reason: string) => void;
   onEditDraft: (report: SpeedReport) => void;
+  onDeleteReport?: (id: string) => void;
   onRecallReport?: (id: string) => void;
   onSelectRelatedReport?: (report: SpeedReport) => void;
   onToast: (msg: string) => void;
@@ -54,6 +56,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
   onBatchApprove,
   onBatchReject,
   onEditDraft,
+  onDeleteReport,
   onRecallReport,
   onSelectRelatedReport,
   onToast,
@@ -73,7 +76,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
   const [rejectDetailText, setRejectDetailText] = useState<string>('信息不完整，请补充政策原文链接和群众反馈截图后重新提交。');
   const [previewDetailReport, setPreviewDetailReport] = useState<SpeedReport | null>(null);
   const canAudit = allowAuditActions && !auditOnlyPreview && report?.status === 'pending_audit';
-  const canEdit = !auditOnlyPreview && (report?.status === 'draft' || report?.status === 'rejected');
+  const canEdit = !auditOnlyPreview && report?.status === 'rejected';
 
   React.useEffect(() => {
     if (report) {
@@ -181,8 +184,6 @@ export const DetailModal: React.FC<DetailModalProps> = ({
 
   const getStatusBadge = () => {
     switch (report.status) {
-      case 'draft':
-        return <span className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-700 text-xs font-bold">草稿</span>;
       case 'pending_audit':
         return <span className="px-2.5 py-1 rounded-lg bg-amber-500 text-white text-xs font-bold shadow-xs">待审核</span>;
       case 'auditing':
@@ -220,7 +221,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
   const resubmitTime = shiftTime(report.updateTime, -45);
   const showHandledAuditor = (auditor: string, org: string, handled: boolean) =>
     handled ? `${auditor} · ${org}` : org;
-  const firstAuditHandled = !['draft', 'pending_audit'].includes(report.status);
+  const firstAuditHandled = report.status !== 'pending_audit';
   const secondAuditHandled = report.status === 'approved';
   const thirdAuditHandled = report.status === 'approved';
   const finalReviewScore = report.score ?? (report.status === 'approved' ? 92 : undefined);
@@ -245,8 +246,8 @@ export const DetailModal: React.FC<DetailModalProps> = ({
     {
       title: '提交上报',
       actor: `${report.author} · ${report.authorDept}`,
-      status: hasFullReviewHistory ? '' : report.status === 'draft' ? '草稿' : '已提交',
-      state: report.status === 'draft' ? 'active' : 'done',
+      status: hasFullReviewHistory ? '' : '已提交',
+      state: 'done',
       time: report.createTime,
       records: hasFullReviewHistory
         ? [
@@ -276,18 +277,14 @@ export const DetailModal: React.FC<DetailModalProps> = ({
         ? '待审核'
         : report.status === 'rejected'
         ? '已驳回'
-        : report.status === 'draft'
-        ? '等待处理'
         : '已通过',
       state:
         report.status === 'pending_audit'
           ? 'active'
           : report.status === 'rejected'
           ? 'rejected'
-          : report.status === 'draft'
-          ? 'waiting'
           : 'done',
-      time: report.status === 'draft' || report.status === 'pending_audit' ? undefined : report.updateTime,
+      time: report.status === 'pending_audit' ? undefined : report.updateTime,
       rejectReason: report.status === 'rejected' ? currentRejectReason : undefined,
       records: hasFullReviewHistory
         ? [
@@ -719,17 +716,23 @@ export const DetailModal: React.FC<DetailModalProps> = ({
             <Edit3 className="w-4 h-4" />
             <span>修改补充并重新提交</span>
           </button>
-        ) : report.status === 'pending_audit' && onRecallReport ? (
+        ) : report.status === 'pending_audit' && onDeleteReport ? (
           <div className="flex items-center space-x-2">
             <button
-              onClick={handleRecall}
-              className="flex-1 py-2.5 px-3 bg-amber-50 hover:bg-amber-100 text-amber-700 font-semibold text-xs rounded-xl flex items-center justify-center space-x-1 transition-colors border border-amber-200"
+              onClick={() => {
+                if (window.confirm('确认删除这条待审核速报吗？删除后不可恢复。')) {
+                  onDeleteReport(report.id);
+                  onClose();
+                }
+              }}
+              className="flex-1 py-2.5 px-3 bg-red-50 hover:bg-red-100 text-red-600 font-semibold text-xs rounded-xl flex items-center justify-center space-x-1 transition-colors border border-red-200 cursor-pointer"
             >
-              <span>撤回</span>
+              <Trash2 className="w-3.5 h-3.5 mr-1" />
+              <span>删除速报</span>
             </button>
             <button
               onClick={onClose}
-              className="flex-1 py-2.5 px-3 bg-slate-900 hover:bg-black text-white font-semibold text-xs rounded-xl transition-colors"
+              className="flex-1 py-2.5 px-3 bg-slate-900 hover:bg-black text-white font-semibold text-xs rounded-xl transition-colors cursor-pointer"
             >
               关闭详情
             </button>
@@ -755,7 +758,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
       {showRecallConfirm && (
         <RecallConfirmDialog
           title="确认撤回这条待审核速报？"
-          message="撤回后将回到草稿箱，仍可继续修改后重新提交。"
+          message="撤回后将重新进入编辑状态，修改后可直接重新提交。"
           onCancel={() => setShowRecallConfirm(false)}
           onConfirm={handleConfirmRecall}
         />

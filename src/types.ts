@@ -1,5 +1,4 @@
 export type ReportStatus =
-  | 'draft'            // 草稿
   | 'pending_audit'    // 待审核
   | 'auditing'         // 审核中
   | 'approved'         // 已通过

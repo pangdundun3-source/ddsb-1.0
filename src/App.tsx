@@ -137,7 +137,7 @@ export default function App() {
     }));
   };
 
-  const handleSaveReport = (reportPayload: Partial<SpeedReport>, isSubmit: boolean) => {
+  const handleSaveReport = (reportPayload: Partial<SpeedReport>, isSubmit: boolean = true) => {
     setIsCreatingNewReport(false);
     setPendingTemplateId(null);
     const isNew = !reports.some((r) => r.id === reportPayload.id);
@@ -147,24 +147,17 @@ export default function App() {
     let identificationReason = reportPayload.identificationReason;
     let identificationTime = reportPayload.identificationTime;
 
-    if (isSubmit) {
-      if (!identificationTag) {
-        const result = calculatePreJudgment(reportPayload, reports);
-        identificationTag = result.tag;
-        identificationReason = result.reason;
-        identificationTime = now;
-      }
-    } else {
-      // 草稿不算，不打标
-      identificationTag = undefined;
-      identificationReason = undefined;
-      identificationTime = undefined;
+    if (!identificationTag) {
+      const result = calculatePreJudgment(reportPayload, reports);
+      identificationTag = result.tag;
+      identificationReason = result.reason;
+      identificationTime = now;
     }
 
     if (isNew) {
       const newReport: SpeedReport = {
         ...(reportPayload as SpeedReport),
-        status: isSubmit ? 'pending_audit' : 'draft',
+        status: 'pending_audit',
         identificationTag,
         identificationReason,
         identificationTime,
@@ -173,22 +166,18 @@ export default function App() {
       };
       setReports((prev) => [newReport, ...prev]);
 
-      if (isSubmit) {
-        showToast('速报已成功提交审核');
-        // Add notification for audit (提醒审核人审核)
-        const newNotif: AppNotification = {
-          id: `notif_${Date.now()}`,
-          type: '待审核通知',
-          title: `【待审核提醒】新提交速报待审核: ${newReport.title}`,
-          content: `上报人 ${newReport.author} 已提交【${newReport.type}】类速报，系统已完成查重预判断打标，请审核人及时登录审查。`,
-          time: now,
-          isRead: false,
-          relatedReportId: newReport.id,
-        };
-        setNotifications((prev) => [newNotif, ...prev]);
-      } else {
-        showToast('已保存至速报草稿箱');
-      }
+      showToast('速报已成功提交审核');
+      // Add notification for audit (提醒审核人审核)
+      const newNotif: AppNotification = {
+        id: `notif_${Date.now()}`,
+        type: '待审核通知',
+        title: `【待审核提醒】新提交速报待审核: ${newReport.title}`,
+        content: `上报人 ${newReport.author} 已提交【${newReport.type}】类速报，系统已完成查重预判断打标，请审核人及时登录审查。`,
+        time: now,
+        isRead: false,
+        relatedReportId: newReport.id,
+      };
+      setNotifications((prev) => [newNotif, ...prev]);
     } else {
       setReports((prev) =>
         prev.map((r) =>
@@ -196,25 +185,17 @@ export default function App() {
             ? ({
                 ...r,
                 ...reportPayload,
-                status: isSubmit ? 'pending_audit' : 'draft',
-                identificationTag: isSubmit
-                  ? (identificationTag || calculatePreJudgment({ ...r, ...reportPayload }, prev).tag)
-                  : undefined,
-                identificationReason: isSubmit
-                  ? (identificationReason || calculatePreJudgment({ ...r, ...reportPayload }, prev).reason)
-                  : undefined,
-                identificationTime: isSubmit ? (identificationTime || now) : undefined,
+                status: 'pending_audit',
+                identificationTag: identificationTag || calculatePreJudgment({ ...r, ...reportPayload }, prev).tag,
+                identificationReason: identificationReason || calculatePreJudgment({ ...r, ...reportPayload }, prev).reason,
+                identificationTime: identificationTime || now,
                 updateTime: now,
               } as SpeedReport)
             : r
         )
       );
 
-      if (isSubmit) {
-        showToast('已重新提交审核并完成查重打标');
-      } else {
-        showToast('草稿已更新');
-      }
+      showToast('已重新提交审核并完成查重打标');
     }
 
     setEditingReport(null);
@@ -238,28 +219,19 @@ export default function App() {
       return;
     }
 
-    const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
-    setReports((prev) =>
-      prev.map((report) =>
-        report.id === id
-          ? {
-              ...report,
-              status: 'draft',
-              identificationTag: undefined,
-              identificationReason: undefined,
-              identificationTime: undefined,
-              updateTime: now,
-            }
-          : report
-      )
-    );
+    // 撤回：从列表中移除待审状态并进入编辑修改状态
+    setReports((prev) => prev.filter((report) => report.id !== id));
     setNotifications((prev) =>
       prev.filter((notification) => !(notification.relatedReportId === id && notification.type === '待审核通知'))
     );
     if (selectedReport?.id === id) {
-      setSelectedReport((prev) => (prev ? { ...prev, status: 'draft', identificationTag: undefined, identificationReason: undefined, updateTime: now } : prev));
+      setSelectedReport(null);
+      setSelectedReportEntry(null);
     }
-    showToast('已撤回到草稿，可继续修改后重新提交');
+    setEditingReport(current);
+    setIsCreatingNewReport(false);
+    setCurrentTab('report');
+    showToast('已撤回待审速报，进入编辑状态');
   };
 
   const handleApproveReport = (id: string, score?: number) => {
@@ -524,7 +496,7 @@ export default function App() {
   // Counts for Badges
   const unreadNotifCount = notifications.filter((n) => !n.isRead).length;
   const auditPendingCount = reports.filter((r) => r.status === 'pending_audit').length;
-  const reportPendingCount = reports.filter((r) => r.status === 'draft' || r.status === 'rejected').length;
+  const reportPendingCount = reports.filter((r) => r.status === 'rejected').length;
 
   // Header Title Determination
   const getPageTitle = () => {
@@ -871,6 +843,7 @@ export default function App() {
               onApprove={handleApproveReport}
               onReject={handleRejectReport}
               onTransfer={handleTransferReport}
+              onDeleteReport={handleDeleteReport}
               onRecallReport={handleRecallReport}
               onBatchApprove={handleBatchApproveSameLocation}
               onBatchReject={handleBatchReject}

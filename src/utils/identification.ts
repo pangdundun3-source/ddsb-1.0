@@ -96,11 +96,6 @@ export function calculatePreJudgment(
   report: Partial<SpeedReport>,
   existingReports: SpeedReport[]
 ): { tag: IdentificationTag; reason: string } {
-  // 如果是草稿，不打标
-  if (report.status === 'draft') {
-    return { tag: 'suspected_first', reason: '' };
-  }
-
   const title = (report.title || '').trim().toLowerCase();
   const address = (report.address || '').trim().toLowerCase();
   const link = (report.matchedLink || '').trim().toLowerCase();
@@ -109,7 +104,6 @@ export function calculatePreJudgment(
   // 找匹配的在审件或已入库件
   const potentialDuplicates = existingReports.filter((other) => {
     if (other.id === currentId) return false;
-    if (other.status === 'draft') return false;
 
     // 1. 同一个 matchedLink 链接匹配
     if (link && other.matchedLink && other.matchedLink.trim().toLowerCase() === link) {
