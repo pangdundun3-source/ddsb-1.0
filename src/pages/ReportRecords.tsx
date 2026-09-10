@@ -467,32 +467,31 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
                       <td className="py-3 px-3.5 text-center sticky right-0 bg-white/95 group-hover:bg-blue-50/60 shadow-xs">
                         <div className="flex items-center justify-center space-x-1.5">
                           {/* View Detail */}
-                          {!isDraft && (
+                          <button
+                            onClick={() => {
+                              onSelectReport(item);
+                              onNavigate('report-detail');
+                            }}
+                            className="px-2 py-1 text-[#1E5ABB] hover:bg-blue-100/70 rounded transition-colors font-semibold flex items-center space-x-0.5 cursor-pointer"
+                            title="查看速报详情"
+                          >
+                            <span>详情</span>
+                          </button>
+
+                          {/* If Pending or Rejected: Delete */}
+                          {(isPending || isRejected) && onDeleteReport && (
                             <button
-                              onClick={() => {
-                                onSelectReport(item);
-                                onNavigate('report-detail');
-                              }}
-                              className="px-2 py-1 text-[#1E5ABB] hover:bg-blue-100/70 rounded transition-colors font-semibold flex items-center space-x-0.5 cursor-pointer"
-                              title="查看速报详情"
+                              onClick={() => setDeleteTarget(item)}
+                              className="px-2 py-1 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded transition-colors text-[11px] font-semibold cursor-pointer flex items-center space-x-0.5"
+                              title="删除此记录"
                             >
-                              <span>详情</span>
+                              <Trash2 className="w-3 h-3" />
+                              <span>删除</span>
                             </button>
                           )}
 
-                          {/* If Pending: Withdraw button */}
-                          {isPending && onWithdrawReport && (
-                            <button
-                              onClick={() => setWithdrawTarget(item)}
-                              className="px-2 py-1 text-amber-700 hover:bg-amber-100 rounded transition-colors text-[11px] font-semibold cursor-pointer"
-                              title="撤回当前待审核报送"
-                            >
-                              撤回
-                            </button>
-                          )}
-
-                          {/* If Draft or Rejected: Edit & Resubmit */}
-                          {(isDraft || isRejected) && (
+                          {/* If Rejected: Edit & Resubmit */}
+                          {isRejected && (
                             <button
                               onClick={() => onOpenEditReport && onOpenEditReport(item)}
                               className="px-2 py-1 text-blue-700 bg-blue-50 hover:bg-blue-100 rounded transition-colors text-[11px] font-semibold cursor-pointer flex items-center space-x-0.5"
@@ -500,17 +499,6 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
                             >
                               <FileEdit className="w-3 h-3" />
                               <span>编辑</span>
-                            </button>
-                          )}
-
-                          {/* If Draft or Rejected: Delete */}
-                          {(isDraft || isRejected) && onDeleteReport && (
-                            <button
-                              onClick={() => setDeleteTarget(item)}
-                              className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded transition-colors cursor-pointer"
-                              title="删除记录"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
@@ -544,7 +532,6 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
             const isAdopted = ['已采纳', '已通过', '待转办', '已转办'].includes(item.auditStatus);
             const isPending = item.auditStatus === '待审核';
             const isRejected = item.auditStatus === '被驳回' || item.auditStatus === '已驳回';
-            const isDraft = item.auditStatus === '草稿';
 
             return (
               <div
@@ -621,8 +608,8 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
                     <OrgPathDisplay organization={item.organization} fallback={currentOrg?.name} compact className="max-w-[210px]" />
                   </div>
 
-                      <div className="flex items-center space-x-2">
-                    {(isDraft || isRejected) && onDeleteReport && (
+                  <div className="flex items-center space-x-2">
+                    {isRejected && onDeleteReport && (
                       <button
                         onClick={() => setDeleteTarget(item)}
                         className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded transition-colors"
@@ -641,7 +628,7 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
                       </button>
                     )}
 
-                    {(isDraft || isRejected) && (
+                    {isRejected && (
                       <button
                         onClick={() => onOpenEditReport && onOpenEditReport(item)}
                         className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded-md transition-colors flex items-center space-x-1"
@@ -651,18 +638,16 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
                       </button>
                     )}
 
-                    {!isDraft && (
-                      <button
-                        onClick={() => {
-                          onSelectReport(item);
-                          onNavigate('report-detail');
-                        }}
-                        className="px-3 py-1 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-semibold rounded-md transition-colors flex items-center space-x-0.5 cursor-pointer"
-                      >
-                        <span>详情</span>
-                        <ChevronRight className="w-3 h-3" />
-                      </button>
-                    )}
+                    <button
+                      onClick={() => {
+                        onSelectReport(item);
+                        onNavigate('report-detail');
+                      }}
+                      className="px-3 py-1 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-semibold rounded-md transition-colors flex items-center space-x-0.5 cursor-pointer"
+                    >
+                      <span>详情</span>
+                      <ChevronRight className="w-3 h-3" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -698,7 +683,7 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
               </div>
               <div>
                 <h3 className="font-bold text-sm text-gray-900">确认撤回报送？</h3>
-                <p className="text-xs text-gray-500">撤回后该速报将转入草稿箱，审核员将暂停审核流程。</p>
+                <p className="text-xs text-gray-500">撤回后该速报将转入驳回/待修改状态，审核员将暂停审核流程。</p>
               </div>
             </div>
             <div className="p-3 bg-amber-50/80 rounded-lg border border-amber-200/80 text-xs text-amber-900">

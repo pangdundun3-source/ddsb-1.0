@@ -1,11 +1,4 @@
 import React from 'react';
-import {
-  CheckCircle2,
-  ChevronDown,
-  Send,
-  Check,
-  X,
-} from 'lucide-react';
 import { ReportItem } from '../types';
 
 interface AuditDecisionConsoleProps {
@@ -23,12 +16,15 @@ interface AuditDecisionConsoleProps {
   handleSubmitAudit: () => void;
   selectedScore?: number;
   handleSetScore?: (reportId: number, score: number) => void;
+  handleBatchSetScore?: (score: number) => void;
+  onClose?: () => void;
+  operatorName?: string;
 }
 
 export const AuditDecisionConsole: React.FC<AuditDecisionConsoleProps> = ({
   report,
-  allCluster,
-  selectedBatchIds,
+  allCluster = [],
+  selectedBatchIds = [],
   scoreMap,
   identMap,
   auditMode,
@@ -38,180 +34,163 @@ export const AuditDecisionConsole: React.FC<AuditDecisionConsoleProps> = ({
   rejectDetail,
   setRejectDetail,
   handleSubmitAudit,
-  selectedScore = 3,
+  selectedScore = 5,
   handleSetScore,
+  handleBatchSetScore,
+  onClose,
+  operatorName = '张三',
 }) => {
-  const selectedCount = selectedBatchIds.length;
-  const isPass = auditMode === 'pass';
-  const isReject = auditMode === 'reject';
-  const currentScore = scoreMap[report.id] ?? selectedScore;
+  const clusterCount = allCluster && allCluster.length > 0 ? allCluster.length : (report ? 1 : 0);
+  const selectedCount = selectedBatchIds ? selectedBatchIds.length : 0;
+  const currentScore = selectedScore;
 
   return (
+    /* 底部固定操作栏主容器 */
     <div
-      className="bg-white rounded-2xl border border-gray-200/80 shadow-2xs p-5 space-y-4 text-xs"
-      id="audit-decision-console"
+      className="shrink-0 bg-white border-t border-slate-200/90 p-4 sm:p-5 shadow-[0_-8px_25px_rgba(15,23,42,0.06)] z-20 space-y-3.5 w-full"
+      id="audit-action-bottom-bar"
     >
-      {/* 1. Header: 审核操作 with green CheckCircle2 */}
-      <div className="flex items-center space-x-2 border-b border-gray-100 pb-3">
-        <CheckCircle2 className="w-4 h-4 text-[#059669] stroke-[2.2] shrink-0" />
-        <h3 className="text-sm font-bold text-gray-900">审核操作</h3>
-      </div>
-
-      {/* 2. Audit Conclusion Controls */}
-      <div className="space-y-3.5">
-        {/* Title Label */}
-        <div className="flex items-center space-x-1">
-          <span className="font-bold text-gray-900 text-xs">审核结论</span>
-        </div>
-
-        {/* Radio Toggle Buttons Grid */}
-        <div className="grid grid-cols-2 gap-3">
-          {/* 批量通过 Radio Option */}
-          <button
-            type="button"
-            onClick={() => setAuditMode('pass')}
-            className={`w-full py-2.5 px-3 rounded-lg border transition-all flex items-center justify-center space-x-2 cursor-pointer ${
-              isPass
-                ? 'bg-[#F0FDF4] border-[#10B981] text-[#065F46] font-bold shadow-2xs'
-                : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 font-medium'
-            }`}
-          >
-            {/* Custom Radio Circle */}
-            <span
-              className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 border ${
-                isPass
-                  ? 'border-[#059669] bg-[#059669]'
-                  : 'border-gray-300 bg-white'
-              }`}
-            >
-              {isPass && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-            </span>
-            <Check className={`w-3.5 h-3.5 stroke-[2.5] ${isPass ? 'text-[#059669]' : 'text-gray-400'}`} />
-            <span>批量通过</span>
-          </button>
-
-          {/* 批量驳回 Radio Option */}
-          <button
-            type="button"
-            onClick={() => setAuditMode('reject')}
-            className={`w-full py-2.5 px-3 rounded-lg border transition-all flex items-center justify-center space-x-2 cursor-pointer ${
-              isReject
-                ? 'bg-[#FFF1F2] border-[#E11D48] text-[#9F1239] font-bold shadow-2xs'
-                : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 font-medium'
-            }`}
-          >
-            {/* Custom Radio Circle */}
-            <span
-              className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 border ${
-                isReject
-                  ? 'border-[#E11D48] bg-[#E11D48]'
-                  : 'border-gray-300 bg-white'
-              }`}
-            >
-              {isReject && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-            </span>
-            <X className={`w-3.5 h-3.5 stroke-[2.5] ${isReject ? 'text-[#E11D48]' : 'text-gray-400'}`} />
-            <span>批量驳回</span>
-          </button>
-        </div>
-
-        {/* Dynamic Form Content */}
-        {isPass ? (
-          /* When "批量通过" is selected */
-          <div className="space-y-3.5 pt-1">
-            {/* 评分模块 */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-gray-800">
-                评分
-              </label>
-              <div className="flex items-center space-x-1.5">
-                {[5, 3.5, 3, 1, 0].map((sc) => {
-                  const isSelected = currentScore === sc;
-                  return (
-                    <button
-                      key={sc}
-                      type="button"
-                      onClick={() => {
-                        if (handleSetScore) {
-                          handleSetScore(report.id, sc);
-                        }
-                      }}
-                      className={`flex-1 py-1.5 px-1 rounded-lg text-xs font-bold cursor-pointer transition-all border text-center ${
-                        isSelected
-                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
-                          : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-                      }`}
-                    >
-                      {sc}分
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div>
+      {/* 1. 控制区主卡片：审核结论模式切换 + 评分 / 驳回配置项 */}
+      <div className="bg-[#F8FAFC] border border-slate-200/80 rounded-xl p-3 sm:p-3.5 space-y-3">
+        {/* 第一行：审核模式分段选择器 + 右侧快捷设置 */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* 审核结论切换器 */}
+          <div className="flex items-center space-x-2">
+            <span className="text-xs font-bold text-slate-700 shrink-0">审核结论：</span>
+            <div className="inline-flex p-1 bg-slate-200/70 rounded-xl space-x-1">
               <button
                 type="button"
-                onClick={handleSubmitAudit}
-                disabled={selectedCount === 0}
-                className="w-full py-2.5 px-4 bg-[#00875A] hover:bg-[#00704A] active:bg-[#006040] text-white font-bold text-xs sm:text-sm rounded-lg shadow-2xs transition-colors flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => setAuditMode('pass')}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                  auditMode === 'pass'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                }`}
               >
-                <Send className="w-3.5 h-3.5 -rotate-45 shrink-0" />
-                <span>确认批量通过</span>
+                <span>✓ 审核通过</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuditMode('reject')}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                  auditMode === 'reject'
+                    ? 'bg-rose-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                }`}
+              >
+                <span>✕ 审核驳回</span>
               </button>
             </div>
           </div>
-        ) : (
-          /* When "批量驳回" is selected */
-          <div className="space-y-3 pt-1">
-            {/* 驳回原因分类 */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-gray-800">
-                驳回原因分类
-              </label>
-              <div className="relative">
-                <select
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
-                  className="w-full pl-3.5 pr-8 py-2 rounded-lg border border-gray-300 text-xs text-gray-800 bg-white shadow-2xs focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none appearance-none cursor-pointer"
-                >
-                  <option value="信息不完整">信息不完整</option>
-                  <option value="佐证不足">佐证不足（缺少现场照片/视音频材料）</option>
-                  <option value="依据不充分">依据不充分（缺乏政策依据或通报文件）</option>
-                  <option value="建议表述过于笼统">建议表述过于笼统（缺乏可操作性方案）</option>
-                  <option value="涉及多部门职责需联动">涉及多部门职责需联动核实</option>
-                  <option value="其他原因">其他原因</option>
-                </select>
-                <ChevronDown className="w-4 h-4 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+
+          {/* 右侧：通过模式评分 / 驳回模式分类 */}
+          {auditMode === 'pass' ? (
+            <div className="flex items-center space-x-2 text-xs">
+              <span className="text-amber-900 font-bold shrink-0">审核评分：</span>
+              <div className="flex items-center space-x-1 bg-amber-50/80 p-1 rounded-lg border border-amber-200/80">
+                {[5, 3.5, 3, 1, 0].map((score) => (
+                  <button
+                    key={score}
+                    type="button"
+                    onClick={() => {
+                      if (handleBatchSetScore) {
+                        handleBatchSetScore(score);
+                      } else if (handleSetScore) {
+                        handleSetScore(report.id, score);
+                      }
+                    }}
+                    className={`px-2.5 py-1 rounded-md text-xs font-bold cursor-pointer transition-all ${
+                      currentScore === score
+                        ? 'bg-emerald-600 text-white shadow-xs scale-105'
+                        : 'bg-white text-slate-700 hover:bg-amber-100/70 border border-amber-100'
+                    }`}
+                  >
+                    {score}分
+                  </button>
+                ))}
               </div>
             </div>
-
-            {/* 详细驳回意见与指引 */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-gray-800">
-                详细驳回意见与指引
-              </label>
-              <textarea
-                rows={3}
-                value={rejectDetail}
-                onChange={(e) => setRejectDetail(e.target.value)}
-                placeholder="请输入具体的修改建议和退回说明..."
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-xs text-gray-800 bg-white placeholder:text-gray-400 shadow-2xs focus:ring-2 focus:ring-rose-200 focus:border-rose-400 outline-none resize-y min-h-[75px]"
-              />
+          ) : (
+            <div className="flex items-center space-x-2 text-xs">
+              <span className="text-rose-900 font-bold shrink-0">驳回类型：</span>
+              <select
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                className="px-3 py-1.5 border border-rose-200 rounded-lg bg-white text-slate-700 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 shadow-2xs cursor-pointer"
+              >
+                <option value="信息不完整">信息不完整</option>
+                <option value="内容重复/同源">内容重复/同源</option>
+                <option value="属虚假误报">属虚假误报</option>
+                <option value="非本辖区职责">非本辖区职责</option>
+                <option value="佐证不足">佐证不足</option>
+              </select>
             </div>
+          )}
+        </div>
 
-            {/* Confirm Reject Button */}
+        {/* 驳回模式下的详细意见说明输入框 */}
+        {auditMode === 'reject' && (
+          <div className="space-y-1.5 pt-1">
+            <label className="block text-[11px] font-medium text-slate-500">
+              驳回指引与整改说明（将同步通知上报单位与作者）：
+            </label>
+            <textarea
+              rows={2}
+              value={rejectDetail}
+              onChange={(e) => setRejectDetail(e.target.value)}
+              placeholder="请输入详细的驳回原因、需要补充的佐证材料或修改建议..."
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all resize-none shadow-2xs"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* 2. 底部动作条：左侧状态提示与经办人 + 右侧操作按钮 */}
+      <div className="flex items-center justify-between gap-3 pt-0.5">
+        <div className="flex items-center space-x-2.5 text-xs text-slate-500 min-w-0 flex-wrap">
+          {/* 同源匹配与已勾选联动数胶囊 */}
+          <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-[#1E5ABB] border border-blue-200/80 text-xs font-medium shrink-0">
+            <span>同源匹配 <strong className="font-bold text-[#1E5ABB]">{clusterCount}</strong> 条</span>
+            <span className="text-blue-300">·</span>
+            <span className="text-emerald-700 font-semibold">已勾选联动 <strong>{selectedCount}</strong> 条</span>
+          </span>
+
+          <span className="text-slate-300">|</span>
+
+          <span className="text-xs text-slate-600 flex items-center space-x-1 font-medium">
+            <span className="text-slate-400 text-[11px]">经办人：</span>
+            <span className="font-bold text-slate-800">{operatorName}</span>
+          </span>
+        </div>
+
+        {/* 右侧动作按钮组 */}
+        <div className="flex items-center space-x-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 rounded-xl text-xs font-semibold cursor-pointer transition-colors shadow-2xs"
+          >
+            关闭
+          </button>
+
+          {auditMode === 'pass' ? (
             <button
               type="button"
               onClick={handleSubmitAudit}
-              disabled={selectedCount === 0}
-              className="w-full py-2.5 px-4 bg-[#E11D48] hover:bg-[#BE123C] active:bg-[#9F1239] text-white font-bold text-xs sm:text-sm rounded-lg shadow-2xs transition-colors flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-sm hover:shadow transition-all flex items-center space-x-1.5 cursor-pointer"
             >
-              <Send className="w-3.5 h-3.5 -rotate-45 shrink-0" />
-              <span>确认批量驳回 ({selectedCount} 条)</span>
+              <span>{selectedCount > 0 ? `确认批量通过 (${selectedCount}条)` : '确认审核通过'}</span>
             </button>
-          </div>
-        )}
+          ) : (
+            <button
+              type="button"
+              onClick={handleSubmitAudit}
+              className="px-6 py-2 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold text-xs rounded-xl shadow-sm hover:shadow transition-all flex items-center space-x-1.5 cursor-pointer"
+            >
+              <span>{selectedCount > 0 ? `确认批量驳回 (${selectedCount}条)` : '确认审核驳回'}</span>
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

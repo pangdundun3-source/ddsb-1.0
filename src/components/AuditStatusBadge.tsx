@@ -7,7 +7,6 @@ interface AuditStatusBadgeProps {
 }
 
 const STATUS_STYLES: Record<AuditStatus, string> = {
-  草稿: 'bg-slate-100 text-slate-600 border-slate-200',
   待审核: 'bg-amber-50 text-amber-700 border-amber-200',
   审核中: 'bg-blue-50 text-blue-700 border-blue-200',
   被驳回: 'bg-rose-50 text-rose-700 border-rose-200',
@@ -19,7 +18,6 @@ const STATUS_STYLES: Record<AuditStatus, string> = {
 };
 
 const DOT_STYLES: Record<AuditStatus, string> = {
-  草稿: 'bg-slate-400',
   待审核: 'bg-amber-500',
   审核中: 'bg-blue-500',
   被驳回: 'bg-rose-500',

@@ -47,7 +47,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   onNavigate
 }) => {
   // Filter States
-  const [activeTab, setActiveTab] = useState<'待审核' | '审核中' | '已驳回' | '草稿' | '已采纳'>('待审核');
+  const [activeTab, setActiveTab] = useState<'待审核' | '审核中' | '已驳回' | '已采纳'>('待审核');
   const [identFilter, setIdentFilter] = useState<'全部' | '疑似首发' | '疑似重复' | '识别中' | '首发报送' | '重复报送'>('全部');
   const [keyword, setKeyword] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -90,12 +90,11 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
 
   // Statistics calculation
   const totalCount = reports.length;
-  const draftCount = reports.filter((r) => r.auditStatus === '草稿').length;
   const rejectedCount = reports.filter((r) => r.auditStatus === '被驳回' || r.auditStatus === '已驳回').length;
   const pendingCount = reports.filter((r) => r.auditStatus === '待审核').length;
   const inReviewCount = reports.filter((r) => r.auditStatus === '审核中').length;
   const adoptedCount = reports.filter((r) => r.auditStatus === '已采纳' || r.auditStatus === '已通过').length;
-  const todoCount = draftCount + rejectedCount;
+  const todoCount = rejectedCount;
   const passRate = totalCount > 0 ? Math.round((adoptedCount / totalCount) * 100) : 0;
   // 一次性通过率 (无驳回历史直接通过的比例)
   const firstTimePassCount = totalCount - rejectedCount;
@@ -111,7 +110,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
     if (activeTab === '待审核' && item.auditStatus !== '待审核') return false;
     if (activeTab === '审核中' && item.auditStatus !== '审核中') return false;
     if (activeTab === '已驳回' && item.auditStatus !== '被驳回' && item.auditStatus !== '已驳回') return false;
-    if (activeTab === '草稿' && item.auditStatus !== '草稿') return false;
+    if (activeTab === '已采纳' && item.auditStatus !== '已采纳' && item.auditStatus !== '已通过') return false;
 
     // Identification filter
     if (identFilter !== '全部') {
@@ -193,7 +192,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
             </div>
             <p className="text-xs text-blue-100/80 mt-1 flex items-center space-x-1.5">
               <Calendar className="w-3.5 h-3.5" />
-              <span>集中处理待审核、被驳回修改及草稿箱舆情速报事项 · 报送待办</span>
+              <span>集中处理待审核及被驳回修改的舆情速报事项 · 报送待办</span>
             </p>
           </div>
 
@@ -225,7 +224,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
             id="kpi-todo-box"
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-blue-100">报送待办</span>
+              <span className="text-xs font-medium text-blue-100">待办驳回</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400/30 text-amber-200 font-bold border border-amber-400/40">
                 待办事项
               </span>
@@ -233,7 +232,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
             <div className="mt-2 flex items-baseline justify-between">
               <span className="text-2xl font-bold font-mono text-white">{todoCount}</span>
               <span className="text-xs text-blue-200">
-                草稿 <strong className="text-white">{draftCount}</strong> · 驳回 <strong className="text-rose-300">{rejectedCount}</strong>
+                待修改驳回 <strong className="text-rose-300">{rejectedCount}</strong> · 待初审 <strong className="text-amber-300">{pendingCount}</strong>
               </span>
             </div>
           </div>
@@ -298,7 +297,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
               { id: '待审核', label: '待审核', count: pendingCount, color: 'text-amber-600 bg-amber-50' },
               { id: '审核中', label: '审核中', count: inReviewCount, color: 'text-blue-600 bg-blue-50' },
               { id: '已驳回', label: '被驳回', count: rejectedCount, color: 'text-rose-600 bg-rose-50' },
-              { id: '草稿', label: '草稿', count: draftCount, color: 'text-gray-600 bg-gray-100' }
+              { id: '已采纳', label: '已采纳', count: adoptedCount, color: 'text-emerald-600 bg-emerald-50' }
             ].map((tab) => {
               const isActive = activeTab === tab.id;
               return (
@@ -441,7 +440,6 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                   </tr>
                 ) : (
                   pagedReports.map((item, index) => {
-                    const isDraft = item.auditStatus === '草稿';
                     const isPending = item.auditStatus === '待审核';
                     const isRejected = item.auditStatus === '被驳回' || item.auditStatus === '已驳回';
 
@@ -512,49 +510,36 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                         <td className="py-3.5 px-4 text-center whitespace-nowrap">
                           <div className="flex items-center justify-center space-x-2">
                             {/* View Detail */}
-                            {!isDraft && (
+                            <button
+                              onClick={() => {
+                                onSelectReport(item);
+                                onNavigate('report-detail');
+                              }}
+                              className="text-[#1E5ABB] hover:underline font-semibold cursor-pointer text-xs"
+                            >
+                              详情
+                            </button>
+
+                            {/* Delete (if Pending or Rejected) */}
+                            {(isPending || isRejected) && onDeleteReport && (
                               <button
-                                onClick={() => {
-                                  onSelectReport(item);
-                                  onNavigate('report-detail');
-                                }}
-                                className="text-[#1E5ABB] hover:underline font-semibold cursor-pointer text-xs"
+                                onClick={() => setDeleteTarget(item)}
+                                className="text-rose-600 hover:text-rose-800 hover:underline font-medium cursor-pointer flex items-center space-x-0.5 text-xs"
+                                title="删除报送"
                               >
-                                详情
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>删除</span>
                               </button>
                             )}
 
-                            {/* Withdraw (if Pending) */}
-                            {isPending && onWithdrawReport && (
-                              <button
-                                onClick={() => setWithdrawTarget(item)}
-                                className="text-amber-600 hover:text-amber-800 hover:underline font-medium cursor-pointer flex items-center space-x-0.5 text-xs"
-                                title="撤回转为草稿"
-                              >
-                                <Undo2 className="w-3 h-3" />
-                                <span>撤回</span>
-                              </button>
-                            )}
-
-                            {/* Edit / Resubmit (if Draft or Rejected) */}
-                            {(isDraft || isRejected) && (
+                            {/* Edit / Resubmit (if Rejected) */}
+                            {isRejected && (
                               <button
                                 onClick={() => onOpenEditReport && onOpenEditReport(item)}
                                 className="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold cursor-pointer flex items-center space-x-0.5 text-xs"
                               >
                                 <FileEdit className="w-3 h-3" />
                                 <span>编辑</span>
-                              </button>
-                            )}
-
-                            {/* Delete (if Draft or Rejected) */}
-                            {(isDraft || isRejected) && onDeleteReport && (
-                              <button
-                                onClick={() => setDeleteTarget(item)}
-                                className="text-rose-600 hover:text-rose-800 hover:underline font-medium cursor-pointer p-1"
-                                title="删除此记录"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             )}
                           </div>
@@ -657,23 +642,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                     </div>
 
                     <div className="flex items-center space-x-2">
-                      {isPending && onWithdrawReport && (
-                        <button
-                          onClick={() => setWithdrawTarget(item)}
-                          className="text-amber-600 hover:underline font-semibold cursor-pointer"
-                        >
-                          撤回
-                        </button>
-                      )}
-                      {(isDraft || isRejected) && (
-                        <button
-                          onClick={() => onOpenEditReport && onOpenEditReport(item)}
-                          className="text-indigo-600 hover:underline font-semibold cursor-pointer"
-                        >
-                          编辑
-                        </button>
-                      )}
-                      {(isDraft || isRejected) && onDeleteReport && (
+                      {(isPending || isRejected) && onDeleteReport && (
                         <button
                           onClick={() => setDeleteTarget(item)}
                           className="text-rose-600 hover:underline font-semibold cursor-pointer"
@@ -681,17 +650,23 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                           删除
                         </button>
                       )}
-                      {!isDraft && (
+                      {isRejected && (
                         <button
-                          onClick={() => {
-                            onSelectReport(item);
-                            onNavigate('report-detail');
-                          }}
-                          className="text-[#1E5ABB] hover:underline font-semibold cursor-pointer"
+                          onClick={() => onOpenEditReport && onOpenEditReport(item)}
+                          className="text-indigo-600 hover:underline font-semibold cursor-pointer"
                         >
-                          详情 &gt;
+                          编辑
                         </button>
                       )}
+                      <button
+                        onClick={() => {
+                          onSelectReport(item);
+                          onNavigate('report-detail');
+                        }}
+                        className="text-[#1E5ABB] hover:underline font-semibold cursor-pointer"
+                      >
+                        详情 &gt;
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -723,7 +698,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
               <h3 className="text-base font-bold text-gray-900">确认撤回报送？</h3>
             </div>
             <p className="text-xs text-gray-600 leading-relaxed">
-              您正在撤回《<strong className="text-gray-900">{withdrawTarget.title}</strong>》。撤回后将转存为<strong>草稿</strong>状态，您可以补充资料后重新提交。
+              您正在撤回《<strong className="text-gray-900">{withdrawTarget.title}</strong>》。撤回后将转入驳回/待修改状态，您可以补充资料后重新提交。
             </p>
             <div className="flex justify-end space-x-3 pt-2">
               <button

@@ -192,6 +192,26 @@ export const ReportDetailCard: React.FC<ReportDetailCardProps> = ({
           </div>
         </div>
 
+        {/* 4-Column Meta Box matching the user screenshot */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 bg-gray-50/80 rounded-xl border border-gray-100 text-xs">
+          <div>
+            <div className="text-gray-400 text-[11px]">信息来源</div>
+            <div className="font-semibold text-gray-800 mt-0.5">{report.source || '政府官网'}</div>
+          </div>
+          <div>
+            <div className="text-gray-400 text-[11px]">所属区域</div>
+            <div className="font-semibold text-gray-800 mt-0.5">{report.region || '南屯区'}</div>
+          </div>
+          <div>
+            <div className="text-gray-400 text-[11px]">信息类型</div>
+            <div className="font-semibold text-gray-800 mt-0.5">{report.infoType || '政策解读'}</div>
+          </div>
+          <div>
+            <div className="text-gray-400 text-[11px]">发生地址</div>
+            <div className="font-semibold text-gray-800 mt-0.5">{report.occurAddress || '未填'}</div>
+          </div>
+        </div>
+
         {/* 5 Structured Content Blocks */}
         <div className="space-y-4 pt-1 text-xs text-gray-800">
           {/* 【内容摘要】 */}

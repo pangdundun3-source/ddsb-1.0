@@ -211,88 +211,107 @@ export default function App() {
           />
         )}
 
-        {activePage === 'report-summary' && (
-          <ReportSummary
-            reports={reports}
-            onSelectReport={(report) => {
-              setSelectedReport(report);
-              setReportDetailSourcePage('report-summary');
-            }}
-            onDeleteReport={handleDeleteReport}
-            onWithdrawReport={handleWithdrawReport}
-            onOpenEditReport={openEditReportModal}
-            onOpenNewReport={openNewReportModal}
-            onNavigate={handleNavigate}
-          />
+        {(activePage === 'report-summary' || (activePage === 'report-detail' && reportDetailSourcePage === 'report-summary')) && (
+          <>
+            <ReportSummary
+              reports={reports}
+              onSelectReport={(report) => {
+                setSelectedReport(report);
+                setReportDetailSourcePage('report-summary');
+              }}
+              onDeleteReport={handleDeleteReport}
+              onWithdrawReport={handleWithdrawReport}
+              onOpenEditReport={openEditReportModal}
+              onOpenNewReport={openNewReportModal}
+              onNavigate={handleNavigate}
+            />
+            {activePage === 'report-detail' && reportDetailSourcePage === 'report-summary' && (
+              <ReportDetail
+                report={selectedReport}
+                sourcePage="report-summary"
+                onNavigate={handleNavigate}
+                onWithdrawReport={handleWithdrawReport}
+                onOpenEditReport={openEditReportModal}
+                onDeleteReport={handleDeleteReport}
+              />
+            )}
+          </>
         )}
 
-        {activePage === 'report-records' && (
-          <ReportRecords
-            reports={reports}
-            currentUser="张三"
-            currentOrg={{ name: '台中市网信办', role: '超级管理员' }}
-            onSelectReport={(report) => {
-              setSelectedReport(report);
-              setReportDetailSourcePage('report-records');
-            }}
-            onDeleteReport={handleDeleteReport}
-            onWithdrawReport={handleWithdrawReport}
-            onOpenEditReport={openEditReportModal}
-            onOpenNewReport={openNewReportModal}
-            onNavigate={handleNavigate}
-          />
+        {(activePage === 'report-records' || (activePage === 'report-detail' && reportDetailSourcePage === 'report-records')) && (
+          <>
+            <ReportRecords
+              reports={reports}
+              currentUser="张三"
+              currentOrg={{ name: '台中市网信办', role: '超级管理员' }}
+              onSelectReport={(report) => {
+                setSelectedReport(report);
+                setReportDetailSourcePage('report-records');
+              }}
+              onDeleteReport={handleDeleteReport}
+              onWithdrawReport={handleWithdrawReport}
+              onOpenEditReport={openEditReportModal}
+              onOpenNewReport={openNewReportModal}
+              onNavigate={handleNavigate}
+            />
+            {activePage === 'report-detail' && reportDetailSourcePage === 'report-records' && (
+              <ReportDetail
+                report={selectedReport}
+                sourcePage="report-records"
+                onNavigate={handleNavigate}
+                onWithdrawReport={handleWithdrawReport}
+                onOpenEditReport={openEditReportModal}
+                onDeleteReport={handleDeleteReport}
+              />
+            )}
+          </>
         )}
 
-        {activePage === 'report-detail' && (
-          <ReportDetail
-            report={selectedReport}
-            sourcePage={reportDetailSourcePage}
-            onNavigate={handleNavigate}
-            onWithdrawReport={handleWithdrawReport}
-            onOpenEditReport={openEditReportModal}
-            onDeleteReport={handleDeleteReport}
-          />
+        {(activePage === 'report-audit' || activePage === 'audit-detail') && (
+          <>
+            <ReportAudit
+              auditPendingList={reports.filter((report) => report.auditStatus === '待审核')}
+              allReports={reports}
+              onSelectAudit={setSelectedAudit}
+              onApproveAudit={handleApproveAudit}
+              onRejectAudit={handleRejectAudit}
+              onBatchApprove={handleBatchApprove}
+              onBatchReject={handleBatchReject}
+              onDeleteReport={handleDeleteReport}
+              onNavigate={handleNavigate}
+            />
+            {activePage === 'audit-detail' && (
+              <AuditDetail
+                report={selectedAudit}
+                allReports={reports}
+                onApprove={handleApproveAudit}
+                onReject={handleRejectAudit}
+                onNavigate={handleNavigate}
+              />
+            )}
+          </>
         )}
 
-        {activePage === 'report-audit' && (
-          <ReportAudit
-            auditPendingList={reports.filter((report) => report.auditStatus === '待审核')}
-            allReports={reports}
-            onSelectAudit={setSelectedAudit}
-            onApproveAudit={handleApproveAudit}
-            onRejectAudit={handleRejectAudit}
-            onBatchApprove={handleBatchApprove}
-            onBatchReject={handleBatchReject}
-            onDeleteReport={handleDeleteReport}
-            onNavigate={handleNavigate}
-          />
-        )}
-
-        {activePage === 'audit-detail' && (
-          <AuditDetail
-            report={selectedAudit}
-            allReports={reports}
-            onApprove={handleApproveAudit}
-            onReject={handleRejectAudit}
-            onNavigate={handleNavigate}
-          />
-        )}
-
-        {activePage === 'audit-records' && (
-          <AuditRecords
-            records={auditRecords}
-            allReports={reports}
-            onSelectAuditRecord={setSelectedAuditRecord}
-            onNavigate={handleNavigate}
-          />
-        )}
-
-        {activePage === 'audit-record-detail' && (
-          <AuditRecordDetail
-            record={selectedAuditRecord}
-            allReports={reports}
-            onNavigate={handleNavigate}
-          />
+        {(activePage === 'audit-records' || activePage === 'audit-record-detail') && (
+          <>
+            <AuditRecords
+              records={auditRecords}
+              allReports={reports}
+              onSelectAuditRecord={setSelectedAuditRecord}
+              onNavigate={handleNavigate}
+            />
+            {activePage === 'audit-record-detail' && (
+              <AuditRecordDetail
+                record={selectedAuditRecord}
+                allReports={reports}
+                sourcePage="audit-records"
+                onNavigate={handleNavigate}
+                onWithdrawReport={handleWithdrawReport}
+                onResubmitReport={handleResubmitReport}
+                onDeleteReport={handleDeleteReport}
+              />
+            )}
+          </>
         )}
 
         {activePage === 'negative-info' && (

@@ -37,17 +37,6 @@ export const resolveIdentification = (
   status: IdentificationStatus | null;
   detail: IdentificationDetail;
 } => {
-  // 草稿不进行预判与打标
-  if (report.auditStatus === '草稿') {
-    return {
-      status: null,
-      detail: {
-        status: '识别中',
-        matchReason: '草稿暂未送审，暂不执行比对'
-      }
-    };
-  }
-
   const isPost = isPostAuditStage(report.auditStatus);
 
   // 如果已经有人工指定或既有状态

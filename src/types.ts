@@ -24,7 +24,7 @@ export type PageId =
   | 'business-config'
   | 'system-logs';
 
-export type AuditStatus = '待审核' | '审核中' | '已通过' | '已采纳' | '被驳回' | '已驳回' | '待转办' | '已转办' | '草稿';
+export type AuditStatus = '待审核' | '审核中' | '已通过' | '已采纳' | '被驳回' | '已驳回' | '待转办' | '已转办';
 export type AuditStage = '初审' | '复核' | '终审';
 
 export type IdentificationStatus =

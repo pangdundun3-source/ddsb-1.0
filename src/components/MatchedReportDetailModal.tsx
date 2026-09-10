@@ -73,7 +73,7 @@ export const MatchedReportDetailModal: React.FC<MatchedReportDetailModalProps> =
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200"
+      className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200"
       id="matched-report-detail-modal"
     >
       <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden">

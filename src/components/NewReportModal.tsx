@@ -5,8 +5,6 @@ import {
   UploadCloud,
   Link as LinkIcon,
   FileText,
-  Save,
-  Clock,
   Trash2,
   CheckCircle2,
   Sparkles,
@@ -24,19 +22,12 @@ import {
 import {
   Attachment,
   NewReportFormData,
-  DraftReport,
   ReportTemplateDef,
   ReportTemplateInput,
   ReportItem
 } from '../types';
 import { PRESET_REPORT_TEMPLATES as PRESET_TEMPLATES } from '../data/mockData';
 import { AttachmentPreviewModal } from './AttachmentPreviewModal';
-import {
-  loadDrafts,
-  removeDraft,
-  REPORT_DRAFT_STORAGE_KEY,
-  upsertDraft
-} from '../services/reportDraftStorage';
 
 const DEFAULT_ATTACHMENTS: Attachment[] = [
   {
@@ -88,10 +79,6 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
   const [demands, setDemands] = useState('');
   const [recommendations, setRecommendations] = useState('');
 
-  // Draft States
-  const [drafts, setDrafts] = useState<DraftReport[]>([]);
-  const [showDraftBox, setShowDraftBox] = useState(false);
-  const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
   const [toastNotice, setToastNotice] = useState<string | null>(null);
 
   // Attachments State
@@ -127,9 +114,7 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
     if (!isOpen) return;
 
     // Reset transient panel states on every open
-    setShowDraftBox(false);
     setPreviewAttachment(null);
-    setActiveDraftId(null);
 
     if (editingReport) {
       // Edit mode: prefill from the existing draft / rejected report
@@ -171,72 +156,11 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
       setRecommendations(defaultTpl.recommendationsTemplate);
       setAttachments([...DEFAULT_ATTACHMENTS]);
     }
-
-    try {
-      setDrafts(loadDrafts(REPORT_DRAFT_STORAGE_KEY));
-    } catch (e) {
-      // ignore
-    }
   }, [isOpen, editingReport, initialTemplate]);
 
   const triggerToast = (msg: string) => {
     setToastNotice(msg);
     setTimeout(() => setToastNotice(null), 2500);
-  };
-
-  // Save current form as draft
-  const handleSaveDraft = () => {
-    if (!title.trim() && !summary.trim() && !demands.trim()) {
-      triggerToast('请至少填写标题或摘要内容再保存草稿');
-      return;
-    }
-
-    const draftId = activeDraftId || `draft-${Date.now()}`;
-    const newDraft: DraftReport = {
-      id: draftId,
-      title: title.trim() || '未命名草稿',
-      source,
-      region,
-      infoType,
-      author,
-      organization,
-      summary,
-      demands,
-      recommendations,
-      saveTime: new Date().toISOString().replace('T', ' ').substring(0, 16)
-    };
-
-    const updated = upsertDraft(newDraft, REPORT_DRAFT_STORAGE_KEY);
-    setDrafts(updated);
-    setActiveDraftId(draftId);
-    triggerToast('草稿保存成功！随时可在草稿箱中恢复');
-  };
-
-  // Load selected draft
-  const handleLoadDraft = (draft: DraftReport) => {
-    setTitle(draft.title === '未命名草稿' ? '' : draft.title);
-    setSource(draft.source || '群众举报');
-    setRegion(draft.region || '西屯区');
-    setInfoType(draft.infoType || '突发事件');
-    setAuthor(draft.author || '张三');
-    setOrganization(draft.organization || '台中市网信办');
-    setSummary(draft.summary || '');
-    setDemands(draft.demands || '');
-    setRecommendations(draft.recommendations || '');
-    setActiveDraftId(draft.id);
-    setShowDraftBox(false);
-    triggerToast(`已成功恢复草稿: "${draft.title}"`);
-  };
-
-  // Delete draft
-  const handleDeleteDraft = (draftId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const updated = removeDraft(draftId, REPORT_DRAFT_STORAGE_KEY);
-    setDrafts(updated);
-    if (activeDraftId === draftId) {
-      setActiveDraftId(null);
-    }
-    triggerToast('草稿已删除');
   };
 
   if (!isOpen) return null;
@@ -283,19 +207,12 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
       });
     }
 
-    // If submitted from a draft, remove it from drafts
-    if (activeDraftId) {
-      const updated = removeDraft(activeDraftId, REPORT_DRAFT_STORAGE_KEY);
-      setDrafts(updated);
-    }
-
     // Reset fields
     setTitle('');
     setSummary('');
     setDemands('');
     setRecommendations('');
     setOccurAddress('');
-    setActiveDraftId(null);
     onClose();
   };
 
@@ -336,11 +253,7 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
             <div>
               <div className="flex items-center space-x-2">
                 <h2 className="text-base font-bold tracking-tight">
-                  {isEditMode
-                    ? editingReport && (editingReport.auditStatus === '被驳回' || editingReport.auditStatus === '已驳回')
-                      ? '修改补充并重新提交'
-                      : '编辑草稿速报'
-                    : '新建速报上报'}
+                  {isEditMode ? '修改补充并重新提交' : '新建速报上报'}
                 </h2>
                 {!isEditMode && (
                   <span className="text-[11px] bg-white/20 text-white px-2 py-0.5 rounded-full font-medium border border-white/30">
@@ -357,25 +270,6 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
           </div>
 
           <div className="flex items-center space-x-2">
-            {/* Draft Box Button */}
-            <button
-              type="button"
-              onClick={() => setShowDraftBox(!showDraftBox)}
-              className={`px-3 py-1.5 text-xs rounded-lg border transition-all flex items-center space-x-1.5 font-medium cursor-pointer ${
-                showDraftBox
-                  ? 'bg-amber-400 text-blue-950 border-amber-300 shadow-sm font-bold'
-                  : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
-              }`}
-            >
-              <Clock className="w-3.5 h-3.5" />
-              <span>草稿箱</span>
-              {drafts.length > 0 && (
-                <span className="ml-1 bg-amber-400 text-blue-900 text-[10px] px-1.5 py-0.2 rounded-full font-extrabold">
-                  {drafts.length}
-                </span>
-              )}
-            </button>
-
             <button
               onClick={onClose}
               className="text-white/80 hover:text-white p-1.5 rounded-lg hover:bg-white/15 transition-colors cursor-pointer"
@@ -393,61 +287,6 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
               <span>原审核驳回意见：</span>
             </p>
             <p className="mt-1 text-rose-700 leading-relaxed">{editingReport.rejectReason}</p>
-          </div>
-        )}
-
-        {/* Draft List Panel Drawer */}
-        {showDraftBox && (
-          <div className="bg-blue-50/90 border-b border-blue-200 p-4 animate-in slide-in-from-top-2 shrink-0">
-            <div className="flex justify-between items-center mb-2">
-              <span className="font-bold text-xs text-blue-900 flex items-center space-x-1">
-                <FileText className="w-3.5 h-3.5 text-blue-700" />
-                <span>草稿箱列表 ({drafts.length})</span>
-              </span>
-              <span className="text-[11px] text-blue-600">点击任意草稿一键恢复编辑</span>
-            </div>
-
-            {drafts.length === 0 ? (
-              <div className="text-center py-4 bg-white rounded-lg border border-blue-100 text-xs text-gray-500">
-                草稿箱暂无内容。填写过程中可点击底部的“存为草稿”随时暂存。
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
-                {drafts.map((d) => (
-                  <div
-                    key={d.id}
-                    onClick={() => handleLoadDraft(d)}
-                    className={`p-2.5 bg-white hover:bg-blue-50/60 rounded-lg border transition-all cursor-pointer flex justify-between items-center shadow-2xs ${
-                      activeDraftId === d.id ? 'border-[#1E5ABB] ring-2 ring-blue-200' : 'border-blue-100'
-                    }`}
-                  >
-                    <div className="truncate mr-3">
-                      <p className="font-bold text-xs text-gray-800 truncate">{d.title}</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">
-                        保存时间: {d.saveTime} · {d.source} · {d.infoType}
-                      </p>
-                    </div>
-                    <div className="flex items-center space-x-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleLoadDraft(d)}
-                        className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-[#1E5ABB] text-[11px] font-bold rounded-md"
-                      >
-                        恢复
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => handleDeleteDraft(d.id, e)}
-                        className="p-1 hover:bg-rose-50 text-gray-400 hover:text-rose-600 rounded-md"
-                        title="删除草稿"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
 
@@ -751,33 +590,21 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
         </div>
 
         {/* Modal Sticky Footer */}
-        <div className="px-6 py-3.5 border-t border-gray-200 bg-gray-50/90 flex justify-between items-center shrink-0">
-          {/* Draft Action Button */}
+        <div className="px-6 py-3.5 border-t border-gray-200 bg-gray-50/90 flex justify-end items-center space-x-3 shrink-0">
           <button
             type="button"
-            onClick={handleSaveDraft}
-            className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg font-bold text-xs flex items-center space-x-1.5 transition-colors cursor-pointer shadow-2xs"
+            onClick={onClose}
+            className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 font-semibold text-xs cursor-pointer transition-colors"
           >
-            <Save className="w-3.5 h-3.5 text-amber-700" />
-            <span>存为草稿</span>
+            取消
           </button>
-
-          <div className="flex space-x-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 font-semibold text-xs cursor-pointer transition-colors"
-            >
-              取消
-            </button>
-            <button
-              type="submit"
-              form="new-report-form"
-              className="px-6 py-2 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg font-bold text-xs shadow-md transition-all cursor-pointer active:scale-98 flex items-center space-x-1.5"
-            >
-              <span>提交审核</span>
-            </button>
-          </div>
+          <button
+            type="submit"
+            form="new-report-form"
+            className="px-6 py-2 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg font-bold text-xs shadow-md transition-all cursor-pointer active:scale-98 flex items-center space-x-1.5"
+          >
+            <span>{isEditMode ? '保存并重新送审' : '提交审核'}</span>
+          </button>
         </div>
       </div>
 

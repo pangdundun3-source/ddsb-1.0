@@ -133,7 +133,7 @@ export const AttachmentPreviewModal: React.FC<AttachmentPreviewModalProps> = ({
   return (
     <div
       id="attachment-preview-modal-root"
-      className="fixed inset-0 z-50 flex flex-col bg-black/85 backdrop-blur-xs animate-in fade-in duration-200 select-none"
+      className="fixed inset-0 z-[70] flex flex-col bg-black/85 backdrop-blur-xs animate-in fade-in duration-200 select-none"
     >
       {/* Top Header Bar */}
       <div className="h-14 px-4 sm:px-6 bg-gray-900/90 border-b border-gray-800 text-white flex items-center justify-between shrink-0 z-10">

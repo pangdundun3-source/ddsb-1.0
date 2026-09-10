@@ -343,21 +343,25 @@ export const useAppViewModel = () => {
     if (!target) return;
     const now = getNowText();
     const updated = appendTimeline(
-      { ...target, auditStatus: '草稿' },
+      {
+        ...target,
+        auditStatus: '被驳回',
+        rejectReason: '报送人主动撤回报送，可补充修改后重新送审。'
+      },
       [
         {
           title: '撤回报送',
           operator: `${target.author}·${target.organization}`,
           time: now,
           status: 'current',
-          note: '已撤回为草稿，可编辑后重新提交。'
+          note: '报送人主动撤回报送，可修改补充后重新送审。'
         }
       ]
     );
     setReports((previous) => previous.map((report) => (report.id === id ? updated : report)));
     if (selectedReport?.id === id) setSelectedReport(updated);
     if (selectedAudit?.id === id) setSelectedAudit(updated);
-    showToast('已成功撤回报送，已转为草稿状态');
+    showToast('已成功撤回报送，可修改补充后重新提交送审');
   };
 
   const handleResubmitReport = (updatedReport: ReportItem) => {

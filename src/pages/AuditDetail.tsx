@@ -39,7 +39,7 @@ import {
 } from 'lucide-react';
 import { AttachmentPreviewModal } from '../components/AttachmentPreviewModal';
 import { MatchedReportDetailModal } from '../components/MatchedReportDetailModal';
-import { MatchedClusterPanel } from '../components/MatchedClusterPanel';
+import { MatchByUrlCard } from '../components/MatchByUrlCard';
 import { AuditDecisionConsole } from '../components/AuditDecisionConsole';
 import { AuditFlowTimeline } from '../components/AuditFlowTimeline';
 import { ReportDetailCard } from '../components/ReportDetailCard';
@@ -77,7 +77,18 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
   const [rejectDetail, setRejectDetail] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState<any | null>(null);
-  const [layoutMode, setLayoutMode] = useState<'three-column' | 'two-column'>('three-column');
+  const [activeTab, setActiveTab] = useState<'detail' | 'timeline'>('detail');
+
+  // Close drawer on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onNavigate('report-audit');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onNavigate]);
 
   // Matched co-report inspecting modal state
   const [inspectingReport, setInspectingReport] = useState<ReportItem | null>(null);
@@ -223,10 +234,10 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
     return [report, ...matchedCoReports];
   }, [report, matchedCoReports]);
 
-  // Initialize batch IDs, differentiated scoreMap, and identMap whenever report or matchedCoReports change
+  // Initialize batch IDs (for matched co-reports), differentiated scoreMap, and identMap
   useEffect(() => {
     if (!report) return;
-    setSelectedBatchIds(allCluster.map((r) => r.id));
+    setSelectedBatchIds(matchedCoReports.map((r) => r.id));
 
     // Default differentiated scoring
     const initialScoreMap: Record<number, number> = {
@@ -251,20 +262,42 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
 
   if (!report) {
     return (
-      <div className="p-8 text-center text-gray-500 bg-white rounded-xl border border-gray-200">
-        未找到相关审核记录
+      <div className="fixed inset-0 z-50 overflow-hidden">
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-[2px] transition-opacity cursor-pointer"
+          onClick={() => onNavigate('report-audit')}
+        />
+        <div className="fixed inset-y-0 right-0 z-50 w-full md:w-1/2 lg:w-1/2 bg-white shadow-2xl flex flex-col border-l border-gray-200 p-8 text-center justify-center text-gray-500">
+          <p className="text-sm">未找到相关审核记录</p>
+          <button
+            type="button"
+            onClick={() => onNavigate('report-audit')}
+            className="mt-4 px-4 py-2 bg-[#1E5ABB] text-white rounded-lg text-xs font-semibold mx-auto cursor-pointer"
+          >
+            返回审核待办
+          </button>
+        </div>
       </div>
     );
   }
 
   const finalScore = getFinalAuditScore(report);
 
-  // Set score for specific report in cluster
+  // Set score for specific report in cluster (上面的单个独立打分，不联动下面)
   const handleSetScore = (reportId: number, score: number) => {
     setScoreMap((prev) => ({ ...prev, [reportId]: score }));
-    if (reportId === report.id) {
-      setSelectedScore(score);
-    }
+  };
+
+  // 底部审核评分：批量关联上面的每个打分
+  const handleBatchSetScore = (score: number) => {
+    setSelectedScore(score);
+    setScoreMap((prev) => {
+      const next = { ...prev };
+      allCluster.forEach((item) => {
+        next[item.id] = score;
+      });
+      return next;
+    });
   };
 
   // Set ident for specific report in cluster
@@ -339,19 +372,20 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
 
   const handleSubmitAudit = () => {
     if (auditMode === 'pass') {
-      const isBatchMode = isUrlMatched && selectedBatchIds.length > 1;
+      const isBatchMode = isUrlMatched && selectedBatchIds.length > 0;
+      const allApproveIds = isBatchMode ? [report.id, ...selectedBatchIds] : [report.id];
       onApprove(
         report.id,
         scoreMap[report.id] ?? selectedScore,
         isBatchMode,
         identMap[report.id] ?? manualIdent,
-        selectedBatchIds,
+        allApproveIds,
         scoreMap,
         identMap
       );
     } else {
-      if (isUrlMatched && selectedBatchIds.length > 1) {
-        selectedBatchIds.forEach((id) => onReject(id, rejectReason, rejectDetail));
+      if (isUrlMatched && selectedBatchIds.length > 0) {
+        [report.id, ...selectedBatchIds].forEach((id) => onReject(id, rejectReason, rejectDetail));
       } else {
         onReject(report.id, rejectReason, rejectDetail);
       }
@@ -418,215 +452,170 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
   const isTransferred = report.auditStatus === '已转办';
 
   return (
-    <div className="space-y-4" id="audit-detail-view">
-      {/* 1. Top Breadcrumbs & Layout Switcher Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-2xs">
-        <div className="flex items-center space-x-2 text-xs">
-          <span className="text-gray-500 font-medium">审核管理</span>
-          <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
-          <button
-            onClick={() => onNavigate('report-audit')}
-            className="text-gray-600 hover:text-[#1E5ABB] hover:underline font-medium flex items-center space-x-1 cursor-pointer transition-colors"
-          >
-            <span>审核待办</span>
-          </button>
-          <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
-          <span className="text-gray-900 font-bold">审核详情</span>
-        </div>
+    <div className="fixed inset-0 z-50 overflow-hidden" id="audit-detail-drawer-root">
+      {/* 1. Backdrop Overlay */}
+      <div
+        className="fixed inset-0 bg-black/40 backdrop-blur-[2px] transition-opacity animate-in fade-in duration-200"
+        onClick={() => onNavigate('report-audit')}
+      />
 
-        <div className="flex items-center space-x-2.5">
-          {/* Layout Mode Toggle */}
-          <div className="flex items-center bg-gray-100 p-0.5 rounded-lg border border-gray-200 text-xs">
+      {/* 2. 50% Right-side Drawer */}
+      <div
+        className="fixed inset-y-0 right-0 z-50 w-full lg:w-1/2 bg-white shadow-2xl flex flex-col transform transition-transform duration-300 ease-out border-l border-gray-200 animate-in slide-in-from-right duration-300"
+        id="audit-detail-drawer"
+      >
+        {/* Drawer Top Header with Tabs & Close Action */}
+        <div className="h-14 px-5 sm:px-6 border-b border-gray-200 bg-white flex items-center justify-between shrink-0">
+          <div className="flex items-center space-x-6 h-full">
             <button
               type="button"
-              onClick={() => setLayoutMode('three-column')}
-              className={`px-2.5 py-1 rounded flex items-center space-x-1 text-xs font-semibold cursor-pointer transition-all ${
-                layoutMode === 'three-column'
-                  ? 'bg-white text-[#1E5ABB] shadow-2xs'
-                  : 'text-gray-600 hover:text-gray-900'
+              onClick={() => setActiveTab('detail')}
+              className={`h-full flex items-center space-x-1.5 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer ${
+                activeTab === 'detail'
+                  ? 'text-[#1E5ABB] border-[#1E5ABB]'
+                  : 'text-gray-500 hover:text-gray-800 border-transparent'
               }`}
-              title="三栏协同工作台（左：速报正文，中：机构清单与打分，右：审核决策控制台）"
             >
-              <Columns3 className="w-3.5 h-3.5" />
-              <span>三栏协同视图</span>
+              <FileText className="w-4 h-4" />
+              <span>详情信息</span>
             </button>
+
             <button
               type="button"
-              onClick={() => setLayoutMode('two-column')}
-              className={`px-2.5 py-1 rounded flex items-center space-x-1 text-xs font-semibold cursor-pointer transition-all ${
-                layoutMode === 'two-column'
-                  ? 'bg-white text-[#1E5ABB] shadow-2xs'
-                  : 'text-gray-600 hover:text-gray-900'
+              onClick={() => setActiveTab('timeline')}
+              className={`h-full flex items-center space-x-1.5 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer ${
+                activeTab === 'timeline'
+                  ? 'text-[#1E5ABB] border-[#1E5ABB]'
+                  : 'text-gray-500 hover:text-gray-800 border-transparent'
               }`}
-              title="经典双栏视图"
             >
-              <Columns2 className="w-3.5 h-3.5" />
-              <span>经典双栏</span>
+              <History className="w-4 h-4" />
+              <span>流转状态</span>
             </button>
           </div>
 
-          <button
-            type="button"
-            onClick={handleCopySummary}
-            className="px-3 py-1 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 rounded-lg text-xs font-medium transition-colors shadow-2xs flex items-center space-x-1 cursor-pointer"
-          >
-            <Copy className="w-3.5 h-3.5 text-gray-500" />
-            <span>{copySuccess ? '已复制汇报文稿' : '复制速报全文'}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 2. Main Layout Grid (Responsive Three-Column Workbench or Two-Column Layout) */}
-      <div
-        className={`grid grid-cols-1 ${
-          layoutMode === 'three-column'
-            ? 'xl:grid-cols-12 lg:grid-cols-12'
-            : 'lg:grid-cols-3'
-        } gap-5 items-start`}
-      >
-        {/* ================= COLUMN 1: Main Report Content & Attachments ================= */}
-        <div
-          className={`${
-            layoutMode === 'three-column'
-              ? 'xl:col-span-6 lg:col-span-6'
-              : 'lg:col-span-2'
-          }`}
-        >
-          <ReportDetailCard
-            report={report}
-            allReports={allReports}
-            matchUrl={matchUrl}
-            onPreviewAttachment={(att) => setPreviewAttachment(att)}
-          />
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => onNavigate('report-audit')}
+              className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+              title="关闭抽屉 (Esc)"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* ================= COLUMN 2: Matched Cluster & Organizations List ================= */}
-        <div
-          className={`${
-            layoutMode === 'three-column'
-              ? 'xl:col-span-3 lg:col-span-3'
-              : 'lg:col-span-1'
-          } space-y-5`}
-        >
-          <MatchedClusterPanel
-            report={report}
-            allCluster={allCluster}
-            matchUrl={matchUrl}
-            selectedBatchIds={selectedBatchIds}
-            setSelectedBatchIds={setSelectedBatchIds}
-            scoreMap={scoreMap}
-            handleSetScore={handleSetScore}
-            identMap={identMap}
-            handleSetIdent={handleSetIdent}
-            selectedScore={selectedScore}
-            toggleBatchSelect={toggleBatchSelect}
-            handleSmartMatchDetermine={handleSmartMatchDetermine}
-            smartMatchNotice={smartMatchNotice}
-            setSmartMatchNotice={setSmartMatchNotice}
-            applyScorePreset={applyScorePreset}
-            onInspectReport={(item) => setInspectingReport(item)}
-            auditMode={auditMode}
-          />
+        {/* Drawer Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-[#F8F9FA]/70 space-y-4">
+          {activeTab === 'detail' ? (
+            <div className="space-y-4">
+              {/* Report Detail Card */}
+              <ReportDetailCard
+                report={report}
+                allReports={allReports}
+                matchUrl={matchUrl}
+                onPreviewAttachment={(att) => setPreviewAttachment(att)}
+              />
 
-          {/* In 2-column mode, render Decision Console & Timeline below the list */}
-          {layoutMode === 'two-column' && (
-            <>
-              {isPending ? (
-                <AuditDecisionConsole
-                  report={report}
-                  allCluster={allCluster}
-                  selectedBatchIds={selectedBatchIds}
+              {/* Matched Reports Cluster Panel (for co-agency reporting) */}
+              {matchedCoReports.length > 0 && (
+                <MatchByUrlCard
+                  matchUrl={matchUrl}
+                  matchedList={allCluster}
+                  selectedIds={selectedBatchIds}
+                  onSelectionChange={(ids) => setSelectedBatchIds(ids.map((id) => Number(id)))}
+                  onInspectReport={(item) => setInspectingReport(item as ReportItem)}
                   scoreMap={scoreMap}
-                  identMap={identMap}
-                  auditMode={auditMode}
-                  setAuditMode={setAuditMode}
-                  rejectReason={rejectReason}
-                  setRejectReason={setRejectReason}
-                  rejectDetail={rejectDetail}
-                  setRejectDetail={setRejectDetail}
-                  handleSubmitAudit={handleSubmitAudit}
-                  selectedScore={selectedScore}
                   handleSetScore={handleSetScore}
+                  identMap={identMap}
+                  handleSetIdent={handleSetIdent}
+                  selectedScore={selectedScore}
+                  auditMode={auditMode}
+                  currentReportId={report.id}
                 />
-              ) : (
-                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-xs text-gray-600">
-                  <div className="flex items-start space-x-2">
-                    {isRejected ? (
-                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
-                    ) : (
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                    )}
-                    <div className="space-y-1">
-                      <p className="font-bold text-gray-900">
-                        {isRejected ? '当前记录已驳回' : '当前记录已完成审核'}
-                      </p>
-                      <p className="leading-relaxed">
-                        该状态不需要当前账号继续审核。请在下方流转状态中查看具体处理节点。
-                      </p>
-                    </div>
-                  </div>
-                </div>
               )}
-
+            </div>
+          ) : (
+            /* 流转状态 Timeline View */
+            <div className="bg-white rounded-2xl border border-gray-200/80 shadow-2xs p-5 sm:p-6 space-y-4">
               <AuditFlowTimeline report={report} />
-            </>
+            </div>
           )}
         </div>
 
-        {/* ================= COLUMN 3: Sticky Audit Decision Console & Timeline (In 3-Column Mode) ================= */}
-        {layoutMode === 'three-column' && (
-          <div className="xl:col-span-3 lg:col-span-3 space-y-5 sticky top-4">
-            {isPending ? (
-              <AuditDecisionConsole
-                report={report}
-                allCluster={allCluster}
-                selectedBatchIds={selectedBatchIds}
-                scoreMap={scoreMap}
-                identMap={identMap}
-                auditMode={auditMode}
-                setAuditMode={setAuditMode}
-                rejectReason={rejectReason}
-                setRejectReason={setRejectReason}
-                rejectDetail={rejectDetail}
-                setRejectDetail={setRejectDetail}
-                handleSubmitAudit={handleSubmitAudit}
-                selectedScore={selectedScore}
-                handleSetScore={handleSetScore}
-              />
-            ) : (
-              <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-2xs space-y-3">
-                <div className="flex items-start space-x-2">
-                  {isRejected ? (
-                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
-                  ) : (
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+        {/* Drawer Footer: Audit Decision Console if pending, or Status Info if completed */}
+        {isPending ? (
+          <AuditDecisionConsole
+            report={report}
+            allCluster={allCluster}
+            selectedBatchIds={selectedBatchIds}
+            scoreMap={scoreMap}
+            identMap={identMap}
+            auditMode={auditMode}
+            setAuditMode={setAuditMode}
+            rejectReason={rejectReason}
+            setRejectReason={setRejectReason}
+            rejectDetail={rejectDetail}
+            setRejectDetail={setRejectDetail}
+            handleSubmitAudit={handleSubmitAudit}
+            selectedScore={selectedScore}
+            handleSetScore={handleSetScore}
+            handleBatchSetScore={handleBatchSetScore}
+            onClose={() => onNavigate('report-audit')}
+          />
+        ) : (
+          <div className="shrink-0 bg-white border-t border-gray-200 px-5 sm:px-6 py-3.5 shadow-[0_-4px_16px_rgba(0,0,0,0.04)] z-20 flex items-center justify-between gap-3">
+            <div className="flex items-center space-x-3 min-w-0">
+              <div
+                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+                  isRejected
+                    ? 'bg-rose-50 border-rose-200 text-rose-600'
+                    : 'bg-emerald-50 border-emerald-200 text-emerald-600'
+                }`}
+              >
+                {isRejected ? (
+                  <AlertCircle className="w-5 h-5" />
+                ) : (
+                  <CheckCircle2 className="w-5 h-5" />
+                )}
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                  <span className="text-sm font-bold text-gray-900">
+                    本节点审核结论记录：
+                  </span>
+                  <span
+                    className={`px-2 py-0.5 rounded text-xs font-semibold border ${
+                      isRejected
+                        ? 'bg-rose-50 text-rose-700 border-rose-200'
+                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    }`}
+                  >
+                    {isRejected ? '已驳回' : '已通过'}
+                  </span>
+                  {!isRejected && (
+                    <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-300 text-xs font-semibold">
+                      评分：{finalScore !== undefined ? finalScore : (report.score ?? 92)}分
+                    </span>
                   )}
-                  <div className="space-y-1 text-xs">
-                    <p className="font-bold text-gray-900">
-                      {isRejected
-                        ? '当前记录已驳回'
-                        : isAdopted
-                        ? report.auditStatus === '已通过'
-                          ? '当前记录已通过初审'
-                          : '当前记录已完成审核'
-                        : isWaitingTransfer
-                        ? '当前记录待转办'
-                        : isTransferred
-                        ? '当前记录已转办'
-                        : isInReview
-                        ? '当前记录正在复核'
-                        : '当前记录正在流转中'}
-                    </p>
-                    <p className="leading-relaxed text-gray-500">
-                      该状态不需要当前账号继续审核。请在下方流转状态中查看具体处理节点、评分和驳回意见。
-                    </p>
-                  </div>
+                </div>
+                <div className="text-xs text-gray-500 truncate mt-0.5">
+                  审核人：{report.auditor || '李审核'} &nbsp;|&nbsp; 审核机构：{report.auditOrg || '台中市网信办'} &nbsp;|&nbsp; 审核时间：{report.auditTime || '2023-10-24 15:00'}
                 </div>
               </div>
-            )}
+            </div>
 
-            {/* Workflow Status Timeline in a separate card below audit console */}
-            <AuditFlowTimeline report={report} />
+            <div className="flex items-center space-x-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => onNavigate('report-audit')}
+                className="px-6 py-2 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg text-sm font-medium cursor-pointer shadow-xs transition-colors"
+              >
+                关闭
+              </button>
+            </div>
           </div>
         )}
       </div>

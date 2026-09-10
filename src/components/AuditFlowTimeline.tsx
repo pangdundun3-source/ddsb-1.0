@@ -95,26 +95,17 @@ const buildFallbackTimeline = (
       : `${report.author || '李四'} · ${getOrganizationPathText(report.organization) || '广域传媒主机构 / 台中市网信办 / 舆情监测中心'} · ${report.submitTime || '2023-10-23 09:15'}`;
 
   const submitStep: FlowStep = {
-    title: report.auditStatus === '草稿' ? '草稿保存' : '提交上报',
-    state: report.auditStatus === '草稿' ? 'current' : 'completed',
+    title: '提交上报',
+    state: 'completed',
     cards: [
       {
-        operator: report.auditStatus === '草稿' ? `${report.author} · ${getOrganizationPathText(report.organization)}` : submitOperator,
-        statusText: report.auditStatus === '草稿' ? '草稿' : '已提交',
-        state: report.auditStatus === '草稿' ? 'current' : 'completed',
-        note: report.auditStatus === '草稿' ? '尚未提交送审，可继续编辑完善。' : undefined
+        operator: submitOperator,
+        statusText: '已提交',
+        state: 'completed',
+        note: undefined
       }
     ]
   };
-
-  if (report.auditStatus === '草稿') {
-    return [
-      submitStep,
-      { title: '提交上报', state: 'pending', cards: [{ operator: '等待上报员提交', statusText: '等待提交', state: 'pending' }] },
-      { title: '审核处理', state: 'pending', cards: [{ operator: '审核员', statusText: '等待处理', state: 'pending' }] },
-      { title: '结束', state: 'pending', cards: [{ operator: '流程结束', statusText: '未开始', state: 'pending' }] }
-    ];
-  }
 
   if (report.auditStatus === '被驳回' || report.auditStatus === '已驳回') {
     return [
