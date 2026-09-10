@@ -1,6 +1,6 @@
 {
-  "name": "Remix 网格员速报审核端",
-  "description": "台中市网信办移动端微信公众号H5速报与审核工作台",
+  "name": "点点速豹",
+  "description": "点点速豹 - 台中市网信办移动端微信公众号H5速报与审核工作台",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

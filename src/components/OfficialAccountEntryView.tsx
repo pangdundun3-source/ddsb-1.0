@@ -85,7 +85,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     {
       id: 'msg_welcome',
       sender: 'account',
-      text: '欢迎关注“点点速报”微信公众号！',
+      text: '欢迎关注“点点速豹”微信公众号！',
     },
   ]);
 
@@ -108,7 +108,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
 
     // Automated smart reply
     setTimeout(() => {
-      let replyText = '您好！我是“点点速报”智能助手。您可以点击底部菜单直接进入【工作台】、【快速上报】、【快速审核】或【个人中心】。';
+      let replyText = '您好！我是“点点速豹”智能助手。您可以点击底部菜单直接进入【工作台】、【快速上报】、【快速审核】或【个人中心】。';
       let cardAction: { label: string; action: () => void } | undefined = undefined;
 
       if (userMsgText.includes('工作台') || userMsgText.includes('首页') || userMsgText.includes('瞭望')) {
@@ -136,9 +136,9 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
           action: () => onEnterProfile(),
         };
       } else if (userMsgText.includes('激活') || userMsgText.includes('开通') || userMsgText.includes('认证')) {
-        replyText = '当前账号激活页面作为未激活实验数据，点击下方卡片即可体验激活认证流程：';
+        replyText = '系统检测到您有一条待处理的【账号激活与实名认证】通知。请点击下方卡片进入激活流程，验证您的业务激活码后系统将自动匹配对应工作岗位与权限：';
         cardAction = {
-          label: '体验 账号激活认证 H5',
+          label: '前往 账号激活认证',
           action: () => handleOpenActivation(),
         };
       }
@@ -186,7 +186,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
       <div className="bg-[#ededed] px-3 py-2 flex items-center justify-between z-20 shrink-0 border-b border-black/[0.04]">
         {/* Left: Back chevron button */}
         <button
-          onClick={() => onToast('您已在“点点速报”公众号主会话窗口', 'info')}
+          onClick={() => onToast('您已在“点点速豹”公众号主会话窗口', 'info')}
           className="p-1 -ml-1 text-slate-800 hover:text-black active:opacity-60 transition-opacity"
           title="返回微信"
         >
@@ -195,7 +195,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
 
         {/* Center: Official Account Title */}
         <div className="text-center font-medium text-slate-900 text-[17px] tracking-tight">
-          点点速报
+          点点速豹
         </div>
 
         {/* Right: Contact / Official Account Profile Icon */}
@@ -308,47 +308,88 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
           </div>
         ))}
 
-        {/* 激活通知 - 微信公众号新关注用户服务通知/模板卡片 (实验数据) */}
-        <div
-          id="activation-login-notification-card"
-          className="bg-white rounded-xl p-4 border border-black/[0.06] shadow-xs text-xs text-slate-700 mt-4 cursor-pointer hover:shadow-md transition-all active:scale-[0.99] group"
-          onClick={() => {
-            handleOpenActivation();
-          }}
-        >
-          {/* Card Header */}
-          <div className="flex items-start justify-between mb-1">
-            <h3 className="text-[16px] font-semibold text-slate-900 tracking-tight flex items-center gap-1.5">
-              <span>激活通知</span>
-              <span className="text-[10px] font-normal text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">实验数据</span>
-            </h3>
-            <span
-              className={`text-[10.5px] font-semibold px-2 py-0.5 rounded-full border ${
-                isActivated
-                  ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
-                  : 'text-amber-700 bg-amber-50 border-amber-300'
-              }`}
-            >
-              {isActivated ? '已激活' : '未激活'}
-            </span>
+        {/* 激活通知 - 由公众号发出的微信服务通知/卡片消息 */}
+        <div className="flex items-start gap-2.5 justify-start">
+          {/* Account Avatar */}
+          <div className="w-10 h-10 rounded-[8px] overflow-hidden shrink-0 shadow-xs bg-[#2458a6] relative flex items-center justify-center p-1">
+            {/* 4 Blue grid squares pattern */}
+            <div className="w-full h-full grid grid-cols-2 grid-rows-2 gap-[1.5px] p-0.5">
+              <div className="bg-[#1f4e96] rounded-[2px]"></div>
+              <div className="bg-[#2a63b8] rounded-[2px]"></div>
+              <div className="bg-[#2a63b8] rounded-[2px]"></div>
+              <div className="bg-[#1f4e96] rounded-[2px]"></div>
+            </div>
+
+            {/* Overlaid Whistle (哨子) with radiating soundwaves */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <svg
+                className="w-6 h-6 text-white filter drop-shadow-xs"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="7" cy="14" r="3.5" fill="rgba(255,255,255,0.2)" />
+                <path d="M10.5 14h7l2-5H9a5 5 0 0 0-2 0" />
+                <path d="M14 9v5" />
+                <path d="M18 6a4 4 0 0 1 3 3" strokeWidth="2" />
+                <path d="M19.5 3.5a7 7 0 0 1 4 4" strokeWidth="1.6" />
+              </svg>
+            </div>
           </div>
-          <p className="text-[11.5px] text-slate-400 mb-2.5 font-normal">
-            9月4日 09:23
-          </p>
 
-          {/* Intro description */}
-          <p className="text-[13px] text-slate-700 leading-relaxed mb-3">
-            欢迎关注“点点速报”官方公众号！当前账号激活页面先作为未激活实验数据展示。您可点击本通知体验账号实名认证与激活流程，底部菜单【工作台】、【快速上报】、【快速审核】均可直接正常使用。
-          </p>
+          {/* Message Card Bubble with Pointer */}
+          <div className="relative max-w-[82%]">
+            {/* Triangular Pointer Tail */}
+            <div className="absolute top-3 -left-[6px] w-0 h-0 border-t-[5px] border-t-transparent border-r-[6px] border-r-white border-b-[5px] border-b-transparent z-10" />
 
-          {/* Card Action Footer */}
-          <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-slate-800 font-medium text-[13px]">
-            <span className="font-medium flex items-center text-blue-600 group-hover:text-blue-700">
-              {isActivated ? '账号激活设置 · 查看实验数据' : '账号激活设置 · 体验激活认证流程'}
-            </span>
-            <div className="flex items-center text-slate-400 text-xs group-hover:text-blue-600 transition-colors">
-              <span className="mr-0.5">{isActivated ? '查看' : '去激活'}</span>
-              <ChevronRight className="w-4 h-4" />
+            <div
+              id="activation-login-notification-card"
+              className="bg-white rounded-xl p-3.5 border border-black/[0.06] shadow-xs text-xs text-slate-700 cursor-pointer hover:shadow-md transition-all active:scale-[0.99] group"
+              onClick={() => {
+                handleOpenActivation();
+              }}
+            >
+              {/* Card Header */}
+              <div className="flex items-start justify-between mb-1.5">
+                <div className="flex items-center space-x-1.5">
+                  <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></div>
+                  <h3 className="text-[14.5px] font-bold text-slate-900 tracking-tight">
+                    账号激活与实名认证通知
+                  </h3>
+                </div>
+                <span
+                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border shrink-0 ${
+                    isActivated
+                      ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                      : 'text-amber-700 bg-amber-50 border-amber-300'
+                  }`}
+                >
+                  {isActivated ? '认证已生效' : '待激活认证'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 mb-2 font-normal">
+                9月9日 09:23
+              </p>
+
+              <p className="text-[12.5px] text-slate-700 leading-relaxed mb-3">
+                {isActivated
+                  ? '您的身份与岗位认证已生效，已为您开通对应的工作权限，可直接进入工作台协同办公。'
+                  : '您有一条待激活的认证通知。具体的所属机构与岗位身份将在完成激活验证后生效，验证通过后即可开通并使用平台相关功能。'}
+              </p>
+
+              {/* Card Action Footer */}
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-slate-800 font-medium text-[12px]">
+                <span className="font-semibold flex items-center text-blue-600 group-hover:text-blue-700">
+                  {isActivated ? '查看账号认证档案及详情' : '前往验证激活'}
+                </span>
+                <div className="flex items-center text-slate-400 text-xs group-hover:text-blue-600 transition-colors">
+                  <span className="mr-0.5">{isActivated ? '查看档案' : '去激活'}</span>
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -564,7 +605,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">点点速报</h3>
+                  <h3 className="text-lg font-bold text-slate-900">点点速豹</h3>
                   <p className="text-xs text-slate-500 font-mono">微信号：diandian_subao_h5</p>
                   <div className="flex items-center space-x-1 text-[11px] text-emerald-600 mt-0.5">
                     <CheckCircle2 className="w-3.5 h-3.5" />
@@ -584,7 +625,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
               <div className="flex">
                 <span className="text-slate-400 w-16 shrink-0">功能介绍</span>
                 <span className="text-slate-800 leading-relaxed">
-                  台中市网信办“吹哨报到·点点速报”移动端官方工作台。为全市综合网格员、基层瞭望员、审核员提供突发事件速报、网络谣言核实、民生诉求直报与流转审批服务。
+                  台中市网信办“吹哨报到·点点速豹”移动端官方工作台。为全市综合网格员、基层瞭望员、审核员提供突发事件速报、网络谣言核实、民生诉求直报与流转审批服务。
                 </span>
               </div>
               <div className="flex">

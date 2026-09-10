@@ -500,7 +500,7 @@ export default function App() {
 
   // Header Title Determination
   const getPageTitle = () => {
-    if (!isLoggedIn) return '网格员上报审核端';
+    if (!isLoggedIn) return '点点速豹 · 上报审核端';
     if (selectedAnnouncement) return '公告详情';
     if (selectedReport) return '审核报送详情';
     if (profileSubPage === 'report') return '我的报送';
@@ -560,7 +560,7 @@ export default function App() {
             setIsActivationH5View(false);
           }
           setIsOfficialAccount(true);
-          showToast('已返回“点点速报”公众号');
+          showToast('已返回“点点速豹”公众号');
         }}
         canGoBack={
           !!selectedAnnouncement ||
@@ -595,7 +595,7 @@ export default function App() {
             setIsActivationDetail(false);
           }
         }}
-        pageTitle={isActivationH5View ? '哨兵系统' : isOfficialAccount ? '点点速报' : getPageTitle()}
+        pageTitle={isActivationH5View ? '哨兵系统' : isOfficialAccount ? '点点速豹' : getPageTitle()}
         pageSubtitle={isActivationH5View ? 'xyx.shaobingshangbao.konne.com.cn' : undefined}
         isLoggedIn={isLoggedIn}
         hideTabBar={
@@ -662,7 +662,7 @@ export default function App() {
             onCancel={() => {
               setIsActivationH5View(false);
               setIsOfficialAccount(true);
-              showToast('已取消激活并返回“点点速报”公众号');
+              showToast('已取消激活并返回“点点速豹”公众号');
             }}
             onToast={showToast}
           />

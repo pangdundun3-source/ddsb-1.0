@@ -54,8 +54,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
               V8
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-800">网格员上报审核端</h2>
-              <p className="text-xs text-slate-500">台中市速报系统</p>
+              <h2 className="text-base font-bold text-slate-800">点点速豹 · 上报审核端</h2>
+              <p className="text-xs text-slate-500">台中市网信办速报系统</p>
             </div>
           </div>
 
