@@ -47,7 +47,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   onNavigate
 }) => {
   // Filter States
-  const [activeTab, setActiveTab] = useState<'待审核' | '审核中' | '已驳回' | '已采纳'>('待审核');
+  const [activeTab, setActiveTab] = useState<'待审核' | '审核中' | '已驳回'>('待审核');
   const [identFilter, setIdentFilter] = useState<'全部' | '疑似首发' | '疑似重复' | '识别中' | '首发报送' | '重复报送'>('全部');
   const [keyword, setKeyword] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -110,7 +110,6 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
     if (activeTab === '待审核' && item.auditStatus !== '待审核') return false;
     if (activeTab === '审核中' && item.auditStatus !== '审核中') return false;
     if (activeTab === '已驳回' && item.auditStatus !== '被驳回' && item.auditStatus !== '已驳回') return false;
-    if (activeTab === '已采纳' && item.auditStatus !== '已采纳' && item.auditStatus !== '已通过') return false;
 
     // Identification filter
     if (identFilter !== '全部') {
@@ -296,8 +295,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
             {[
               { id: '待审核', label: '待审核', count: pendingCount, color: 'text-amber-600 bg-amber-50' },
               { id: '审核中', label: '审核中', count: inReviewCount, color: 'text-blue-600 bg-blue-50' },
-              { id: '已驳回', label: '被驳回', count: rejectedCount, color: 'text-rose-600 bg-rose-50' },
-              { id: '已采纳', label: '已采纳', count: adoptedCount, color: 'text-emerald-600 bg-emerald-50' }
+              { id: '已驳回', label: '被驳回', count: rejectedCount, color: 'text-rose-600 bg-rose-50' }
             ].map((tab) => {
               const isActive = activeTab === tab.id;
               return (
@@ -481,7 +479,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                         <td className="py-3.5 px-4 font-mono text-gray-500 whitespace-nowrap text-xs">
                           {item.submitTime}
                         </td>
-                        <td className="py-3.5 px-4 text-center">
+                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
                           {!isRejected && <AuditStatusBadge status={item.auditStatus} />}
                           {isRejected && (
                             <div className="inline-flex flex-col items-center gap-1 group relative">

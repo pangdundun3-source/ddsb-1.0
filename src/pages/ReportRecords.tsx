@@ -440,7 +440,7 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
                       </td>
 
                       {/* Audit Status */}
-                      <td className="py-3 px-3 text-center">
+                      <td className="py-3 px-3 text-center whitespace-nowrap">
                         <div className="inline-flex flex-col items-center gap-1">
                         <AuditStatusBadge status={item.auditStatus} />
                         {isRejected && (

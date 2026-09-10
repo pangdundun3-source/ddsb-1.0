@@ -32,9 +32,9 @@ export const getAuditStatusLabel = (status: AuditStatus) => (status === '被驳�
 
 export const AuditStatusBadge: React.FC<AuditStatusBadgeProps> = ({ status, className = '' }) => (
   <span
-    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold shadow-2xs ${STATUS_STYLES[status]} ${className}`}
+    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold shadow-2xs whitespace-nowrap shrink-0 ${STATUS_STYLES[status]} ${className}`}
   >
-    <span className={`h-1.5 w-1.5 rounded-full ${DOT_STYLES[status]}`} />
-    {getAuditStatusLabel(status)}
+    <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${DOT_STYLES[status]}`} />
+    <span className="whitespace-nowrap">{getAuditStatusLabel(status)}</span>
   </span>
 );

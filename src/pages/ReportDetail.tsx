@@ -155,16 +155,6 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
           <div className="flex items-center space-x-2">
             <button
               type="button"
-              onClick={handleCopySummary}
-              className="px-3 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-lg text-xs font-medium flex items-center space-x-1 cursor-pointer transition-colors"
-              title="一键复制标准化汇报文稿"
-            >
-              {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-gray-500" />}
-              <span>{copied ? '已复制' : '复制文稿'}</span>
-            </button>
-
-            <button
-              type="button"
               onClick={handleClose}
               className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
               title="关闭详情"
@@ -175,103 +165,11 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
         </div>
 
         {/* Drawer Scrollable Body Content */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-[#F8F9FA]/70 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-[#F8FAFC] space-y-4">
           {activeTab === 'detail' ? (
             <div className="space-y-4">
-              {/* 1. 审核结论提示卡片（若被驳回、审核中或已采纳等） */}
-              <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200/80 shadow-2xs space-y-3">
-                <div className="flex items-center justify-between border-b border-gray-100 pb-2.5">
-                  <div className="flex items-center space-x-2">
-                    <CheckSquare className="w-4 h-4 text-[#1E5ABB]" />
-                    <h3 className="text-xs sm:text-sm font-bold text-gray-800">审核状态结论</h3>
-                  </div>
-                  <span className="shrink-0 rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-600">
-                    速报状态
-                  </span>
-                </div>
-
-                {isAdopted ? (
-                  <div className="p-3.5 bg-emerald-50/80 rounded-xl border border-emerald-200 flex items-start space-x-3">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-bold text-emerald-900 text-xs">
-                        {report.auditStatus === '已通过' ? '审核通过 · 待采纳' : '审核通过 · 已采纳'}
-                      </p>
-                      <p className="text-[11px] text-emerald-700 mt-1 leading-normal">
-                        {report.auditStatus === '已通过'
-                          ? '初审已通过，等待后续复核和采纳节点完成。'
-                          : '本条速报已完成全部三级审核流转，已进入全市速报汇编库。'}
-                      </p>
-                    </div>
-                  </div>
-                ) : isRejected ? (
-                  <div className="relative p-3.5 bg-rose-50/80 rounded-xl border border-rose-200 flex items-start space-x-3">
-                    <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-                    <div className="space-y-1 text-xs">
-                      <p className="font-bold text-rose-900">已被驳回</p>
-                      <p className="text-rose-700 leading-normal">
-                        <strong>驳回原因：</strong>{rejectReasonText}
-                      </p>
-                      <p className="text-rose-500 text-[11px] leading-normal pt-1">
-                        {rejectFollowUpText}
-                      </p>
-                    </div>
-                  </div>
-                ) : isPending ? (
-                  <div className="p-3.5 bg-amber-50/80 rounded-xl border border-amber-200 flex items-start space-x-3">
-                    <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-bold text-amber-900 text-xs">审核中 · 待宣传部/网信办初审</p>
-                      <p className="text-[11px] text-amber-700 mt-1 leading-normal">
-                        材料已提交送审，审核人员正在核验信息真实性与处置建议。
-                      </p>
-                    </div>
-                  </div>
-                ) : isInReview ? (
-                  <div className="p-3.5 bg-blue-50/80 rounded-xl border border-blue-200 flex items-start space-x-3">
-                    <Clock className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-bold text-blue-900 text-xs">审核中 · 正在复核</p>
-                      <p className="text-[11px] text-blue-700 mt-1 leading-normal">
-                        初审已完成，当前由复核组继续处理，暂不可编辑或撤回。
-                      </p>
-                    </div>
-                  </div>
-                ) : isWaitingTransfer ? (
-                  <div className="p-3.5 bg-orange-50/80 rounded-xl border border-orange-200 flex items-start space-x-3">
-                    <Share2 className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-bold text-orange-900 text-xs">待转办 · 已进入不良信息库</p>
-                      <p className="text-[11px] text-orange-700 mt-1 leading-normal">
-                        本条信息已进入不良信息库，正在等待转办至相关责任部门。
-                      </p>
-                    </div>
-                  </div>
-                ) : isTransferred ? (
-                  <div className="p-3.5 bg-purple-50/80 rounded-xl border border-purple-200 flex items-start space-x-3">
-                    <CheckCircle2 className="w-5 h-5 text-purple-600 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-bold text-purple-900 text-xs">已转办 · 责任部门处置中</p>
-                      <p className="text-[11px] text-purple-700 mt-1 leading-normal">
-                        已成功转办至具体业务单位，正跟进处置进展与反馈答复。
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-3.5 bg-gray-50/80 rounded-xl border border-gray-200 flex items-start space-x-3">
-                    <Clock className="w-5 h-5 text-gray-500 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-bold text-gray-800 text-xs">草稿箱 · 待提交</p>
-                      <p className="text-[11px] text-gray-600 mt-1 leading-normal">
-                        速报草稿已保存在本地，可随时完善补充内容并提交送审。
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* 2. 速报主要信息卡片 */}
-              <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200/80 shadow-2xs space-y-4">
+              {/* 速报主要信息卡片 */}
+              <div className="bg-white rounded-2xl border border-gray-100/90 shadow-2xs p-5 sm:p-6 space-y-4">
                 {/* Title & Status */}
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-2 min-w-0 flex-1">
@@ -283,9 +181,9 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
                     </div>
                   </div>
                   <span
-                    className={`shrink-0 text-xs font-semibold px-2.5 py-1 rounded-md border ${
+                    className={`shrink-0 text-xs font-semibold px-3 py-1 rounded-lg border ${
                       isPending
-                        ? 'bg-amber-50 text-amber-600 border-amber-200'
+                        ? 'bg-[#FEF6E8] text-[#D97706] border-[#FDE68A]'
                         : isRejected
                         ? 'bg-rose-50 text-rose-600 border-rose-200'
                         : 'bg-emerald-50 text-emerald-600 border-emerald-200'
@@ -296,7 +194,7 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
                 </div>
 
                 {/* Sub-meta: Author, Org, Submit Time, Score, Template */}
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-gray-500 border-t border-gray-100 pt-3">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-gray-500">
                   <div className="flex items-center space-x-1.5">
                     <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                     <span className="text-gray-700 font-normal">
@@ -305,7 +203,7 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
                   </div>
                   <div className="flex items-center space-x-1.5 font-mono text-gray-500">
                     <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                    <span>报送时间：{report.submitTime}</span>
+                    <span>{report.submitTime}</span>
                   </div>
                   {finalScore !== undefined && (
                     <div className="flex items-center space-x-1 bg-amber-50 text-amber-800 px-2 py-0.5 rounded border border-amber-200 font-bold font-mono">
@@ -320,63 +218,77 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
                   )}
                 </div>
 
+                {/* 4-Column Structured Summary Box */}
+                <div className="bg-[#F8FAFC] rounded-xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div>
+                    <div className="text-[11px] text-gray-400 font-medium">信息类型</div>
+                    <div className="text-sm font-bold text-gray-900 mt-1">{report.infoType || report.opinionType || '舆情动态'}</div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-gray-400 font-medium">来源渠道</div>
+                    <div className="text-sm font-bold text-gray-900 mt-1">{report.channel || report.sourceChannel || '新闻网站'}</div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-gray-400 font-medium">所属区域</div>
+                    <div className="text-sm font-bold text-gray-900 mt-1">{report.region || report.occurArea || '全市'}</div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-gray-400 font-medium">涉及人数</div>
+                    <div className="text-sm font-bold text-gray-900 mt-1">{report.involvedCount || report.peopleCount || '50 人'}</div>
+                  </div>
+                </div>
+
                 {/* Structured Content Sections */}
-                <div className="space-y-3.5 text-xs text-gray-700 pt-1">
+                <div className="space-y-4 text-xs text-gray-700 pt-1">
                   {/* 【内容摘要】 */}
                   <div className="space-y-1.5">
                     <div className="font-bold text-gray-900 text-xs">【内容摘要】</div>
-                    <div className="bg-[#F8F9FA] border border-gray-100 rounded-lg p-3.5 text-xs text-gray-700 leading-relaxed font-normal">
+                    <div className="bg-[#F8FAFC] rounded-xl p-3.5 text-xs text-gray-700 leading-relaxed font-normal">
                       {detail.summary}
                     </div>
                   </div>
 
                   {/* 【核心诉求】 */}
-                  {detail.coreDemands && (
-                    <div className="space-y-1.5">
-                      <div className="font-bold text-gray-900 text-xs">【核心诉求】</div>
-                      <div className="bg-[#F8F9FA] border border-gray-100 rounded-lg p-3.5 text-xs text-gray-700 leading-relaxed font-normal">
-                        {detail.coreDemands}
-                      </div>
+                  <div className="space-y-1.5">
+                    <div className="font-bold text-gray-900 text-xs">【核心诉求】</div>
+                    <div className="bg-[#F8FAFC] rounded-xl p-3.5 text-xs text-gray-700 leading-relaxed font-normal">
+                      {detail.coreDemands || '建议区政府协调水务集团查明原因并公布预计恢复时间，保障居民基本用水。'}
                     </div>
-                  )}
+                  </div>
 
                   {/* 【舆情态势】 */}
-                  {detail.publicOpinionTrend && (
-                    <div className="space-y-1.5">
-                      <div className="font-bold text-gray-900 text-xs">【舆情态势】</div>
-                      <div className="bg-[#F8F9FA] border border-gray-100 rounded-lg p-3.5 text-xs text-gray-700 leading-relaxed font-normal">
-                        {detail.publicOpinionTrend}
-                      </div>
+                  <div className="space-y-1.5">
+                    <div className="font-bold text-gray-900 text-xs">【舆情态势】</div>
+                    <div className="bg-[#F8FAFC] rounded-xl p-3.5 text-xs text-gray-700 leading-relaxed font-normal">
+                      {detail.publicOpinionTrend || '本地同城话题阅读量持续上升，暂未发现线下聚集，但个别自媒体开始传播未经核实的停水范围。'}
                     </div>
-                  )}
+                  </div>
 
                   {/* 【建议举措 / 处置建议】 */}
-                  {detail.recommendations && (
-                    <div className="space-y-1.5">
-                      <div className="font-bold text-gray-900 text-xs">【建议举措 / 处置建议】</div>
-                      <div className="bg-[#F8F9FA] border border-gray-100 rounded-lg p-3.5 text-xs text-gray-700 space-y-1.5 leading-relaxed font-normal">
-                        {Array.isArray(detail.recommendations) ? (
-                          detail.recommendations.map((rec, idx) => (
-                            <p key={idx} className="leading-relaxed">
-                              {rec}
-                            </p>
-                          ))
-                        ) : (
-                          <p className="leading-relaxed whitespace-pre-line">{detail.recommendations}</p>
-                        )}
-                      </div>
+                  <div className="space-y-1.5">
+                    <div className="font-bold text-gray-900 text-xs">【建议举措 / 处置建议】</div>
+                    <div className="bg-[#F8FAFC] rounded-xl p-3.5 text-xs text-gray-700 space-y-1.5 leading-relaxed font-normal">
+                      {Array.isArray(detail.recommendations) ? (
+                        detail.recommendations.map((rec, idx) => (
+                          <p key={idx} className="leading-relaxed">
+                            {rec}
+                          </p>
+                        ))
+                      ) : (
+                        <p className="leading-relaxed whitespace-pre-line">{detail.recommendations}</p>
+                      )}
                     </div>
-                  )}
+                  </div>
 
                   {/* 【同源地址】 */}
                   <div className="space-y-1.5">
                     <div className="font-bold text-gray-900 text-xs">【同源地址】</div>
-                    <div className="bg-[#F4F8FF] border border-[#D9E7FD] rounded-lg p-3 flex items-center justify-between gap-3 text-xs">
+                    <div className="bg-[#F0F6FF] border border-blue-100/80 rounded-xl p-3 flex items-center justify-between gap-3 text-xs">
                       <a
                         href={report.matchUrl || 'https://news.example.com/'}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[#1E5ABB] font-mono truncate text-xs hover:underline flex-1"
+                        className="text-blue-600 font-mono truncate text-xs hover:underline flex-1"
                         title={report.matchUrl || 'https://news.example.com/'}
                       >
                         {report.matchUrl || 'https://news.example.com/'}
@@ -385,9 +297,9 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
                         href={report.matchUrl || 'https://news.example.com/'}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="px-3 py-1 bg-white hover:bg-blue-50 text-[#1E5ABB] border border-[#BFD7FE] rounded-md font-medium text-xs shrink-0 flex items-center space-x-1 shadow-2xs cursor-pointer transition-colors"
+                        className="px-3.5 py-1 bg-white hover:bg-blue-50 text-[#1E5ABB] border border-blue-200 rounded-lg font-medium text-xs shrink-0 flex items-center space-x-1 shadow-2xs cursor-pointer transition-colors"
                       >
-                        <span>访问链接</span>
+                        <span>访问</span>
                         <ExternalLink className="w-3.5 h-3.5 ml-0.5" />
                       </a>
                     </div>
@@ -395,9 +307,9 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
                 </div>
               </div>
 
-              {/* 3. 附件证据材料卡片 */}
-              <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-2xs space-y-3.5">
-                <div className="flex items-center justify-between border-b border-gray-100 pb-2.5">
+              {/* 附件证据材料卡片 */}
+              <div className="bg-white rounded-2xl border border-gray-100/90 shadow-2xs p-5 sm:p-6 space-y-4">
+                <div className="flex items-center justify-between border-b border-gray-100 pb-3">
                   <div className="flex items-center space-x-2 text-xs sm:text-sm font-bold text-gray-900">
                     <Paperclip className="w-4 h-4 text-[#1E5ABB]" />
                     <span>附件证据材料</span>
@@ -503,9 +415,7 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
             </div>
           ) : (
             /* 流转状态 Timeline View */
-            <div className="bg-white rounded-xl border border-gray-200/80 shadow-2xs p-5 sm:p-6 space-y-4">
-              <AuditFlowTimeline report={report} headerNote="实时 · 整体流程" />
-            </div>
+            <AuditFlowTimeline report={report} headerNote="实时 · 整体流程" />
           )}
         </div>
 

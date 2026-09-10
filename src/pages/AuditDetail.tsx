@@ -507,7 +507,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
         </div>
 
         {/* Drawer Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-[#F8F9FA]/70 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-[#F8FAFC] space-y-4">
           {activeTab === 'detail' ? (
             <div className="space-y-4">
               {/* Report Detail Card */}
@@ -538,9 +538,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
             </div>
           ) : (
             /* 流转状态 Timeline View */
-            <div className="bg-white rounded-2xl border border-gray-200/80 shadow-2xs p-5 sm:p-6 space-y-4">
-              <AuditFlowTimeline report={report} />
-            </div>
+            <AuditFlowTimeline report={report} headerNote="实时 · 整体流程" />
           )}
         </div>
 

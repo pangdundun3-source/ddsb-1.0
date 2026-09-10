@@ -314,25 +314,26 @@ export default function App() {
           </>
         )}
 
-        {activePage === 'negative-info' && (
-          <NegativeInfoLibrary
-            negativeList={reports.filter((report) =>
-              report.auditStatus === '待转办' ||
-              report.auditStatus === '已转办' ||
-              report.auditStatus === '已通过'
+        {(activePage === 'negative-info' || activePage === 'negative-detail') && (
+          <>
+            <NegativeInfoLibrary
+              negativeList={reports.filter((report) =>
+                report.auditStatus === '待转办' ||
+                report.auditStatus === '已转办' ||
+                report.auditStatus === '已通过'
+              )}
+              onSelectNegative={setSelectedNegative}
+              onTransferSubmit={handleTransferSubmit}
+              onNavigate={handleNavigate}
+            />
+            {activePage === 'negative-detail' && (
+              <NegativeDetail
+                report={selectedNegative}
+                onTransferSubmit={handleTransferSubmit}
+                onNavigate={handleNavigate}
+              />
             )}
-            onSelectNegative={setSelectedNegative}
-            onTransferSubmit={handleTransferSubmit}
-            onNavigate={handleNavigate}
-          />
-        )}
-
-        {activePage === 'negative-detail' && (
-          <NegativeDetail
-            report={selectedNegative}
-            onTransferSubmit={handleTransferSubmit}
-            onNavigate={handleNavigate}
-          />
+          </>
         )}
 
         {activePage === 'statistics' && <StatisticsReference onNavigate={handleNavigate} />}
