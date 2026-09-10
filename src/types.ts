@@ -16,6 +16,8 @@ export type PageId =
   | 'notice-management'
   | 'org-management'
   | 'template-management'
+  | 'audit-flow-config'
+  | 'audit-score-config'
   | 'dict-management'
   | 'value-added-services'
   | 'role-permission'

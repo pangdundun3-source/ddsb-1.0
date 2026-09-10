@@ -204,6 +204,30 @@ const permissionGroups: PermissionGroup[] = [
         ],
       },
       {
+        id: 'system_audit_flow',
+        label: '审核流程配置',
+        actions: [
+          { key: 'view', label: '查看流程' },
+          { key: 'add', label: '新建流程' },
+          { key: 'edit', label: '编辑层级节点' },
+          { key: 'delete', label: '删除流程' },
+          { key: 'status', label: '启用/停用' },
+          { key: 'fallback', label: '兜底策略配置' },
+        ],
+      },
+      {
+        id: 'system_audit_score',
+        label: '审核打分配置',
+        actions: [
+          { key: 'view', label: '查看打分规则' },
+          { key: 'add', label: '新建打分组' },
+          { key: 'edit', label: '编辑分级标准' },
+          { key: 'delete', label: '删除规则' },
+          { key: 'status', label: '启用/停用' },
+          { key: 'timing', label: '时机与绩效关联' },
+        ],
+      },
+      {
         id: 'system_dict',
         label: '数据字典管理',
         actions: [
@@ -213,6 +237,17 @@ const permissionGroups: PermissionGroup[] = [
           { key: 'delete', label: '删除字典项' },
           { key: 'sort', label: '排序调整' },
           { key: 'export', label: '导出字典' },
+        ],
+      },
+      {
+        id: 'system_notice',
+        label: '公告管理',
+        actions: [
+          { key: 'view', label: '查看公告' },
+          { key: 'add', label: '发布公告' },
+          { key: 'edit', label: '编辑公告' },
+          { key: 'delete', label: '删除公告' },
+          { key: 'status', label: '置顶/撤回' },
         ],
       },
       {
@@ -235,19 +270,6 @@ const permissionGroups: PermissionGroup[] = [
           { key: 'delete', label: '删除角色' },
           { key: 'config', label: '配置权限' },
           { key: 'save', label: '保存配置' },
-        ],
-      },
-      {
-        id: 'system_business',
-        label: '业务配置维护',
-        actions: [
-          { key: 'view', label: '查看' },
-          { key: 'add', label: '新增' },
-          { key: 'edit', label: '编辑' },
-          { key: 'delete', label: '删除' },
-          { key: 'enable', label: '启用/停用' },
-          { key: 'copy', label: '复制' },
-          { key: 'export', label: '导出' },
         ],
       },
       {
@@ -1032,6 +1054,38 @@ export const RolePermission: React.FC = () => {
                       </div>
                     </div>
 
+                    {/* Sub: 公告管理 */}
+                    <div className="space-y-2 pt-3">
+                      <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          disabled={selectedRole.isDefault}
+                          checked={!!checkedPerms['system_notice_all']}
+                          onChange={() => handleToggleCheck('system_notice_all')}
+                          className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
+                        />
+                        <span>公告管理</span>
+                      </label>
+                      <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
+                        {['view:查看公告', 'add:发布公告', 'edit:编辑公告', 'delete:删除公告', 'status:置顶/撤回'].map(item => {
+                          const [key, label] = item.split(':');
+                          const permKey = `system_notice_${key}`;
+                          return (
+                            <label key={permKey} className="flex items-center space-x-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                disabled={selectedRole.isDefault}
+                                checked={!!checkedPerms[permKey]}
+                                onChange={() => handleToggleCheck(permKey)}
+                                className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
+                              />
+                              <span>{label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
                     {/* Sub 4: 增值业务申请 */}
                     <div className="space-y-2 pt-3">
                       <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
@@ -1096,39 +1150,7 @@ export const RolePermission: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Sub 6: 业务配置维护 */}
-                    <div className="space-y-2 pt-3">
-                      <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          disabled={selectedRole.isDefault}
-                          checked={!!checkedPerms['system_business_all']}
-                          onChange={() => handleToggleCheck('system_business_all')}
-                          className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
-                        />
-                        <span>业务配置维护</span>
-                      </label>
-                      <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
-                        {['view:查看', 'add:新增', 'edit:编辑', 'delete:删除', 'enable:启用/停用', 'copy:复制', 'export:导出'].map(item => {
-                          const [key, label] = item.split(':');
-                          const permKey = `system_business_${key}`;
-                          return (
-                            <label key={permKey} className="flex items-center space-x-1.5 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                disabled={selectedRole.isDefault}
-                                checked={!!checkedPerms[permKey]}
-                                onChange={() => handleToggleCheck(permKey)}
-                                className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
-                              />
-                              <span>{label}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Sub 7: 系统审计日志 */}
+                    {/* Sub 6: 系统审计日志 */}
                     <div className="space-y-2 pt-3">
                       <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
                         <input

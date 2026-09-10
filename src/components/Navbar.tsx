@@ -21,6 +21,7 @@ import {
   SlidersHorizontal,
   Building2,
   FileText,
+  GitFork,
   ListFilter,
   Sparkles
 } from 'lucide-react';
@@ -58,7 +59,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isSystemActive = [
     'notice-management',
     'org-management',
+    'role-permission',
     'template-management',
+    'audit-flow-config',
+    'audit-score-config',
     'dict-management',
     'value-added-services',
     'business-config',
@@ -407,19 +411,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="absolute left-0 top-full mt-0.5 w-52 bg-white text-slate-800 rounded-xl shadow-2xl border border-slate-100 p-1.5 z-50 text-sm animate-in fade-in duration-150">
                 <button
                   onClick={() => {
-                    onNavigate('notice-management');
-                    setSystemMenuOpen(false);
-                  }}
-                  className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center space-x-2.5 cursor-pointer transition-colors ${
-                    activePage === 'notice-management' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
-                  }`}
-                >
-                  <Megaphone className="w-4 h-4 text-[#1E5ABB]" />
-                  <span>公告管理</span>
-                </button>
-
-                <button
-                  onClick={() => {
                     onNavigate('org-management');
                     setSystemMenuOpen(false);
                   }}
@@ -429,6 +420,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <Building2 className="w-4 h-4 text-blue-600" />
                   <span>组织架构管理</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    onNavigate('role-permission');
+                    setSystemMenuOpen(false);
+                  }}
+                  className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center space-x-2.5 cursor-pointer transition-colors ${
+                    activePage === 'role-permission' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
+                  }`}
+                >
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>角色权限配置</span>
                 </button>
 
                 <button
@@ -446,6 +450,32 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 <button
                   onClick={() => {
+                    onNavigate('audit-flow-config');
+                    setSystemMenuOpen(false);
+                  }}
+                  className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center space-x-2.5 cursor-pointer transition-colors ${
+                    activePage === 'audit-flow-config' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
+                  }`}
+                >
+                  <GitFork className="w-4 h-4 text-purple-600" />
+                  <span>审核流程配置</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    onNavigate('audit-score-config');
+                    setSystemMenuOpen(false);
+                  }}
+                  className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center space-x-2.5 cursor-pointer transition-colors ${
+                    activePage === 'audit-score-config' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
+                  }`}
+                >
+                  <Award className="w-4 h-4 text-amber-600" />
+                  <span>审核打分配置</span>
+                </button>
+
+                <button
+                  onClick={() => {
                     onNavigate('dict-management');
                     setSystemMenuOpen(false);
                   }}
@@ -459,6 +489,19 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 <button
                   onClick={() => {
+                    onNavigate('notice-management');
+                    setSystemMenuOpen(false);
+                  }}
+                  className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center space-x-2.5 cursor-pointer transition-colors ${
+                    activePage === 'notice-management' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
+                  }`}
+                >
+                  <Megaphone className="w-4 h-4 text-[#1E5ABB]" />
+                  <span>公告管理</span>
+                </button>
+
+                <button
+                  onClick={() => {
                     onNavigate('value-added-services');
                     setSystemMenuOpen(false);
                   }}
@@ -468,19 +511,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <Sparkles className="w-4 h-4 text-purple-600" />
                   <span>增值业务申请</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    onNavigate('business-config');
-                    setSystemMenuOpen(false);
-                  }}
-                  className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center space-x-2.5 cursor-pointer transition-colors ${
-                    activePage === 'business-config' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
-                  }`}
-                >
-                  <SlidersHorizontal className="w-4 h-4 text-amber-600" />
-                  <span>业务配置维护</span>
                 </button>
 
                 <button

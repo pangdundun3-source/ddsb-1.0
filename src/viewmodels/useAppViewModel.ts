@@ -39,6 +39,8 @@ const VALID_PAGES: PageId[] = [
   'notice-management',
   'org-management',
   'template-management',
+  'audit-flow-config',
+  'audit-score-config',
   'dict-management',
   'value-added-services',
   'role-permission',
@@ -201,6 +203,10 @@ export const useAppViewModel = () => {
 
       if (route.page === 'template-management') {
         setBusinessConfigInitialModule('report_template');
+      } else if (route.page === 'audit-flow-config') {
+        setBusinessConfigInitialModule('audit_flow');
+      } else if (route.page === 'audit-score-config') {
+        setBusinessConfigInitialModule('audit_score');
       } else if (route.page === 'dict-management') {
         setBusinessConfigInitialModule('data_dict');
       } else if (route.page === 'value-added-services') {
@@ -294,6 +300,10 @@ export const useAppViewModel = () => {
     }
     if (page === 'template-management') {
       setBusinessConfigInitialModule('report_template');
+    } else if (page === 'audit-flow-config') {
+      setBusinessConfigInitialModule('audit_flow');
+    } else if (page === 'audit-score-config') {
+      setBusinessConfigInitialModule('audit_score');
     } else if (page === 'dict-management') {
       setBusinessConfigInitialModule('data_dict');
     } else if (page === 'value-added-services') {

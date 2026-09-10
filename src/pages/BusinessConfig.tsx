@@ -39,7 +39,10 @@ import {
   ChevronRight,
   Smartphone,
   ArrowRight,
-  Copy
+  Copy,
+  RotateCcw,
+  Sliders,
+  Workflow
 } from 'lucide-react';
 import { TemplateOtherConfigPanel } from '../components/TemplateOtherConfigPanel';
 
@@ -61,6 +64,8 @@ export interface ScoreLevel {
   description?: string;
 }
 
+export type AuditFlowMode = 'step_by_step' | 'max_n_steps' | 'direct_headquarters';
+
 export interface AuditNode {
   id: string;
   nodeName: string;
@@ -69,6 +74,11 @@ export interface AuditNode {
   assigneeUserName?: string;
   rejectStrategy?: 'return_submitter' | 'return_previous';
   timeLimitMinutes?: number;
+  enableTimeout?: boolean;
+  isUnifiedFinalNode?: boolean;
+  ownerMissingStrategy?: AuditOwnerMissingStrategy;
+  ownerMissingFallbackRole?: string;
+  ownerMissingFallbackUserName?: string;
 }
 
 export interface OrgScopeSetting {
@@ -177,6 +187,8 @@ interface ConfigModuleItem {
   relatedTemplateId?: string;
   relatedTemplateName?: string;
   templateApplyMode?: AuditTemplateApplyMode;
+  auditFlowMode?: AuditFlowMode;
+  maxIntermediateNodes?: number;
   flowDepth?: number;
   auditNodes?: AuditNode[];
   orgApplyMode?: 'all_orgs' | 'specific_orgs';
@@ -213,6 +225,10 @@ interface ConfigModuleItem {
   loginTypeName?: string;
   configStatus?: '已配置' | '待配置';
   isFallback?: boolean;
+  verifyPhone?: boolean;
+  verifyIdCard?: boolean;
+  verifyBankCard?: boolean;
+  adaptedRoles?: string[];
 }
 
 const getFieldTypeMeta = (type: FieldType) => {
@@ -398,7 +414,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     { id: 'audit_score', label: '审核打分规则' },
     { id: 'evaluation_rule', label: '考核规则' },
     { id: 'stats_metric', label: '统计指标' },
-    { id: 'audit_flow', label: '审核层级/流程' }
+    { id: 'audit_flow', label: '审核流程层级设计' }
   ];
 
   // Data state for each configuration module
@@ -421,8 +437,12 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         isDefault: true,
         status: '启用',
         updateTime: '2023-10-25 11:20:00',
-        description: '触发高等级舆情时自动激活全员推屏通知及大屏研判流程',
-        fields: standardActivationFields
+        description: '新用户与网格人员入驻时的手机号与身份证实名核验与角色分配',
+        fields: standardActivationFields,
+        verifyPhone: true,
+        verifyIdCard: true,
+        verifyBankCard: false,
+        adaptedRoles: ['上报员', '审核员']
       },
       {
         id: '3',
@@ -446,11 +466,16 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         isDefault: false,
         status: '启用',
         updateTime: '2023-11-01 09:40:15',
-        description: '大容量音视频流媒体智能分流与自动化激活规则',
+        description: '专用于一线直报员与特约上报员的手机/身份证/银行卡全要素实名认证激活',
         fields: [
-          { id: 'f401', name: '视频音轨关键帧摘要', type: 'text', required: true, placeholder: '请输入关键帧说明' },
-          { id: 'f402', name: '流媒体链接', type: 'link', required: true, placeholder: 'https://...' }
-        ]
+          { id: 'f401', name: '手机号码', type: 'phone', required: true, placeholder: '请输入有效手机号' },
+          { id: 'f402', name: '身份证号', type: 'id_card', required: true, placeholder: '请输入18位身份证号' },
+          { id: 'f403', name: '银行卡号', type: 'bank_card', required: true, placeholder: '请输入稿酬补贴结算卡号' }
+        ],
+        verifyPhone: true,
+        verifyIdCard: true,
+        verifyBankCard: true,
+        adaptedRoles: ['上报员']
       }
     ],
     audit_score: [
@@ -627,21 +652,22 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     audit_flow: [
       {
         id: '601',
-        name: '标准二级复核流程',
+        name: '逐级审核流程（组织树自适应）',
         isDefault: true,
         status: '启用',
         updateTime: '2023-10-05 10:00:00',
-        description: '常规报送由网格员基础初审后提交科室负责人研判复核',
+        description: '本级机构提报后沿组织树逐级向上传递审核，最终由总机构终审并评分。管理员无需配置上1级、上2级、上3级，系统根据实际组织树动态解析并自动自适应任意组织深度。',
         relatedTemplateId: 'all_report_templates',
         relatedTemplateName: '全部报送模板通用',
         templateApplyMode: 'all_report_templates',
-        flowDepth: 2,
+        auditFlowMode: 'step_by_step',
+        flowDepth: 3,
         orgApplyMode: 'all_orgs',
-        ownerMissingStrategy: 'fallback_role',
-        ownerMissingFallbackRole: '机构管理员',
+        ownerMissingStrategy: 'skip_to_next',
         auditNodes: [
-          { id: 'an1', nodeName: '一级基础初审', approverRole: '初审员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 15 },
-          { id: 'an2', nodeName: '二级研判复核', approverRole: '归属机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_submitter', timeLimitMinutes: 30 }
+          { id: 'an1', nodeName: '本级机构初审', approverRole: '本级机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_submitter', timeLimitMinutes: 15 },
+          { id: 'an2', nodeName: '上级机构逐级复核', approverRole: '上级机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_previous', timeLimitMinutes: 30 },
+          { id: 'an3', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_previous', timeLimitMinutes: 60, isUnifiedFinalNode: true }
         ],
         orgSettings: [
           { orgId: 'org1', orgName: '市委宣传部', enabled: true },
@@ -653,45 +679,49 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       },
       {
         id: '602',
-        name: '突发事件三级特快签发流程',
+        name: '最多3级快速审核流程',
         isDefault: false,
         status: '启用',
         updateTime: '2023-11-04 17:30:00',
-        description: '适用于紧急事件提报的三级联动，允许针对指定单机构设置使能或失效规则',
+        description: '最多经过3个中间机构审核后直达总机构终审并评分。注意：这是“最多”，不是“必须”。组织实际不足3级时按实际存在机构审核，不报错、不卡单、不强制补齐。',
         relatedTemplateId: '3',
         relatedTemplateName: '突发事件快速上报',
         templateApplyMode: 'single_template',
+        auditFlowMode: 'max_n_steps',
+        maxIntermediateNodes: 3,
         flowDepth: 3,
-        orgApplyMode: 'specific_orgs',
-        ownerMissingStrategy: 'block_submit',
+        orgApplyMode: 'all_orgs',
+        ownerMissingStrategy: 'skip_to_next',
         auditNodes: [
-          { id: 'an201', nodeName: '初审快速响应', approverRole: '值班员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 10 },
-          { id: 'an202', nodeName: '专报会商审核', approverRole: '舆情专员', assigneeSource: 'role', rejectStrategy: 'return_previous', timeLimitMinutes: 20 },
-          { id: 'an203', nodeName: '指挥中心签发', approverRole: '归属机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_submitter', timeLimitMinutes: 30 }
+          { id: 'an201', nodeName: '基层机构初审', approverRole: '基层机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_submitter', timeLimitMinutes: 10 },
+          { id: 'an202', nodeName: '中间机构流转 (最多3个)', approverRole: '各级审核负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_previous', timeLimitMinutes: 20 },
+          { id: 'an203', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_previous', timeLimitMinutes: 60, isUnifiedFinalNode: true }
         ],
         orgSettings: [
           { orgId: 'org1', orgName: '市委宣传部', enabled: true },
           { orgId: 'org2', orgName: '市公安局网安支队', enabled: true },
           { orgId: 'org3', orgName: '市应急管理局', enabled: true },
-          { orgId: 'org4', orgName: '区县级网信中心', enabled: false },
+          { orgId: 'org4', orgName: '区县级网信中心', enabled: true },
           { orgId: 'org5', orgName: '市场监督管理局', enabled: true }
         ]
       },
       {
         id: '603',
-        name: '一级极速直审归档通道',
+        name: '直接总机构审核通道',
         isDefault: false,
-        status: '停用',
+        status: '启用',
         updateTime: '2023-11-08 09:15:00',
-        description: '轻量级常规快速审批，经单一步骤极速校验后直接结案',
+        description: '适用于无需基层/中间机构审核的业务。上报人提报后直接流转至总机构管理员，进行终审并评分。',
         relatedTemplateId: '1',
         relatedTemplateName: '标准图文报送模板',
         templateApplyMode: 'single_template',
-        flowDepth: 1,
+        auditFlowMode: 'direct_headquarters',
+        flowDepth: 2,
         orgApplyMode: 'all_orgs',
         ownerMissingStrategy: 'skip_to_next',
         auditNodes: [
-          { id: 'an301', nodeName: '直审归档岗', approverRole: '指定审核员', assigneeSource: 'user', assigneeUserName: '张三', rejectStrategy: 'return_submitter', timeLimitMinutes: 5 }
+          { id: 'an301', nodeName: '上报人直报', approverRole: '提报人员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 10 },
+          { id: 'an302', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, isUnifiedFinalNode: true }
         ],
         orgSettings: [
           { orgId: 'org1', orgName: '市委宣传部', enabled: true },
@@ -804,6 +834,15 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
   const orgPickerAnchorRef = useRef<HTMLDivElement | null>(null);
   const orgPickerPanelRef = useRef<HTMLDivElement | null>(null);
   const [newCustomOrgName, setNewCustomOrgName] = useState<string>('');
+
+  // Audit Flow Hierarchy Enhanced States
+  const [formAuditFlowMode, setFormAuditFlowMode] = useState<AuditFlowMode>('step_by_step');
+  const [formMaxIntermediateNodes, setFormMaxIntermediateNodes] = useState<number>(3);
+  const [formSimulatorScenario, setFormSimulatorScenario] = useState<'depth_5' | 'depth_3' | 'depth_2'>('depth_5');
+  const [detailSimulatorScenario, setDetailSimulatorScenario] = useState<'depth_5' | 'depth_3' | 'depth_2'>('depth_5');
+  const [simFinalScore, setSimFinalScore] = useState<number>(5);
+  const [simFinalRemark, setSimFinalRemark] = useState<string>('经综合研判，该舆情线索要素完整真实，现场处置核实属实，符合首发入库标准，同意终审通过并赋分。');
+  const [simResultStatus, setSimResultStatus] = useState<'idle' | 'approved' | 'rejected'>('idle');
 
   // Evaluation Rule Modal States
   const [formEvalDimension, setFormEvalDimension] = useState<'category' | 'org' | 'person' | 'comprehensive'>('category');
@@ -1154,11 +1193,233 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     }
   ];
 
+  // Dynamic Audit Flow Scenarios for Live Tree Path Resolution & Testing
+  const scenarioOrgDefinitions = {
+    depth_5: {
+      id: 'depth_5',
+      name: '五级深层组织（网格基层上报）',
+      hierarchyPath: '总机构 ↓ A (市级) ↓ B (区县) ↓ C (街道) ↓ D (社区网格)',
+      submitter: '中建三局社区网格员 (李明)',
+      submitterOrg: '中建三局社区网格站 D',
+      nodes: [
+        { id: 'd', name: '中建三局社区网格 D', levelTitle: '基层网格', role: '网格站站长', operator: '赵志刚', action: '就地核实与初审' },
+        { id: 'c', name: '中南路街道工作站 C', levelTitle: '街道综治', role: '街道综治主任', operator: '孙建国', action: '属地研判与复审' },
+        { id: 'b', name: '武昌区网信中心 B', levelTitle: '区县主管', role: '区网信中心科长', operator: '周小波', action: '区级综合核验' },
+        { id: 'a', name: '市委宣传部舆情科 A', levelTitle: '市级统筹', role: '市舆情科科长', operator: '陈立群', action: '市级统筹复核' },
+        { id: 'root', name: '台中市网信办 (总机构)', levelTitle: '总机构指挥中心', role: '总机构管理员', operator: '高主任', action: '终审并评分（一体化闭环）' }
+      ]
+    },
+    depth_3: {
+      id: 'depth_3',
+      name: '三级常规组织（直属大队上报）',
+      hierarchyPath: '总机构 ↓ A (市公安局网安支队) ↓ B (网安直属一大队)',
+      submitter: '网安直属一大队值班员 (王警官)',
+      submitterOrg: '网安直属一大队 B',
+      nodes: [
+        { id: 'b', name: '网安直属一大队 B', levelTitle: '直属大队', role: '大队长', operator: '张建军', action: '机构初审' },
+        { id: 'a', name: '市公安局网安支队 A', levelTitle: '市局支队', role: '支队长', operator: '李副局长', action: '上级机构复核' },
+        { id: 'root', name: '台中市网信办 (总机构)', levelTitle: '总机构指挥中心', role: '总机构管理员', operator: '高主任', action: '终审并评分（一体化闭环）' }
+      ]
+    },
+    depth_2: {
+      id: 'depth_2',
+      name: '两级直属组织（直属处室上报）',
+      hierarchyPath: '总机构 ↓ A (市应急管理局直属办)',
+      submitter: '应急值班处室人员 (刘工)',
+      submitterOrg: '市应急管理局直属办 A',
+      nodes: [
+        { id: 'a', name: '市应急管理局直属办 A', levelTitle: '直属处室', role: '处室主任', operator: '钱主任', action: '本级机构审核' },
+        { id: 'root', name: '台中市网信办 (总机构)', levelTitle: '总机构指挥中心', role: '总机构管理员', operator: '高主任', action: '终审并评分（一体化闭环）' }
+      ]
+    }
+  };
+
+  const resolveDynamicAuditScenario = (
+    mode: AuditFlowMode = 'step_by_step',
+    scenarioKey: 'depth_5' | 'depth_3' | 'depth_2' = 'depth_5',
+    maxNodes: number = 3
+  ) => {
+    const scenario = scenarioOrgDefinitions[scenarioKey] || scenarioOrgDefinitions.depth_5;
+    const allNodes = scenario.nodes;
+    const rootNode = allNodes[allNodes.length - 1];
+    const intermediateAndBase = allNodes.slice(0, allNodes.length - 1);
+
+    if (mode === 'direct_headquarters') {
+      return {
+        scenarioName: scenario.name,
+        hierarchyPath: scenario.hierarchyPath,
+        submitter: scenario.submitter,
+        submitterOrg: scenario.submitterOrg,
+        steps: [
+          {
+            index: 1,
+            nodeName: '上报人直报',
+            orgName: scenario.submitterOrg,
+            levelTitle: '业务发起人',
+            role: '提报员',
+            operator: scenario.submitter,
+            action: '发起舆情直报',
+            isFinal: false,
+            note: '无需基层与中间机构审核，直达总机构'
+          },
+          {
+            index: 2,
+            nodeName: '总机构终审并评分',
+            orgName: rootNode.name,
+            levelTitle: rootNode.levelTitle,
+            role: rootNode.role,
+            operator: rootNode.operator,
+            action: '终审并评分（一体化统一节点）',
+            isFinal: true,
+            note: '查看上报内容 / 前序记录 / 填写意见 / 按模板评分 / 驳回或通过评分完成'
+          }
+        ],
+        ruleExplanation: '【模式三：直接总机构审核】：无需任何基层或中间机构复核，直接流转至总机构管理员终审并评分，扁平极速直达。'
+      };
+    }
+
+    if (mode === 'max_n_steps') {
+      const actualAvailable = intermediateAndBase.length;
+      const takenNodes = intermediateAndBase.slice(0, maxNodes);
+      const skippedNodes = intermediateAndBase.slice(maxNodes);
+
+      const steps = [
+        ...takenNodes.map((item, idx) => ({
+          index: idx + 1,
+          nodeName: idx === 0 ? `${item.name}（本级初审）` : `${item.name}（中间流转）`,
+          orgName: item.name,
+          levelTitle: item.levelTitle,
+          role: item.role,
+          operator: item.operator,
+          action: item.action,
+          isFinal: false,
+          note: idx === 0 ? '提报单位负责人就地审核' : `中间审核机构（最多第 ${idx} 级）`
+        })),
+        {
+          index: takenNodes.length + 1,
+          nodeName: '总机构终审并评分',
+          orgName: rootNode.name,
+          levelTitle: rootNode.levelTitle,
+          role: rootNode.role,
+          operator: rootNode.operator,
+          action: '终审并评分（一体化统一节点）',
+          isFinal: true,
+          note: '查看上报内容 / 前序记录 / 填写意见 / 按模板评分 / 驳回或通过评分完成'
+        }
+      ];
+
+      const ruleExplanation = actualAvailable > maxNodes
+        ? `当前组织实际深度为 ${actualAvailable} 级中间层，管理员配置“最多审核 ${maxNodes} 个中间机构”，系统动态截取前 ${maxNodes} 个机构（${takenNodes.map(n => n.name).join(' → ')}），更高层级机构（${skippedNodes.map(n => n.name).join('、')}）自动平滑穿透，直接提交总机构终审并评分。`
+        : `组织实际只有 ${actualAvailable} 个机构（小于配置的最多 ${maxNodes} 级上限），系统自动取实际存在的 ${actualAvailable} 个机构审核。这是“最多”，不是“必须”，系统不报错、不阻止提交、不强制补齐三级。`;
+
+      return {
+        scenarioName: scenario.name,
+        hierarchyPath: scenario.hierarchyPath,
+        submitter: scenario.submitter,
+        submitterOrg: scenario.submitterOrg,
+        steps,
+        ruleExplanation
+      };
+    }
+
+    // Default: step_by_step
+    const steps = [
+      ...intermediateAndBase.map((item, idx) => ({
+        index: idx + 1,
+        nodeName: idx === 0 ? `${item.name}（本级机构审核）` : `${item.name}（上级机构审核）`,
+        orgName: item.name,
+        levelTitle: item.levelTitle,
+        role: item.role,
+        operator: item.operator,
+        action: item.action,
+        isFinal: false,
+        note: idx === 0 ? '本级机构负责人初核' : '沿组织树逐级向上传递审核'
+      })),
+      {
+        index: intermediateAndBase.length + 1,
+        nodeName: '总机构终审并评分',
+        orgName: rootNode.name,
+        levelTitle: rootNode.levelTitle,
+        role: rootNode.role,
+        operator: rootNode.operator,
+        action: '终审并评分（一体化统一节点）',
+        isFinal: true,
+        note: '查看上报内容 / 前序记录 / 填写意见 / 按模板评分 / 驳回或通过评分完成'
+      }
+    ];
+
+    return {
+      scenarioName: scenario.name,
+      hierarchyPath: scenario.hierarchyPath,
+      submitter: scenario.submitter,
+      submitterOrg: scenario.submitterOrg,
+      steps,
+      ruleExplanation: `【模式一：逐级审核】：管理员无需人工配置上1级、上2级、上3级；系统根据实际组织树动态解析审核路径（当前深度为 ${intermediateAndBase.length} 级中间层），自动自适应，不要求组织必须存在三级。`
+    };
+  };
+
   const auditAssigneeSourceOptions = [
     { id: 'role', label: '按角色', description: '从人员角色中匹配可审核人员' },
     { id: 'user', label: '指定人员', description: '固定由某个具体人员处理' },
     { id: 'org_owner', label: '归属机构负责人', description: '按上报人归属机构自动匹配负责人' }
   ] as const;
+
+  const auditFlowModeOptions: Array<{
+    id: AuditFlowMode;
+    title: string;
+    subtitle: string;
+    badge: string;
+    badgeStyle: string;
+    summary: string;
+    description: string;
+    features: string[];
+  }> = [
+    {
+      id: 'step_by_step',
+      title: '模式一：逐级审核',
+      subtitle: '组织树自适应解析',
+      badge: '自适应',
+      badgeStyle: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      summary: '本级机构提报 → 上级机构逐级审核 → 总机构终审并评分',
+      description: '系统根据实际组织树动态解析审核路径。管理员无需配置上1级、上2级、上3级，无论组织深度是5级、3级还是2级均自动适配流转，不需要必须有三级。',
+      features: [
+        '组织树自适应向上推演路径',
+        '无需人工配置上1/2/3级',
+        '支持任意组织深度(5级/3级/2级)',
+        '总机构终审与评分一体化结案'
+      ]
+    },
+    {
+      id: 'max_n_steps',
+      title: '模式二：最多N级审核',
+      subtitle: '中间机构层级上限截断',
+      badge: '上限截断',
+      badgeStyle: 'bg-amber-50 text-amber-800 border-amber-200',
+      summary: '下级机构提报后，至多经过 N 个中间机构审核后直达总机构',
+      description: '满足特殊业务审批效率需求，限制中间机构审核最多为 N 级。若中间机构不足 N 级，按实际层级审核后直接进入总机构，不需要必须有 N 级。',
+      features: [
+        '可配置最多中间审核机构数 N',
+        '不足N级按实际审核，不强制补齐',
+        '超出N级自动平滑穿透直达总机构',
+        '杜绝层级过深审批延误'
+      ]
+    },
+    {
+      id: 'direct_headquarters',
+      title: '模式三：直接总机构审核',
+      subtitle: '扁平极速直达通道',
+      badge: '极速直审',
+      badgeStyle: 'bg-purple-50 text-purple-700 border-purple-200',
+      summary: '无需下级或中间机构审核，直接由总机构管理员终审并评分',
+      description: '跳过所有基层和中间机构，上报人提报后直接流转至总机构待审池，总机构终审通过并评分结案。适用于特急舆情直报。',
+      features: [
+        '两步极速直通闭环',
+        '跳过所有下级中间层',
+        '适用于特急重大舆情直报',
+        '总机构终审与评分一步到位'
+      ]
+    }
+  ];
 
   const auditRoleOptions = ['初审员', '网格员', '值班员', '科室负责人', '舆情专员', '主管领导', '平台管理员'];
   const auditUserOptions = ['张三', '李娜', '王强', '赵敏', '陈主任'];
@@ -1189,22 +1450,99 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     return option?.label || '阻止提交并提示';
   };
 
+  const getNodeOwnerMissingStrategyText = (node?: AuditNode, fallbackItem?: ConfigModuleItem) => {
+    const strategy = node?.ownerMissingStrategy || fallbackItem?.ownerMissingStrategy || 'block_submit';
+    const option = ownerMissingStrategyOptions.find(entry => entry.id === strategy);
+    const fallbackRole = node?.ownerMissingFallbackRole || fallbackItem?.ownerMissingFallbackRole || '机构管理员';
+    const fallbackUser = node?.ownerMissingFallbackUserName || fallbackItem?.ownerMissingFallbackUserName || '未指定';
+    if (strategy === 'fallback_role') return `${option?.label || '转交兜底角色'} (${fallbackRole})`;
+    if (strategy === 'fallback_user') return `${option?.label || '转交指定人员'} (${fallbackUser})`;
+    return option?.label || '阻止提交并提示';
+  };
+
   const buildAuditFlowLinearPreviewData = (item: ConfigModuleItem, preferredStepsPerRow = 4, singleRowLimit = 5) => {
-    const flowSteps = [
-      { id: 'start', type: 'start' as const, title: '开始', description: '发起上报' },
-      ...((item.auditNodes || []).map((node, index) => ({
-        id: node.id || `node-${index}`,
-        type: 'node' as const,
-        title: node.nodeName || `审核节点 ${index + 1}`,
-        description: node.assigneeSource === 'org_owner'
-          ? '归属机构负责人'
-          : node.assigneeSource === 'user'
-            ? (node.assigneeUserName || node.approverRole || '指定人员')
-            : node.approverRole || '指定角色',
-        ruleDescription: `超时提醒 ${node.timeLimitMinutes || 15} 分钟；${node.rejectStrategy === 'return_previous' ? '退回上一节点' : '退回上报人修改'}`,
-      }))),
-      { id: 'end', type: 'end' as const, title: '结束', description: '审核完成' },
-    ];
+    const mode = item.auditFlowMode || 'step_by_step';
+    let flowSteps: Array<{
+      id: string;
+      type: 'start' | 'node' | 'end';
+      title: string;
+      description: string;
+      ruleDescription?: string;
+      isFinalNode?: boolean;
+      enableTimeout?: boolean;
+      timeLimitMinutes?: number;
+      assigneeSource?: string;
+      approverRole?: string;
+      assigneeUserName?: string;
+      ownerMissingStrategy?: string;
+      rejectStrategy?: string;
+    }> = [];
+
+    if (item.auditNodes && item.auditNodes.length > 0) {
+      flowSteps = [
+        { id: 'start', type: 'start' as const, title: '开始', description: '发起上报' },
+        ...item.auditNodes.map((node, index) => {
+          const isFinalNode = Boolean(node.isUnifiedFinalNode || index === item.auditNodes!.length - 1);
+          const assigneeText = node.assigneeSource === 'org_owner'
+            ? '归属机构负责人'
+            : node.assigneeSource === 'user'
+            ? (node.assigneeUserName || '指定人员')
+            : (node.approverRole || '审核员');
+
+          const isTimeoutOn = node.enableTimeout !== false && (node.timeLimitMinutes ?? 0) > 0;
+          const timeoutText = isTimeoutOn
+            ? (node.timeLimitMinutes! >= 60 && node.timeLimitMinutes! % 60 === 0
+                ? `限时${node.timeLimitMinutes! / 60}小时`
+                : `限时${node.timeLimitMinutes}分`)
+            : '无提醒';
+
+          const rejectText = node.rejectStrategy === 'return_previous' ? '退回上一节点' : '退回上报人';
+
+          return {
+            id: node.id || `node_${index}`,
+            type: 'node' as const,
+            title: node.nodeName,
+            description: assigneeText,
+            ruleDescription: `${timeoutText} · ${rejectText}`,
+            isFinalNode,
+            enableTimeout: isTimeoutOn,
+            timeLimitMinutes: node.timeLimitMinutes,
+            assigneeSource: node.assigneeSource,
+            approverRole: node.approverRole,
+            assigneeUserName: node.assigneeUserName,
+            ownerMissingStrategy: node.ownerMissingStrategy,
+            rejectStrategy: node.rejectStrategy
+          };
+        }),
+        { id: 'end', type: 'end' as const, title: '结束', description: '审核+评分+流程全完成' }
+      ];
+    } else if (mode === 'direct_headquarters') {
+      flowSteps = [
+        { id: 'start', type: 'start' as const, title: '开始', description: '发起上报' },
+        { id: 'node_submitter', type: 'node' as const, title: '上报人直报', description: '业务/网格提报员', ruleDescription: '无需基层与中间机构流转，直达总机构' },
+        { id: 'node_final', type: 'node' as const, title: '总机构终审并评分', description: '总机构管理员', ruleDescription: '终审与评分一体化完成，不拆分流程节点', isFinalNode: true },
+        { id: 'end', type: 'end' as const, title: '结束', description: '审核+评分+流程全完成' }
+      ];
+    } else if (mode === 'max_n_steps') {
+      const maxN = item.maxIntermediateNodes || 3;
+      flowSteps = [
+        { id: 'start', type: 'start' as const, title: '开始', description: '发起上报' },
+        { id: 'node_base', type: 'node' as const, title: '基层机构初审', description: '提交机构负责人', ruleDescription: '就地初核，时效15分钟' },
+        { id: 'node_inter', type: 'node' as const, title: `中间机构 (最多${maxN}级)`, description: '各级审核负责人', ruleDescription: '最多N级自适应流转，不足不报错不强制补齐' },
+        { id: 'node_final', type: 'node' as const, title: '总机构终审并评分', description: '总机构管理员', ruleDescription: '终审与评分一体化完成，不拆分流程节点', isFinalNode: true },
+        { id: 'end', type: 'end' as const, title: '结束', description: '审核+评分+流程全完成' }
+      ];
+    } else {
+      // step_by_step
+      flowSteps = [
+        { id: 'start', type: 'start' as const, title: '开始', description: '发起上报' },
+        { id: 'node_base', type: 'node' as const, title: '本级机构初审', description: '归属机构负责人', ruleDescription: '提报机构就地核实初审' },
+        { id: 'node_inter', type: 'node' as const, title: '上级机构逐级复核', description: '组织树向上回溯', ruleDescription: '系统根据组织树动态解析，无需配置上N级' },
+        { id: 'node_final', type: 'node' as const, title: '总机构终审并评分', description: '总机构管理员', ruleDescription: '终审与评分一体化完成，不拆分流程节点', isFinalNode: true },
+        { id: 'end', type: 'end' as const, title: '结束', description: '审核+评分+流程全完成' }
+      ];
+    }
+
     const stepsPerRow = flowSteps.length <= singleRowLimit ? flowSteps.length : preferredStepsPerRow;
     const flowRows = flowSteps.reduce<Array<typeof flowSteps>>((rows, step, index) => {
       if (index % stepsPerRow === 0) rows.push([]);
@@ -1212,10 +1550,24 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       return rows;
     }, []);
     const longestRowLength = Math.max(...flowRows.map(row => row.length), 1);
-    const panelWidth = Math.min(920, Math.max(560, longestRowLength * 122 + (longestRowLength - 1) * 44 + 40));
-    const orgScopeText = item.orgApplyMode === 'all_orgs'
-      ? '所有机构生效'
-      : `指定机构生效 (${item.orgSettings?.filter(org => org.enabled).length || 0}个)`;
+    const panelWidth = Math.min(960, Math.max(560, longestRowLength * 135 + (longestRowLength - 1) * 44 + 40));
+
+    const modeLabel = mode === 'step_by_step'
+      ? '模式一：逐级审核（组织树自适应）'
+      : mode === 'max_n_steps'
+        ? `模式二：最多${item.maxIntermediateNodes || 3}级审核`
+        : '模式三：直接总机构审核（极速直达）';
+
+    const enabledTimeoutCount = (item.auditNodes || []).filter(n => n.enableTimeout !== false && (n.timeLimitMinutes ?? 0) > 0).length;
+    const totalNodesCount = item.auditNodes?.length || (mode === 'direct_headquarters' ? 2 : 3);
+
+    const timeoutSummary = totalNodesCount > 0
+      ? enabledTimeoutCount === 0
+        ? '全节点关停超时提醒'
+        : enabledTimeoutCount === totalNodesCount
+          ? `全部节点开启提醒 (${enabledTimeoutCount}个)`
+          : `${enabledTimeoutCount}/${totalNodesCount} 节点开启提醒`
+      : '按节点规则配置';
 
     return {
       flowSteps,
@@ -1223,9 +1575,12 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       stepsPerRow,
       panelWidth,
       summaryItems: [
-        { label: '模板范围', value: getAuditTemplateScopeText(item) },
-        { label: '机构范围', value: orgScopeText },
-        { label: '无负责人时', value: getOwnerMissingStrategyText(item) },
+        { label: '流程模式', value: modeLabel },
+        { label: '启用状态', value: item.status || '启用' },
+        { label: '审批阶段', value: `${totalNodesCount} 级阶段（标准固定）` },
+        { label: '终审评分机制', value: '总机构终审并评分（一体化统一节点）' },
+        { label: '超时提醒配置', value: timeoutSummary },
+        { label: '无负责人策略', value: getOwnerMissingStrategyText(item) },
       ],
     };
   };
@@ -1236,8 +1591,8 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     stepsPerRow: number,
     compact = false
   ) => {
-    const stepWidthClass = compact ? 'w-[104px]' : 'w-[122px]';
-    const connectorWidthClass = compact ? 'w-6' : 'w-11';
+    const stepWidthClass = compact ? 'w-[110px]' : 'w-[130px]';
+    const connectorWidthClass = compact ? 'w-6' : 'w-10';
 
     return (
     <div className="space-y-5 max-w-full overflow-hidden">
@@ -1252,16 +1607,22 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
               const absoluteIndex = flowSteps.findIndex(item => item.id === step.id);
               const isStart = step.type === 'start';
               const isEnd = step.type === 'end';
+              const isFinalNode = ('isFinalNode' in step && step.isFinalNode) || step.title.includes('终审并评分');
+
               const circleClassName = isStart
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
                 : isEnd
-                  ? 'bg-gray-100 border-gray-200 text-gray-600'
-                  : 'bg-blue-50 border-blue-200 text-[#1E5ABB]';
+                  ? 'bg-gray-100 border-gray-300 text-gray-600'
+                  : isFinalNode
+                    ? 'bg-amber-50 border-amber-400 text-amber-900 ring-2 ring-amber-400/30 font-bold'
+                    : 'bg-blue-50 border-blue-200 text-[#1E5ABB]';
               const dotClassName = isStart
                 ? 'bg-emerald-500'
                 : isEnd
                   ? 'bg-gray-400'
-                  : 'bg-[#1E5ABB]';
+                  : isFinalNode
+                    ? 'bg-amber-500'
+                    : 'bg-[#1E5ABB]';
               const detailText = [
                 step.description,
                 'ruleDescription' in step ? step.ruleDescription : '',
@@ -1275,14 +1636,21 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                         <CheckCircle2 className="w-4 h-4" />
                       ) : isEnd ? (
                         <Check className="w-4 h-4" />
+                      ) : isFinalNode ? (
+                        <Award className="w-4 h-4 text-amber-600" />
                       ) : (
                         <span className="text-xs font-bold">{absoluteIndex}</span>
                       )}
                     </div>
-                    <div className="mt-2 text-xs font-bold text-gray-900 truncate" title={step.title}>
+                    {isFinalNode && (
+                      <span className="inline-block mt-1 px-1.5 py-0.2 text-[9px] font-bold bg-amber-100 text-amber-800 rounded border border-amber-200">
+                        终审+评分一体
+                      </span>
+                    )}
+                    <div className="mt-1.5 text-xs font-bold text-gray-900 truncate" title={step.title}>
                       {step.title}
                     </div>
-                    <div className="mt-1 text-[11px] text-gray-500 leading-relaxed break-words" title={detailText}>
+                    <div className="mt-1 text-[10px] text-gray-500 leading-relaxed break-words line-clamp-2" title={detailText}>
                       {detailText}
                     </div>
                   </div>
@@ -2175,6 +2543,69 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     setEditingItem(null);
   };
 
+  const handleSwitchAuditFlowMode = (mode: AuditFlowMode) => {
+    setFormAuditFlowMode(mode);
+    setFormSimulatorScenario('depth_5');
+    setSimResultStatus('idle');
+
+    if (mode === 'direct_headquarters') {
+      if (!editingItem || formName.includes('逐级') || formName.includes('最多')) {
+        setFormName('直接总机构审核通道');
+        setFormDesc('【扁平直审】无需下级或中间机构审核，上报人提报后直接由总机构终审并评分。');
+      }
+      const directNodes: AuditNode[] = [
+        { id: 'an_dir_1', nodeName: '发起上报直报', approverRole: '提报人员', assigneeSource: 'role' as const, rejectStrategy: 'return_submitter' as const, timeLimitMinutes: 10 },
+        { id: 'an_dir_final', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role' as const, rejectStrategy: 'return_submitter' as const, timeLimitMinutes: 60, isUnifiedFinalNode: true }
+      ];
+      setFormAuditNodes(directNodes);
+      setSelectedAuditNodeId(directNodes[1].id);
+      setFormFlowDepth(2);
+    } else if (mode === 'max_n_steps') {
+      if (!editingItem || formName.includes('逐级') || formName.includes('直接')) {
+        setFormName(`最多${formMaxIntermediateNodes}级快速审核流程`);
+        setFormDesc(`【上限截断】下级机构提报后最多经过${formMaxIntermediateNodes}个中间机构审核后直达总机构终审并评分。不足${formMaxIntermediateNodes}级按实际层级自适应审核，不强制补齐。`);
+      }
+      const maxNNodes: AuditNode[] = [
+        { id: 'an_max_1', nodeName: '基层机构初审', approverRole: '基层机构负责人', assigneeSource: 'org_owner' as const, rejectStrategy: 'return_submitter' as const, timeLimitMinutes: 15 },
+        { id: 'an_max_2', nodeName: `中间机构流转 (最多${formMaxIntermediateNodes}级)`, approverRole: '各级审核负责人', assigneeSource: 'org_owner' as const, rejectStrategy: 'return_previous' as const, timeLimitMinutes: 30 },
+        { id: 'an_max_final', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role' as const, rejectStrategy: 'return_previous' as const, timeLimitMinutes: 60, isUnifiedFinalNode: true }
+      ];
+      setFormAuditNodes(maxNNodes);
+      setSelectedAuditNodeId(maxNNodes[0].id);
+      setFormFlowDepth(3);
+    } else {
+      // step_by_step
+      if (!editingItem || formName.includes('最多') || formName.includes('直接')) {
+        setFormName('逐级审核流程（组织树自适应）');
+        setFormDesc('本级机构提报后沿组织树逐级向上传递审核，最终由总机构终审并评分。系统动态解析审核路径，自动适配任意组织深度。');
+      }
+      const stepNodes: AuditNode[] = [
+        { ...createDefaultAuditNode(1), id: 'an_1', nodeName: '本级机构初审', approverRole: '本级机构负责人', assigneeSource: 'org_owner' as const, timeLimitMinutes: 15 },
+        { ...createDefaultAuditNode(2), id: 'an_2', nodeName: '上级机构逐级复核', approverRole: '上级机构负责人', assigneeSource: 'org_owner' as const, timeLimitMinutes: 30 },
+        { ...createDefaultAuditNode(3), id: 'an_3', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role' as const, timeLimitMinutes: 60, isUnifiedFinalNode: true }
+      ];
+      setFormAuditNodes(stepNodes);
+      setSelectedAuditNodeId(stepNodes[0].id);
+      setFormFlowDepth(3);
+    }
+  };
+
+  const handleMaxIntermediateNodesChange = (newCount: number) => {
+    const val = Math.max(1, Math.min(5, newCount));
+    setFormMaxIntermediateNodes(val);
+    if (formAuditFlowMode === 'max_n_steps') {
+      setFormAuditNodes(prev => prev.map(n => {
+        if (n.id.includes('max_2') || n.nodeName.includes('中间机构')) {
+          return { ...n, nodeName: `中间机构流转 (最多${val}级)` };
+        }
+        return n;
+      }));
+      if (!editingItem || formName.includes('最多')) {
+        setFormName(`最多${val}级快速审核流程`);
+      }
+    }
+  };
+
   // Handle Open Modal for Add / Edit
   const openAddModal = () => {
     if (activeModule === 'report_template') {
@@ -2223,13 +2654,17 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         { id: 'sl_5', levelName: '五等（基本）', score: 60, description: '基本级标准' }
       ]);
     } else if (activeModule === 'audit_flow') {
-      setFormName('自定义多级审核流程');
-      setFormDesc('关联上报模版，设置各层级审批节点与机构效能状态规则');
+      setFormName('逐级审核流程（组织树自适应）');
+      setFormDesc('本级机构提报后沿组织树逐级向上传递审核，最终由总机构终审并评分。系统动态解析审核路径，自动适配任意组织深度。');
       setFormScoreStatus('启用');
       const defaultTpl = enabledReportTemplates[0];
       setFormRelatedTemplateId(defaultTpl ? defaultTpl.id : '1');
       setFormTemplateApplyMode('all_report_templates');
-      setFormFlowDepth(2);
+      setFormAuditFlowMode('step_by_step');
+      setFormMaxIntermediateNodes(3);
+      setFormSimulatorScenario('depth_5');
+      setSimResultStatus('idle');
+      setFormFlowDepth(3);
       setFormOrgApplyMode('all_orgs');
       setFormOrgSettings(defaultOrgList);
       setFormOwnerMissingStrategy('skip_to_next');
@@ -2237,8 +2672,9 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       setFormOwnerMissingFallbackUserName('');
       resetOrgPickerState();
       const defaultFlowNodes = [
-        { ...createDefaultAuditNode(1), id: 'an_1', nodeName: '一级基础初审', approverRole: '初审员', assigneeSource: 'role' as const, timeLimitMinutes: 15 },
-        { ...createDefaultAuditNode(2), id: 'an_2', nodeName: '二级研判复核', approverRole: '归属机构负责人', assigneeSource: 'org_owner' as const, timeLimitMinutes: 30 }
+        { ...createDefaultAuditNode(1), id: 'an_1', nodeName: '本级机构初审', approverRole: '本级机构负责人', assigneeSource: 'org_owner' as const, timeLimitMinutes: 15 },
+        { ...createDefaultAuditNode(2), id: 'an_2', nodeName: '上级机构逐级复核', approverRole: '上级机构负责人', assigneeSource: 'org_owner' as const, timeLimitMinutes: 30 },
+        { ...createDefaultAuditNode(3), id: 'an_3', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role' as const, timeLimitMinutes: 60, isUnifiedFinalNode: true }
       ];
       setFormAuditNodes(defaultFlowNodes);
       setSelectedAuditNodeId(defaultFlowNodes[0].id);
@@ -2316,22 +2752,28 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       const defaultTpl = enabledReportTemplates[0];
       setFormRelatedTemplateId(item.relatedTemplateId || (defaultTpl ? defaultTpl.id : '1'));
       setFormTemplateApplyMode(item.templateApplyMode || (item.relatedTemplateId === 'all_report_templates' ? 'all_report_templates' : 'single_template'));
-      setFormFlowDepth(item.flowDepth || (item.auditNodes ? item.auditNodes.length : 2));
+      setFormAuditFlowMode(item.auditFlowMode || 'step_by_step');
+      setFormMaxIntermediateNodes(item.maxIntermediateNodes || 3);
+      setFormSimulatorScenario('depth_5');
+      setSimResultStatus('idle');
+      setFormFlowDepth(item.flowDepth || (item.auditNodes ? item.auditNodes.length : 3));
       setFormOrgApplyMode(item.orgApplyMode || 'all_orgs');
       setFormOrgSettings(item.orgSettings && item.orgSettings.length > 0 ? item.orgSettings : defaultOrgList);
-      setFormOwnerMissingStrategy(item.ownerMissingStrategy || 'block_submit');
+      setFormOwnerMissingStrategy(item.ownerMissingStrategy || 'skip_to_next');
       setFormOwnerMissingFallbackRole(item.ownerMissingFallbackRole || '机构管理员');
       setFormOwnerMissingFallbackUserName(item.ownerMissingFallbackUserName || '');
       resetOrgPickerState();
       const editFlowNodes = item.auditNodes && item.auditNodes.length > 0
-        ? item.auditNodes.map(node => ({
+        ? item.auditNodes.map((node, idx) => ({
             ...node,
             assigneeSource: node.assigneeSource || 'role',
-            rejectStrategy: node.rejectStrategy || 'return_submitter'
+            rejectStrategy: node.rejectStrategy || (idx === item.auditNodes!.length - 1 ? 'return_previous' : 'return_submitter'),
+            isUnifiedFinalNode: node.isUnifiedFinalNode || idx === item.auditNodes!.length - 1
           }))
         : [
-            { ...createDefaultAuditNode(1), id: 'an_1', nodeName: '一级基础初审', approverRole: '初审员', assigneeSource: 'role', timeLimitMinutes: 15 },
-            { ...createDefaultAuditNode(2), id: 'an_2', nodeName: '二级复核签发', approverRole: '归属机构负责人', assigneeSource: 'org_owner', timeLimitMinutes: 30 }
+            { ...createDefaultAuditNode(1), id: 'an_1', nodeName: '本级机构初审', approverRole: '本级机构负责人', assigneeSource: 'org_owner', timeLimitMinutes: 15 },
+            { ...createDefaultAuditNode(2), id: 'an_2', nodeName: '上级机构逐级复核', approverRole: '上级机构负责人', assigneeSource: 'org_owner', timeLimitMinutes: 30 },
+            { ...createDefaultAuditNode(3), id: 'an_3', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', timeLimitMinutes: 60, isUnifiedFinalNode: true }
           ];
       setFormAuditNodes(editFlowNodes);
       setSelectedAuditNodeId(editFlowNodes[0]?.id || null);
@@ -2603,18 +3045,55 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         ? '全部报送模板通用'
         : selTpl ? selTpl.name : (formRelatedTemplateId ? '关联上报模版' : '标准图文报送模板');
 
+      let effectiveNodes: AuditNode[] = [];
+      if (formAuditFlowMode === 'direct_headquarters') {
+        effectiveNodes = formAuditNodes.length >= 2
+          ? formAuditNodes.map((n, idx) => ({
+              ...n,
+              isUnifiedFinalNode: idx === formAuditNodes.length - 1 ? true : n.isUnifiedFinalNode
+            }))
+          : [
+              { id: 'an_direct_1', nodeName: '发起上报直报', approverRole: '提报人员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 10 },
+              { id: 'an_direct_final', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, isUnifiedFinalNode: true }
+            ];
+      } else if (formAuditFlowMode === 'max_n_steps') {
+        effectiveNodes = formAuditNodes.length >= 2
+          ? formAuditNodes.map((n, idx) => ({
+              ...n,
+              isUnifiedFinalNode: idx === formAuditNodes.length - 1 ? true : n.isUnifiedFinalNode
+            }))
+          : [
+              { id: 'an_maxn_1', nodeName: '基层机构初审', approverRole: '基层机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_submitter', timeLimitMinutes: 15 },
+              { id: 'an_maxn_2', nodeName: `中间机构流转 (最多${formMaxIntermediateNodes}级)`, approverRole: '各级审核负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_previous', timeLimitMinutes: 30 },
+              { id: 'an_maxn_final', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_previous', timeLimitMinutes: 60, isUnifiedFinalNode: true }
+            ];
+      } else {
+        effectiveNodes = formAuditNodes.length >= 2
+          ? formAuditNodes.map((n, idx) => ({
+              ...n,
+              isUnifiedFinalNode: idx === formAuditNodes.length - 1 ? true : n.isUnifiedFinalNode
+            }))
+          : [
+              { ...createDefaultAuditNode(1), id: 'an_1', nodeName: '本级机构初审', approverRole: '本级机构负责人', assigneeSource: 'org_owner', timeLimitMinutes: 15 },
+              { ...createDefaultAuditNode(2), id: 'an_2', nodeName: '上级机构逐级复核', approverRole: '上级机构负责人', assigneeSource: 'org_owner', timeLimitMinutes: 30 },
+              { ...createDefaultAuditNode(3), id: 'an_3', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', timeLimitMinutes: 60, isUnifiedFinalNode: true }
+            ];
+      }
+
       const flowItem: ConfigModuleItem = {
         id: editingItem ? editingItem.id : String(Date.now()),
         name: formName.trim(),
         isDefault: editingItem ? editingItem.isDefault : false,
         status: formScoreStatus,
         updateTime: nowStr,
-        description: formDesc.trim() || '自定义多级审核流程规则',
+        description: formDesc.trim() || '自定义审核流程层级规则',
         relatedTemplateId: relTplId,
         relatedTemplateName: relTplName,
         templateApplyMode: formTemplateApplyMode,
-        flowDepth: formAuditNodes.length,
-        auditNodes: formAuditNodes,
+        auditFlowMode: formAuditFlowMode,
+        maxIntermediateNodes: formMaxIntermediateNodes,
+        flowDepth: effectiveNodes.length,
+        auditNodes: effectiveNodes,
         orgApplyMode: formOrgApplyMode,
         orgSettings: formOrgSettings,
         ownerMissingStrategy: formOwnerMissingStrategy,
@@ -3993,7 +4472,11 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                     return item;
                                   })
                                 }));
-                                showConfigToast(`已成功保存模板「${activeSelectedTemplate.name}」的打分与流程关联`);
+                                showConfigToast(
+                                  activeSelectedTemplate.templateType === '激活'
+                                    ? `已成功保存激活模板「${activeSelectedTemplate.name}」的验证与人员角色配置`
+                                    : `已成功保存模板「${activeSelectedTemplate.name}」的打分与流程关联`
+                                );
                               }}
                               onNavigateToModule={(moduleId) => setActiveModule(moduleId)}
                             />
@@ -4117,70 +4600,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                 </div>
               </div>
             ) : activeModule === 'audit_flow' ? (
-              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_repeat(3,minmax(160px,170px))] gap-4">
-                <div className="contents">
-                  {[
-                    {
-                      label: '启用流程',
-                      value: auditFlowCoverageSummary.enabledFlowCount,
-                      unit: '套',
-                      icon: GitBranch,
-                      className: 'bg-blue-50/70 border-blue-100 text-blue-700',
-                    },
-                    {
-                      label: '专属覆盖机构',
-                      value: auditFlowCoverageSummary.specificOrgCount,
-                      unit: '个',
-                      icon: Building2,
-                      className: 'bg-emerald-50/70 border-emerald-100 text-emerald-700',
-                    },
-                    {
-                      label: '默认兜底机构',
-                      value: auditFlowCoverageSummary.fallbackOrgCount,
-                      unit: '个',
-                      icon: ShieldCheck,
-                      className: 'bg-slate-50 border-slate-200 text-slate-700',
-                    },
-                  ].map(item => {
-                    const Icon = item.icon;
-                    return (
-                      <div key={item.label} className={`rounded-lg border px-3 py-2.5 ${item.className}`}>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[11px] font-bold">{item.label}</span>
-                          <Icon className="w-4 h-4 opacity-80" />
-                        </div>
-                        <div className="mt-1 flex items-baseline gap-1">
-                          <span className="text-xl font-bold">{item.value}</span>
-                          <span className="text-[11px] font-medium opacity-80">{item.unit}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className={`order-first rounded-lg border px-3.5 py-3 flex items-start gap-2.5 ${
-                  defaultAuditFlow
-                    ? 'bg-blue-50/60 border-blue-100'
-                    : 'bg-amber-50/70 border-amber-200'
-                }`}>
-                  <Info className={`w-4 h-4 shrink-0 mt-0.5 ${defaultAuditFlow ? 'text-[#1E5ABB]' : 'text-amber-600'}`} />
-                  <div className="min-w-0">
-                    <div className={`text-xs font-bold ${defaultAuditFlow ? 'text-[#1E5ABB]' : 'text-amber-800'}`}>
-                      系统默认兜底流程
-                    </div>
-                    <div className="text-[11px] text-gray-600 leading-relaxed mt-0.5">
-                      {defaultAuditFlow ? (
-                        <>
-                          当前默认流程为 <span className="font-bold text-gray-800">{defaultAuditFlow.name}</span>，未命中机构专属流程的机构将自动进入该流程。
-                        </>
-                      ) : (
-                        '系统默认兜底流程，未命中机构专属流程的上报将自动进入该流程。'
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="col-span-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
                   {filteredList.length === 0 ? (
                     <div className="md:col-span-2 py-12 text-center text-gray-400 text-xs bg-white rounded-lg border border-gray-100">
                       暂无相关审核流程配置
@@ -4189,12 +4609,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                     filteredList.map(item => {
                       const isSelected = selectedAuditFlowId === item.id;
                       const isEnabled = item.status === '启用';
-                      const orgRuleText = item.orgApplyMode === 'all_orgs'
-                        ? '所有机构生效'
-                        : `指定机构生效 (${item.orgSettings?.filter(org => org.enabled).length || 0}个)`;
-                      const templateScopeText = getAuditTemplateScopeText(item);
-                      const ownerMissingText = getOwnerMissingStrategyText(item);
-                      const auditNodeCount = item.auditNodes?.length || item.flowDepth || 0;
 
                       return (
                         <div
@@ -4212,7 +4626,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
                                 <h3 className="font-bold text-sm text-gray-900 group-hover:text-[#1E5ABB] break-words">
-                                  {item.name}
+                                  {item.name.replace(/【默认推荐】/g, '').replace(/默认推荐/g, '').trim()}
                                 </h3>
                               </div>
 
@@ -4251,43 +4665,39 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                     <span>自定义</span>
                                   </span>
                                 )}
-                                <span
-                                  className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] bg-blue-50 text-blue-700 font-bold rounded border border-blue-100 shrink-0"
-                                  title="审核节点数量"
-                                >
-                                  {auditNodeCount}个节点
-                                </span>
+                                {item.auditFlowMode === 'max_n_steps' ? (
+                                  <span
+                                    className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] bg-amber-50 text-amber-800 font-bold rounded border border-amber-200 shrink-0"
+                                    title={`最多${item.maxIntermediateNodes || 3}级中间审核`}
+                                  >
+                                    最多{item.maxIntermediateNodes || 3}级
+                                  </span>
+                                ) : item.auditFlowMode === 'direct_headquarters' ? (
+                                  <span
+                                    className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] bg-purple-50 text-purple-700 font-bold rounded border border-purple-200 shrink-0"
+                                    title="直达总机构终审"
+                                  >
+                                    直达总机构
+                                  </span>
+                                ) : (
+                                  <span
+                                    className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] bg-blue-50 text-blue-700 font-bold rounded border border-blue-200 shrink-0"
+                                    title="逐级审核（组织树自适应）"
+                                  >
+                                    逐级审核
+                                  </span>
+                                )}
                               </div>
                               <span className="text-[10px] text-gray-400 font-mono shrink-0">{item.updateTime}</span>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-2 text-xs">
-                              <div className="flex items-center gap-1.5 text-blue-700 min-w-0">
-                                  <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                                  <span className="font-bold truncate" title={templateScopeText}>{templateScopeText}</span>
-                              </div>
-                              <div className={`flex items-center gap-1.5 font-bold min-w-0 ${
-                                item.orgApplyMode === 'all_orgs'
-                                  ? 'text-emerald-700'
-                                  : 'text-amber-800'
-                              }`}>
-                                  <Building2 className="w-3.5 h-3.5 shrink-0" />
-                                  <span className="truncate" title={orgRuleText}>{orgRuleText}</span>
-                              </div>
-                            </div>
-
                             <div className="rounded-md border border-gray-100 bg-gray-50/80 px-2.5 py-2">
                               <p
-                                className="text-[11px] text-gray-500 truncate"
-                                title={item.description || '模板绑定一个审核流程，按节点顺序完成通过、驳回和退回修改'}
+                                className="text-[11px] text-gray-500 line-clamp-2"
+                                title={(item.description || '按节点顺序完成通过、驳回和退回修改').replace(/【默认推荐】/g, '').replace(/默认推荐/g, '').trim()}
                               >
-                                {item.description || '模板绑定一个审核流程，按节点顺序完成通过、驳回和退回修改'}
+                                {(item.description || '按节点顺序完成通过、驳回和退回修改').replace(/【默认推荐】/g, '').replace(/默认推荐/g, '').trim()}
                               </p>
-                            </div>
-
-                            <div className="rounded-md border border-amber-100 bg-amber-50/60 px-2.5 py-2 text-[11px] text-amber-800">
-                              <span className="font-bold">无负责人处理：</span>
-                              <span>{ownerMissingText}</span>
                             </div>
                           </div>
 
@@ -4335,8 +4745,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                       );
                     })
                   )}
-                </div>
-
               </div>
             ) : activeModule === 'value_added' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -4810,7 +5218,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                   <div className="p-5 space-y-4 text-xs overflow-y-auto overflow-x-hidden">
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="text-sm font-bold text-gray-800 break-words">
-                        {selectedAuditFlow.name}
+                        {selectedAuditFlow.name.replace(/【默认推荐】/g, '').replace(/默认推荐/g, '').trim()}
                       </div>
                       {selectedAuditFlow.isDefault ? (
                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 font-bold rounded border border-gray-200 shrink-0 whitespace-nowrap">
@@ -4837,7 +5245,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                     <div className="rounded-md border border-gray-100 bg-gray-50/70 px-2.5 py-2">
                       <div className="text-[10px] text-gray-400 mb-0.5">说明描述</div>
                       <div className="text-[11px] text-gray-600 leading-relaxed break-words">
-                        {selectedAuditFlow.description || '暂无说明描述'}
+                        {(selectedAuditFlow.description || '暂无说明描述').replace(/【默认推荐】/g, '').replace(/默认推荐/g, '').trim()}
                       </div>
                     </div>
 
@@ -5758,257 +6166,98 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                     </div>
                   </div>
 
-                  <div className="rounded-lg border border-gray-200 bg-white p-3 space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-gray-800">
-                        <GitBranch className="w-4 h-4 text-[#1E5ABB]" />
-                        <span>适用规则</span>
+                  {/* 审核流程核心模式选择器（精简三模式卡片） */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Workflow className="w-4 h-4 text-[#1E5ABB]" />
+                        <span className="font-bold text-gray-800 text-xs">审核流程模式 *</span>
                       </div>
-                      <span className="text-[10px] text-gray-400">分组配置，切换后仅展示对应设置</span>
+                      <span className="text-[11px] font-bold text-[#1E5ABB] bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                        当前选中：{formAuditFlowMode === 'step_by_step' ? '逐级审核' : formAuditFlowMode === 'max_n_steps' ? `最多${formMaxIntermediateNodes}级审核` : '直接总机构审核'}
+                      </span>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
-                      <div className="rounded-lg border border-blue-100 bg-blue-50/30 p-3 space-y-2">
-                        <label className="block text-gray-600 font-medium mb-1">模板范围</label>
-                        <select
-                          value={formTemplateApplyMode}
-                          onChange={e => setFormTemplateApplyMode(e.target.value as AuditTemplateApplyMode)}
-                          className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white cursor-pointer font-bold text-gray-800"
-                        >
-                          {auditTemplateApplyOptions.map(option => (
-                            <option key={option.id} value={option.id}>{option.label}</option>
-                          ))}
-                        </select>
-                        <p className="text-[10px] text-gray-400 mt-1">
-                          {auditTemplateApplyOptions.find(option => option.id === formTemplateApplyMode)?.description}
-                        </p>
-                        {formTemplateApplyMode === 'single_template' && (
-                          <div className="pt-2 border-t border-blue-100">
-                            <label className="block text-gray-600 font-medium mb-1 flex items-center justify-between">
-                              <span>关联上报模版 *</span>
-                              <span className="text-[10px] text-gray-400 font-normal">来源于【模版配置】</span>
-                            </label>
-                            <select
-                              required
-                              value={formRelatedTemplateId}
-                              onChange={e => setFormRelatedTemplateId(e.target.value)}
-                              className="w-full px-3 py-1.5 border border-blue-200 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white cursor-pointer font-bold text-blue-900"
-                            >
-                              {enabledReportTemplates.length === 0 ? (
-                                <option value="">暂无已启用的上报模版</option>
-                              ) : (
-                                enabledReportTemplates.map(tpl => (
-                                  <option key={tpl.id} value={tpl.id}>
-                                    {tpl.name} ({tpl.templateType || '报送'})
-                                  </option>
-                                ))
-                              )}
-                            </select>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="rounded-lg border border-emerald-100 bg-emerald-50/30 p-3 space-y-2 relative">
-                        <label className="block text-gray-600 font-medium mb-1">机构范围</label>
-                        <select
-                          value={formOrgApplyMode}
-                          onChange={e => setFormOrgApplyMode(e.target.value as 'all_orgs' | 'specific_orgs')}
-                          className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white cursor-pointer font-bold text-gray-800"
-                        >
-                          <option value="all_orgs">所有机构生效</option>
-                          <option value="specific_orgs">指定机构生效</option>
-                        </select>
-                        <p className="text-[10px] text-gray-400 mt-1">
-                          {formOrgApplyMode === 'all_orgs' ? '所有下属机构统一使用该审核流程' : '仅勾选机构使用该审核流程'}
-                        </p>
-                        {formOrgApplyMode === 'specific_orgs' && (
-                          <div className="rounded-lg border border-emerald-100 bg-white/80 p-3 space-y-2 shadow-2xs">
-                            <div className="flex flex-col gap-2">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="font-bold text-gray-800 text-xs">指定机构清单</span>
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <button type="button" onClick={() => handleBatchToggleOrgSettings(true)} className="text-[10px] text-emerald-700 hover:underline font-bold">
-                                    全选
-                                  </button>
-                                  <span className="text-gray-300">|</span>
-                                  <button type="button" onClick={() => handleBatchToggleOrgSettings(false)} className="text-[10px] text-rose-600 hover:underline font-bold">
-                                    清空
-                                  </button>
-                                </div>
-                              </div>
-
-                              <div ref={orgPickerAnchorRef} className="relative">
-                                <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
-                                <input
-                                  type="text"
-                                  value={orgPickerSearch}
-                                  onChange={e => {
-                                    setOrgPickerSearch(e.target.value);
-                                    setIsOrgPickerOpen(true);
-                                  }}
-                                  onFocus={() => setIsOrgPickerOpen(true)}
-                                  onClick={() => setIsOrgPickerOpen(true)}
-                                  placeholder={selectedOrgSettings.length ? `已选 ${selectedOrgSettings.length} 个机构，可输入机构名称检索` : '输入机构名称检索，点击展开机构选择'}
-                                  className="w-full pl-8 pr-8 py-1.5 border border-emerald-200 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white text-xs"
-                                />
-                                {isOrgPickerOpen && typeof document !== 'undefined' && createPortal(
-                                  <div
-                                    ref={orgPickerPanelRef}
-                                    className="fixed z-[70] w-max max-w-[min(760px,calc(100vw-96px))] rounded-lg border border-gray-200 bg-white shadow-2xl overflow-hidden"
-                                    style={{ top: `${orgPickerPosition.top}px`, left: `${orgPickerPosition.left}px` }}
-                                  >
-                                    {(() => {
-                                      const query = orgPickerSearch.trim().toLowerCase();
-                                      const groupMatches = (group: typeof orgTreeGroups[number]['children'][number]) =>
-                                        !query || group.name.toLowerCase().includes(query) || group.children.some(orgId => formOrgSettings.find(item => item.orgId === orgId)?.orgName.toLowerCase().includes(query));
-                                      const orgMatches = (org?: OrgScopeSetting) => !query || !!org?.orgName.toLowerCase().includes(query);
-                                      const activeRoot = orgTreeGroups.find(root => root.id === orgPickerRootId) || orgTreeGroups[0];
-                                      const activeGroups = (activeRoot?.children || []).filter(groupMatches);
-                                      const activeGroup = activeGroups.find(group => group.id === orgPickerGroupId) || activeGroups[0];
-                                      const visibleOrgs = (activeGroup?.children || [])
-                                        .map(orgId => formOrgSettings.find(item => item.orgId === orgId))
-                                        .filter((org): org is OrgScopeSetting => !!org && orgMatches(org));
-                                      const hasAnyMatch = activeGroups.length > 0 || formOrgSettings.some(isOrgMatchedInPicker);
-
-                                      return hasAnyMatch ? (
-                                        <>
-                                          <div className="flex max-h-52 overflow-x-auto overflow-y-hidden">
-                                            <div className="w-44 shrink-0 border-r border-gray-200 overflow-y-auto">
-                                              {activeGroups.map(group => {
-                                                const isActive = activeGroup?.id === group.id;
-                                                return (
-                                                  <button
-                                                    key={group.id}
-                                                    type="button"
-                                                    onClick={() => setOrgPickerGroupId(group.id)}
-                                                    className={`w-full h-8 px-2 flex items-center justify-between gap-2 text-left text-xs hover:bg-emerald-50 cursor-pointer ${
-                                                      isActive ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-gray-700'
-                                                    }`}
-                                                  >
-                                                    <span className="flex items-center gap-2 min-w-0">
-                                                      <GitBranch className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-emerald-600' : 'text-gray-400'}`} />
-                                                      <span className="truncate">{group.name}</span>
-                                                    </span>
-                                                    <GitBranch className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                                                  </button>
-                                                );
-                                              })}
-                                            </div>
-                                            <div className="w-52 shrink-0 overflow-y-auto">
-                                              {visibleOrgs.length > 0 ? visibleOrgs.map(org => (
-                                                <button
-                                                  key={org.orgId}
-                                                  type="button"
-                                                  onClick={() => handleToggleOrgSetting(org.orgId)}
-                                                  className={`w-full h-8 px-2 flex items-center justify-between gap-2 text-left text-xs hover:bg-emerald-50 cursor-pointer ${
-                                                    org.enabled ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-gray-700'
-                                                  }`}
-                                                >
-                                                  <span className="flex items-center gap-2 min-w-0">
-                                                    <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${org.enabled ? 'border-emerald-600 bg-emerald-600' : 'border-gray-300 bg-white'}`}>
-                                                      {org.enabled && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                                                    </span>
-                                                    <Building2 className={`w-3.5 h-3.5 shrink-0 ${org.enabled ? 'text-emerald-600' : 'text-gray-400'}`} />
-                                                    <span className="truncate">{org.orgName}</span>
-                                                  </span>
-                                                  {org.enabled && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
-                                                </button>
-                                              )) : (
-                                                <div className="py-6 text-center text-xs text-gray-400">暂无机构</div>
-                                              )}
-                                            </div>
-                                          </div>
-                                          <div className="px-3 py-2 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
-                                            <span className="text-[11px] text-gray-500">已选 {selectedOrgSettings.length} 个机构</span>
-                                            <button
-                                              type="button"
-                                              onClick={() => setIsOrgPickerOpen(false)}
-                                              className="px-2.5 py-1 rounded bg-[#1E5ABB] text-white text-[11px] font-bold hover:bg-[#134092] cursor-pointer"
-                                            >
-                                              完成
-                                            </button>
-                                          </div>
-                                        </>
-                                      ) : (
-                                        <div className="py-6 text-center text-xs text-gray-400">未找到匹配机构</div>
-                                      );
-                                    })()}
-                                  </div>,
-                                  document.body
-                                )}
-                              </div>
-
-                              <div className="flex flex-wrap gap-1.5">
-                                {selectedOrgSettings.length > 0 ? (
-                                  selectedOrgSettings.slice(0, 6).map(org => (
-                                    <span key={org.orgId} className="inline-flex items-center gap-1 px-2 py-1 text-[10px] rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                      <span className="max-w-[120px] truncate">{org.orgName}</span>
-                                    </span>
-                                  ))
-                                ) : (
-                                  <span className="text-[10px] text-gray-400">尚未选择机构</span>
-                                )}
-                                {selectedOrgSettings.length > 6 && (
-                                  <span className="inline-flex items-center px-2 py-1 text-[10px] rounded-full bg-gray-100 text-gray-600 border border-gray-200">
-                                    +{selectedOrgSettings.length - 6}
-                                  </span>
-                                )}
-                              </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                      {[
+                        {
+                          id: 'step_by_step' as const,
+                          title: '模式一：逐级审核',
+                          badge: '推荐',
+                          badgeStyle: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                          desc: '沿组织树逐级向上传递复核，最终由总机构终审并评分（自适应组织深度）。'
+                        },
+                        {
+                          id: 'max_n_steps' as const,
+                          title: '模式二：最多N级审核',
+                          badge: '上限截断',
+                          badgeStyle: 'bg-amber-50 text-amber-800 border-amber-200',
+                          desc: `下级提报后至多经过 ${formMaxIntermediateNodes} 级中间机构审核，超出部分直接穿透至总机构。`
+                        },
+                        {
+                          id: 'direct_headquarters' as const,
+                          title: '模式三：直接总机构审核',
+                          badge: '极速直达',
+                          badgeStyle: 'bg-purple-50 text-purple-700 border-purple-200',
+                          desc: '跳过所有下级中间机构，提报后直接由总机构管理员终审并评分结案。'
+                        }
+                      ].map(modeOpt => {
+                        const isSelected = formAuditFlowMode === modeOpt.id;
+                        return (
+                          <div
+                            key={modeOpt.id}
+                            onClick={() => handleSwitchAuditFlowMode(modeOpt.id)}
+                            className={`rounded-lg border p-3 cursor-pointer transition-all flex flex-col justify-between ${
+                              isSelected
+                                ? 'border-[#1E5ABB] bg-blue-50/50 shadow-2xs ring-1 ring-[#1E5ABB]'
+                                : 'border-gray-200 bg-white hover:border-blue-200 hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className={`text-xs font-bold ${isSelected ? 'text-[#1E5ABB]' : 'text-gray-800'}`}>
+                                {modeOpt.title}
+                              </span>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${modeOpt.badgeStyle}`}>
+                                {modeOpt.badge}
+                              </span>
                             </div>
+                            <p className="text-[11px] text-gray-500 leading-relaxed">
+                              {modeOpt.desc}
+                            </p>
                           </div>
-                        )}
-                      </div>
-
-                      <div className="rounded-lg border border-amber-100 bg-amber-50/30 p-3 space-y-2">
-                        <label className="block text-gray-600 font-medium mb-1">无负责人时</label>
-                        <select
-                          value={formOwnerMissingStrategy}
-                          onChange={e => setFormOwnerMissingStrategy(e.target.value as AuditOwnerMissingStrategy)}
-                          className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white cursor-pointer font-bold text-gray-800"
-                        >
-                          {ownerMissingStrategyOptions.map(option => (
-                            <option key={option.id} value={option.id}>{option.label}</option>
-                          ))}
-                        </select>
-                        <p className="text-[10px] text-gray-400 mt-1">
-                          {ownerMissingStrategyOptions.find(option => option.id === formOwnerMissingStrategy)?.description}
-                        </p>
-                        {formOwnerMissingStrategy === 'fallback_role' && (
-                          <div className="pt-2 border-t border-amber-100">
-                            <label className="block text-gray-600 font-medium mb-1">兜底角色</label>
-                            <select
-                              value={formOwnerMissingFallbackRole}
-                              onChange={e => setFormOwnerMissingFallbackRole(e.target.value)}
-                              className="w-full px-3 py-1.5 border border-amber-200 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white cursor-pointer font-bold text-gray-800"
-                            >
-                              {auditRoleOptions.map(role => (
-                                <option key={role} value={role}>{role}</option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
-
-                        {formOwnerMissingStrategy === 'fallback_user' && (
-                          <div className="pt-2 border-t border-amber-100">
-                            <label className="block text-gray-600 font-medium mb-1">兜底人员</label>
-                            <select
-                              value={formOwnerMissingFallbackUserName}
-                              onChange={e => setFormOwnerMissingFallbackUserName(e.target.value)}
-                              className="w-full px-3 py-1.5 border border-amber-200 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white cursor-pointer font-bold text-gray-800"
-                            >
-                              <option value="">请选择人员</option>
-                              {auditUserOptions.map(user => (
-                                <option key={user} value={user}>{user}</option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
-                      </div>
+                        );
+                      })}
                     </div>
 
+                    {/* 最多N级模式下的档位微调 */}
+                    {formAuditFlowMode === 'max_n_steps' && (
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-amber-50/70 border border-amber-200 text-xs">
+                        <div className="flex items-center space-x-2">
+                          <Sliders className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                          <span className="font-bold text-amber-900">中间机构审核上限：</span>
+                          <div className="flex items-center space-x-1">
+                            {[1, 2, 3, 4, 5].map(cnt => (
+                              <button
+                                key={cnt}
+                                type="button"
+                                onClick={() => handleMaxIntermediateNodesChange(cnt)}
+                                className={`px-2 py-0.5 rounded text-xs font-bold cursor-pointer transition-colors ${
+                                  formMaxIntermediateNodes === cnt
+                                    ? 'bg-amber-600 text-white shadow-2xs'
+                                    : 'bg-white text-amber-800 border border-amber-300 hover:bg-amber-100'
+                                }`}
+                              >
+                                {cnt} 级
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <span className="text-[11px] text-amber-700 hidden sm:inline">
+                          （不足 {formMaxIntermediateNodes} 级时按实际层级流转，超出则直达总机构）
+                        </span>
+                      </div>
+                    )}
                   </div>
-
                 </div>
               ) : activeModule === 'data_dict' ? (
                 <div className="space-y-3">
@@ -6275,46 +6524,29 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                 const selectedNode = formAuditNodes[selectedIndex] || formAuditNodes[0];
                 return (
                   <div className="space-y-4 pt-3 border-t border-gray-200">
-                    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_290px] gap-4">
-                      <div className="min-w-0 bg-gray-50/70 p-3.5 rounded-lg border border-gray-200 space-y-3">
+                    {/* 节点配置与流转主区域 */}
+                    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_310px] gap-4">
+                      {/* 左侧：节点链可视化 */}
+                      <div className="min-w-0 bg-gray-50/70 p-3.5 rounded-xl border border-gray-200 space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-gray-800 flex items-center space-x-1.5 text-xs">
+                          <div className="flex items-center space-x-2">
                             <GitBranch className="w-4 h-4 text-[#1E5ABB]" />
-                            <span>流程节点可视化配置</span>
-                          </span>
-                          <span className="text-[10px] text-gray-500 bg-white border border-gray-200 font-bold px-2 py-0.5 rounded">
-                            {formAuditNodes.length} 个节点，顺序审核
-                          </span>
-                        </div>
-
-                        <div className="flex items-center space-x-2 bg-white p-2 rounded border border-gray-100">
-                          <span className="text-gray-500 font-medium shrink-0">快捷层级:</span>
-                          <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
-                            {[1, 2, 3, 4, 5].map(depth => (
-                              <button
-                                key={depth}
-                                type="button"
-                                onClick={() => handleFlowDepthChange(depth)}
-                                className={`px-2.5 py-1 rounded font-bold text-[11px] cursor-pointer transition-colors ${
-                                  formAuditNodes.length === depth
-                                    ? 'bg-[#1E5ABB] text-white shadow-2xs'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-blue-50'
-                                }`}
-                              >
-                                {depth} 节点
-                              </button>
-                            ))}
+                            <span className="font-bold text-gray-800 text-xs">
+                              审核节点流转链（共 {formAuditNodes.length} 个阶段）
+                            </span>
                           </div>
                         </div>
 
-                        <div className="w-full min-w-0 max-w-full bg-white rounded-lg border border-gray-100 p-3">
-                          <div className="grid grid-cols-[repeat(auto-fill,176px)] items-start gap-2 min-h-[155px]">
+                        {/* 节点卡片横向网格 */}
+                        <div className="w-full min-w-0 max-w-full bg-white rounded-xl border border-gray-200/80 p-3 shadow-2xs">
+                          <div className="grid grid-cols-[repeat(auto-fill,188px)] items-start gap-2.5 min-h-[160px]">
                             {formAuditNodes.map((node, index) => {
                               const isSelected = selectedNode?.id === node.id;
+                              const isFinalNode = Boolean(node.isUnifiedFinalNode || index === formAuditNodes.length - 1);
                               return (
                                 <React.Fragment key={node.id || index}>
                                   <div
-                                    draggable
+                                    draggable={!isFinalNode}
                                     onDragStart={e => e.dataTransfer.setData('text/plain', String(index))}
                                     onDragOver={e => e.preventDefault()}
                                     onDrop={e => {
@@ -6322,44 +6554,68 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                       handleDragAuditNode(Number(e.dataTransfer.getData('text/plain')), index);
                                     }}
                                     onClick={() => setSelectedAuditNodeId(node.id)}
-                                    className={`relative w-44 h-[155px] shrink-0 p-3 rounded-lg border cursor-pointer transition-all flex flex-col justify-between ${
-                                      isSelected
-                                        ? 'border-[#1E5ABB] bg-blue-50 shadow-2xs'
-                                        : 'border-gray-200 bg-white hover:border-blue-200 hover:bg-gray-50'
+                                    className={`relative w-[188px] min-h-[160px] shrink-0 p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                                      isFinalNode
+                                        ? isSelected
+                                          ? 'border-amber-500 bg-gradient-to-br from-amber-50 to-orange-50/60 shadow-xs ring-2 ring-amber-400/30'
+                                          : 'border-amber-300 bg-gradient-to-br from-amber-50/40 to-yellow-50/20 hover:border-amber-400'
+                                        : isSelected
+                                        ? 'border-[#1E5ABB] bg-blue-50/70 shadow-xs ring-2 ring-[#1E5ABB]/20'
+                                        : 'border-gray-200 bg-white hover:border-blue-200 hover:bg-gray-50/80'
                                     }`}
                                   >
                                     {index < formAuditNodes.length - 1 && (
-                                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none">→</span>
+                                      <span className="absolute -right-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none z-10 font-bold">
+                                        →
+                                      </span>
                                     )}
+
                                     <div className="space-y-2">
-                                      <div className="flex items-center justify-between gap-2">
-                                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                                          isSelected ? 'bg-[#1E5ABB] text-white' : 'bg-gray-200 text-gray-600'
-                                        }`}>
-                                          {index + 1}
-                                        </span>
-                                        <div className="flex items-center gap-1.5">
-                                          <span className="text-[10px] text-gray-400">可拖拽</span>
-                                          <button
-                                            type="button"
-                                            onClick={e => {
-                                              e.stopPropagation();
-                                              handleDeleteAuditNode(index);
-                                            }}
-                                            className="p-0.5 rounded text-gray-300 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
-                                            title="删除节点"
+                                      <div className="flex items-center justify-between gap-1.5">
+                                        <div className="flex items-center space-x-1.5">
+                                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                                            isFinalNode
+                                              ? 'bg-amber-500 text-white'
+                                              : isSelected
+                                              ? 'bg-[#1E5ABB] text-white'
+                                              : 'bg-gray-100 text-gray-700'
+                                          }`}>
+                                            {index + 1}
+                                          </span>
+                                          {isFinalNode && (
+                                            <span className="text-[10px] font-bold text-amber-700 bg-amber-100/80 px-1.5 py-0.2 rounded border border-amber-200 flex items-center gap-0.5">
+                                              <Award className="w-2.5 h-2.5" />
+                                              终审评分
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        <div className="flex items-center gap-1">
+                                          <span
+                                            title="流程模式标准节点已固定，不可删除"
+                                            className={`p-0.5 flex items-center justify-center ${
+                                              isFinalNode ? 'text-amber-500/80' : 'text-gray-400'
+                                            }`}
                                           >
-                                            <Trash2 className="w-3 h-3" />
-                                          </button>
+                                            <Lock className="w-3 h-3" />
+                                          </span>
                                         </div>
                                       </div>
+
                                       <div>
-                                        <div className="font-bold text-gray-900 text-xs truncate">{node.nodeName}</div>
-                                        <div className="text-[10px] text-gray-500 mt-1 truncate">
+                                        <div className="font-bold text-gray-900 text-xs truncate">
+                                          {node.nodeName}
+                                        </div>
+                                        <div className="text-[10px] text-gray-500 mt-0.5 truncate">
                                           {getAuditAssigneeSourceLabel(node.assigneeSource)}
                                         </div>
                                       </div>
-                                      <div className="text-[10px] text-gray-500 leading-relaxed">
+
+                                      <div className={`text-[10px] p-1.5 rounded border leading-tight ${
+                                        isFinalNode
+                                          ? 'bg-amber-100/50 border-amber-200/80 text-amber-900 font-bold'
+                                          : 'bg-gray-50 border-gray-100 text-gray-600'
+                                      }`}>
                                         {node.assigneeSource === 'org_owner'
                                           ? '归属机构负责人'
                                           : node.assigneeSource === 'user'
@@ -6367,17 +6623,30 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                           : node.approverRole}
                                       </div>
                                     </div>
-                                    <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-3">
-                                      <span className="text-[10px] text-gray-400">{node.timeLimitMinutes || 15} 分钟</span>
-                                      <div className="flex items-center gap-1">
+
+                                    <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-2">
+                                      {node.enableTimeout !== false && (node.timeLimitMinutes ?? 0) > 0 ? (
+                                        <span className="text-[10px] text-blue-600 font-mono flex items-center gap-1 font-medium" title={`超时提醒时限：${node.timeLimitMinutes}分钟`}>
+                                          <Clock className="w-2.5 h-2.5 text-blue-600" />
+                                          {node.timeLimitMinutes >= 60 && node.timeLimitMinutes % 60 === 0
+                                            ? `${node.timeLimitMinutes / 60}小时`
+                                            : `${node.timeLimitMinutes}分`}
+                                        </span>
+                                      ) : (
+                                        <span className="text-[10px] text-gray-400 flex items-center gap-1" title="未开启超时提醒">
+                                          <Clock className="w-2.5 h-2.5 text-gray-300" />
+                                          无提醒
+                                        </span>
+                                      )}
+                                      <div className="flex items-center gap-0.5">
                                         <button
                                           type="button"
                                           onClick={e => {
                                             e.stopPropagation();
                                             handleMoveAuditNode(index, 'up');
                                           }}
-                                          disabled={index === 0}
-                                          className="p-0.5 text-gray-400 hover:text-[#1E5ABB] disabled:opacity-30 disabled:hover:text-gray-400"
+                                          disabled={index === 0 || isFinalNode}
+                                          className="p-0.5 text-gray-400 hover:text-[#1E5ABB] disabled:opacity-20 cursor-pointer"
                                           title="上移"
                                         >
                                           <ArrowUp className="w-3 h-3" />
@@ -6388,8 +6657,8 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                             e.stopPropagation();
                                             handleMoveAuditNode(index, 'down');
                                           }}
-                                          disabled={index === formAuditNodes.length - 1}
-                                          className="p-0.5 text-gray-400 hover:text-[#1E5ABB] disabled:opacity-30 disabled:hover:text-gray-400"
+                                          disabled={index >= formAuditNodes.length - 2 || isFinalNode}
+                                          className="p-0.5 text-gray-400 hover:text-[#1E5ABB] disabled:opacity-20 cursor-pointer"
                                           title="下移"
                                         >
                                           <ArrowDown className="w-3 h-3" />
@@ -6400,49 +6669,47 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                 </React.Fragment>
                               );
                             })}
-
-                            <button
-                              type="button"
-                              onClick={handleAddAuditNode}
-                              className="w-32 h-[155px] shrink-0 rounded-lg border border-dashed border-gray-300 text-gray-500 hover:text-[#1E5ABB] hover:border-blue-300 hover:bg-blue-50/40 font-bold text-xs flex flex-col items-center justify-center gap-1 cursor-pointer"
-                            >
-                              <Plus className="w-4 h-4" />
-                              <span>新增节点</span>
-                            </button>
                           </div>
                         </div>
                       </div>
 
-                      <div className="min-w-0 bg-white p-3.5 rounded-lg border border-gray-200 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-gray-800 text-xs">节点配置</span>
+                      {/* 右侧：选中节点属性面板 */}
+                      <div className="min-w-0 bg-white p-3.5 rounded-xl border border-gray-200 space-y-3 shadow-2xs">
+                        <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                          <span className="font-bold text-gray-800 text-xs flex items-center gap-1.5">
+                            <Sliders className="w-3.5 h-3.5 text-[#1E5ABB]" />
+                            <span>节点属性编辑</span>
+                          </span>
                           {selectedNode && (
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteAuditNode(selectedIndex)}
-                              className="text-[11px] text-gray-400 hover:text-red-600 flex items-center space-x-1 cursor-pointer"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                              <span>删除</span>
-                            </button>
+                            <span className="text-[10px] text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-gray-200 font-medium flex items-center gap-1" title="流程模式标准节点已固定，不可删除">
+                              <Lock className="w-2.5 h-2.5 text-gray-400" />
+                              <span>流程固定节点</span>
+                            </span>
                           )}
                         </div>
 
                         {selectedNode ? (
                           <div className="space-y-3">
+                            {(selectedNode.isUnifiedFinalNode || selectedIndex === formAuditNodes.length - 1) && (
+                              <div className="p-2 rounded bg-amber-50 border border-amber-200 text-[11px] text-amber-800 flex items-center gap-1.5">
+                                <Award className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                <span>总机构终审通过并完成评分后结案入库</span>
+                              </div>
+                            )}
+
                             <div>
-                              <label className="block text-[11px] text-gray-500 mb-1">节点名称 *</label>
+                              <label className="block text-[11px] text-gray-600 font-medium mb-1">节点名称 *</label>
                               <input
                                 type="text"
                                 required
                                 value={selectedNode.nodeName}
                                 onChange={e => handleUpdateAuditNode(selectedIndex, { nodeName: e.target.value })}
-                                className="w-full px-3 py-1.5 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                                className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] font-medium"
                               />
                             </div>
 
                             <div>
-                              <label className="block text-[11px] text-gray-500 mb-1">处理人来源 *</label>
+                              <label className="block text-[11px] text-gray-600 font-medium mb-1">处理人来源 *</label>
                               <select
                                 value={selectedNode.assigneeSource || 'role'}
                                 onChange={e => {
@@ -6452,24 +6719,21 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                     approverRole: source === 'org_owner' ? '归属机构负责人' : selectedNode.approverRole
                                   });
                                 }}
-                                className="w-full px-3 py-1.5 border border-gray-200 rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                                className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
                               >
                                 {auditAssigneeSourceOptions.map(option => (
                                   <option key={option.id} value={option.id}>{option.label}</option>
                                 ))}
                               </select>
-                              <p className="text-[10px] text-gray-400 mt-1">
-                                {auditAssigneeSourceOptions.find(option => option.id === (selectedNode.assigneeSource || 'role'))?.description}
-                              </p>
                             </div>
 
                             {selectedNode.assigneeSource === 'user' ? (
                               <div>
-                                <label className="block text-[11px] text-gray-500 mb-1">指定人员 *</label>
+                                <label className="block text-[11px] text-gray-600 font-medium mb-1">指定人员 *</label>
                                 <select
                                   value={selectedNode.assigneeUserName || ''}
                                   onChange={e => handleUpdateAuditNode(selectedIndex, { assigneeUserName: e.target.value, approverRole: e.target.value })}
-                                  className="w-full px-3 py-1.5 border border-gray-200 rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                                  className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
                                 >
                                   <option value="">请选择人员</option>
                                   {auditUserOptions.map(user => (
@@ -6478,16 +6742,16 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                 </select>
                               </div>
                             ) : selectedNode.assigneeSource === 'org_owner' ? (
-                              <div className="p-2.5 rounded border border-emerald-100 bg-emerald-50/50 text-[11px] text-emerald-800 leading-relaxed">
-                                系统会根据上报人所属机构，自动匹配该机构负责人作为当前节点处理人。
+                              <div className="p-2 rounded border border-emerald-100 bg-emerald-50/50 text-[11px] text-emerald-800">
+                                沿组织树动态匹配归属机构负责人审核
                               </div>
                             ) : (
                               <div>
-                                <label className="block text-[11px] text-gray-500 mb-1">处理角色 *</label>
+                                <label className="block text-[11px] text-gray-600 font-medium mb-1">处理角色 *</label>
                                 <select
                                   value={selectedNode.approverRole}
                                   onChange={e => handleUpdateAuditNode(selectedIndex, { approverRole: e.target.value })}
-                                  className="w-full px-3 py-1.5 border border-gray-200 rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                                  className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
                                 >
                                   {auditRoleOptions.map(role => (
                                     <option key={role} value={role}>{role}</option>
@@ -6496,35 +6760,149 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               </div>
                             )}
 
-                            <div className="grid grid-cols-2 gap-2">
-                              <div>
-                                <label className="block text-[11px] text-gray-500 mb-1">超时提醒</label>
-                                <div className="flex items-center gap-1">
-                                  <input
-                                    type="number"
-                                    min="1"
-                                    value={selectedNode.timeLimitMinutes || 15}
-                                    onChange={e => handleUpdateAuditNode(selectedIndex, { timeLimitMinutes: Number(e.target.value) || 15 })}
-                                    className="w-full px-3 py-1.5 border border-gray-200 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                                  />
-                                  <span className="text-[11px] text-gray-500 shrink-0">分钟</span>
+                            {/* 无负责人处理规则 */}
+                            <div className="rounded-lg border border-amber-200/80 bg-amber-50/30 p-2.5 space-y-2">
+                              <label className="block text-[11px] text-amber-900 font-bold mb-0.5">无负责人规则</label>
+                              <select
+                                value={selectedNode.ownerMissingStrategy || formOwnerMissingStrategy}
+                                onChange={e => {
+                                  const strat = e.target.value as AuditOwnerMissingStrategy;
+                                  handleUpdateAuditNode(selectedIndex, { ownerMissingStrategy: strat });
+                                  setFormOwnerMissingStrategy(strat);
+                                }}
+                                className="w-full px-2.5 py-1.5 border border-amber-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                              >
+                                {ownerMissingStrategyOptions.map(option => (
+                                  <option key={option.id} value={option.id}>{option.label}</option>
+                                ))}
+                              </select>
+                              <p className="text-[10px] text-gray-500 leading-tight">
+                                {ownerMissingStrategyOptions.find(option => option.id === (selectedNode.ownerMissingStrategy || formOwnerMissingStrategy))?.description}
+                              </p>
+                              {(selectedNode.ownerMissingStrategy || formOwnerMissingStrategy) === 'fallback_role' && (
+                                <div className="pt-2 border-t border-amber-200/60">
+                                  <label className="block text-[11px] text-gray-700 font-medium mb-1">兜底角色</label>
+                                  <select
+                                    value={selectedNode.ownerMissingFallbackRole || formOwnerMissingFallbackRole}
+                                    onChange={e => {
+                                      const role = e.target.value;
+                                      handleUpdateAuditNode(selectedIndex, { ownerMissingFallbackRole: role });
+                                      setFormOwnerMissingFallbackRole(role);
+                                    }}
+                                    className="w-full px-2.5 py-1.5 border border-amber-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                                  >
+                                    {auditRoleOptions.map(role => (
+                                      <option key={role} value={role}>{role}</option>
+                                    ))}
+                                  </select>
                                 </div>
-                              </div>
-                              <div>
-                                <label className="block text-[11px] text-gray-500 mb-1">退回规则</label>
-                                <select
-                                  value={selectedNode.rejectStrategy || 'return_submitter'}
-                                  onChange={e => handleUpdateAuditNode(selectedIndex, { rejectStrategy: e.target.value as AuditNode['rejectStrategy'] })}
-                                  className="w-full px-3 py-1.5 border border-gray-200 rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                                >
-                                  <option value="return_submitter">退回上报人修改</option>
-                                  <option value="return_previous">退回上一节点</option>
-                                </select>
-                              </div>
+                              )}
+                              {(selectedNode.ownerMissingStrategy || formOwnerMissingStrategy) === 'fallback_user' && (
+                                <div className="pt-2 border-t border-amber-200/60">
+                                  <label className="block text-[11px] text-gray-700 font-medium mb-1">兜底人员</label>
+                                  <select
+                                    value={selectedNode.ownerMissingFallbackUserName || formOwnerMissingFallbackUserName}
+                                    onChange={e => {
+                                      const user = e.target.value;
+                                      handleUpdateAuditNode(selectedIndex, { ownerMissingFallbackUserName: user });
+                                      setFormOwnerMissingFallbackUserName(user);
+                                    }}
+                                    className="w-full px-2.5 py-1.5 border border-amber-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                                  >
+                                    <option value="">请选择人员</option>
+                                    {auditUserOptions.map(user => (
+                                      <option key={user} value={user}>{user}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
                             </div>
 
-                            <div className="p-2.5 rounded border border-blue-100 bg-blue-50/40 text-[11px] text-blue-800 leading-relaxed">
-                              通过后进入下一节点；最后一个节点通过后完成审核。一期仅配置超时提醒字段，暂不触发真实定时任务。
+                            {/* 审核超时提醒开关与配置 */}
+                            <div className="rounded-lg border border-gray-200 bg-gray-50/60 p-2.5 space-y-2.5">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1.5">
+                                  <Clock className={`w-3.5 h-3.5 ${selectedNode.enableTimeout !== false ? 'text-[#1E5ABB]' : 'text-gray-400'}`} />
+                                  <span className="text-[11px] font-bold text-gray-800">审核超时提醒</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  role="switch"
+                                  aria-checked={selectedNode.enableTimeout !== false}
+                                  onClick={() => {
+                                    const nextState = selectedNode.enableTimeout === false ? true : false;
+                                    handleUpdateAuditNode(selectedIndex, {
+                                      enableTimeout: nextState,
+                                      timeLimitMinutes: nextState ? (selectedNode.timeLimitMinutes && selectedNode.timeLimitMinutes > 0 ? selectedNode.timeLimitMinutes : 15) : 0
+                                    });
+                                  }}
+                                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                    selectedNode.enableTimeout !== false ? 'bg-[#1E5ABB]' : 'bg-gray-300'
+                                  }`}
+                                  title={selectedNode.enableTimeout !== false ? '点击关闭超时提醒' : '点击开启超时配置'}
+                                >
+                                  <span
+                                    aria-hidden="true"
+                                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                      selectedNode.enableTimeout !== false ? 'translate-x-4' : 'translate-x-0'
+                                    }`}
+                                  />
+                                </button>
+                              </div>
+
+                              {selectedNode.enableTimeout !== false ? (
+                                <div className="pt-2 border-t border-gray-200/80 space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <label className="text-[11px] text-gray-600 font-medium">提醒时限</label>
+                                    <div className="flex items-center space-x-1">
+                                      {[15, 30, 60, 120].map(mins => (
+                                        <button
+                                          key={mins}
+                                          type="button"
+                                          onClick={() => handleUpdateAuditNode(selectedIndex, { timeLimitMinutes: mins, enableTimeout: true })}
+                                          className={`px-1.5 py-0.5 rounded text-[10px] font-mono cursor-pointer transition-colors ${
+                                            (selectedNode.timeLimitMinutes || 15) === mins
+                                              ? 'bg-blue-100 text-[#1E5ABB] font-bold border border-blue-200'
+                                              : 'text-gray-500 hover:text-gray-700 bg-white border border-gray-200'
+                                          }`}
+                                        >
+                                          {mins === 60 ? '1小时' : mins === 120 ? '2小时' : `${mins}分`}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={selectedNode.timeLimitMinutes || 15}
+                                      onChange={e => handleUpdateAuditNode(selectedIndex, { timeLimitMinutes: Math.max(1, Number(e.target.value) || 1), enableTimeout: true })}
+                                      className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-mono bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                                      placeholder="输入超时分钟数"
+                                    />
+                                    <span className="text-[11px] text-gray-500 shrink-0">分钟</span>
+                                  </div>
+                                  <p className="text-[10px] text-gray-400 leading-tight">
+                                    开启后，该节点审核超过设定时长将触发待办超时催办提醒。
+                                  </p>
+                                </div>
+                              ) : (
+                                <div className="text-[11px] text-gray-400 bg-white p-2 rounded border border-gray-100 leading-relaxed">
+                                  当前已关停超时提醒，此审批节点不设时间限制，不推送超时催办通知。
+                                </div>
+                              )}
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] text-gray-600 font-medium mb-1">退回规则</label>
+                              <select
+                                value={selectedNode.rejectStrategy || 'return_submitter'}
+                                onChange={e => handleUpdateAuditNode(selectedIndex, { rejectStrategy: e.target.value as AuditNode['rejectStrategy'] })}
+                                className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                              >
+                                <option value="return_submitter">退回上报人修改</option>
+                                <option value="return_previous">退回上一节点</option>
+                              </select>
                             </div>
                           </div>
                         ) : (
@@ -6532,7 +6910,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                         )}
                       </div>
                     </div>
-
                   </div>
                 );
               })()}

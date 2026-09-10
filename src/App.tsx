@@ -348,6 +348,24 @@ export default function App() {
             onNavigatePage={handleNavigate}
           />
         )}
+        {activePage === 'audit-flow-config' && (
+          <BusinessConfig
+            key="audit-flow-config"
+            initialModule="audit_flow"
+            standaloneTitle="审核流程配置"
+            standaloneDescription="可视化设计多级审核流程链路、审批节点、责任人缺失兜底与适用机构范围"
+            onNavigatePage={handleNavigate}
+          />
+        )}
+        {activePage === 'audit-score-config' && (
+          <BusinessConfig
+            key="audit-score-config"
+            initialModule="audit_score"
+            standaloneTitle="审核打分配置"
+            standaloneDescription="维护审核评分等级、各级分值标准、考核权重与打分触发时机规则"
+            onNavigatePage={handleNavigate}
+          />
+        )}
         {activePage === 'dict-management' && (
           <BusinessConfig
             key="dict-management"
