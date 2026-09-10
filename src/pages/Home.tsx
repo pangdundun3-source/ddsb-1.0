@@ -166,20 +166,17 @@ export const Home: React.FC<HomeProps> = ({
   const showReporter = effectiveRoleMode === 'all' || effectiveRoleMode === 'reporter';
   const showAuditor = effectiveRoleMode === 'all' || effectiveRoleMode === 'auditor';
 
-  // 草稿与被驳回速报列表：与“报送管理-报送待办”使用同一批真实速报数据
-  const draftReports = reports.filter((r) => r.auditStatus === '草稿');
+  // 被驳回需修改速报列表：与“报送管理-报送待办”保持一致（草稿箱已移除）
   const rejectedReports = reports.filter(
     (r) => r.auditStatus === '被驳回' || r.auditStatus === '已驳回'
   );
-  const submitTodos: ReportItem[] = [...draftReports, ...rejectedReports];
-  const draftCount = draftReports.length;
+  const submitTodos: ReportItem[] = rejectedReports;
   const rejectedCount = rejectedReports.length;
 
   // Multi-range stats configuration
   const statsConfig = {
     本周: {
       submitWait: submitTodos.length,
-      submitDraft: draftCount,
       submitReject: rejectedCount,
       submitTotal: 11,
       submitFirst: 8,
@@ -455,12 +452,8 @@ export const Home: React.FC<HomeProps> = ({
                     </div>
                     <div className="text-[11px] text-slate-600 mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 font-medium">
                       <span className="flex items-center space-x-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block"></span>
-                        <span>草稿: <strong className="text-slate-800 font-bold font-mono">{draftCount}</strong></span>
-                      </span>
-                      <span className="flex items-center space-x-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block"></span>
-                        <span>驳回: <strong className="text-rose-600 font-bold font-mono">{rejectedCount}</strong></span>
+                        <span>驳回修改: <strong className="text-rose-600 font-bold font-mono">{rejectedCount}</strong></span>
                       </span>
                       <span className="flex items-center space-x-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
@@ -510,7 +503,7 @@ export const Home: React.FC<HomeProps> = ({
                     {submitTodos.length}
                   </div>
                   <div className="text-[11px] text-white/80 mt-0.5 truncate">
-                    草稿 {draftCount} · 驳回 {rejectedCount}
+                    驳回待改 {rejectedCount} 项
                   </div>
                 </div>
 
@@ -692,7 +685,7 @@ export const Home: React.FC<HomeProps> = ({
                   </div>
                   <div>
                     <h3 className="font-bold text-sm text-slate-900">报送待办列表</h3>
-                    <span className="text-[11px] text-slate-400">草稿与已驳回待修改事项</span>
+                    <span className="text-[11px] text-slate-400">已驳回待修改速报事项</span>
                   </div>
                   <span className="bg-blue-100 text-[#1E5ABB] text-xs font-bold px-2 py-0.5 rounded-full ml-1">
                     {submitTodos.length}
@@ -705,11 +698,10 @@ export const Home: React.FC<HomeProps> = ({
                 {submitTodos.length === 0 ? (
                   <div className="py-16 text-center text-slate-400 text-xs">
                     <Inbox className="w-9 h-9 mx-auto mb-2 opacity-40" />
-                    <p>暂无待办或草稿事项</p>
+                    <p>暂无待修改事项</p>
                   </div>
                 ) : (
                   currentSubmitTodos.map((item) => {
-                    const isDraft = item.auditStatus === '草稿';
                     const isRejected = item.auditStatus === '被驳回' || item.auditStatus === '已驳回';
                     const openDetail = () => {
                       if (onSelectReport) onSelectReport(item);
@@ -761,7 +753,7 @@ export const Home: React.FC<HomeProps> = ({
                           </div>
 
                           <div className="flex items-center gap-2.5 shrink-0 text-xs">
-                            {(isDraft || isRejected) && (
+                            {isRejected && (
                               <button
                                 onClick={() => onOpenEditReport && onOpenEditReport(item)}
                                 className="inline-flex items-center space-x-0.5 text-indigo-600 hover:text-indigo-800 hover:underline font-semibold cursor-pointer text-[11px]"
@@ -770,7 +762,7 @@ export const Home: React.FC<HomeProps> = ({
                                 <span>编辑</span>
                               </button>
                             )}
-                            {(isDraft || isRejected) && onDeleteReport && (
+                            {isRejected && onDeleteReport && (
                               <button
                                 onClick={() => setDeleteTarget(item)}
                                 className="inline-flex items-center space-x-0.5 text-rose-600 hover:text-rose-800 hover:underline font-medium cursor-pointer text-[11px]"
@@ -780,14 +772,12 @@ export const Home: React.FC<HomeProps> = ({
                                 <span>删除</span>
                               </button>
                             )}
-                            {!isDraft && (
-                              <button
-                                onClick={openDetail}
-                                className="text-[#1E5ABB] hover:underline font-semibold cursor-pointer text-[11px]"
-                              >
-                                详情
-                              </button>
-                            )}
+                            <button
+                              onClick={openDetail}
+                              className="text-[#1E5ABB] hover:underline font-semibold cursor-pointer text-[11px]"
+                            >
+                              详情
+                            </button>
                           </div>
                         </div>
                       </div>

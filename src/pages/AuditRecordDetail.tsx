@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuditRecordItem, ReportItem, PageId, Attachment, TimelineNode, OriginTypeLabel } from '../types';
 import {
   Info,
@@ -24,14 +24,15 @@ import {
   Share2,
   Download,
   History,
-  Eye
+  Eye,
+  X
 } from 'lucide-react';
 import { AttachmentPreviewModal } from '../components/AttachmentPreviewModal';
 import { AuditFlowTimeline } from '../components/AuditFlowTimeline';
 import { getFinalAuditScore } from '../auditStage';
 import { ReportOriginBadge } from '../components/ReportOriginBadge';
 
-interface AuditRecordDetailProps {
+export interface AuditRecordDetailProps {
   record: AuditRecordItem | null;
   allReports?: ReportItem[];
   sourcePage?: PageId;
@@ -39,6 +40,8 @@ interface AuditRecordDetailProps {
   onWithdrawReport?: (id: number) => void;
   onResubmitReport?: (report: ReportItem) => void;
   onDeleteReport?: (id: number) => void;
+  isDrawer?: boolean;
+  onClose?: () => void;
 }
 
 export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
@@ -48,7 +51,9 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
   onNavigate,
   onWithdrawReport,
   onResubmitReport,
-  onDeleteReport
+  onDeleteReport,
+  isDrawer = false,
+  onClose
 }) => {
   const report: ReportItem | null = record
     ? (() => {
@@ -129,7 +134,52 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
   const [editRegion, setEditRegion] = useState(report?.region || '西坝区');
   const [editInfoType, setEditInfoType] = useState(report?.infoType || '突发事件');
 
+  const [drawerActiveTab, setDrawerActiveTab] = useState<'detail' | 'flow'>('detail');
+
+  // Listen for Escape key to close drawer
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isDrawer && onClose) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isDrawer, onClose]);
+
+  const handleClose = () => {
+    if (onClose) {
+      onClose();
+    } else {
+      onNavigate(sourcePage === 'audit-records' ? 'audit-records' : 'report-summary');
+    }
+  };
+
   if (!report) {
+    if (isDrawer) {
+      return (
+        <div
+          className="fixed inset-0 z-50 overflow-hidden"
+          id="audit-record-detail-drawer"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity cursor-pointer"
+            onClick={handleClose}
+          />
+          <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[480px] bg-white p-6 shadow-2xl flex flex-col justify-center items-center text-center space-y-4">
+            <p className="text-sm text-gray-500">未选择审核记录</p>
+            <button
+              onClick={handleClose}
+              className="px-4 py-2 bg-[#1E5ABB] text-white rounded-lg text-xs font-semibold cursor-pointer"
+            >
+              关闭抽屉
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="p-12 text-center text-gray-500 bg-white rounded-xl border border-gray-200">
         <p className="text-sm">未选择审核记录，请返回审核记录列表选择。</p>
@@ -251,6 +301,463 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
     setIsEditModalOpen(false);
   };
 
+  const renderMainContentCard = () => (
+    <div className="bg-white rounded-xl p-5 sm:p-6 border border-gray-200/80 shadow-2xs space-y-5">
+      {/* Title & Status Row */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center flex-wrap gap-2.5">
+          <h1 className="text-base sm:text-lg font-bold text-gray-900 leading-snug">
+            {report.title}
+          </h1>
+          <ReportOriginBadge label={report.originLabel === '重复' ? '重复' : report.originLabel === '识别中' ? '识别中' : '首发'} size="md" />
+        </div>
+        <span
+          className={`shrink-0 text-xs font-semibold px-2.5 py-1 rounded-md border ${
+            titleStatusText === '已驳回'
+              ? 'bg-rose-50 text-rose-600 border-rose-200'
+              : titleStatusText === '已采纳'
+                ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                : titleStatusText === '待审核' || titleStatusText === '审核中'
+                  ? 'bg-amber-50 text-amber-600 border-amber-200'
+                  : 'bg-emerald-50 text-emerald-600 border-emerald-200'
+          }`}
+        >
+          {titleStatusText}
+        </span>
+      </div>
+
+      {/* Sub-meta: Author & Organization, Submit Time */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-gray-500 pt-0.5">
+        <div className="flex items-center space-x-1.5">
+          <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+          <span className="text-gray-700 font-normal">
+            {report.author} {report.organization && <span>({report.organization})</span>}
+          </span>
+        </div>
+        <div className="flex items-center space-x-1.5 font-mono text-gray-500">
+          <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+          <span>{report.submitTime}</span>
+        </div>
+        {finalScore !== undefined && (
+          <div className="flex items-center space-x-1 bg-amber-50 text-amber-800 px-2 py-0.5 rounded border border-amber-200 font-bold font-mono">
+            <span>评分：{finalScore} 分</span>
+          </div>
+        )}
+      </div>
+
+      {/* 4-Item Meta Grid (Matching screenshot layout) */}
+      <div className="bg-[#F8F9FA] rounded-xl p-4 border border-gray-100 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+        <div>
+          <span className="text-gray-400 font-normal block mb-1">信息来源</span>
+          <span className="text-gray-900 font-bold block">{report.source || '群众举报'}</span>
+        </div>
+        <div>
+          <span className="text-gray-400 font-normal block mb-1">所属区域</span>
+          <span className="text-gray-900 font-bold block">{report.region || '西屯区'}</span>
+        </div>
+        <div>
+          <span className="text-gray-400 font-normal block mb-1">信息类型</span>
+          <span className="text-gray-900 font-bold block">{report.infoType || '突发事件'}</span>
+        </div>
+        <div>
+          <span className="text-gray-400 font-normal block mb-1">发生地址</span>
+          <span className="text-gray-900 font-bold block">{report.occurAddress || '未填'}</span>
+        </div>
+      </div>
+
+      {/* Structured Content Sections */}
+      <div className="space-y-4 text-xs text-gray-700 pt-1">
+        {/* 【内容摘要】 */}
+        <div className="space-y-1.5">
+          <div className="font-bold text-gray-900 text-xs">【内容摘要】</div>
+          <div className="bg-[#F8F9FA] border border-gray-100 rounded-xl p-3.5 sm:p-4 text-xs text-gray-700 leading-relaxed font-normal">
+            {detail.summary}
+          </div>
+        </div>
+
+        {/* 【核心诉求】 */}
+        {detail.coreDemands && (
+          <div className="space-y-1.5">
+            <div className="font-bold text-gray-900 text-xs">【核心诉求】</div>
+            <div className="bg-[#F8F9FA] border border-gray-100 rounded-xl p-3.5 sm:p-4 text-xs text-gray-700 leading-relaxed font-normal">
+              {detail.coreDemands}
+            </div>
+          </div>
+        )}
+
+        {/* 【舆情态势】 */}
+        {detail.publicOpinionTrend && (
+          <div className="space-y-1.5">
+            <div className="font-bold text-gray-900 text-xs">【舆情态势】</div>
+            <div className="bg-[#F8F9FA] border border-gray-100 rounded-xl p-3.5 sm:p-4 text-xs text-gray-700 leading-relaxed font-normal">
+              {detail.publicOpinionTrend}
+            </div>
+          </div>
+        )}
+
+        {/* 【建议举措 / 处置建议】 */}
+        {detail.recommendations && (
+          <div className="space-y-1.5">
+            <div className="font-bold text-gray-900 text-xs">【建议举措 / 处置建议】</div>
+            <div className="bg-[#F8F9FA] border border-gray-100 rounded-xl p-3.5 sm:p-4 text-xs text-gray-700 space-y-2 leading-relaxed font-normal">
+              {Array.isArray(detail.recommendations) ? (
+                detail.recommendations.map((rec, idx) => (
+                  <p key={idx} className="leading-relaxed">
+                    {rec}
+                  </p>
+                ))
+              ) : (
+                <p className="leading-relaxed whitespace-pre-line">{detail.recommendations}</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 【同源地址】 */}
+        <div className="space-y-1.5">
+          <div className="font-bold text-gray-900 text-xs">【同源地址】</div>
+          <div className="bg-[#F8F9FA] border border-gray-100 rounded-xl p-3.5 flex items-center justify-between gap-3 text-xs">
+            <a
+              href={report.matchUrl || 'https://news.example.com/'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center space-x-1 text-xs font-mono text-[#1E5ABB] hover:text-[#134092] transition-colors truncate min-w-0 max-w-[460px] group cursor-pointer"
+              title={report.matchUrl || 'https://news.example.com/'}
+            >
+              <span className="truncate underline underline-offset-2 decoration-blue-300 group-hover:decoration-blue-600">
+                {report.matchUrl || 'https://news.example.com/'}
+              </span>
+              <ExternalLink className="w-3.5 h-3.5 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity" />
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderAttachmentsCard = () => (
+    <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-2xs space-y-4">
+      <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+        <div className="flex items-center space-x-2 text-sm font-bold text-gray-900">
+          <Paperclip className="w-4 h-4 text-[#1E5ABB]" />
+          <span>附件证据材料</span>
+        </div>
+        <span className="text-xs text-gray-400">共 {attachments.length} 份佐证材料</span>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+        {attachments.map((att) => (
+          <div
+            key={att.id}
+            className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50/40 hover:border-blue-400 hover:shadow-md transition-all group flex flex-col justify-between"
+          >
+            {att.type === 'image' ? (
+              <div
+                className="w-full h-28 bg-gray-100 overflow-hidden relative flex items-center justify-center cursor-pointer group"
+                onClick={() => setPreviewAttachment(att)}
+                title="点击预览图片"
+              >
+                <div className="absolute top-2 left-2 z-10 bg-black/60 backdrop-blur-xs text-white text-[11px] px-2 py-0.5 rounded flex items-center space-x-1 max-w-[90%]">
+                  <span className="truncate">{att.name}</span>
+                </div>
+                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center justify-center">
+                  <span className="px-3 py-1 bg-black/70 text-white rounded-full text-xs font-medium flex items-center space-x-1 backdrop-blur-xs">
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>点击预览</span>
+                  </span>
+                </div>
+                <img
+                  src={att.thumbnailUrl || 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=400&auto=format&fit=crop'}
+                  alt={att.name}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                />
+              </div>
+            ) : att.type === 'pdf' || att.name.toLowerCase().endsWith('.pdf') ? (
+              <div
+                className="w-full h-28 bg-rose-50/40 flex flex-col items-center justify-center text-rose-600 relative p-4 cursor-pointer group border-b border-gray-100"
+                onClick={() => setPreviewAttachment(att)}
+                title="点击在线预览 PDF 专报"
+              >
+                <div className="absolute top-2 left-2 z-10 bg-rose-600/90 backdrop-blur-xs text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
+                  PDF 文档
+                </div>
+                <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center justify-center">
+                  <span className="px-3 py-1 bg-black/70 text-white rounded-full text-xs font-medium flex items-center space-x-1 backdrop-blur-xs">
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>在线阅读</span>
+                  </span>
+                </div>
+                <FileText className="w-9 h-9 text-rose-500 group-hover:scale-110 transition-transform" />
+                <span className="mt-1.5 text-xs font-medium text-gray-800 truncate w-full text-center">
+                  {att.name}
+                </span>
+              </div>
+            ) : (
+              <div
+                className="w-full h-28 bg-blue-50/40 flex flex-col items-center justify-center text-[#1E5ABB] relative p-4 cursor-pointer group border-b border-gray-100"
+                onClick={() => setPreviewAttachment(att)}
+                title="点击在线预览数据表格"
+              >
+                <div className="absolute top-2 left-2 z-10 bg-[#1E5ABB]/90 backdrop-blur-xs text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
+                  数据表格
+                </div>
+                <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center justify-center">
+                  <span className="px-3 py-1 bg-black/70 text-white rounded-full text-xs font-medium flex items-center space-x-1 backdrop-blur-xs">
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>查看表格</span>
+                  </span>
+                </div>
+                <FileSpreadsheet className="w-9 h-9 text-[#1E5ABB] group-hover:scale-110 transition-transform" />
+                <span className="mt-1.5 text-xs font-medium text-gray-700 truncate w-full text-center">
+                  {att.name}
+                </span>
+              </div>
+            )}
+
+            <div className="p-2.5 bg-white border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
+              <span className="truncate pr-2">{att.size}</span>
+              <div className="flex items-center space-x-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setPreviewAttachment(att)}
+                  className="text-[#1E5ABB] hover:underline cursor-pointer flex items-center space-x-0.5 font-medium"
+                >
+                  <Eye className="w-3 h-3" />
+                  <span>预览</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderCurrentNodeConclusionCard = () => (
+    <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-2xs space-y-3">
+      <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+        <div className="flex items-center space-x-2">
+          <CheckSquare className="w-4 h-4 text-[#1E5ABB]" />
+          <h3 className="text-sm font-bold text-gray-800">本节点审核结论</h3>
+        </div>
+        <span className="shrink-0 rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-600">
+          节点记录
+        </span>
+      </div>
+
+      {record?.auditResult === '已通过' ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3.5">
+          <div className="flex items-center justify-between gap-2">
+            <p className="flex items-center space-x-1.5 text-xs font-bold text-emerald-900">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+              <span>已通过</span>
+            </p>
+            {record.score !== undefined && record.score !== null && (
+              <span className="shrink-0 rounded-lg border border-emerald-200 bg-white px-2 py-0.5 font-mono text-[11px] font-bold text-emerald-700">
+                评分：{record.score}分
+              </span>
+            )}
+          </div>
+          <p className="mt-2 text-[11px] text-emerald-700">
+            审核人：{record.auditor || '—'} · {record.auditTime || '—'}
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-3.5">
+          <p className="flex items-center space-x-1.5 text-xs font-bold text-rose-900">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+            <span>已驳回</span>
+          </p>
+          <p className="mt-2 text-[11px] text-rose-700">
+            审核人：{record.auditor || '—'} · {record.auditTime || '—'}
+          </p>
+          <div className="mt-2 rounded-lg border border-rose-200/80 bg-white/70 px-3 py-2 text-[11px] leading-relaxed text-rose-800">
+            <strong>驳回原因：</strong>{record.rejectReason || '信息不完整，请补充相关证明材料后重新提交。'}
+            {record.rejectDetail && (
+              <p className="mt-1 text-rose-700">{record.rejectDetail}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      <p className="text-[10px] leading-relaxed text-gray-400">
+        仅代表该审核节点当时的结论；速报当前的实时整体进度请见下方流转状态。
+      </p>
+    </div>
+  );
+
+  const renderDrawerActionBar = () => (
+    <div
+      id="audit-record-drawer-bottom-bar"
+      className="shrink-0 bg-white/98 backdrop-blur-md border-t border-slate-200/90 px-6 py-5 min-h-[84px] shadow-[0_-8px_24px_rgba(15,23,42,0.06)] z-20 flex items-center justify-between gap-5"
+    >
+      {/* 左侧：本节点审核结论记录 */}
+      <div className="flex items-center space-x-3.5 text-xs min-w-0">
+        <div
+          className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border shadow-xs ${
+            record?.auditResult === '已通过'
+              ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+              : 'bg-rose-50 text-rose-600 border-rose-200'
+          }`}
+        >
+          {record?.auditResult === '已通过' ? (
+            <CheckCircle2 className="w-5 h-5" />
+          ) : (
+            <AlertCircle className="w-5 h-5" />
+          )}
+        </div>
+        <div className="min-w-0 space-y-1.5">
+          <div className="flex items-center flex-wrap gap-2.5">
+            <span className="text-xs font-bold text-slate-800 tracking-tight">
+              本节点审核结论记录：
+            </span>
+            <span
+              className={`px-2.5 py-0.5 rounded-md text-xs font-bold shrink-0 ${
+                record?.auditResult === '已通过'
+                  ? 'bg-emerald-100/90 text-emerald-800 border border-emerald-200'
+                  : 'bg-rose-100/90 text-rose-800 border border-rose-200'
+              }`}
+            >
+              {record?.auditResult === '已通过' ? '已通过' : '已驳回'}
+            </span>
+            {record?.auditResult === '已通过' && record?.score !== undefined && record?.score !== null && (
+              <span className="px-2.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 text-xs font-bold font-mono shrink-0">
+                评分：{record.score}分
+              </span>
+            )}
+            {record?.auditResult !== '已通过' && (
+              <span className="text-xs text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-md border border-rose-200 truncate max-w-[320px]">
+                驳回原因：{record?.rejectReason || '信息不完整'}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center space-x-2 text-xs text-slate-500 truncate">
+            <span>审核人：<strong className="text-slate-700 font-medium">{record?.auditor || '王主任'}</strong></span>
+            <span className="text-slate-300">|</span>
+            <span>审核机构：<strong className="text-slate-700 font-medium">{record?.auditorOrg || record?.organization || '市委网信办'}</strong></span>
+            <span className="text-slate-300">|</span>
+            <span>审核时间：<span className="font-mono text-slate-600">{record?.auditTime || report?.auditTime || '—'}</span></span>
+          </div>
+        </div>
+      </div>
+
+      {/* 右侧：关闭操作按钮 */}
+      <div className="flex items-center space-x-3 shrink-0">
+        <button
+          type="button"
+          onClick={handleClose}
+          className="px-5 py-2.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded-lg shadow-xs hover:shadow-md cursor-pointer transition-all"
+        >
+          关闭
+        </button>
+      </div>
+    </div>
+  );
+
+  // 1. 抽屉模式展示 (占当前界面的 50%，右侧抽屉展示)
+  if (isDrawer) {
+    return (
+      <div
+        className="fixed inset-0 z-50 overflow-hidden"
+        id="audit-record-detail-drawer"
+        role="dialog"
+        aria-modal="true"
+      >
+        {/* 遮罩背景 (点击快速关闭抽屉) */}
+        <div
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity animate-in fade-in duration-200 cursor-pointer"
+          onClick={handleClose}
+        />
+
+        {/* 50% 宽度右侧抽屉主体容器 */}
+        <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[90vw] md:w-[75vw] lg:w-1/2 xl:w-1/2 bg-[#F8FAFC] shadow-2xl flex flex-col border-l border-gray-200 animate-in slide-in-from-right duration-250">
+          {/* 抽屉顶部 Tab 导航 (详情信息 vs 流转状态) 与关闭按钮 */}
+          <div className="bg-white px-5 border-b border-gray-200 flex items-center justify-between shrink-0 shadow-2xs">
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                id="tab-drawer-record-detail"
+                onClick={() => setDrawerActiveTab('detail')}
+                className={`px-4 py-3 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all cursor-pointer ${
+                  drawerActiveTab === 'detail'
+                    ? 'border-[#1E5ABB] text-[#1E5ABB]'
+                    : 'border-transparent text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+                <span>详情信息</span>
+              </button>
+              <button
+                type="button"
+                id="tab-drawer-record-flow"
+                onClick={() => setDrawerActiveTab('flow')}
+                className={`px-4 py-3 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all cursor-pointer ${
+                  drawerActiveTab === 'flow'
+                    ? 'border-[#1E5ABB] text-[#1E5ABB]'
+                    : 'border-transparent text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                <History className="w-4 h-4" />
+                <span>流转状态</span>
+              </button>
+            </div>
+
+            <div className="flex items-center space-x-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleClose}
+                className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-800 flex items-center justify-center transition-colors cursor-pointer"
+                title="关闭抽屉 (Esc)"
+              >
+                <X className="w-4.5 h-4.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* 抽屉内部滚动区域 */}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+            {drawerActiveTab === 'detail' ? (
+              <div className="space-y-4 animate-in fade-in duration-150 pb-2">
+                {renderMainContentCard()}
+                {renderAttachmentsCard()}
+              </div>
+            ) : (
+              <div className="space-y-4 animate-in fade-in duration-150 pb-2">
+                <AuditFlowTimeline
+                  report={flowReport}
+                  headerNote="实时 · 整体流程"
+                  rejectedLabel="已驳回"
+                  myRejectedNode={
+                    record?.auditResult === '被驳回'
+                      ? {
+                          auditor: record.auditor || '—',
+                          org: record.auditorOrg || record.organization || '—',
+                          time: record.auditTime,
+                          comment: record.rejectDetail || record.rejectReason || ''
+                        }
+                      : null
+                  }
+                />
+              </div>
+            )}
+          </div>
+
+          {/* 抽屉底部固定操作栏 */}
+          {renderDrawerActionBar()}
+        </div>
+
+        {/* 附件全屏预览弹窗 (z-[70]) */}
+        <AttachmentPreviewModal
+          isOpen={!!previewAttachment}
+          onClose={() => setPreviewAttachment(null)}
+          attachment={previewAttachment}
+          attachments={attachments}
+          onSelectAttachment={(att) => setPreviewAttachment(att)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 w-full" id="report-detail-view">
       {/* 1. Breadcrumbs & Top Navigation Bar */}
@@ -336,287 +843,13 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Left 2 Columns: Information & Content */}
         <div className="lg:col-span-2 space-y-5">
-          {/* Main Content Card (Matches the Screenshot Layout Exactly) */}
-          <div className="bg-white rounded-xl p-6 border border-gray-200/80 shadow-2xs space-y-5">
-            {/* Title & Status Row */}
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-center flex-wrap gap-2.5">
-                <h1 className="text-lg sm:text-xl font-bold text-gray-900 leading-snug">
-                  {report.title}
-                </h1>
-                <ReportOriginBadge label={report.originLabel === '重复' ? '重复' : '首发'} size="md" />
-              </div>
-              <span
-                className={`shrink-0 text-xs font-semibold px-3 py-1 rounded-md border ${
-                  titleStatusText === '已驳回'
-                    ? 'bg-rose-50 text-rose-600 border-rose-200'
-                    : titleStatusText === '已采纳'
-                      ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                      : titleStatusText === '待审核' || titleStatusText === '审核中'
-                        ? 'bg-amber-50 text-amber-600 border-amber-200'
-                        : isDraft
-                          ? 'bg-gray-100 text-gray-700 border-gray-300'
-                          : 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                }`}
-              >
-                {titleStatusText}
-              </span>
-            </div>
-
-            {/* Sub-meta: Author & Organization, Submit Time */}
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-gray-500 pt-0.5">
-              <div className="flex items-center space-x-1.5">
-                <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                <span className="text-gray-700 font-normal">
-                  {report.author} {report.organization && <span>({report.organization})</span>}
-                </span>
-              </div>
-              <div className="flex items-center space-x-1.5 font-mono text-gray-500">
-                <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                <span>{report.submitTime}</span>
-              </div>
-              {finalScore !== undefined && (
-                <div className="flex items-center space-x-1 bg-amber-50 text-amber-800 px-2 py-0.5 rounded border border-amber-200 font-bold font-mono">
-                  <span>评分：{finalScore} 分</span>
-                </div>
-              )}
-            </div>
-
-            {/* Structured Content Sections */}
-            <div className="space-y-4 text-xs text-gray-700 pt-2">
-              {/* 【内容摘要】 */}
-              <div className="space-y-1.5">
-                <div className="font-bold text-gray-900 text-xs">【内容摘要】</div>
-                <div className="bg-[#F8F9FA] border border-gray-100 rounded-lg p-3.5 text-xs text-gray-700 leading-relaxed font-normal">
-                  {detail.summary}
-                </div>
-              </div>
-
-              {/* 【核心诉求】 */}
-              {detail.coreDemands && (
-                <div className="space-y-1.5">
-                  <div className="font-bold text-gray-900 text-xs">【核心诉求】</div>
-                  <div className="bg-[#F8F9FA] border border-gray-100 rounded-lg p-3.5 text-xs text-gray-700 leading-relaxed font-normal">
-                    {detail.coreDemands}
-                  </div>
-                </div>
-              )}
-
-              {/* 【舆情态势】 */}
-              {detail.publicOpinionTrend && (
-                <div className="space-y-1.5">
-                  <div className="font-bold text-gray-900 text-xs">【舆情态势】</div>
-                  <div className="bg-[#F8F9FA] border border-gray-100 rounded-lg p-3.5 text-xs text-gray-700 leading-relaxed font-normal">
-                    {detail.publicOpinionTrend}
-                  </div>
-                </div>
-              )}
-
-              {/* 【建议举措 / 处置建议】 */}
-              {detail.recommendations && (
-                <div className="space-y-1.5">
-                  <div className="font-bold text-gray-900 text-xs">【建议举措 / 处置建议】</div>
-                  <div className="bg-[#F8F9FA] border border-gray-100 rounded-lg p-3.5 text-xs text-gray-700 space-y-1.5 leading-relaxed font-normal">
-                    {Array.isArray(detail.recommendations) ? (
-                      detail.recommendations.map((rec, idx) => (
-                        <p key={idx} className="leading-relaxed">
-                          {rec}
-                        </p>
-                      ))
-                    ) : (
-                      <p className="leading-relaxed whitespace-pre-line">{detail.recommendations}</p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* 【同源地址】 */}
-              <div className="space-y-1.5">
-                <div className="font-bold text-gray-900 text-xs">【同源地址】</div>
-                <div className="bg-[#F4F8FF] border border-[#D9E7FD] rounded-lg p-3 flex items-center justify-between gap-3 text-xs">
-                  <a
-                    href={report.matchUrl || 'https://news.example.com/'}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[#1E5ABB] font-mono truncate text-xs hover:underline"
-                    title={report.matchUrl || 'https://news.example.com/'}
-                  >
-                    {report.matchUrl || 'https://news.example.com/'}
-                  </a>
-                  <a
-                    href={report.matchUrl || 'https://news.example.com/'}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3 py-1 bg-white hover:bg-blue-50 text-[#1E5ABB] border border-[#BFD7FE] rounded-md font-medium text-xs shrink-0 flex items-center space-x-1 shadow-2xs cursor-pointer transition-colors"
-                  >
-                    <span>访问链接</span>
-                    <ExternalLink className="w-3.5 h-3.5 ml-0.5" />
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Attachments Card (Matches Screenshot bottom card) */}
-          <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-2xs space-y-4">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div className="flex items-center space-x-2 text-sm font-bold text-gray-900">
-                <Paperclip className="w-4 h-4 text-[#1E5ABB]" />
-                <span>附件证据材料</span>
-              </div>
-              <span className="text-xs text-gray-400">共 {attachments.length} 份佐证材料</span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
-              {attachments.map((att) => (
-                <div
-                  key={att.id}
-                  className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50/40 hover:border-blue-400 hover:shadow-md transition-all group flex flex-col justify-between"
-                >
-                  {att.type === 'image' ? (
-                    <div
-                      className="w-full h-32 bg-gray-100 overflow-hidden relative flex items-center justify-center cursor-pointer group"
-                      onClick={() => setPreviewAttachment(att)}
-                      title="点击预览图片"
-                    >
-                      <div className="absolute top-2 left-2 z-10 bg-black/60 backdrop-blur-xs text-white text-[11px] px-2 py-0.5 rounded flex items-center space-x-1 max-w-[90%]">
-                        <span className="truncate">{att.name}</span>
-                      </div>
-                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center justify-center">
-                        <span className="px-3 py-1 bg-black/70 text-white rounded-full text-xs font-medium flex items-center space-x-1 backdrop-blur-xs">
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>点击预览</span>
-                        </span>
-                      </div>
-                      <img
-                        src={att.thumbnailUrl || 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=400&auto=format&fit=crop'}
-                        alt={att.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                      />
-                    </div>
-                  ) : att.type === 'pdf' || att.name.toLowerCase().endsWith('.pdf') ? (
-                    <div
-                      className="w-full h-32 bg-rose-50/40 flex flex-col items-center justify-center text-rose-600 relative p-4 cursor-pointer group border-b border-gray-100"
-                      onClick={() => setPreviewAttachment(att)}
-                      title="点击在线预览 PDF 专报"
-                    >
-                      <div className="absolute top-2 left-2 z-10 bg-rose-600/90 backdrop-blur-xs text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
-                        PDF 文档
-                      </div>
-                      <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center justify-center">
-                        <span className="px-3 py-1 bg-black/70 text-white rounded-full text-xs font-medium flex items-center space-x-1 backdrop-blur-xs">
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>在线阅读</span>
-                        </span>
-                      </div>
-                      <FileText className="w-10 h-10 text-rose-500 group-hover:scale-110 transition-transform" />
-                      <span className="mt-2 text-xs font-medium text-gray-800 truncate w-full text-center">
-                        {att.name}
-                      </span>
-                    </div>
-                  ) : (
-                    <div
-                      className="w-full h-32 bg-blue-50/40 flex flex-col items-center justify-center text-[#1E5ABB] relative p-4 cursor-pointer group border-b border-gray-100"
-                      onClick={() => setPreviewAttachment(att)}
-                      title="点击在线预览数据表格"
-                    >
-                      <div className="absolute top-2 left-2 z-10 bg-[#1E5ABB]/90 backdrop-blur-xs text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
-                        数据表格
-                      </div>
-                      <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center justify-center">
-                        <span className="px-3 py-1 bg-black/70 text-white rounded-full text-xs font-medium flex items-center space-x-1 backdrop-blur-xs">
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>查看表格</span>
-                        </span>
-                      </div>
-                      <FileSpreadsheet className="w-10 h-10 text-[#1E5ABB] group-hover:scale-110 transition-transform" />
-                      <span className="mt-2 text-xs font-medium text-gray-700 truncate w-full text-center">
-                        {att.name}
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="p-2.5 bg-white border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
-                    <span className="truncate pr-2">{att.size}</span>
-                    <div className="flex items-center space-x-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => setPreviewAttachment(att)}
-                        className="text-[#1E5ABB] hover:underline cursor-pointer flex items-center space-x-0.5 font-medium"
-                      >
-                        <Eye className="w-3 h-3" />
-                        <span>预览</span>
-                      </button>
-                      <span className="text-gray-300">|</span>
-                      <button
-                        type="button"
-                        onClick={() => alert(`正在下载附件：${att.name}`)}
-                        className="text-gray-600 hover:text-[#1E5ABB] hover:underline cursor-pointer flex items-center space-x-0.5 font-medium"
-                      >
-                        <Download className="w-3 h-3" />
-                        <span>下载</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          {renderMainContentCard()}
+          {renderAttachmentsCard()}
         </div>
 
-        {/* Right 1 Column: Audit Workflow & Timeline (5-Stage Lifecycle from mobile design) */}
+        {/* Right 1 Column: Audit Workflow & Timeline */}
         <div className="space-y-5">
-          {/* 1. 本节点审核结论（固定为当前审核记录当时的结果） */}
-          <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-2xs space-y-3">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div className="flex items-center space-x-2">
-                <CheckSquare className="w-4 h-4 text-[#1E5ABB]" />
-                <h3 className="text-sm font-bold text-gray-800">本节点审核结论</h3>
-              </div>
-              <span className="shrink-0 rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-600">
-                节点记录
-              </span>
-            </div>
-
-            {record?.auditResult === '已通过' ? (
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3.5">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="flex items-center space-x-1.5 text-xs font-bold text-emerald-900">
-                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-                    <span>已通过</span>
-                  </p>
-                  {record.score !== undefined && record.score !== null && (
-                    <span className="shrink-0 rounded-lg border border-emerald-200 bg-white px-2 py-0.5 font-mono text-[11px] font-bold text-emerald-700">
-                      评分：{record.score}分
-                    </span>
-                  )}
-                </div>
-                <p className="mt-2 text-[11px] text-emerald-700">
-                  审核人：{record.auditor || '—'} · {record.auditTime || '—'}
-                </p>
-              </div>
-            ) : (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3.5">
-                <p className="flex items-center space-x-1.5 text-xs font-bold text-rose-900">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-                  <span>已驳回</span>
-                </p>
-                <p className="mt-2 text-[11px] text-rose-700">
-                  审核人：{record.auditor || '—'} · {record.auditTime || '—'}
-                </p>
-                <div className="mt-2 rounded-lg border border-rose-200/80 bg-white/70 px-3 py-2 text-[11px] leading-relaxed text-rose-800">
-                  <strong>驳回原因：</strong>{record.rejectReason || '信息不完整，请补充相关证明材料后重新提交。'}
-                  {record.rejectDetail && (
-                    <p className="mt-1 text-rose-700">{record.rejectDetail}</p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <p className="text-[10px] leading-relaxed text-gray-400">
-              仅代表该审核节点当时的结论；速报当前的实时整体进度请见下方流转状态。
-            </p>
-          </div>
+          {renderCurrentNodeConclusionCard()}
 
           {/* 2. 实时整体流转状态 */}
           <AuditFlowTimeline
@@ -634,208 +867,6 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
                 : null
             }
           />
-          {false && (
-          /* Streamlined Flow Timeline (Aligned with AuditDetail & Screenshot) */
-          <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-2xs space-y-4">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div className="flex items-center space-x-2">
-                <History className="w-4 h-4 text-[#2563EB]" />
-                <h3 className="text-sm font-bold text-gray-900">流转状态</h3>
-              </div>
-              {isAdopted && (
-                <span className="text-[11px] text-gray-400 font-normal">实时 · 整体流程</span>
-              )}
-            </div>
-
-            {/* Timeline List */}
-            <div className="relative space-y-0 text-xs">
-              {/* Step 1: 提交上报 */}
-              <div className="relative pl-6 pb-4">
-                {/* Connecting Line */}
-                <div className="absolute left-[7px] top-4.5 bottom-0 w-[1.5px] bg-[#E2E8F0]" />
-                {/* Icon */}
-                <div className="absolute left-0 top-0.5 w-4 h-4 rounded-full border-2 border-[#10B981] bg-white flex items-center justify-center text-[#10B981]">
-                  <Check className="w-2.5 h-2.5 stroke-[3]" />
-                </div>
-                {/* Content */}
-                <div className="space-y-2">
-                  <div className="font-bold text-gray-900 text-xs">提交上报</div>
-
-                  {/* Submission Card */}
-                  <div className="bg-[#F8FAFC] border border-[#EDF2F7] rounded-xl px-3.5 py-2.5 flex items-center justify-between text-xs gap-2">
-                    <span className="text-gray-600 truncate">
-                      {report.author} · {report.organization} · {report.submitTime}
-                    </span>
-                    <span className="text-[#059669] font-bold text-xs shrink-0">已提交</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Step 2: 审核处理 */}
-              <div className="relative pl-6 pb-4">
-                {/* Connecting Line */}
-                <div className="absolute left-[7px] top-4.5 bottom-0 w-[1.5px] bg-[#E2E8F0]" />
-                {/* Icon */}
-                <div
-                  className={`absolute left-0 top-0.5 w-4 h-4 rounded-full border-2 bg-white flex items-center justify-center ${
-                    isPending
-                      ? 'border-[#F59E0B] text-[#F59E0B]'
-                      : isRejected
-                      ? 'border-[#E11D48] text-[#E11D48]'
-                      : 'border-[#10B981] text-[#10B981]'
-                  }`}
-                >
-                  {isPending ? (
-                    <Clock className="w-2.5 h-2.5 stroke-[2.5]" />
-                  ) : isRejected ? (
-                    <AlertCircle className="w-2.5 h-2.5 stroke-[2.5]" />
-                  ) : (
-                    <Check className="w-2.5 h-2.5 stroke-[3]" />
-                  )}
-                </div>
-                {/* Content */}
-                <div className="space-y-2">
-                  <div className="font-bold text-gray-900 text-xs">审核处理</div>
-
-                  {isAdopted ? (
-                    /* Approved Card with Score */
-                    <div className="bg-[#F8FAFC] border border-[#EDF2F7] rounded-xl p-3 space-y-2 text-xs">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-gray-700 font-medium truncate">
-                          {report.auditor || '王主任'} · {report.organization || '市委宣传部舆情科'} · {report.auditTime || '--'}
-                        </span>
-                        <span className="text-[#059669] font-bold text-xs shrink-0">已通过</span>
-                      </div>
-                      <div className="bg-[#F0FDF4] border border-[#DCFCE7] text-[#15803D] rounded-lg px-3 py-2 text-xs font-bold font-mono">
-                        评分：{conclusionScore}分
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="bg-[#F8FAFC] border border-[#EDF2F7] rounded-xl p-3 space-y-2 text-xs">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-gray-700 font-medium truncate">
-                          王主任 · 市委宣传部舆情科
-                        </span>
-                        {isPending ? (
-                          <span className="bg-[#FEF3C7]/90 text-[#D97706] font-bold text-[11px] px-2 py-0.5 rounded-md border border-[#FDE68A] shrink-0">
-                            待审核
-                          </span>
-                        ) : isRejected ? (
-                          <span className="text-[#E11D48] font-bold text-xs shrink-0">已驳回</span>
-                        ) : (
-                          <span className="text-[#059669] font-bold text-xs shrink-0">已通过</span>
-                        )}
-                      </div>
-                      {isRejected && (
-                        <div className="bg-[#FFF1F2] border border-[#FFE4E6] text-[#BE123C] rounded-lg p-2.5 text-xs leading-relaxed">
-                          <strong>驳回原因：</strong>{report.rejectReason || '信息不完整，请补充相关证明材料后重新提交。'}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Step 3: 审核处理 (复核组) */}
-              <div className="relative pl-6 pb-4">
-                {/* Connecting Line */}
-                <div className="absolute left-[7px] top-4.5 bottom-0 w-[1.5px] bg-[#E2E8F0]" />
-                {/* Icon */}
-                <div
-                  className={`absolute left-0 top-0.5 w-4 h-4 rounded-full border-2 bg-white flex items-center justify-center ${
-                    isAdopted ? 'border-[#10B981] text-[#10B981]' : 'border-[#CBD5E1]'
-                  }`}
-                >
-                  {isAdopted ? (
-                    <Check className="w-2.5 h-2.5 stroke-[3]" />
-                  ) : (
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#CBD5E1]" />
-                  )}
-                </div>
-                {/* Content */}
-                <div className="space-y-1.5">
-                  <div className="font-bold text-gray-900 text-xs">审核处理</div>
-                  <div className="bg-[#F8FAFC] border border-[#EDF2F7] rounded-xl px-3.5 py-2.5 flex items-center justify-between text-xs gap-2">
-                    <span className="text-gray-700 font-medium truncate">
-                      {isAdopted ? '李明 · 市网信办复核组 · 2026-08-12 18:00' : '市网信办复核组'}
-                    </span>
-                    <span className={`${isAdopted ? 'text-[#059669] font-bold' : 'text-gray-400 font-medium'} text-xs shrink-0`}>
-                      {isAdopted ? '已通过' : '等待处理'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Step 4: 审核处理 (终审组) */}
-              <div className="relative pl-6 pb-4">
-                {/* Connecting Line */}
-                <div className="absolute left-[7px] top-4.5 bottom-0 w-[1.5px] bg-[#E2E8F0]" />
-                {/* Icon */}
-                <div
-                  className={`absolute left-0 top-0.5 w-4 h-4 rounded-full border-2 bg-white flex items-center justify-center ${
-                    isAdopted ? 'border-[#10B981] text-[#10B981]' : 'border-[#CBD5E1]'
-                  }`}
-                >
-                  {isAdopted ? (
-                    <Check className="w-2.5 h-2.5 stroke-[3]" />
-                  ) : (
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#CBD5E1]" />
-                  )}
-                </div>
-                {/* Content */}
-                <div className="space-y-2">
-                  <div className="font-bold text-gray-900 text-xs">审核处理</div>
-                  {isAdopted ? (
-                    <div className="bg-[#F8FAFC] border border-[#EDF2F7] rounded-xl p-3 space-y-2 text-xs">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-gray-700 font-medium truncate">
-                          终审员 · 市网信办终审组 · {report.auditTime || '--'}
-                        </span>
-                        <span className="text-[#059669] font-bold text-xs shrink-0">已通过</span>
-                      </div>
-                      <div className="bg-[#F0FDF4] border border-[#DCFCE7] text-[#15803D] rounded-lg px-3 py-2 text-xs font-bold font-mono">
-                        评分：{conclusionScore}分
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="bg-[#F8FAFC] border border-[#EDF2F7] rounded-xl px-3.5 py-2.5 flex items-center justify-between text-xs gap-2">
-                      <span className="text-gray-700 font-medium truncate">市网信办终审组</span>
-                      <span className="text-gray-400 font-medium text-xs shrink-0">
-                        等待处理
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Step 5: 结束 (已采纳) */}
-              <div className="relative pl-6">
-                {/* Icon */}
-                <div
-                  className={`absolute left-0 top-0.5 w-4 h-4 rounded-full border-2 bg-white flex items-center justify-center ${
-                    isAdopted ? 'border-[#10B981] text-[#10B981]' : 'border-[#CBD5E1]'
-                  }`}
-                >
-                  {isAdopted ? (
-                    <Check className="w-2.5 h-2.5 stroke-[3]" />
-                  ) : (
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#CBD5E1]" />
-                  )}
-                </div>
-                {/* Content */}
-                <div className="space-y-1.5">
-                  <div className="font-bold text-gray-900 text-xs">结束</div>
-                  <div className="bg-[#F8FAFC] border border-[#EDF2F7] rounded-xl px-3.5 py-2.5 flex items-center justify-between text-xs gap-2">
-                    <span className="text-gray-600 truncate">流程结束</span>
-                    {isAdopted && (
-                      <span className="text-[#059669] font-bold text-xs shrink-0">已采纳</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          )}
         </div>
       </div>
 

@@ -1287,12 +1287,20 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
           allReports={allReports}
           isDrawer={true}
           onClose={handleCloseAuditDrawer}
-          onApprove={(id, score, isBatch) => {
-            onApproveAudit?.(id, score, isBatch);
+          onApprove={(id, score, isBatch, batchIds) => {
+            if (isBatch && batchIds && batchIds.length > 0 && onBatchApprove) {
+              onBatchApprove([id, ...batchIds], score);
+            } else {
+              onApproveAudit?.(id, score, isBatch);
+            }
             handleCloseAuditDrawer();
           }}
-          onReject={(id, reason, detail) => {
-            onRejectAudit?.(id, reason, detail);
+          onReject={(id, reason, detail, isBatch, batchIds) => {
+            if (isBatch && batchIds && batchIds.length > 0 && onBatchReject) {
+              onBatchReject([id, ...batchIds], reason, detail);
+            } else {
+              onRejectAudit?.(id, reason, detail);
+            }
             handleCloseAuditDrawer();
           }}
           onNavigate={onNavigate}

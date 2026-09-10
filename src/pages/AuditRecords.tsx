@@ -4,10 +4,12 @@ import { Search, RotateCcw, X, AlertCircle } from 'lucide-react';
 import { PaginationBar } from '../components/PaginationBar';
 import { OrgPathDisplay, getOrganizationPathText } from '../components/OrgPathDisplay';
 import { ReportOriginBadge } from '../components/ReportOriginBadge';
+import { AuditRecordDetail } from './AuditRecordDetail';
 
 interface AuditRecordsProps {
   records: AuditRecordItem[];
   allReports: ReportItem[];
+  initialDrawerRecord?: AuditRecordItem | null;
   onSelectAuditRecord: (record: AuditRecordItem) => void;
   onNavigate: (page: PageId) => void;
 }
@@ -15,9 +17,17 @@ interface AuditRecordsProps {
 export const AuditRecords: React.FC<AuditRecordsProps> = ({
   records,
   allReports,
+  initialDrawerRecord = null,
   onSelectAuditRecord,
   onNavigate
 }) => {
+  const [drawerRecord, setDrawerRecord] = useState<AuditRecordItem | null>(initialDrawerRecord || null);
+
+  useEffect(() => {
+    if (initialDrawerRecord) {
+      setDrawerRecord(initialDrawerRecord);
+    }
+  }, [initialDrawerRecord]);
   const [keyword, setKeyword] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -88,7 +98,12 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
 
   const handleDetail = (record: AuditRecordItem) => {
     onSelectAuditRecord(record);
-    onNavigate('audit-record-detail');
+    setDrawerRecord(record);
+  };
+
+  const handleCloseDrawer = () => {
+    setDrawerRecord(null);
+    onNavigate('audit-records');
   };
 
   return (
@@ -349,6 +364,17 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
           />
         </div>
       </div>
+
+      {/* 审核记录详情右侧抽屉 (Drawer) */}
+      {drawerRecord && (
+        <AuditRecordDetail
+          record={drawerRecord}
+          allReports={allReports}
+          isDrawer={true}
+          onClose={handleCloseDrawer}
+          onNavigate={onNavigate}
+        />
+      )}
     </div>
   );
 };

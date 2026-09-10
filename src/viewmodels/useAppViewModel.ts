@@ -74,6 +74,11 @@ export function getHashRoute(): { page: PageId; module?: string } | null {
   return null;
 }
 
+export interface ToastInfo {
+  message: string;
+  type?: 'success' | 'reject' | 'error' | 'info';
+}
+
 export const useAppViewModel = () => {
   const [currentOrg, setCurrentOrg] = useState<OrgAccount>(() => {
     try {
@@ -167,11 +172,18 @@ export const useAppViewModel = () => {
   const [newReportTemplate, setNewReportTemplate] = useState<ReportTemplateInput | null>(null);
   const [editingReport, setEditingReport] = useState<ReportItem | null>(null);
   const [isH5MobileOpen, setIsH5MobileOpen] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastInfo, setToastInfo] = useState<ToastInfo | null>(null);
 
-  const showToast = (message: string) => {
-    setToastMessage(message);
-    setTimeout(() => setToastMessage(null), 3000);
+  const showToast = (
+    message: string,
+    type: 'success' | 'reject' | 'error' | 'info' = 'success'
+  ) => {
+    const finalType =
+      type === 'success' && (message.includes('驳回') || message.includes('删除'))
+        ? 'reject'
+        : type;
+    setToastInfo({ message, type: finalType });
+    setTimeout(() => setToastInfo(null), 3500);
   };
 
   const handleNavigate = (page: PageId, extraModule?: string) => {
@@ -259,16 +271,23 @@ export const useAppViewModel = () => {
   };
 
   const handleApproveAudit = (id: number, score?: number, isBatch = false) => {
-    const target = reports.find((report) => report.id === id);
-    if (!target) return;
+    let target = reports.find((report) => report.id === id);
+    if (!target && selectedAudit?.id === id) {
+      target = selectedAudit;
+    }
+    if (!target) {
+      showToast('审核通过成功！', 'success');
+      return;
+    }
     const now = getNowText();
 
     let finalReportToRecord = target;
 
-    if (isBatch && selectedAudit?.matchUrl) {
+    if (isBatch && (selectedAudit?.matchUrl || target.matchUrl)) {
+      const matchUrl = selectedAudit?.matchUrl || target.matchUrl;
       const matchedIds = new Set(
         reports
-          .filter((report) => report.matchUrl === selectedAudit.matchUrl || report.id === id)
+          .filter((report) => report.matchUrl === matchUrl || report.id === id)
           .map((report) => report.id)
       );
       setReports((previous) =>
@@ -281,14 +300,15 @@ export const useAppViewModel = () => {
           return report;
         })
       );
-      const selectedUpdate = reports.find((report) => report.id === selectedAudit.id);
+      const selectedUpdate = reports.find((report) => report.id === selectedAudit?.id);
       if (selectedUpdate) {
         const updatedSelected = approveReport(selectedUpdate, score, now);
         setSelectedAudit(updatedSelected);
         finalReportToRecord = updatedSelected;
       }
       showToast(
-        `已成功批量审核通过同源速报${score !== undefined ? `（终审评分: ${score}分）` : ''}！`
+        `批量审核成功！已审核通过同源关联速报${score !== undefined ? `（评分: ${score}分）` : ''}！`,
+        'success'
       );
     } else {
       const updated = approveReport(target, score, now);
@@ -297,9 +317,10 @@ export const useAppViewModel = () => {
       if (selectedAudit?.id === id) setSelectedAudit(updated);
       if (selectedReport?.id === id) setSelectedReport(updated);
       showToast(
-        `已审核通过速报${
-          isFinalAuditStage(target) && score !== undefined ? `（终审评分: ${score}分）` : ''
-        }`
+        `审核通过成功！速报《${target.title}》已审核通过${
+          isFinalAuditStage(target) && score !== undefined ? `（评分: ${score}分）` : ''
+        }`,
+        'success'
       );
     }
 
@@ -325,8 +346,14 @@ export const useAppViewModel = () => {
   };
 
   const handleRejectAudit = (id: number, reason: string, detail: string) => {
-    const target = reports.find((report) => report.id === id);
-    if (!target) return;
+    let target = reports.find((report) => report.id === id);
+    if (!target && selectedAudit?.id === id) {
+      target = selectedAudit;
+    }
+    if (!target) {
+      showToast(`审核驳回成功！已驳回速报，原因: ${reason}`, 'reject');
+      return;
+    }
     const now = getNowText();
     const updated = rejectReport(target, reason, detail, now);
     setReports((previous) => previous.map((report) => (report.id === id ? updated : report)));
@@ -344,7 +371,7 @@ export const useAppViewModel = () => {
       ),
       ...previous
     ]);
-    showToast(`速报已驳回: ${reason}`);
+    showToast(`审核驳回成功！速报《${target.title}》已被驳回，原因: ${reason}`, 'reject');
   };
 
   const handleBatchApprove = (ids: number[], score?: number) => {
@@ -384,7 +411,10 @@ export const useAppViewModel = () => {
       ),
       ...previous
     ]);
-    showToast(`已成功批量审核通过 ${ids.length} 条速报！`);
+    showToast(
+      `批量审核成功！已成功审核通过 ${ids.length} 条速报${score !== undefined ? `（终审评分: ${score}分）` : ''}！`,
+      'success'
+    );
   };
 
   const handleBatchReject = (ids: number[], reason: string, detail: string) => {
@@ -417,7 +447,7 @@ export const useAppViewModel = () => {
       ),
       ...previous
     ]);
-    showToast(`已成功批量驳回 ${ids.length} 条速报！`);
+    showToast(`批量驳回成功！已成功驳回 ${ids.length} 条速报，原因: ${reason}`, 'reject');
   };
 
   const handleTransferSubmit = (id: number, opinion: string) => {
@@ -476,7 +506,9 @@ export const useAppViewModel = () => {
     newReportTemplate,
     editingReport,
     isH5MobileOpen,
-    toastMessage,
+    toastInfo,
+    toastMessage: toastInfo?.message || null,
+    showToast,
     setSelectedReport,
     setSelectedAudit,
     setSelectedNegative,

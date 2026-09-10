@@ -1,4 +1,5 @@
 import React from 'react';
+import { CheckCircle2, XCircle, Info } from 'lucide-react';
 import { initialEvaluations } from './data/mockData';
 import { useAppViewModel } from './viewmodels/useAppViewModel';
 
@@ -15,7 +16,6 @@ import { ReportDetail } from './pages/ReportDetail';
 import { ReportAudit } from './pages/ReportAudit';
 import { AuditDetail } from './pages/AuditDetail';
 import { AuditRecords } from './pages/AuditRecords';
-import { AuditRecordDetail } from './pages/AuditRecordDetail';
 import { NegativeInfoLibrary } from './pages/NegativeInfoLibrary';
 import { NegativeDetail } from './pages/NegativeDetail';
 import { Statistics } from './pages/Statistics';
@@ -48,6 +48,7 @@ export default function App() {
     newReportTemplate,
     editingReport,
     isH5MobileOpen,
+    toastInfo,
     toastMessage,
     setSelectedReport,
     setSelectedAudit,
@@ -86,10 +87,44 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F0F4F8] text-gray-800 font-sans antialiased selection:bg-blue-100 selection:text-blue-900">
-      {toastMessage && (
-        <div className="fixed top-4 right-4 z-50 bg-[#1E5ABB] text-white px-4 py-2.5 rounded-lg shadow-xl text-xs font-bold flex items-center space-x-2 animate-in fade-in slide-in-from-top-2">
-          <span>✓</span>
-          <span>{toastMessage}</span>
+      {(toastInfo || toastMessage) && (
+        <div
+          id="global-toast-notification"
+          className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] pointer-events-none animate-in fade-in slide-in-from-top-4 duration-200"
+        >
+          <div
+            className={`pointer-events-auto min-w-[320px] max-w-[540px] px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 text-sm border backdrop-blur-md transition-all ${
+              toastInfo?.type === 'reject'
+                ? 'bg-rose-600 text-white border-rose-500 shadow-rose-950/25'
+                : toastInfo?.type === 'error'
+                ? 'bg-red-600 text-white border-red-500 shadow-red-950/25'
+                : toastInfo?.type === 'info'
+                ? 'bg-[#1E5ABB] text-white border-blue-500 shadow-blue-950/25'
+                : 'bg-emerald-600 text-white border-emerald-500 shadow-emerald-950/25'
+            }`}
+          >
+            <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+              {toastInfo?.type === 'reject' ? (
+                <XCircle className="w-5 h-5 text-white" />
+              ) : toastInfo?.type === 'info' ? (
+                <Info className="w-5 h-5 text-white" />
+              ) : (
+                <CheckCircle2 className="w-5 h-5 text-white" />
+              )}
+            </div>
+            <div className="flex flex-col flex-1 min-w-0 pr-1">
+              <span className="text-xs font-bold leading-tight tracking-wide">
+                {toastInfo?.type === 'reject'
+                  ? '审核驳回提示'
+                  : toastInfo?.type === 'info'
+                  ? '系统提示'
+                  : '操作成功'}
+              </span>
+              <span className="text-xs text-white/95 font-medium leading-snug break-words mt-0.5">
+                {toastInfo?.message || toastMessage}
+              </span>
+            </div>
+          </div>
         </div>
       )}
 
@@ -184,19 +219,12 @@ export default function App() {
           />
         )}
 
-        {activePage === 'audit-records' && (
+        {(activePage === 'audit-records' || activePage === 'audit-record-detail') && (
           <AuditRecords
             records={auditRecords}
             allReports={reports}
+            initialDrawerRecord={activePage === 'audit-record-detail' ? (selectedAuditRecord || auditRecords[0] || null) : null}
             onSelectAuditRecord={setSelectedAuditRecord}
-            onNavigate={handleNavigate}
-          />
-        )}
-
-        {activePage === 'audit-record-detail' && (
-          <AuditRecordDetail
-            record={selectedAuditRecord}
-            allReports={reports}
             onNavigate={handleNavigate}
           />
         )}

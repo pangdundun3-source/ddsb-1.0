@@ -17,7 +17,10 @@ import {
   Link as LinkIcon,
   Copy,
   Download,
-  Eye
+  Eye,
+  History,
+  ArrowRight,
+  Activity
 } from 'lucide-react';
 import { AttachmentPreviewModal } from '../components/AttachmentPreviewModal';
 import { AuditFlowTimeline } from '../components/AuditFlowTimeline';
@@ -27,8 +30,8 @@ import { ReportOriginBadge } from '../components/ReportOriginBadge';
 interface AuditDetailProps {
   report: ReportItem | null;
   allReports?: ReportItem[];
-  onApprove: (id: number, score?: number, isBatch?: boolean) => void;
-  onReject: (id: number, reason: string, detail: string) => void;
+  onApprove: (id: number, score?: number, isBatch?: boolean, batchIds?: number[]) => void;
+  onReject: (id: number, reason: string, detail: string, isBatch?: boolean, batchIds?: number[]) => void;
   onNavigate: (page: PageId) => void;
   isDrawer?: boolean;
   onClose?: () => void;
@@ -51,6 +54,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
   const [rejectReason, setRejectReason] = useState('信息不完整');
   const [rejectDetail, setRejectDetail] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
+  const [drawerActiveTab, setDrawerActiveTab] = useState<'detail' | 'flow'>('detail');
   const [previewAttachment, setPreviewAttachment] = useState<any | null>(null);
   const [viewingDetailReport, setViewingDetailReport] = useState<ReportItem | null>(null);
 
@@ -199,16 +203,47 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
 
   const displayMatchedList = matchedCoReports.length > 0 ? matchedCoReports : fallbackCoReports;
   const totalMatchedCount = isUrlMatched ? displayMatchedList.length + 1 : 1;
+  const auditorName = report.auditor || '张三';
+
+  // 同源速报勾选批量审核状态管理
+  const [selectedBatchIds, setSelectedBatchIds] = useState<number[]>([]);
+
+  // 当报告或匹配列表变化时，默认全选同源匹配速报，方便一键批量操作
+  useEffect(() => {
+    if (isUrlMatched && displayMatchedList.length > 0) {
+      setSelectedBatchIds(displayMatchedList.map((c) => c.id));
+    } else {
+      setSelectedBatchIds([]);
+    }
+  }, [report?.id, report?.matchUrl, isUrlMatched, displayMatchedList.length]);
+
+  const toggleBatchItem = (id: number) => {
+    setSelectedBatchIds((prev) =>
+      prev.includes(id) ? prev.filter((itemId) => itemId !== id) : [...prev, id]
+    );
+  };
+
+  const isAllBatchSelected =
+    displayMatchedList.length > 0 &&
+    displayMatchedList.every((c) => selectedBatchIds.includes(c.id));
+
+  const toggleSelectAllBatch = () => {
+    if (isAllBatchSelected) {
+      setSelectedBatchIds([]);
+    } else {
+      setSelectedBatchIds(displayMatchedList.map((c) => c.id));
+    }
+  };
 
   const canScore = isFinalAuditStage(report);
   const finalScore = getFinalAuditScore(report);
 
   const handleSubmitAudit = () => {
-    const shouldBatch = isUrlMatched && (matchedCoReports.length > 0 || displayMatchedList.length > 0);
+    const isBatch = selectedBatchIds.length > 0;
     if (auditMode === 'pass') {
-      onApprove(report.id, canScore ? selectedScore : undefined, shouldBatch);
+      onApprove(report.id, canScore ? selectedScore : undefined, isBatch, selectedBatchIds);
     } else {
-      onReject(report.id, rejectReason, rejectDetail);
+      onReject(report.id, rejectReason, rejectDetail, isBatch, selectedBatchIds);
     }
     handleClose();
   };
@@ -494,182 +529,260 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
     </div>
   );
 
-  // 3. 审核操作处置卡片
-  const renderAuditActionCard = () => (
-    <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-2xs space-y-4" id="audit-action-panel">
-      <div className="flex items-center space-x-2 border-b border-gray-100 pb-3">
-        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-        <h3 className="text-sm font-bold text-gray-900">审核操作处置</h3>
-      </div>
-
-      {isPending ? (
-        <>
-          {/* Precision Match by URL Section */}
-          <div className="bg-[#F4F8FD] border border-[#E2EEF9] rounded-xl p-3.5 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-1.5 text-gray-900 font-bold text-xs">
-                <LinkIcon className="w-3.5 h-3.5 text-[#2563EB] shrink-0" />
-                <span>按链接地址精准匹配</span>
-              </div>
-              <span className="bg-[#EBF3FE] text-[#2563EB] border border-[#D5E6FC] text-[11px] font-medium px-2.5 py-0.5 rounded-full shrink-0">
-                共 {totalMatchedCount} 条匹配数据
-              </span>
-            </div>
-
-            {/* URL Field */}
-            <div className="bg-white border border-[#D5E1EF] rounded-lg px-3 py-2 text-xs font-mono text-gray-700 shadow-2xs select-all flex items-center justify-between gap-2">
-              <span className="truncate flex-1" title={matchUrl}>
+  // 3. 按链接地址精准匹配信息卡片 (独立卡片，支持勾选批量审核)
+  const renderMatchInfoCard = () => (
+    <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-2xs space-y-3.5" id="match-info-panel">
+      <div className="flex items-center justify-between border-b border-gray-100 pb-3 gap-2">
+        <div className="flex items-center space-x-2 min-w-0 flex-1">
+          <LinkIcon className="w-4 h-4 text-[#2563EB] shrink-0" />
+          <h3 className="text-sm font-bold text-gray-900 shrink-0">按链接地址精准匹配</h3>
+          <span className="text-gray-300 shrink-0 text-xs">：</span>
+          {matchUrl ? (
+            <a
+              href={matchUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center space-x-1 text-xs font-mono text-[#1E5ABB] hover:text-[#134092] transition-colors truncate min-w-0 max-w-[460px] group cursor-pointer"
+              title={`点击在新窗口跳转访问原文地址：\n${matchUrl}`}
+            >
+              <span className="truncate underline underline-offset-2 decoration-blue-300 group-hover:decoration-blue-600">
                 {matchUrl}
               </span>
-              {matchUrl && (
-                <a
-                  href={matchUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[#2563EB] hover:text-[#1d4ed8] p-0.5 hover:bg-blue-50 rounded transition-colors shrink-0"
-                  title="访问链接"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              )}
-            </div>
+              <ExternalLink className="w-3.5 h-3.5 text-[#2563EB] shrink-0 group-hover:translate-x-0.5 transition-transform" />
+            </a>
+          ) : (
+            <span className="text-xs text-gray-400 font-mono italic">暂无同源匹配链接</span>
+          )}
+        </div>
+      </div>
 
-            {/* Matched Content Items List */}
-            {isUrlMatched && (
-              <div className="space-y-2 pt-1 max-h-48 overflow-y-auto">
-                {displayMatchedList.map((c) => (
-                  <div
-                    key={c.id}
-                    className="bg-white rounded-lg p-2.5 border border-gray-200/80 hover:border-blue-300 shadow-2xs space-y-1 transition-all"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setViewingDetailReport(c)}
-                        className="font-bold text-[#1E5ABB] hover:text-[#134092] hover:underline text-xs leading-snug text-left cursor-pointer transition-colors line-clamp-1"
-                        title={`点击查看事件详情: ${c.title}`}
-                      >
-                        {c.title}
-                      </button>
-                      <ReportOriginBadge report={c} size="sm" className="shrink-0" />
+      {/* Matched Content Items List with Batch Audit Checkbox Selection */}
+      {isUrlMatched && displayMatchedList.length > 0 ? (
+        <div className="space-y-2 pt-1">
+          {/* 列表工具条：全选控制与批量审核提示 */}
+          <div className="flex items-center justify-between bg-[#EBF3FE] border border-blue-100/90 rounded-md px-3 py-2 text-xs">
+            <label className="flex items-center space-x-2 cursor-pointer font-bold text-[#1E3A8A] hover:text-blue-900 select-none">
+              <input
+                type="checkbox"
+                checked={isAllBatchSelected}
+                onChange={toggleSelectAllBatch}
+                className="w-4 h-4 rounded text-[#1E5ABB] focus:ring-[#1E5ABB] border-slate-300 cursor-pointer"
+              />
+              <span>勾选是否一起批量审核</span>
+            </label>
+            <div className="flex items-center space-x-2 text-xs">
+              <span className={selectedBatchIds.length > 0 ? "text-blue-600 font-medium" : "text-slate-500 font-medium"}>
+                已勾选 {selectedBatchIds.length}/{displayMatchedList.length} 条待审
+              </span>
+              <button
+                type="button"
+                onClick={toggleSelectAllBatch}
+                className="text-blue-600 hover:text-blue-800 font-medium hover:underline cursor-pointer transition-colors"
+              >
+                {isAllBatchSelected ? '取消全选' : '全选'}
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-2 max-h-64 overflow-y-auto pr-0.5">
+            {displayMatchedList.map((c) => {
+              const isChecked = selectedBatchIds.includes(c.id);
+              return (
+                <div
+                  key={c.id}
+                  className={`rounded-lg p-3 border transition-all ${
+                    isChecked
+                      ? 'bg-blue-50/40 border-blue-300 shadow-2xs'
+                      : 'bg-[#F8FAFC] border-gray-200/80 hover:border-gray-300 opacity-80'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2.5">
+                    <div className="flex items-start space-x-2.5 min-w-0 flex-1">
+                      {/* 勾选确认是否一起批量审核 */}
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleBatchItem(c.id)}
+                        className="w-4 h-4 mt-0.5 rounded text-[#1E5ABB] focus:ring-[#1E5ABB] border-slate-300 cursor-pointer shrink-0"
+                        title={isChecked ? '取消联动批量审核' : '勾选加入联动批量审核'}
+                      />
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                          <button
+                            type="button"
+                            onClick={() => setViewingDetailReport(c)}
+                            className="font-bold text-[#1E5ABB] hover:text-[#134092] hover:underline text-xs leading-snug text-left cursor-pointer transition-colors line-clamp-1"
+                            title={`点击查看事件详情: ${c.title}`}
+                          >
+                            {c.title}
+                          </button>
+                          {isChecked ? (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-blue-100 text-[#1E5ABB] border border-blue-200/80 shrink-0 whitespace-nowrap">
+                              同步审核
+                            </span>
+                          ) : (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-amber-50 text-amber-700 border border-amber-200/80 shrink-0 whitespace-nowrap">
+                              待审核
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-gray-500 flex items-center flex-wrap gap-x-3 gap-y-0.5">
+                          <span className="flex items-center space-x-1">
+                            <User className="w-3 h-3 text-gray-400" />
+                            <span>{c.author}（{c.organization}）</span>
+                          </span>
+                          <span className="flex items-center space-x-1 font-mono">
+                            <Clock className="w-3 h-3 text-gray-400" />
+                            <span>{c.submitTime}</span>
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-[11px] text-gray-500 flex items-center space-x-1.5">
-                      <span>{c.organization}</span>
-                      <span className="text-gray-300">·</span>
-                      <span>{c.author}</span>
-                      <span className="text-gray-300">·</span>
-                      <span className="font-mono">{c.submitTime}</span>
-                    </div>
+                    <ReportOriginBadge report={c} size="sm" className="shrink-0 mt-0.5" />
                   </div>
-                ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="py-2 text-center text-xs text-gray-400 bg-gray-50/60 rounded-lg border border-dashed border-gray-200">
+          暂无其他关联同源链接的速报
+        </div>
+      )}
+    </div>
+  );
+
+  // 4. 固定底部的审核操作控制栏 (精致高阶设计)
+  const renderAuditActionBar = () => {
+    if (!isPending) {
+      return (
+        <div className="shrink-0 bg-white/95 backdrop-blur-xs border-t border-slate-200/90 px-5 py-3.5 shadow-[0_-6px_20px_rgba(15,23,42,0.04)] z-20 flex items-center justify-between gap-3">
+          <div className="flex items-center space-x-2.5 text-xs">
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+              isRejected ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'
+            }`}>
+              {isRejected ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="font-bold text-slate-800 text-xs">
+                  {isRejected
+                    ? '速报已被驳回'
+                    : isAdopted
+                    ? report.auditStatus === '已通过'
+                      ? '速报已通过初审'
+                      : '速报已审核完成'
+                    : isWaitingTransfer
+                    ? '速报待转办'
+                    : isTransferred
+                    ? '速报已转办'
+                    : isInReview
+                    ? '速报正在复核'
+                    : '速报正在流转中'}
+                </span>
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">
+                  {report.auditStatus}
+                </span>
               </div>
+              <p className="text-slate-400 text-[11px] mt-0.5">当前状态下无需再次提交审核</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => setDrawerActiveTab('flow')}
+              className="px-3.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold cursor-pointer transition-colors shrink-0 flex items-center space-x-1.5"
+            >
+              <History className="w-3.5 h-3.5 text-slate-500" />
+              <span>查看流转记录</span>
+            </button>
+            {isDrawer && onClose && (
+              <button
+                type="button"
+                onClick={handleClose}
+                className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 rounded-lg text-xs font-medium cursor-pointer transition-colors"
+              >
+                关闭
+              </button>
             )}
           </div>
+        </div>
+      );
+    }
 
-          {/* Audit Conclusion Selection Buttons */}
-          <div className="space-y-2 text-xs pt-1">
-            <div className="flex items-center justify-between">
-              <label className="block text-gray-700 font-semibold">
-                审核结论 <span className="text-gray-400 font-normal">（当前账号操作）</span>
-              </label>
-              {report.auditor && (
-                <span className="text-[11px] text-gray-400 font-mono">
-                  经办人: {report.auditor}
-                </span>
-              )}
+    return (
+      <div
+        className="shrink-0 bg-white border-t border-slate-200/90 p-4 sm:p-5 shadow-[0_-8px_25px_rgba(15,23,42,0.06)] z-20 space-y-3.5"
+        id="audit-action-bottom-bar"
+      >
+        {/* 控制区主卡片：审核模式切换与配置项 */}
+        <div className="bg-[#F8FAFC] border border-slate-200/80 rounded-xl p-3 sm:p-3.5 space-y-3">
+          {/* 第一行：审核模式分段选择器 + 右侧快捷设置 */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            {/* 审核结论切换器 */}
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-bold text-slate-700 shrink-0">审核结论：</span>
+              <div className="inline-flex p-1 bg-slate-200/70 rounded-xl space-x-1">
+                <button
+                  type="button"
+                  id="btn-audit-mode-pass"
+                  onClick={() => setAuditMode('pass')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                    auditMode === 'pass'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                  }`}
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>审核通过</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-audit-mode-reject"
+                  onClick={() => setAuditMode('reject')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                    auditMode === 'reject'
+                      ? 'bg-rose-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                  }`}
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>审核驳回</span>
+                </button>
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-2.5">
-              <button
-                type="button"
-                onClick={() => setAuditMode('pass')}
-                className={`flex items-center space-x-2 p-2.5 rounded-lg border text-left cursor-pointer transition-all ${
-                  auditMode === 'pass'
-                    ? 'border-emerald-500 bg-emerald-50 text-emerald-900 font-bold ring-1 ring-emerald-500/30'
-                    : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                <span className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
-                  auditMode === 'pass' ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-gray-300 bg-white'
-                }`}>
-                  {auditMode === 'pass' && <span className="w-1.5 h-1.5 rounded-full bg-white block" />}
-                </span>
-                <div className="flex items-center space-x-1 min-w-0">
-                  <Check className={`w-3.5 h-3.5 shrink-0 ${auditMode === 'pass' ? 'text-emerald-600' : 'text-gray-400'}`} />
-                  <span className="truncate">审核通过</span>
-                </div>
-              </button>
 
-              <button
-                type="button"
-                onClick={() => setAuditMode('reject')}
-                className={`flex items-center space-x-2 p-2.5 rounded-lg border text-left cursor-pointer transition-all ${
-                  auditMode === 'reject'
-                    ? 'border-rose-500 bg-rose-50 text-rose-900 font-bold ring-1 ring-rose-500/30'
-                    : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                <span className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
-                  auditMode === 'reject' ? 'border-rose-600 bg-rose-600 text-white' : 'border-gray-300 bg-white'
-                }`}>
-                  {auditMode === 'reject' && <span className="w-1.5 h-1.5 rounded-full bg-white block" />}
-                </span>
-                <div className="flex items-center space-x-1 min-w-0">
-                  <X className={`w-3.5 h-3.5 shrink-0 ${auditMode === 'reject' ? 'text-rose-600' : 'text-gray-400'}`} />
-                  <span className="truncate">审核驳回</span>
+            {/* 右侧：通过模式评分 或 驳回模式分类 */}
+            {auditMode === 'pass' && canScore && (
+              <div className="flex items-center space-x-2 text-xs">
+                <span className="text-amber-900 font-bold shrink-0">终审评分：</span>
+                <div className="flex items-center space-x-1 bg-amber-50/80 p-1 rounded-lg border border-amber-200/80">
+                  {[5, 3, 1, 0.5, 0].map((score) => (
+                    <button
+                      key={score}
+                      type="button"
+                      onClick={() => setSelectedScore(score)}
+                      className={`px-2.5 py-1 rounded-md text-xs font-bold cursor-pointer transition-all ${
+                        selectedScore === score
+                          ? 'bg-emerald-600 text-white shadow-xs scale-105'
+                          : 'bg-white text-slate-700 hover:bg-amber-100/70 border border-amber-100'
+                      }`}
+                    >
+                      {score}分
+                    </button>
+                  ))}
                 </div>
-              </button>
-            </div>
-          </div>
+              </div>
+            )}
 
-          {/* Dynamic Form for Pass or Reject */}
-          {auditMode === 'pass' ? (
-            <div className="space-y-3 text-xs pt-1">
-              {canScore && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <label className="block text-gray-700 font-semibold">终审评分</label>
-                    <span className="text-[11px] text-amber-700">仅终审可评分</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {[5, 3, 1, 0.5, 0].map((score) => (
-                      <button
-                        key={score}
-                        type="button"
-                        onClick={() => setSelectedScore(score)}
-                        className={`min-w-12 px-3 py-1.5 rounded-lg font-bold cursor-pointer transition-colors ${
-                          selectedScore === score
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-white text-gray-700 border border-amber-200 hover:bg-amber-100'
-                        }`}
-                      >
-                        {score}分
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <button
-                type="button"
-                id="btn-confirm-drawer-approve"
-                onClick={handleSubmitAudit}
-                className="w-full py-2.5 mt-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
-              >
-                <Send className="w-3.5 h-3.5" />
-                <span>
-                  {isUrlMatched && matchedCoReports.length > 0
-                    ? `确认批量通过 (${matchedCoReports.length + 1} 条)`
-                    : '确认审核通过'}
-                </span>
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-3 text-xs pt-1 animate-in fade-in">
-              <div>
-                <label className="block text-gray-700 font-semibold mb-1">驳回原因分类</label>
+            {auditMode === 'reject' && (
+              <div className="flex items-center space-x-2 text-xs">
+                <span className="text-rose-900 font-bold shrink-0">驳回类型：</span>
                 <select
                   value={rejectReason}
                   onChange={(e) => setRejectReason(e.target.value)}
-                  className="w-full px-3 py-1.5 border border-gray-300 rounded-lg bg-white text-gray-700 text-xs focus:outline-none"
+                  className="px-3 py-1.5 border border-rose-200 rounded-lg bg-white text-slate-700 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 shadow-2xs"
                 >
                   <option value="信息不完整">信息不完整</option>
                   <option value="内容重复/同源">内容重复/同源</option>
@@ -678,66 +791,99 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
                   <option value="佐证不足">佐证不足</option>
                 </select>
               </div>
+            )}
+          </div>
 
-              <div>
-                <label className="block text-gray-700 font-semibold mb-1">详细驳回意见与指引</label>
-                <textarea
-                  rows={3}
-                  value={rejectDetail}
-                  onChange={(e) => setRejectDetail(e.target.value)}
-                  placeholder="请输入具体的修改建议和退回说明..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-700 text-xs focus:outline-none"
-                />
-              </div>
+          {/* 驳回模式下的详细意见说明输入框 */}
+          {auditMode === 'reject' && (
+            <div className="space-y-1.5 pt-1 animate-in fade-in">
+              <label className="block text-[11px] font-medium text-slate-500">
+                驳回指引与整改说明（将同步通知上报单位与作者）：
+              </label>
+              <textarea
+                rows={2}
+                value={rejectDetail}
+                onChange={(e) => setRejectDetail(e.target.value)}
+                placeholder="请输入详细的驳回原因、需要补充的佐证材料或修改建议..."
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all resize-none shadow-2xs"
+              />
+            </div>
+          )}
+        </div>
 
+        {/* 底部动作栏：左侧同源匹配条数与已勾选联动数统一展示 + 经办人 + 右侧操作按钮 */}
+        <div className="flex items-center justify-between gap-3 pt-0.5">
+          <div className="flex items-center space-x-2.5 text-xs text-slate-500 min-w-0 flex-wrap">
+            {/* 同源匹配与已勾选联动数整合提示 */}
+            <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-[#1E5ABB] border border-blue-200/80 text-xs font-medium shrink-0">
+              <LinkIcon className="w-3.5 h-3.5 text-[#2563EB] shrink-0" />
+              <span>
+                同源匹配 <strong className="font-bold text-[#1E5ABB]">{totalMatchedCount}</strong> 条
+              </span>
+              <span className="text-blue-300">·</span>
+              {selectedBatchIds.length > 0 ? (
+                <span className="text-emerald-700 font-semibold flex items-center space-x-0.5">
+                  <Check className="w-3 h-3 text-emerald-600 inline" />
+                  <span>已勾选联动 <strong className="font-bold text-emerald-800">{selectedBatchIds.length}</strong> 条</span>
+                </span>
+              ) : (
+                <span className="text-slate-500">仅审当前条</span>
+              )}
+            </span>
+
+            <span className="text-slate-300">|</span>
+
+            <span className="text-xs text-slate-600 flex items-center space-x-1 font-medium">
+              <span className="text-slate-400 text-[11px]">经办人：</span>
+              <span className="font-bold text-slate-800">{auditorName}</span>
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-2.5 shrink-0">
+            {isDrawer && onClose && (
               <button
                 type="button"
+                onClick={handleClose}
+                className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 rounded-xl text-xs font-semibold cursor-pointer transition-colors shadow-2xs"
+              >
+                关闭
+              </button>
+            )}
+
+            {auditMode === 'pass' ? (
+              <button
+                type="button"
+                id="btn-confirm-drawer-approve"
                 onClick={handleSubmitAudit}
-                className="w-full py-2.5 mt-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg shadow-sm transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+                className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-sm hover:shadow transition-all flex items-center space-x-1.5 cursor-pointer"
               >
                 <Send className="w-3.5 h-3.5" />
                 <span>
-                  {isUrlMatched && matchedCoReports.length > 0
-                    ? `确认批量驳回 (${matchedCoReports.length + 1} 条)`
-                    : '确认驳回'}
+                  {selectedBatchIds.length > 0
+                    ? `确认批量通过 (${selectedBatchIds.length + 1}条)`
+                    : '确认审核通过'}
                 </span>
               </button>
-            </div>
-          )}
-        </>
-      ) : (
-        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-xs text-gray-600">
-          <div className="flex items-start space-x-2">
-            {isRejected ? (
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
             ) : (
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+              <button
+                type="button"
+                id="btn-confirm-drawer-reject"
+                onClick={handleSubmitAudit}
+                className="px-6 py-2 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold text-xs rounded-xl shadow-sm hover:shadow transition-all flex items-center space-x-1.5 cursor-pointer"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>
+                  {selectedBatchIds.length > 0
+                    ? `确认批量驳回 (${selectedBatchIds.length + 1}条)`
+                    : '确认审核驳回'}
+                </span>
+              </button>
             )}
-            <div className="space-y-1">
-              <p className="font-bold text-gray-900">
-                {isRejected
-                  ? '当前记录已驳回'
-                  : isAdopted
-                    ? report.auditStatus === '已通过'
-                      ? '当前记录已通过初审'
-                      : '当前记录已完成审核'
-                    : isWaitingTransfer
-                      ? '当前记录待转办'
-                      : isTransferred
-                        ? '当前记录已转办'
-                        : isInReview
-                          ? '当前记录正在复核'
-                          : '当前记录正在流转中'}
-              </p>
-              <p className="leading-relaxed">
-                该状态不需要当前账号继续审核。请在下方流转状态中查看具体处理节点、评分和驳回意见。
-              </p>
-            </div>
           </div>
         </div>
-      )}
-    </div>
-  );
+      </div>
+    );
+  };
 
   // 4. 同源速报详情查看弹窗 (z-[70])
   const renderDetailReportModal = () => {
@@ -909,22 +1055,35 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
 
         {/* 50% 宽度右侧抽屉主体容器 */}
         <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[90vw] md:w-[75vw] lg:w-1/2 xl:w-1/2 bg-[#F8FAFC] shadow-2xl flex flex-col border-l border-gray-200 animate-in slide-in-from-right duration-250">
-          {/* 抽屉顶部头部 */}
-          <div className="px-5 py-3.5 border-b border-gray-200 flex items-center justify-between bg-white shrink-0 shadow-2xs">
-            <div className="min-w-0 pr-3">
-              <div className="flex items-center space-x-1.5 text-xs text-gray-500">
-                <span className="font-semibold text-[#1E5ABB]">审核管理</span>
-                <span className="text-gray-300">/</span>
-                <button
-                  type="button"
-                  onClick={handleClose}
-                  className="text-gray-600 hover:text-[#1E5ABB] hover:underline cursor-pointer"
-                >
-                  审核待办
-                </button>
-                <span className="text-gray-300">/</span>
-                <span className="text-gray-800 font-bold">审核详情</span>
-              </div>
+          {/* 抽屉顶部 Tab 导航 (详情信息 vs 流转状态) 与关闭按钮 */}
+          <div className="bg-white px-5 border-b border-gray-200 flex items-center justify-between shrink-0 shadow-2xs">
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                id="tab-drawer-detail-info"
+                onClick={() => setDrawerActiveTab('detail')}
+                className={`px-4 py-3 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all cursor-pointer ${
+                  drawerActiveTab === 'detail'
+                    ? 'border-[#1E5ABB] text-[#1E5ABB]'
+                    : 'border-transparent text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+                <span>详情信息</span>
+              </button>
+              <button
+                type="button"
+                id="tab-drawer-flow-status"
+                onClick={() => setDrawerActiveTab('flow')}
+                className={`px-4 py-3 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all cursor-pointer ${
+                  drawerActiveTab === 'flow'
+                    ? 'border-[#1E5ABB] text-[#1E5ABB]'
+                    : 'border-transparent text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                <History className="w-4 h-4" />
+                <span>流转状态</span>
+              </button>
             </div>
 
             <div className="flex items-center space-x-2 shrink-0">
@@ -941,11 +1100,22 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
 
           {/* 抽屉内部滚动区域 */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4.5">
-            {renderMainContentCard()}
-            {renderAttachmentsCard()}
-            {renderAuditActionCard()}
-            <AuditFlowTimeline report={report} />
+            {drawerActiveTab === 'detail' ? (
+              <div className="space-y-4.5 animate-in fade-in duration-150 pb-2">
+                {renderMainContentCard()}
+                {renderAttachmentsCard()}
+                {renderMatchInfoCard()}
+              </div>
+            ) : (
+              <div className="space-y-4.5 animate-in fade-in duration-150">
+                {/* 完整流转历程时间轴 */}
+                <AuditFlowTimeline report={report} />
+              </div>
+            )}
           </div>
+
+          {/* 抽屉底部固定操作栏 */}
+          {renderAuditActionBar()}
         </div>
 
         {/* 附件全屏预览弹窗 (z-[70]) */}
@@ -965,7 +1135,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
 
   // 2. 独立全页面模式 (当 isDrawer 为 false 时)
   return (
-    <div className="space-y-4" id="audit-detail-view">
+    <div className="space-y-4 pb-20" id="audit-detail-view">
       {/* 1. Top Breadcrumbs & Back Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-2xs">
         <div className="flex items-center space-x-2 text-xs">
@@ -997,10 +1167,17 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
         <div className="lg:col-span-2 space-y-5">
           {renderMainContentCard()}
           {renderAttachmentsCard()}
+          {renderMatchInfoCard()}
         </div>
         <div className="space-y-5">
-          {renderAuditActionCard()}
           <AuditFlowTimeline report={report} />
+        </div>
+      </div>
+
+      {/* 底部固定操作栏 (全页模式下) */}
+      <div className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-xs border-t border-gray-200 shadow-2xl">
+        <div className="max-w-7xl mx-auto">
+          {renderAuditActionBar()}
         </div>
       </div>
 
