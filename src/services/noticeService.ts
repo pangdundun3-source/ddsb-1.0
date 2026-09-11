@@ -49,6 +49,8 @@ export const createNoticeItem = (
     priority: formData.priority,
     scope: formData.scope,
     targetOrgs: formData.targetOrgs.length > 0 ? formData.targetOrgs : ['全网信系统各单位'],
+    targetPersonnelIds: formData.targetPersonnelIds || [],
+    primaryPersonnelIds: formData.primaryPersonnelIds || [],
     publisher,
     publishOrg,
     publishTime: `${dateStr} ${timeStr}`,
@@ -58,7 +60,12 @@ export const createNoticeItem = (
     summary: formData.summary?.trim() || formData.content.slice(0, 90) + '...',
     attachments: formData.attachments || [],
     readCount: isDraft ? 0 : 1,
-    totalTargetCount: formData.scope === '全网信系统' ? 156 : formData.targetOrgs.length * 15 || 45,
+    totalTargetCount:
+      formData.targetPersonnelIds && formData.targetPersonnelIds.length > 0
+        ? formData.targetPersonnelIds.length
+        : formData.scope === '全网信系统'
+        ? 156
+        : formData.targetOrgs.length * 15 || 45,
     requireConfirm: formData.requireConfirm,
     confirmCount: isDraft ? 0 : (formData.requireConfirm ? 1 : 0),
     expireTime: formData.expireTime,

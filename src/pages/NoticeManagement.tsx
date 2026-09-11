@@ -1,7 +1,25 @@
 import React, { useState, useMemo } from 'react';
-import { PageId, NoticeItem, NoticeCategory, NoticePriority, NoticeStatus, NewNoticeFormData, Attachment } from '../types';
-import { PRESET_NOTICE_TEMPLATES } from '../data/mockNotices';
-import { getStoredNotices, saveStoredNotices, createNoticeItem } from '../services/noticeService';
+import {
+  PageId,
+  NoticeItem,
+  NoticeCategory,
+  NoticePriority,
+  NoticeStatus,
+  NewNoticeFormData,
+  Attachment
+} from '../types';
+
+import {
+  getStoredNotices,
+  saveStoredNotices,
+  createNoticeItem
+} from '../services/noticeService';
+import { AttachmentPreviewModal } from '../components/AttachmentPreviewModal';
+import { NoticeRecipientSelector } from '../components/NoticeRecipientSelector';
+import {
+  NOTICE_AVAILABLE_ORGS,
+  getDefaultPersonnelForOrgs
+} from '../data/noticeRecipients';
 import {
   Megaphone,
   Plus,
@@ -17,7 +35,6 @@ import {
   Edit,
   Trash2,
   RotateCcw,
-  Sparkles,
   Download,
   Users,
   Building2,
@@ -30,15 +47,23 @@ import {
   X,
   Printer,
   ChevronRight,
+  ChevronLeft,
   Filter,
   LayoutGrid,
   List,
-  Calendar,
   Share2,
   Paperclip,
-  Bookmark,
   BellRing,
-  HelpCircle
+  HelpCircle,
+  ArrowLeft,
+  ExternalLink,
+  ChevronDown,
+  Info,
+  CheckSquare,
+  Square,
+  Upload,
+  FileSpreadsheet,
+  Image as ImageIcon
 } from 'lucide-react';
 
 interface NoticeManagementProps {
@@ -47,29 +72,24 @@ interface NoticeManagementProps {
   currentOrg?: string;
 }
 
-const AVAILABLE_ORGS = [
-  '广域传媒主机构',
-  '台中市网信办',
-  '中共台中市委宣传部',
-  '西屯区宣传部',
-  '北屯区宣传部',
-  '南屯区宣传部',
-  '东湖区宣传处',
-  '高新区管委会舆情室',
-  '市公安局网安支队',
-  '市应急管理局',
-  '市卫健委宣传处',
-  '市教育局宣教科',
-  '市融媒体中心'
-];
+const AVAILABLE_ORGS = NOTICE_AVAILABLE_ORGS;
 
 export const NoticeManagement: React.FC<NoticeManagementProps> = ({
   onNavigate,
   currentUser = '张三',
   currentOrg = '台中市网信办'
 }) => {
-  // State
+  // Master data
   const [notices, setNotices] = useState<NoticeItem[]>(() => getStoredNotices());
+
+  // Page View state: 'list' (列表) | 'detail' (详情查看) | 'form' (新增/编辑操作)
+  const [pageView, setPageView] = useState<'list' | 'detail' | 'form'>('list');
+  const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
+  const [formTab, setFormTab] = useState<'edit' | 'preview'>('edit');
+  const [selectedNotice, setSelectedNotice] = useState<NoticeItem | null>(null);
+  const [sourceBeforeEdit, setSourceBeforeEdit] = useState<'list' | 'detail'>('list');
+
+  // List filters & view states
   const [activeTab, setActiveTab] = useState<'all' | 'mine' | 'draft'>('all');
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -77,21 +97,25 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
 
-  // Modals
-  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
-  const [editingNotice, setEditingNotice] = useState<NoticeItem | null>(null);
-  const [viewingNotice, setViewingNotice] = useState<NoticeItem | null>(null);
-  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  // Attachment preview & deletion modal
+  const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
+  const [deleteConfirmNotice, setDeleteConfirmNotice] = useState<NoticeItem | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Form State
+  // File upload ref & drag-drop state
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+
+  // Form State with Linked Personnel
+  const initialDefaultOrgs = ['台中市网信办', '西屯区宣传部', '北屯区宣传部', '南屯区宣传部'];
   const [formData, setFormData] = useState<NewNoticeFormData>({
     title: '',
     category: '工作提示',
     priority: '普通',
     scope: '全网信系统',
-    targetOrgs: ['台中市网信办', '西屯区宣传部', '北屯区宣传部', '南屯区宣传部'],
+    targetOrgs: initialDefaultOrgs,
+    targetPersonnelIds: getDefaultPersonnelForOrgs(initialDefaultOrgs),
+    primaryPersonnelIds: [],
     isPinned: false,
     requireConfirm: false,
     expireTime: '',
@@ -102,7 +126,7 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+    setTimeout(() => setToastMessage(null), 3200);
   };
 
   // Sync to localStorage
@@ -123,29 +147,34 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
     const total = notices.length;
     const published = notices.filter((n) => n.status === '已发布').length;
     const pinned = notices.filter((n) => n.isPinned && n.status === '已发布').length;
-    const urgent = notices.filter((n) => (n.priority === '紧急' || n.priority === '特急') && n.status === '已发布').length;
+    const urgent = notices.filter(
+      (n) => (n.priority === '紧急' || n.priority === '特急') && n.status === '已发布'
+    ).length;
     const drafts = notices.filter((n) => n.status === '草稿').length;
     const confirmNeeded = notices.filter((n) => n.requireConfirm && n.status === '已发布').length;
 
     let totalRead = 0;
     let totalTarget = 0;
-    notices.filter((n) => n.status === '已发布').forEach((n) => {
-      totalRead += n.readCount;
-      totalTarget += n.totalTargetCount;
-    });
-    const avgReadRate = totalTarget > 0 ? ((totalRead / totalTarget) * 100).toFixed(1) : '92.4';
+    notices
+      .filter((n) => n.status === '已发布')
+      .forEach((n) => {
+        totalRead += n.readCount;
+        totalTarget += n.totalTargetCount;
+      });
+    const avgReadRate =
+      totalTarget > 0 ? ((totalRead / totalTarget) * 100).toFixed(1) : '92.4';
 
     return { total, published, pinned, urgent, drafts, confirmNeeded, avgReadRate };
   }, [notices]);
 
-  // Filtering notices
+  // Filtered notice items
   const filteredNotices = useMemo(() => {
     return notices
       .filter((item) => {
         // Tab Filter
-        if (activeTab === 'urgent' && !(item.priority === '紧急' || item.priority === '特急' || item.isPinned)) return false;
-        if (activeTab === 'mine' && !item.publisher.includes(currentUser) && !item.publishOrg.includes(currentOrg)) return false;
-        if (activeTab === 'confirm' && (!item.requireConfirm || item.status !== '已发布')) return false;
+        if (activeTab === 'mine' && !item.publisher.includes(currentUser) && !item.publishOrg.includes(currentOrg)) {
+          return false;
+        }
         if (activeTab === 'draft' && item.status !== '草稿') return false;
         if (activeTab !== 'draft' && item.status === '草稿' && activeTab !== 'mine') return false;
 
@@ -178,136 +207,195 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
       });
   }, [notices, activeTab, selectedCategory, selectedPriority, selectedStatus, searchKeyword, currentUser, currentOrg]);
 
-  // Actions
-  const handleOpenPublishModal = (editTarget?: NoticeItem) => {
-    if (editTarget) {
-      setEditingNotice(editTarget);
-      setFormData({
-        title: editTarget.title,
-        category: editTarget.category,
-        priority: editTarget.priority,
-        scope: editTarget.scope,
-        targetOrgs: editTarget.targetOrgs || [],
-        isPinned: editTarget.isPinned,
-        requireConfirm: editTarget.requireConfirm || false,
-        expireTime: editTarget.expireTime || '',
-        summary: editTarget.summary || '',
-        content: editTarget.content,
-        attachments: editTarget.attachments || []
-      });
+  // Navigation handlers
+  const handleOpenDetail = (notice: NoticeItem) => {
+    setSelectedNotice(notice);
+    setPageView('detail');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleStartCreate = () => {
+    setFormMode('create');
+    setSourceBeforeEdit('list');
+    setFormTab('edit');
+    setSelectedNotice(null);
+    const defaultCreateOrgs = ['台中市网信办', '西屯区宣传部', '北屯区宣传部', '南屯区宣传部', '市公安局网安支队', '市应急管理局'];
+    setFormData({
+      title: '',
+      category: '工作提示',
+      priority: '普通',
+      scope: '全网信系统',
+      targetOrgs: defaultCreateOrgs,
+      targetPersonnelIds: getDefaultPersonnelForOrgs(defaultCreateOrgs),
+      primaryPersonnelIds: [],
+      isPinned: false,
+      requireConfirm: false,
+      expireTime: '',
+      summary: '',
+      content: '',
+      attachments: []
+    });
+    setPageView('form');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleStartEdit = (notice: NoticeItem, from: 'list' | 'detail' = 'list') => {
+    setSelectedNotice(notice);
+    setFormMode('edit');
+    setSourceBeforeEdit(from);
+    setFormTab('edit');
+    const orgs = notice.targetOrgs || [];
+    setFormData({
+      title: notice.title,
+      category: notice.category,
+      priority: notice.priority,
+      scope: notice.scope,
+      targetOrgs: orgs,
+      targetPersonnelIds: notice.targetPersonnelIds || getDefaultPersonnelForOrgs(orgs),
+      primaryPersonnelIds: notice.primaryPersonnelIds || [],
+      isPinned: notice.isPinned,
+      requireConfirm: notice.requireConfirm || false,
+      expireTime: notice.expireTime || '',
+      summary: notice.summary || '',
+      content: notice.content,
+      attachments: notice.attachments || []
+    });
+    setPageView('form');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBackToList = () => {
+    setPageView('list');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBackFromForm = () => {
+    if (sourceBeforeEdit === 'detail' && selectedNotice) {
+      setPageView('detail');
     } else {
-      setEditingNotice(null);
-      setFormData({
-        title: '',
-        category: '工作提示',
-        priority: '普通',
-        scope: '全网信系统',
-        targetOrgs: ['台中市网信办', '西屯区宣传部', '北屯区宣传部', '南屯区宣传部'],
-        isPinned: false,
-        requireConfirm: false,
-        expireTime: '',
-        summary: '',
-        content: '',
-        attachments: []
-      });
+      setPageView('list');
     }
-    setIsPublishModalOpen(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleApplyPresetTemplate = (templateId: string) => {
-    const tpl = PRESET_NOTICE_TEMPLATES.find((t) => t.id === templateId);
-    if (!tpl) return;
-    setFormData((prev) => ({
-      ...prev,
-      title: tpl.title,
-      category: tpl.category as NoticeCategory,
-      priority: tpl.priority as NoticePriority,
-      scope: tpl.scope,
-      targetOrgs: tpl.targetOrgs,
-      summary: tpl.summary,
-      content: tpl.content,
-      isPinned: tpl.isPinned,
-      requireConfirm: tpl.requireConfirm
-    }));
-    showToast(`已成功载入模版「${tpl.name}」`);
-  };
+  // Next / Previous notice switcher in Detail View
+  const { prevNotice, nextNotice } = useMemo(() => {
+    if (!selectedNotice) return { prevNotice: null, nextNotice: null };
+    const currentIndex = filteredNotices.findIndex((n) => n.id === selectedNotice.id);
+    if (currentIndex === -1) return { prevNotice: null, nextNotice: null };
+    return {
+      prevNotice: currentIndex > 0 ? filteredNotices[currentIndex - 1] : null,
+      nextNotice: currentIndex < filteredNotices.length - 1 ? filteredNotices[currentIndex + 1] : null
+    };
+  }, [selectedNotice, filteredNotices]);
 
+
+
+  // Save / Submit Notice (Form Detail View)
   const handleSaveNotice = (isDraft: boolean = false) => {
     if (!formData.title.trim()) {
-      showToast('请输入公告标题');
+      showToast('请输入公文或公告标题');
       return;
     }
     if (!formData.content.trim()) {
-      showToast('请输入公告正文内容');
+      showToast('请输入公文正文内容');
       return;
     }
 
-    if (editingNotice) {
+    if (formMode === 'edit' && selectedNotice) {
       // Update existing
-      const updatedList = notices.map((item) => {
-        if (item.id === editingNotice.id) {
-          return {
-            ...item,
-            title: formData.title.trim(),
-            category: formData.category,
-            priority: formData.priority,
-            scope: formData.scope,
-            targetOrgs: formData.targetOrgs,
-            isPinned: formData.isPinned,
-            requireConfirm: formData.requireConfirm,
-            expireTime: formData.expireTime,
-            summary: formData.summary || formData.content.slice(0, 90) + '...',
-            content: formData.content.trim(),
-            attachments: formData.attachments || [],
-            status: isDraft ? '草稿' : '已发布'
-          };
-        }
-        return item;
-      });
+      const updatedItem: NoticeItem = {
+        ...selectedNotice,
+        title: formData.title.trim(),
+        category: formData.category,
+        priority: formData.priority,
+        scope: formData.scope,
+        targetOrgs: formData.targetOrgs.length > 0 ? formData.targetOrgs : ['全网信系统各单位'],
+        targetPersonnelIds: formData.targetPersonnelIds || [],
+        primaryPersonnelIds: formData.primaryPersonnelIds || [],
+        isPinned: formData.isPinned,
+        requireConfirm: formData.requireConfirm,
+        expireTime: formData.expireTime,
+        summary: formData.summary || formData.content.slice(0, 90) + '...',
+        content: formData.content.trim(),
+        attachments: formData.attachments || [],
+        status: isDraft ? '草稿' : '已发布'
+      };
+
+      const updatedList = notices.map((item) =>
+        item.id === selectedNotice.id ? updatedItem : item
+      );
       updateNoticesState(updatedList);
-      showToast(isDraft ? '草稿已保存' : '公告已成功更新发布');
+      setSelectedNotice(updatedItem);
+      showToast(isDraft ? '草稿已保存' : '公告已成功更新并同步发布');
+      setPageView('detail');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
       // Create new
-      const newNotice = createNoticeItem(formData, `${currentUser} (管理员)`, currentOrg, isDraft);
+      const newNotice = createNoticeItem(
+        formData,
+        `${currentUser} (管理员)`,
+        currentOrg,
+        isDraft
+      );
       updateNoticesState([newNotice, ...notices]);
+      setSelectedNotice(newNotice);
       showToast(isDraft ? '已存入草稿箱' : '🎉 公告发布成功并已实时同步至全网各接入终端');
+      setPageView('detail');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-
-    setIsPublishModalOpen(false);
-    setEditingNotice(null);
   };
 
   const handleTogglePin = (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     const updated = notices.map((n) => (n.id === id ? { ...n, isPinned: !n.isPinned } : n));
     updateNoticesState(updated);
-    const target = notices.find((n) => n.id === id);
-    showToast(target?.isPinned ? '已取消置顶' : '📌 已将该公告置顶显示');
+    const target = updated.find((n) => n.id === id);
+    if (selectedNotice && selectedNotice.id === id && target) {
+      setSelectedNotice(target);
+    }
+    showToast(target?.isPinned ? '📌 已将该公告置顶展示' : '已取消置顶展示');
   };
 
   const handleRecall = (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    const updated = notices.map((n) => (n.id === id ? { ...n, status: '已撤回' as NoticeStatus } : n));
+    const updated = notices.map((n) =>
+      n.id === id ? { ...n, status: '已撤回' as NoticeStatus } : n
+    );
     updateNoticesState(updated);
-    showToast('公告已撤回，受众端将不再展示');
+    const target = updated.find((n) => n.id === id);
+    if (selectedNotice && selectedNotice.id === id && target) {
+      setSelectedNotice(target);
+    }
+    showToast('公文已撤回，各单位接收端将停止置顶展示');
   };
 
   const handleDelete = (id: string) => {
     const updated = notices.filter((n) => n.id !== id);
     updateNoticesState(updated);
-    setDeleteConfirmId(null);
-    showToast('公告已删除');
+    setDeleteConfirmNotice(null);
+    if (pageView === 'detail') {
+      setPageView('list');
+      setSelectedNotice(null);
+    }
+    showToast('公文公告已彻底删除');
   };
 
   const handleConfirmRead = (notice: NoticeItem) => {
     const updated = notices.map((n) => {
       if (n.id === notice.id) {
         const now = new Date();
-        const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
+          now.getDate()
+        ).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(
+          now.getMinutes()
+        ).padStart(2, '0')}`;
         const existingReaders = n.readers || [];
         const isAlreadyRead = existingReaders.some((r) => r.name === currentUser);
         const newReaders = isAlreadyRead
-          ? existingReaders.map((r) => (r.name === currentUser ? { ...r, confirmed: true, readTime: timeStr } : r))
+          ? existingReaders.map((r) =>
+              r.name === currentUser ? { ...r, confirmed: true, readTime: timeStr } : r
+            )
           : [...existingReaders, { name: currentUser, org: currentOrg, readTime: timeStr, confirmed: true }];
 
         return {
@@ -321,22 +409,168 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
     });
     updateNoticesState(updated);
     const updatedTarget = updated.find((n) => n.id === notice.id);
-    if (updatedTarget) setViewingNotice(updatedTarget);
-    showToast('✓ 签收回执确认成功，已记录您的阅读日志');
+    if (updatedTarget) setSelectedNotice(updatedTarget);
+    showToast('✓ 签收回执确认成功，已记录您的单位查阅日志');
   };
 
-  const handleAddSampleAttachment = (type: 'pdf' | 'image') => {
-    const newAtt: Attachment = {
-      id: `att-${Date.now()}`,
-      name: type === 'pdf' ? `政务网络舆情处置规范指导手册_${Date.now().toString().slice(-4)}.pdf` : `现场核查证据图表_${Date.now().toString().slice(-4)}.png`,
-      size: type === 'pdf' ? '2.4 MB' : '1.8 MB',
-      type: type
+  // Helper metadata styling for Attachments (PDF, Word, Excel, Image)
+  const getAttachmentMeta = (att: Attachment) => {
+    const lowerName = att.name.toLowerCase();
+    const type = att.type;
+
+    if (type === 'pdf' || lowerName.endsWith('.pdf')) {
+      return {
+        icon: <FileText className="w-4 h-4 text-rose-600 shrink-0" />,
+        badge: (
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
+            PDF
+          </span>
+        ),
+        formatName: 'PDF文档',
+        cardBg: 'bg-rose-50/20 border-rose-200/80 hover:border-rose-300'
+      };
+    }
+    if (type === 'word' || lowerName.endsWith('.doc') || lowerName.endsWith('.docx')) {
+      return {
+        icon: <FileText className="w-4 h-4 text-blue-600 shrink-0" />,
+        badge: (
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+            Word
+          </span>
+        ),
+        formatName: 'Word公文',
+        cardBg: 'bg-blue-50/20 border-blue-200/80 hover:border-blue-300'
+      };
+    }
+    if (type === 'excel' || lowerName.endsWith('.xls') || lowerName.endsWith('.xlsx') || lowerName.endsWith('.csv')) {
+      return {
+        icon: <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />,
+        badge: (
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+            Excel
+          </span>
+        ),
+        formatName: 'Excel表格',
+        cardBg: 'bg-emerald-50/20 border-emerald-200/80 hover:border-emerald-300'
+      };
+    }
+    if (type === 'image' || ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'].some((ext) => lowerName.endsWith(ext))) {
+      return {
+        icon: <ImageIcon className="w-4 h-4 text-purple-600 shrink-0" />,
+        badge: (
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
+            图片
+          </span>
+        ),
+        formatName: '图表图片',
+        cardBg: 'bg-purple-50/20 border-purple-200/80 hover:border-purple-300'
+      };
+    }
+    return {
+      icon: <FileText className="w-4 h-4 text-slate-600 shrink-0" />,
+      badge: (
+        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+          公文
+        </span>
+      ),
+      formatName: '附件文件',
+      cardBg: 'bg-slate-50 border-slate-200 hover:border-slate-300'
     };
+  };
+
+  // Upload handler for files (PDF, Word, Excel, Image)
+  const handleFileUpload = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const newAttachments: Attachment[] = [];
+
+    Array.from(files).forEach((file) => {
+      const name = file.name;
+      const lowerName = name.toLowerCase();
+      let type: 'image' | 'pdf' | 'word' | 'excel' | 'link' | string = 'link';
+
+      if (lowerName.endsWith('.pdf')) {
+        type = 'pdf';
+      } else if (lowerName.endsWith('.doc') || lowerName.endsWith('.docx')) {
+        type = 'word';
+      } else if (lowerName.endsWith('.xls') || lowerName.endsWith('.xlsx') || lowerName.endsWith('.csv')) {
+        type = 'excel';
+      } else if (['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'].some((ext) => lowerName.endsWith(ext))) {
+        type = 'image';
+      }
+
+      const sizeStr =
+        file.size > 1024 * 1024
+          ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+          : `${Math.max(1, Math.round(file.size / 1024))} KB`;
+
+      let url: string | undefined = undefined;
+      try {
+        url = URL.createObjectURL(file);
+      } catch {
+        // fallback
+      }
+
+      newAttachments.push({
+        id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        name,
+        size: sizeStr,
+        type,
+        url,
+        thumbnailUrl: type === 'image' ? url : undefined
+      });
+    });
+
+    setFormData((prev) => ({
+      ...prev,
+      attachments: [...(prev.attachments || []), ...newAttachments]
+    }));
+
+    showToast(`✓ 已成功上传 ${newAttachments.length} 个附件（支持PDF/Excel/Word/图片）`);
+  };
+
+  const handleAddSampleAttachment = (format: 'pdf' | 'word' | 'excel' | 'image') => {
+    const timestamp = Date.now().toString().slice(-4);
+    let newAtt: Attachment;
+    switch (format) {
+      case 'pdf':
+        newAtt = {
+          id: `att-${Date.now()}-pdf`,
+          name: `政务网络舆情处置规范与速报机制指导手册_${timestamp}.pdf`,
+          size: '2.4 MB',
+          type: 'pdf'
+        };
+        break;
+      case 'word':
+        newAtt = {
+          id: `att-${Date.now()}-doc`,
+          name: `全网信系统应急联络责任清单与值班排班表_${timestamp}.docx`,
+          size: '1.2 MB',
+          type: 'word'
+        };
+        break;
+      case 'excel':
+        newAtt = {
+          id: `att-${Date.now()}-xls`,
+          name: `各区县网络安全隐患排查台账汇总表_${timestamp}.xlsx`,
+          size: '860 KB',
+          type: 'excel'
+        };
+        break;
+      case 'image':
+        newAtt = {
+          id: `att-${Date.now()}-img`,
+          name: `实地巡查监测研判分析走势图_${timestamp}.png`,
+          size: '1.8 MB',
+          type: 'image',
+          thumbnailUrl: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400&auto=format&fit=crop'
+        };
+        break;
+    }
     setFormData((prev) => ({
       ...prev,
       attachments: [...(prev.attachments || []), newAtt]
     }));
-    showToast('已添加公文附件');
+    showToast(`已载入示例附件：${newAtt.name}`);
   };
 
   const handleRemoveAttachment = (attId: string) => {
@@ -346,23 +580,57 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
     }));
   };
 
-  // Helper styles for Category & Priority
+  // Helper styles for Category & Priority badges
   const getCategoryBadge = (category: NoticeCategory) => {
     switch (category) {
       case '紧急通知':
-        return <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 flex items-center space-x-1"><Flame className="w-3 h-3 text-rose-600" /><span>紧急通知</span></span>;
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 flex items-center space-x-1">
+            <Flame className="w-3 h-3 text-rose-600" />
+            <span>紧急通知</span>
+          </span>
+        );
       case '业务通报':
-        return <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 flex items-center space-x-1"><FileText className="w-3 h-3 text-blue-600" /><span>业务通报</span></span>;
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 flex items-center space-x-1">
+            <FileText className="w-3 h-3 text-blue-600" />
+            <span>业务通报</span>
+          </span>
+        );
       case '工作提示':
-        return <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center space-x-1"><BellRing className="w-3 h-3 text-amber-600" /><span>工作提示</span></span>;
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center space-x-1">
+            <BellRing className="w-3 h-3 text-amber-600" />
+            <span>工作提示</span>
+          </span>
+        );
       case '政策下达':
-        return <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center space-x-1"><ShieldCheck className="w-3 h-3 text-emerald-600" /><span>政策下达</span></span>;
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center space-x-1">
+            <ShieldCheck className="w-3 h-3 text-emerald-600" />
+            <span>政策下达</span>
+          </span>
+        );
       case '系统通知':
-        return <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center space-x-1"><Layers className="w-3 h-3 text-indigo-600" /><span>系统通知</span></span>;
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center space-x-1">
+            <Layers className="w-3 h-3 text-indigo-600" />
+            <span>系统通知</span>
+          </span>
+        );
       case '考核公示':
-        return <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 flex items-center space-x-1"><Award className="w-3 h-3 text-purple-600" /><span>考核公示</span></span>;
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 flex items-center space-x-1">
+            <Award className="w-3 h-3 text-purple-600" />
+            <span>考核公示</span>
+          </span>
+        );
       default:
-        return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">{category}</span>;
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+            {category}
+          </span>
+        );
     }
   };
 
@@ -379,6 +647,1133 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
     }
   };
 
+  // =========================================================================
+  // VIEW 1: NOTICE FORM OPERATION DETAIL PAGE (起草/编辑公告详情操作页)
+  // =========================================================================
+  if (pageView === 'form') {
+    const isEdit = formMode === 'edit';
+    return (
+      <div className="space-y-5 animate-in fade-in duration-150">
+        {/* Toast */}
+        {toastMessage && (
+          <div className="fixed top-4 right-4 z-50 bg-[#1E5ABB] text-white px-4 py-2.5 rounded-lg shadow-xl text-xs font-bold flex items-center space-x-2 animate-in fade-in slide-in-from-top-2">
+            <span>✓</span>
+            <span>{toastMessage}</span>
+          </div>
+        )}
+
+        {/* Attachment preview */}
+        {previewAttachment && (
+          <AttachmentPreviewModal
+            isOpen={true}
+            onClose={() => setPreviewAttachment(null)}
+            attachment={previewAttachment}
+          />
+        )}
+
+        {/* Breadcrumb & Navigation Top Bar */}
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={handleBackFromForm}
+              className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors cursor-pointer flex items-center justify-center shrink-0"
+              title="返回"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <div>
+              <div className="flex items-center space-x-2 text-xs text-slate-400">
+                <span>系统管理</span>
+                <span>/</span>
+                <button
+                  onClick={handleBackToList}
+                  className="text-slate-600 hover:text-[#1E5ABB] transition-colors cursor-pointer"
+                >
+                  公告管理
+                </button>
+                <span>/</span>
+                <span className="text-[#1E5ABB] font-bold">
+                  {isEdit ? '编辑公文公告详情' : '起草新公文公告'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Actions & Tab Switcher in Header */}
+          <div className="flex items-center space-x-2.5 w-full md:w-auto justify-end flex-wrap gap-y-2">
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs">
+              <button
+                type="button"
+                onClick={() => setFormTab('edit')}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
+                  formTab === 'edit'
+                    ? 'bg-white text-[#1E5ABB] shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Edit className="w-3.5 h-3.5" />
+                <span>表单编辑</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormTab('preview')}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
+                  formTab === 'preview'
+                    ? 'bg-white text-[#1E5ABB] shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>红头文件实时预览</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleBackFromForm}
+              className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 shadow-2xs transition-colors cursor-pointer flex items-center space-x-1.5"
+            >
+              <span>取消返回</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSaveNotice(true)}
+              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-colors cursor-pointer flex items-center space-x-1.5"
+            >
+              <span>存为草稿</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSaveNotice(false)}
+              className="px-4.5 py-2 bg-[#1E5ABB] hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer flex items-center space-x-1.5 active:scale-98"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>{isEdit ? '保存公文更改' : '立即正式发布'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* ==================== FORM MODE ==================== */}
+        {formTab === 'edit' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            {/* Left 7 Cols: Main Form Inputs */}
+            <div className="lg:col-span-7 space-y-5">
+
+              {/* Title & Classification */}
+              <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-4">
+                <h2 className="text-sm font-bold text-slate-800 flex items-center space-x-2 border-b border-slate-100 pb-3">
+                  <FileText className="w-4 h-4 text-[#1E5ABB]" />
+                  <span>公文基础要素</span>
+                </h2>
+
+                {/* Title */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                    <span className="flex items-center space-x-1">
+                      <span className="text-rose-500">*</span>
+                      <span>公文 / 公告标题</span>
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-normal">
+                      {formData.title.length}/100 字
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="例如：关于做好近期重点时期网络舆情全天候值班值守与即时报送工作的通知"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    maxLength={100}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/20 focus:border-[#1E5ABB] transition-all"
+                  />
+                </div>
+
+                {/* Category & Priority */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Category */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-800 flex items-center space-x-1">
+                      <span className="text-rose-500">*</span>
+                      <span>公文分类</span>
+                    </label>
+                    <select
+                      value={formData.category}
+                      onChange={(e) =>
+                        setFormData({ ...formData, category: e.target.value as NoticeCategory })
+                      }
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/20 focus:border-[#1E5ABB]"
+                    >
+                      <option value="工作提示">💡 工作提示</option>
+                      <option value="紧急通知">🚨 紧急通知</option>
+                      <option value="业务通报">📊 业务通报</option>
+                      <option value="政策下达">📜 政策下达</option>
+                      <option value="系统通知">⚙️ 系统通知</option>
+                      <option value="考核公示">🏆 考核公示</option>
+                    </select>
+                  </div>
+
+                  {/* Priority */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-800 flex items-center space-x-1">
+                      <span className="text-rose-500">*</span>
+                      <span>紧急程度</span>
+                    </label>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {(['普通', '重要', '紧急', '特急'] as NoticePriority[]).map((prio) => (
+                        <button
+                          key={prio}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, priority: prio })}
+                          className={`py-2 text-center rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                            formData.priority === prio
+                              ? prio === '特急'
+                                ? 'bg-red-600 text-white border-red-600 shadow-2xs'
+                                : prio === '紧急'
+                                ? 'bg-rose-500 text-white border-rose-500 shadow-2xs'
+                                : prio === '重要'
+                                ? 'bg-amber-500 text-white border-amber-500 shadow-2xs'
+                                : 'bg-[#1E5ABB] text-white border-[#1E5ABB] shadow-2xs'
+                              : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          {prio}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Main Content Area */}
+              <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h2 className="text-sm font-bold text-slate-800 flex items-center space-x-2">
+                    <FileCheck className="w-4 h-4 text-[#1E5ABB]" />
+                    <span>公文正文内容</span>
+                    <span className="text-rose-500">*</span>
+                  </h2>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          content:
+                            prev.content +
+                            (prev.content ? '\n\n' : '') +
+                            '一、提高思想认识，坚决落实责任\n二、强化巡查监测，做到突发速报\n三、加强协同联动，提升处置效能'
+                        }))
+                      }
+                      className="text-xs text-[#1E5ABB] hover:underline cursor-pointer flex items-center space-x-1"
+                    >
+                      <span>+ 插入标准三段式段落</span>
+                    </button>
+                    <span className="text-slate-200">|</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          content:
+                            prev.content +
+                            (prev.content ? '\n\n' : '') +
+                            '1. 明确责任人员，实行24小时带班制度；\n2. 发现重大紧急线索，须在15分钟内完成速报初报；\n3. 定期报送处置动态，严防次生衍生风险。'
+                        }))
+                      }
+                      className="text-xs text-[#1E5ABB] hover:underline cursor-pointer flex items-center space-x-1"
+                    >
+                      <span>+ 插入工作要求条目</span>
+                    </button>
+                  </div>
+                </div>
+
+                <textarea
+                  rows={13}
+                  placeholder="请输入公文正式行文内容，遵循政务公文格式，支持空行分段与条目规范..."
+                  value={formData.content}
+                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 leading-relaxed placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/20 focus:border-[#1E5ABB] font-sans"
+                />
+
+                <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+                  <span>支持政务公文红头排版与自动生成落款公章</span>
+                  <span>已输入 {formData.content.length} 字符</span>
+                </div>
+              </div>
+
+              {/* Attachments Section with Multi-format File Upload & Drag-Drop */}
+              <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-4">
+                {/* Hidden File Input for Real File Upload */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  multiple
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.webp"
+                  onChange={(e) => {
+                    handleFileUpload(e.target.files);
+                    e.target.value = '';
+                  }}
+                  className="hidden"
+                />
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                  <div className="flex items-center space-x-2">
+                    <Paperclip className="w-4 h-4 text-[#1E5ABB]" />
+                    <h2 className="text-sm font-bold text-slate-800">公文附件管理</h2>
+                    <span className="text-xs text-slate-400">
+                      ({formData.attachments?.length || 0} 个附件)
+                    </span>
+                  </div>
+
+                  <div className="flex items-center flex-wrap gap-2">
+                    {/* Quick Demo Templates */}
+                    <div className="flex items-center space-x-1 bg-slate-100/80 p-0.5 rounded-lg text-[11px] text-slate-600">
+                      <span className="px-1.5 text-slate-400 text-[10px]">示例:</span>
+                      <button
+                        type="button"
+                        onClick={() => handleAddSampleAttachment('pdf')}
+                        className="px-1.5 py-0.5 hover:bg-white hover:text-rose-600 rounded text-[10px] font-medium transition-colors cursor-pointer"
+                        title="添加PDF公文手册示范"
+                      >
+                        +PDF
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAddSampleAttachment('word')}
+                        className="px-1.5 py-0.5 hover:bg-white hover:text-blue-600 rounded text-[10px] font-medium transition-colors cursor-pointer"
+                        title="添加Word公文示范"
+                      >
+                        +Word
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAddSampleAttachment('excel')}
+                        className="px-1.5 py-0.5 hover:bg-white hover:text-emerald-600 rounded text-[10px] font-medium transition-colors cursor-pointer"
+                        title="添加Excel台账示范"
+                      >
+                        +Excel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAddSampleAttachment('image')}
+                        className="px-1.5 py-0.5 hover:bg-white hover:text-purple-600 rounded text-[10px] font-medium transition-colors cursor-pointer"
+                        title="添加图表图片示范"
+                      >
+                        +图片
+                      </button>
+                    </div>
+
+                    {/* Primary Real Upload Button */}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#184896] text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center space-x-1.5 cursor-pointer active:scale-98"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>上传附件</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Attachment List / Drop Area */}
+                {formData.attachments && formData.attachments.length > 0 ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {formData.attachments.map((att) => {
+                        const meta = getAttachmentMeta(att);
+                        return (
+                          <div
+                            key={att.id}
+                            className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${meta.cardBg}`}
+                          >
+                            <div className="flex items-center space-x-2.5 truncate min-w-0 pr-2">
+                              <div className="w-8 h-8 rounded-lg bg-white border border-slate-200/80 shrink-0 flex items-center justify-center shadow-2xs overflow-hidden">
+                                {att.type === 'image' && att.thumbnailUrl ? (
+                                  <img src={att.thumbnailUrl} alt={att.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  meta.icon
+                                )}
+                              </div>
+                              <div className="truncate min-w-0">
+                                <div className="flex items-center space-x-1.5">
+                                  {meta.badge}
+                                  <span className="font-bold text-xs text-slate-800 truncate" title={att.name}>
+                                    {att.name}
+                                  </span>
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                  {att.size} · {meta.formatName}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewAttachment(att)}
+                                className="p-1.5 text-slate-400 hover:text-[#1E5ABB] hover:bg-white rounded-lg transition-colors cursor-pointer"
+                                title="在线预览附件"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveAttachment(att.id)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-white rounded-lg transition-colors cursor-pointer"
+                                title="删除附件"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Compact secondary drop / click zone */}
+                    <div
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setIsDraggingOver(true);
+                      }}
+                      onDragLeave={() => setIsDraggingOver(false)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setIsDraggingOver(false);
+                        handleFileUpload(e.dataTransfer.files);
+                      }}
+                      onClick={() => fileInputRef.current?.click()}
+                      className={`py-3 px-4 rounded-xl border border-dashed text-center text-xs transition-all cursor-pointer flex items-center justify-center space-x-2 ${
+                        isDraggingOver
+                          ? 'border-[#1E5ABB] bg-blue-50/70 text-[#1E5ABB] ring-2 ring-blue-500/20'
+                          : 'border-slate-300 text-slate-500 hover:border-[#1E5ABB]/60 hover:bg-slate-50/70'
+                      }`}
+                    >
+                      <Upload className="w-3.5 h-3.5 text-[#1E5ABB]" />
+                      <span>点击或将本地文件拖拽至此处继续上传附件</span>
+                    </div>
+                  </div>
+                ) : (
+                  /* Full Drag-and-Drop Empty Zone */
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDraggingOver(true);
+                    }}
+                    onDragLeave={() => setIsDraggingOver(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDraggingOver(false);
+                      handleFileUpload(e.dataTransfer.files);
+                    }}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`py-8 px-6 text-center border-2 border-dashed rounded-xl transition-all cursor-pointer flex flex-col items-center justify-center space-y-2 group ${
+                      isDraggingOver
+                        ? 'border-[#1E5ABB] bg-blue-50/80 ring-2 ring-[#1E5ABB]/30 text-[#1E5ABB]'
+                        : 'border-slate-300 hover:border-[#1E5ABB] hover:bg-slate-50/80 text-slate-500'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2 text-slate-400 group-hover:text-[#1E5ABB] transition-colors">
+                      <div className="w-8 h-8 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
+                        <FileSpreadsheet className="w-4 h-4" />
+                      </div>
+                      <div className="w-8 h-8 rounded-lg bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600">
+                        <ImageIcon className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <div className="space-y-0.5">
+                      <p className="text-xs font-bold text-slate-800 group-hover:text-[#1E5ABB] transition-colors">
+                        点击上传 或 将公文附件拖拽至此处
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        全面支持 PDF公文手册、Word文档 (.doc/.docx)、Excel表格 (.xls/.xlsx)、图片佐证 (.png/.jpg) 等格式
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right 5 Cols: Recipient Organization & Personnel Selector */}
+            <div className="lg:col-span-5 space-y-5">
+              <NoticeRecipientSelector
+                targetOrgs={formData.targetOrgs}
+                targetPersonnelIds={formData.targetPersonnelIds || []}
+                primaryPersonnelIds={formData.primaryPersonnelIds || []}
+                onChange={(newOrgs, newPersonnelIds) => {
+                  setFormData((prev) => ({
+                    ...prev,
+                    targetOrgs: newOrgs,
+                    targetPersonnelIds: newPersonnelIds
+                  }));
+                }}
+                onPrimaryChange={(newPrimaryIds) => {
+                  setFormData((prev) => ({
+                    ...prev,
+                    primaryPersonnelIds: newPrimaryIds
+                  }));
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ==================== RED HEADER LIVE PREVIEW MODE ==================== */}
+        {formTab === 'preview' && (
+          <div className="bg-white rounded-2xl p-6 sm:p-10 border border-slate-200/80 shadow-xs max-w-4xl mx-auto space-y-6">
+            {/* Top preview control banner */}
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-center justify-between text-xs text-amber-900">
+              <div className="flex items-center space-x-2">
+                <Eye className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>当前处于【红头公文排版实时预览模式】，展示受众端打开时的真实公文呈现效果。</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFormTab('edit')}
+                className="px-3 py-1 bg-white hover:bg-amber-100 text-amber-800 font-bold rounded-lg border border-amber-300 transition-colors cursor-pointer"
+              >
+                返回继续编辑表单
+              </button>
+            </div>
+
+            {/* Red Header Official Document Container */}
+            <div className="p-6 sm:p-10 border border-slate-200 rounded-2xl bg-white shadow-xs space-y-6">
+              {/* Official Red Header Top */}
+              <div className="border-b-2 border-red-600 pb-5 text-center relative">
+                <h3 className="text-red-600 font-serif font-black text-xl sm:text-2xl tracking-[0.25em] uppercase">
+                  中共台中市委网络安全和信息化委员会办公室
+                </h3>
+                <h4 className="text-red-600 font-serif font-bold text-lg sm:text-xl tracking-[0.2em] mt-1.5">
+                  台 中 市 互 联 网 信 息 办 公 室
+                </h4>
+                <div className="mt-5 text-xs text-slate-500 font-serif flex items-center justify-between px-2">
+                  <span>台中网信发〔2026〕第 {selectedNotice ? selectedNotice.id.slice(-3) : '预发'} 号</span>
+                  <div className="flex items-center space-x-2">
+                    {getPriorityBadge(formData.priority)}
+                    {getCategoryBadge(formData.category)}
+                  </div>
+                  <span>签发人：张建国</span>
+                </div>
+              </div>
+
+              {/* Title Section */}
+              <div className="text-center py-2 space-y-2">
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight">
+                  {formData.title || '（公文标题预览）'}
+                </h1>
+                <div className="text-xs text-slate-500 flex items-center justify-center space-x-3 pt-1 flex-wrap">
+                  <span>发文单位：{currentOrg}</span>
+                  <span>·</span>
+                  <span>送达范围：{formData.scope}</span>
+                  <span>·</span>
+                  <span>受众单位：共 {formData.targetOrgs.length} 家</span>
+                  <span>·</span>
+                  <span className="text-[#1E5ABB] font-bold">联动人员：共 {formData.targetPersonnelIds?.length || 0} 人</span>
+                </div>
+              </div>
+
+              {/* Target Orgs Callout */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs text-slate-700 space-y-1">
+                <div>
+                  <span className="font-bold text-slate-900">主送单位：</span>
+                  <span>{formData.targetOrgs.length > 0 ? formData.targetOrgs.join('、') : '全网信系统各接入单位'}</span>
+                </div>
+                {formData.targetPersonnelIds && formData.targetPersonnelIds.length > 0 && (
+                  <div className="text-slate-600 text-[11px] pt-0.5 flex items-center space-x-1">
+                    <Users className="w-3.5 h-3.5 text-[#1E5ABB] shrink-0" />
+                    <span>已联动指定接收责任人员共 <strong className="text-slate-900">{formData.targetPersonnelIds.length}</strong> 名</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Document Content */}
+              <div className="text-slate-800 text-sm leading-relaxed space-y-4 font-sans whitespace-pre-wrap px-1">
+                {formData.content || '（此处为公文正文内容预览...）'}
+              </div>
+
+              {/* Official Seal Simulation */}
+              <div className="flex justify-end pt-8 pr-6">
+                <div className="text-right space-y-1 relative">
+                  <div className="font-bold text-slate-900 text-sm">{currentOrg}</div>
+                  <div className="text-xs text-slate-500 font-mono">
+                    {new Date().toISOString().split('T')[0]}
+                  </div>
+
+                  {/* Simulated Official Seal Stamp */}
+                  <div className="absolute -top-4 right-0 w-28 h-28 rounded-full border-2 border-red-500/70 text-red-500/70 flex flex-col items-center justify-center pointer-events-none rotate-[-12deg] select-none shadow-xs">
+                    <span className="text-[10px] font-bold text-center px-2">台中市互联网信息办公室</span>
+                    <span className="text-sm">★</span>
+                    <span className="text-[9px] font-serif">电子公文专用章</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Attachments preview pill */}
+              {formData.attachments && formData.attachments.length > 0 && (
+                <div className="pt-6 border-t border-slate-200 space-y-2">
+                  <h4 className="font-bold text-xs text-slate-800 flex items-center space-x-1.5">
+                    <Paperclip className="w-4 h-4 text-[#1E5ABB]" />
+                    <span>附件清单 ({formData.attachments.length} 个)</span>
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {formData.attachments.map((att) => (
+                      <div
+                        key={att.id}
+                        className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs"
+                      >
+                        <div className="flex items-center space-x-2 truncate">
+                          <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          <span className="truncate">{att.name}</span>
+                        </div>
+                        <span className="text-slate-400 font-mono text-[11px] shrink-0 ml-2">
+                          {att.size}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Actions in Preview */}
+            <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setFormTab('edit')}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                ← 返回继续修改表单
+              </button>
+
+              <div className="flex items-center space-x-2.5">
+                <button
+                  type="button"
+                  onClick={handleBackFromForm}
+                  className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-colors cursor-pointer"
+                >
+                  取消返回
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSaveNotice(true)}
+                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                >
+                  存为草稿
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSaveNotice(false)}
+                  className="px-5 py-2 bg-[#1E5ABB] hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer flex items-center space-x-1.5 active:scale-98"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>{isEdit ? '确认无误，保存公文更改' : '确认无误，立即正式发布'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // VIEW 2: NOTICE VIEW DETAIL PAGE (公告公文详情查看操作页)
+  // =========================================================================
+  if (pageView === 'detail' && selectedNotice) {
+    const readPercentage =
+      selectedNotice.totalTargetCount > 0
+        ? Math.min(100, Math.round((selectedNotice.readCount / selectedNotice.totalTargetCount) * 100))
+        : 0;
+
+    const isCurrentConfirmed =
+      selectedNotice.readers?.some((r) => r.name === currentUser && r.confirmed) || false;
+
+    return (
+      <div className="space-y-5 animate-in fade-in duration-150">
+        {/* Toast */}
+        {toastMessage && (
+          <div className="fixed top-4 right-4 z-50 bg-[#1E5ABB] text-white px-4 py-2.5 rounded-lg shadow-xl text-xs font-bold flex items-center space-x-2 animate-in fade-in slide-in-from-top-2">
+            <span>✓</span>
+            <span>{toastMessage}</span>
+          </div>
+        )}
+
+        {/* Attachment preview modal */}
+        {previewAttachment && (
+          <AttachmentPreviewModal
+            isOpen={true}
+            onClose={() => setPreviewAttachment(null)}
+            attachment={previewAttachment}
+          />
+        )}
+
+        {/* Top Breadcrumb & Action Toolbar */}
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          {/* Breadcrumb & Title */}
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={handleBackToList}
+              className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors cursor-pointer flex items-center justify-center shrink-0"
+              title="返回列表"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <div>
+              <div className="flex items-center space-x-2 text-xs text-slate-400">
+                <span>系统管理</span>
+                <span>/</span>
+                <button
+                  onClick={handleBackToList}
+                  className="text-slate-600 hover:text-[#1E5ABB] transition-colors cursor-pointer"
+                >
+                  公告管理
+                </button>
+                <span>/</span>
+                <span className="text-[#1E5ABB] font-bold">公告详情</span>
+                <span className="font-mono text-slate-400 text-[11px]">({selectedNotice.id})</span>
+              </div>
+              <div className="flex items-center space-x-2.5 mt-0.5 flex-wrap gap-y-1">
+                <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
+                  {selectedNotice.title}
+                </h1>
+                {selectedNotice.isPinned && (
+                  <span className="px-2 py-0.5 bg-amber-500 text-white text-[11px] font-extrabold rounded-md flex items-center space-x-1 shadow-2xs">
+                    <Pin className="w-3 h-3" />
+                    <span>置顶展示</span>
+                  </span>
+                )}
+                {getCategoryBadge(selectedNotice.category)}
+                {getPriorityBadge(selectedNotice.priority)}
+                {selectedNotice.status === '草稿' && (
+                  <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[11px] font-bold rounded-md border border-slate-300">
+                    草稿箱
+                  </span>
+                )}
+                {selectedNotice.status === '已撤回' && (
+                  <span className="px-2 py-0.5 bg-rose-50 text-rose-600 text-[11px] font-bold rounded-md border border-rose-200">
+                    已撤回
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Action Toolbar */}
+          <div className="flex items-center space-x-2 w-full md:w-auto justify-end flex-wrap gap-y-2">
+            {/* Prev / Next Notice */}
+            <div className="flex items-center space-x-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs">
+              <button
+                type="button"
+                disabled={!prevNotice}
+                onClick={() => prevNotice && handleOpenDetail(prevNotice)}
+                className={`p-1.5 rounded-lg transition-colors flex items-center space-x-0.5 ${
+                  prevNotice
+                    ? 'hover:bg-white text-slate-700 cursor-pointer'
+                    : 'text-slate-300 cursor-not-allowed'
+                }`}
+                title="上一篇公文"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                <span className="hidden sm:inline">上一篇</span>
+              </button>
+              <button
+                type="button"
+                disabled={!nextNotice}
+                onClick={() => nextNotice && handleOpenDetail(nextNotice)}
+                className={`p-1.5 rounded-lg transition-colors flex items-center space-x-0.5 ${
+                  nextNotice
+                    ? 'hover:bg-white text-slate-700 cursor-pointer'
+                    : 'text-slate-300 cursor-not-allowed'
+                }`}
+                title="下一篇公文"
+              >
+                <span className="hidden sm:inline">下一篇</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            <button
+              onClick={() => handleTogglePin(selectedNotice.id)}
+              className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer flex items-center space-x-1 ${
+                selectedNotice.isPinned
+                  ? 'bg-amber-50 text-amber-700 border-amber-300'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              <Pin className="w-3.5 h-3.5" />
+              <span>{selectedNotice.isPinned ? '取消置顶' : '置顶'}</span>
+            </button>
+
+            <button
+              onClick={() => handleStartEdit(selectedNotice, 'detail')}
+              className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center space-x-1.5"
+            >
+              <Edit className="w-3.5 h-3.5 text-blue-600" />
+              <span>编辑公文</span>
+            </button>
+
+            {selectedNotice.status === '已发布' && (
+              <button
+                onClick={(e) => handleRecall(selectedNotice.id, e)}
+                className="px-3.5 py-2 bg-white hover:bg-amber-50 text-slate-700 hover:text-amber-700 border border-slate-200 text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center space-x-1.5"
+                title="撤回该公告"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+                <span>撤回</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => window.print()}
+              className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center space-x-1.5"
+              title="打印公文"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>打印</span>
+            </button>
+
+            <button
+              onClick={() => setDeleteConfirmNotice(selectedNotice)}
+              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-xl transition-colors cursor-pointer"
+              title="删除公文"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Main Content Layout: Left 8 Cols (Document) + Right 4 Cols (Read/Receipt tracking) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          {/* Main Document Content Body */}
+          <div className="lg:col-span-8 space-y-5">
+            <div className="bg-white rounded-2xl p-6 sm:p-10 border border-slate-200/80 shadow-xs space-y-6">
+              {/* Formal Red Header Banner */}
+              <div className="border-b-2 border-red-600 pb-5 text-center relative">
+                <h3 className="text-red-600 font-serif font-black text-xl sm:text-2xl tracking-[0.25em] uppercase">
+                  中共台中市委网络安全和信息化委员会办公室
+                </h3>
+                <h4 className="text-red-600 font-serif font-bold text-lg sm:text-xl tracking-[0.2em] mt-1.5">
+                  台 中 市 互 联 网 信 息 办 公 室
+                </h4>
+                <div className="mt-5 text-xs text-slate-500 font-serif flex items-center justify-between px-2">
+                  <span>台中网信发〔2026〕第 {selectedNotice.id.slice(-3)} 号</span>
+                  <div className="flex items-center space-x-2">
+                    {getPriorityBadge(selectedNotice.priority)}
+                    {getCategoryBadge(selectedNotice.category)}
+                  </div>
+                  <span>签发人：张建国</span>
+                </div>
+              </div>
+
+              {/* Title Section */}
+              <div className="text-center py-2 space-y-2">
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight">
+                  {selectedNotice.title}
+                </h1>
+                <div className="text-xs text-slate-500 flex items-center justify-center space-x-4 pt-1 flex-wrap">
+                  <span>发布单位：{selectedNotice.publishOrg}</span>
+                  <span>·</span>
+                  <span>发布时间：{selectedNotice.publishTime}</span>
+                  <span>·</span>
+                  <span>送达范围：{selectedNotice.scope}</span>
+                  <span>·</span>
+                  <span>起草人：{selectedNotice.publisher}</span>
+                </div>
+              </div>
+
+              {/* Target Scope Callout */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs text-slate-700 space-y-1.5">
+                <div>
+                  <span className="font-bold text-slate-900">主送单位：</span>
+                  <span className="leading-relaxed">
+                    {selectedNotice.targetOrgs && selectedNotice.targetOrgs.length > 0
+                      ? selectedNotice.targetOrgs.join('、')
+                      : '全网信系统直属各单位、各区县委宣传部'}
+                  </span>
+                </div>
+                {selectedNotice.targetPersonnelIds && selectedNotice.targetPersonnelIds.length > 0 && (
+                  <div className="text-slate-600 text-xs flex items-center space-x-1.5 pt-1 border-t border-slate-200/60">
+                    <Users className="w-3.5 h-3.5 text-[#1E5ABB]" />
+                    <span>
+                      已联动直达责任人：<strong className="text-slate-900">{selectedNotice.targetPersonnelIds.length} 人</strong>
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Summary Box if any */}
+              {selectedNotice.summary && (
+                <div className="bg-blue-50/60 p-4 rounded-xl border border-blue-200/60 text-xs text-blue-900 space-y-1">
+                  <div className="font-bold flex items-center space-x-1.5 text-[#1E5ABB]">
+                    <Info className="w-3.5 h-3.5" />
+                    <span>核心指令要点摘要</span>
+                  </div>
+                  <p className="leading-relaxed text-blue-950/80">{selectedNotice.summary}</p>
+                </div>
+              )}
+
+              {/* Document Body */}
+              <div className="text-slate-800 text-sm leading-relaxed space-y-4 font-sans whitespace-pre-wrap px-1">
+                {selectedNotice.content}
+              </div>
+
+              {/* Official Seal / Ending Stamp */}
+              <div className="flex justify-end pt-8 pr-6">
+                <div className="text-right space-y-1 relative">
+                  <div className="font-bold text-slate-900 text-sm">{selectedNotice.publishOrg}</div>
+                  <div className="text-xs text-slate-500 font-mono">
+                    {selectedNotice.publishTime.split(' ')[0]}
+                  </div>
+
+                  {/* Simulated Official Seal Stamp */}
+                  <div className="absolute -top-4 right-0 w-28 h-28 rounded-full border-2 border-red-500/70 text-red-500/70 flex flex-col items-center justify-center pointer-events-none rotate-[-12deg] select-none shadow-xs">
+                    <span className="text-[10px] font-bold text-center px-2">台中市互联网信息办公室</span>
+                    <span className="text-sm">★</span>
+                    <span className="text-[9px] font-serif">电子公文专用章</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Official Attachments Download List */}
+              {selectedNotice.attachments && selectedNotice.attachments.length > 0 && (
+                <div className="pt-6 border-t border-slate-200 space-y-3">
+                  <h4 className="font-bold text-xs text-slate-800 flex items-center space-x-2">
+                    <Paperclip className="w-4 h-4 text-[#1E5ABB]" />
+                    <span>公文附件下载与查阅 ({selectedNotice.attachments.length})</span>
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {selectedNotice.attachments.map((att) => {
+                      const meta = getAttachmentMeta(att);
+                      return (
+                        <div
+                          key={att.id}
+                          className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${meta.cardBg}`}
+                        >
+                          <div className="flex items-center space-x-2.5 truncate min-w-0 pr-2">
+                            <div className="w-8 h-8 rounded-lg bg-white border border-slate-200/80 shrink-0 flex items-center justify-center shadow-2xs overflow-hidden">
+                              {att.type === 'image' && att.thumbnailUrl ? (
+                                <img src={att.thumbnailUrl} alt={att.name} className="w-full h-full object-cover" />
+                              ) : (
+                                meta.icon
+                              )}
+                            </div>
+                            <div className="truncate min-w-0">
+                              <div className="flex items-center space-x-1.5">
+                                {meta.badge}
+                                <span className="font-bold text-xs text-slate-800 truncate" title={att.name}>
+                                  {att.name}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                {att.size} · {meta.formatName}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-1.5 shrink-0 ml-2">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewAttachment(att)}
+                              className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-medium border border-slate-200 transition-colors shadow-2xs cursor-pointer flex items-center space-x-1"
+                            >
+                              <Eye className="w-3 h-3" />
+                              <span>预览</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => showToast(`已开始下载附件：${att.name}`)}
+                              className="px-2.5 py-1 bg-[#1E5ABB] hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors shadow-2xs cursor-pointer flex items-center space-x-1"
+                            >
+                              <Download className="w-3 h-3" />
+                              <span>下载</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Return Button */}
+            <div className="flex items-center justify-between">
+              <button
+                onClick={handleBackToList}
+                className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center space-x-1.5"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>返回公告列表</span>
+              </button>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => handleStartEdit(selectedNotice, 'detail')}
+                  className="px-4 py-2 bg-[#1E5ABB] hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer flex items-center space-x-1.5"
+                >
+                  <Edit className="w-3.5 h-3.5" />
+                  <span>修改此公文</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right 4 Cols: Readers Tracking & Sign-off Operations */}
+          <div className="lg:col-span-4 space-y-5">
+            {/* Quick Sign-off Action Card (If requireConfirm is true) */}
+            {selectedNotice.requireConfirm && (
+              <div className="bg-white rounded-2xl p-5 border border-indigo-200 shadow-xs space-y-3.5 bg-gradient-to-br from-white via-indigo-50/20 to-indigo-50/40">
+                <div className="flex items-center space-x-2">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                    <FileCheck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-900">公文签收回执确认</h3>
+                    <p className="text-[11px] text-slate-500">本公文要求各接入单位签发人即阅即签</p>
+                  </div>
+                </div>
+
+                {isCurrentConfirmed ? (
+                  <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center space-x-2 text-xs text-emerald-800 font-bold">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>✓ 您所在的单位（{currentOrg}）已完成公文签收回执</span>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      请仔细核对公文内容，确认知悉工作部署要求后点击下方按钮完成签收备案。
+                    </p>
+                    <button
+                      onClick={() => handleConfirmRead(selectedNotice)}
+                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center space-x-2 active:scale-98"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>确认签收已阅公文</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Read Rate & Progress Statistics Card */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
+                  <Users className="w-4 h-4 text-[#1E5ABB]" />
+                  <span>单位查阅与送达统计</span>
+                </h3>
+                <span className="text-xs font-bold text-slate-800">
+                  {readPercentage}% 查阅率
+                </span>
+              </div>
+
+              {/* Progress bar */}
+              <div>
+                <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1.5">
+                  <span>已阅单位/人员：</span>
+                  <span className="font-bold text-slate-800">
+                    {selectedNotice.readCount} / {selectedNotice.totalTargetCount} 人
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      readPercentage > 80
+                        ? 'bg-emerald-500'
+                        : readPercentage > 50
+                        ? 'bg-blue-500'
+                        : 'bg-amber-500'
+                    }`}
+                    style={{ width: `${readPercentage}%` }}
+                  />
+                </div>
+                {selectedNotice.requireConfirm && (
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2">
+                    <span>已签收回执份数：</span>
+                    <span className="font-bold text-indigo-700">
+                      {selectedNotice.confirmCount || 0} 份
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Target Organizations Checklist */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <div className="text-xs font-bold text-slate-800">受送达接入单位列表：</div>
+                <div className="max-h-[200px] overflow-y-auto space-y-1.5 pr-1 text-xs">
+                  {selectedNotice.targetOrgs?.map((org) => {
+                    const isRead = selectedNotice.readers?.some((r) => r.org === org);
+                    return (
+                      <div
+                        key={org}
+                        className="flex items-center justify-between p-2 bg-slate-50 rounded-lg text-slate-700"
+                      >
+                        <span className="truncate">{org}</span>
+                        {isRead ? (
+                          <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded flex items-center space-x-0.5 shrink-0 border border-emerald-200">
+                            <Check className="w-2.5 h-2.5" />
+                            <span>已阅</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 shrink-0">待查阅</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Reader Logs List Card */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-3">
+              <h3 className="text-xs font-bold text-slate-800 flex items-center space-x-1.5 border-b border-slate-100 pb-2.5">
+                <Clock className="w-4 h-4 text-emerald-600" />
+                <span>电子查阅与签收日志明细</span>
+              </h3>
+
+              {selectedNotice.readers && selectedNotice.readers.length > 0 ? (
+                <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
+                  {selectedNotice.readers.map((r, idx) => (
+                    <div
+                      key={idx}
+                      className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-xs space-y-1"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-800">{r.name}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">{r.readTime}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-slate-500">
+                        <span>{r.org}</span>
+                        {r.confirmed && (
+                          <span className="text-emerald-700 font-bold flex items-center space-x-0.5">
+                            <Check className="w-3 h-3" />
+                            <span>已回执</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-6 text-center text-slate-400 text-xs">
+                  暂无人员查阅记录，正等待各单位接收处理
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // VIEW 3: NOTICE MANAGEMENT MASTER LIST (公告管理列表主视图)
+  // =========================================================================
   return (
     <div className="space-y-5">
       {/* Toast */}
@@ -398,18 +1793,24 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
           <div>
             <div className="flex items-center space-x-3">
               <h1 className="text-xl font-black text-slate-800 tracking-tight">公告管理</h1>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-[#1E5ABB] border border-blue-200">
+                政务红头公告发布中枢
+              </span>
             </div>
+            <p className="text-xs text-slate-500 mt-1">
+              支持政务红头公文多级签发、置顶管控、单位定向下发、签收回执跟踪与详情管理。
+            </p>
           </div>
         </div>
 
-        {/* Right Actions */}
+        {/* Right Actions: 发布新公告 Button leads to Form Detail View */}
         <div className="flex items-center space-x-3 w-full md:w-auto justify-end">
           <button
-            onClick={() => handleOpenPublishModal()}
+            onClick={handleStartCreate}
             className="flex items-center space-x-2 px-4 py-2.5 bg-[#1E5ABB] hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer hover:shadow-lg active:scale-98"
           >
             <Plus className="w-4 h-4" />
-            <span>发布新公告</span>
+            <span>起草发布新公告</span>
           </button>
         </div>
       </div>
@@ -455,7 +1856,7 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
           <div className="flex items-center space-x-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
             <button
               onClick={() => setViewMode('table')}
-              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all flex items-center space-x-1 ${
+              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all flex items-center space-x-1 cursor-pointer ${
                 viewMode === 'table' ? 'bg-white text-[#1E5ABB] shadow-2xs' : 'text-slate-500 hover:text-slate-800'
               }`}
               title="公文列表视图"
@@ -465,7 +1866,7 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
             </button>
             <button
               onClick={() => setViewMode('cards')}
-              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all flex items-center space-x-1 ${
+              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all flex items-center space-x-1 cursor-pointer ${
                 viewMode === 'cards' ? 'bg-white text-[#1E5ABB] shadow-2xs' : 'text-slate-500 hover:text-slate-800'
               }`}
               title="卡片流视图"
@@ -549,7 +1950,7 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
             </div>
           </div>
 
-          {/* Action Buttons: 查询 和 重置条件 */}
+          {/* Actions: 查询 和 重置 */}
           <div className="flex items-center space-x-2 shrink-0 justify-end">
             <button
               onClick={() => {}}
@@ -575,18 +1976,12 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
           <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
             <FileText className="w-8 h-8" />
           </div>
-          <h3 className="text-base font-bold text-slate-700">暂无匹配的历史公告</h3>
+          <h3 className="text-base font-bold text-slate-700">暂无匹配的公告记录</h3>
           <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-            没有找到符合当前筛选条件的公文或通知，您可以尝试调整筛选条件或新建发布公告。
+            没有找到符合当前筛选条件的公文或通知，您可以尝试调整筛选条件或点击右上角起草发布新公告。
           </p>
           <button
-            onClick={() => {
-              setActiveTab('all');
-              setSelectedCategory('all');
-              setSelectedPriority('all');
-              setSelectedStatus('all');
-              setSearchKeyword('');
-            }}
+            onClick={handleResetFilters}
             className="mt-4 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
           >
             重置筛选条件
@@ -604,7 +1999,7 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
             return (
               <div
                 key={notice.id}
-                onClick={() => setViewingNotice(notice)}
+                onClick={() => handleOpenDetail(notice)}
                 className={`bg-white rounded-2xl p-5 border transition-all duration-200 hover:shadow-md cursor-pointer relative group flex flex-col justify-between ${
                   notice.isPinned
                     ? 'border-amber-300/80 bg-gradient-to-br from-amber-50/20 via-white to-white ring-1 ring-amber-400/20'
@@ -665,7 +2060,7 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                   )}
                 </div>
 
-                {/* Card Footer: Metadata & Progress */}
+                {/* Card Footer */}
                 <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-col space-y-2.5">
                   <div className="flex items-center justify-between text-xs text-slate-500">
                     <div className="flex items-center space-x-2">
@@ -717,9 +2112,9 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                       </button>
 
                       <button
-                        onClick={() => handleOpenPublishModal(notice)}
+                        onClick={() => handleStartEdit(notice, 'list')}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                        title="编辑公文"
+                        title="编辑公文详情"
                       >
                         <Edit className="w-3.5 h-3.5" />
                       </button>
@@ -735,7 +2130,7 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                       )}
 
                       <button
-                        onClick={() => setDeleteConfirmId(notice.id)}
+                        onClick={() => setDeleteConfirmNotice(notice)}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                         title="删除公告"
                       >
@@ -743,10 +2138,10 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                       </button>
 
                       <button
-                        onClick={() => setViewingNotice(notice)}
+                        onClick={() => handleOpenDetail(notice)}
                         className="px-2.5 py-1 bg-slate-100 hover:bg-[#1E5ABB] text-slate-700 hover:text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center space-x-1 ml-1"
                       >
-                        <span>查阅</span>
+                        <span>查看详情</span>
                         <ChevronRight className="w-3 h-3" />
                       </button>
                     </div>
@@ -770,7 +2165,7 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                   <th className="py-3.5 px-4 w-36">签发单位</th>
                   <th className="py-3.5 px-4 w-40">发布人/发布时间</th>
                   <th className="py-3.5 px-4 w-24 text-center">状态</th>
-                  <th className="py-3.5 px-4 w-44 text-right">操作</th>
+                  <th className="py-3.5 px-4 w-48 text-right">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
@@ -778,7 +2173,7 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                   return (
                     <tr
                       key={notice.id}
-                      onClick={() => setViewingNotice(notice)}
+                      onClick={() => handleOpenDetail(notice)}
                       className="hover:bg-blue-50/50 transition-colors cursor-pointer group"
                     >
                       <td className="py-4 px-4 text-center text-slate-400 font-mono">
@@ -797,6 +2192,11 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                           <span className="font-bold text-slate-900 group-hover:text-[#1E5ABB] transition-colors text-[13px] line-clamp-1">
                             {notice.title}
                           </span>
+                          {notice.isPinned && (
+                            <span className="px-1.5 py-0.2 bg-amber-500 text-white text-[10px] font-extrabold rounded">
+                              置顶
+                            </span>
+                          )}
                           {notice.attachments && notice.attachments.length > 0 && (
                             <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded flex items-center space-x-0.5 shrink-0 border border-slate-200">
                               <Paperclip className="w-2.5 h-2.5 text-slate-400" />
@@ -817,7 +2217,7 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                         <div className="font-semibold text-slate-800">{notice.publishOrg}</div>
                       </td>
                       <td className="py-4 px-4">
-                        <div className="font-semibold text-slate-800">{notice.author}</div>
+                        <div className="font-semibold text-slate-800">{notice.publisher}</div>
                         <div className="text-[11px] text-slate-400 font-mono">{notice.publishTime}</div>
                       </td>
                       <td className="py-4 px-4 text-center">
@@ -840,17 +2240,17 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                       <td className="py-4 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end space-x-1">
                           <button
-                            onClick={() => setViewingNotice(notice)}
-                            className="px-2 py-1 bg-blue-50 hover:bg-[#1E5ABB] text-[#1E5ABB] hover:text-white rounded text-[11px] font-bold transition-colors cursor-pointer flex items-center space-x-0.5"
-                            title="查阅红头公文"
+                            onClick={() => handleOpenDetail(notice)}
+                            className="px-2.5 py-1 bg-blue-50 hover:bg-[#1E5ABB] text-[#1E5ABB] hover:text-white rounded text-[11px] font-bold transition-colors cursor-pointer flex items-center space-x-1"
+                            title="查看详情"
                           >
                             <Eye className="w-3 h-3" />
-                            <span>查阅</span>
+                            <span>详情</span>
                           </button>
                           <button
-                            onClick={() => handleOpenPublishModal(notice)}
+                            onClick={() => handleStartEdit(notice, 'list')}
                             className="p-1 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors cursor-pointer"
-                            title="编辑公文"
+                            title="编辑公文详情"
                           >
                             <Edit className="w-3.5 h-3.5" />
                           </button>
@@ -875,7 +2275,7 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                             </button>
                           )}
                           <button
-                            onClick={() => setDeleteConfirmId(notice.id)}
+                            onClick={() => setDeleteConfirmNotice(notice)}
                             className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
                             title="删除公文"
                           >
@@ -890,7 +2290,7 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
             </table>
           </div>
 
-          {/* Table Pagination / Summary Footer */}
+          {/* Table Summary Footer */}
           <div className="px-5 py-3.5 bg-slate-50/80 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
             <div>
               共检索到 <span className="font-bold text-slate-800">{filteredNotices.length}</span> 篇公文公告记录
@@ -914,553 +2314,28 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* PUBLISH / EDIT ANNOUNCEMENT MODAL */}
-      {/* ========================================================= */}
-      {isPublishModalOpen && (
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmNotice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white w-full max-w-3xl max-h-[90vh] rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="px-6 py-4 bg-gradient-to-r from-[#1E5ABB] to-blue-700 text-white flex items-center justify-between shrink-0">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
-                  <Megaphone className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-base font-bold">
-                    {editingNotice ? '编辑公文公告' : '起草并发布新公文公告'}
-                  </h2>
-                  <p className="text-[11px] text-white/80">
-                    发文单位：{currentOrg} · 起草操作员：{currentUser}
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setIsPublishModalOpen(false)}
-                className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-6 overflow-y-auto space-y-4 text-xs text-slate-700">
-              {/* Title Field */}
-              <div className="space-y-1.5">
-                <label className="font-bold text-slate-800 flex items-center justify-between">
-                  <span className="flex items-center space-x-1">
-                    <span className="text-rose-500">*</span>
-                    <span>公文 / 公告标题</span>
-                  </span>
-                  <span className="text-[11px] text-slate-400 font-normal">
-                    {formData.title.length}/80 字
-                  </span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="例如：关于做好近期重点时期网络舆情全天候值班值守与即时报送工作的通知"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  maxLength={80}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/20 focus:border-[#1E5ABB] transition-all"
-                />
-              </div>
-
-              {/* Category & Priority Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Category Selection */}
-                <div className="space-y-1.5">
-                  <label className="font-bold text-slate-800 flex items-center space-x-1">
-                    <span className="text-rose-500">*</span>
-                    <span>公文分类</span>
-                  </label>
-                  <select
-                    value={formData.category}
-                    onChange={(e) =>
-                      setFormData({ ...formData, category: e.target.value as NoticeCategory })
-                    }
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/20 focus:border-[#1E5ABB]"
-                  >
-                    <option value="紧急通知">🚨 紧急通知</option>
-                    <option value="业务通报">📊 业务通报</option>
-                    <option value="工作提示">💡 工作提示</option>
-                    <option value="政策下达">📜 政策下达</option>
-                    <option value="系统通知">⚙️ 系统通知</option>
-                    <option value="考核公示">🏆 考核公示</option>
-                  </select>
-                </div>
-
-                {/* Priority Selection */}
-                <div className="space-y-1.5">
-                  <label className="font-bold text-slate-800 flex items-center space-x-1">
-                    <span className="text-rose-500">*</span>
-                    <span>紧急程度</span>
-                  </label>
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {(['普通', '重要', '紧急', '特急'] as NoticePriority[]).map((prio) => (
-                      <button
-                        key={prio}
-                        type="button"
-                        onClick={() => setFormData({ ...formData, priority: prio })}
-                        className={`py-2 text-center rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                          formData.priority === prio
-                            ? prio === '特急'
-                              ? 'bg-red-600 text-white border-red-600 shadow-2xs'
-                              : prio === '紧急'
-                              ? 'bg-rose-500 text-white border-rose-500 shadow-2xs'
-                              : prio === '重要'
-                              ? 'bg-amber-500 text-white border-amber-500 shadow-2xs'
-                              : 'bg-[#1E5ABB] text-white border-[#1E5ABB] shadow-2xs'
-                            : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                        }`}
-                      >
-                        {prio}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Scope & Target Orgs */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="font-bold text-slate-800 flex items-center space-x-1">
-                    <span className="text-rose-500">*</span>
-                    <span>接收范围与指定单位</span>
-                  </label>
-                  <div className="flex items-center space-x-2 text-[11px]">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setFormData({
-                          ...formData,
-                          scope: '全网信系统',
-                          targetOrgs: AVAILABLE_ORGS
-                        })
-                      }
-                      className="text-[#1E5ABB] hover:underline cursor-pointer"
-                    >
-                      全选全部单位
-                    </button>
-                    <span className="text-slate-300">|</span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setFormData({
-                          ...formData,
-                          scope: '各区县宣传部',
-                          targetOrgs: ['西屯区宣传部', '北屯区宣传部', '南屯区宣传部', '东湖区宣传处']
-                        })
-                      }
-                      className="text-[#1E5ABB] hover:underline cursor-pointer"
-                    >
-                      仅区县网信
-                    </button>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {AVAILABLE_ORGS.map((org) => {
-                    const isChecked = formData.targetOrgs.includes(org);
-                    return (
-                      <label
-                        key={org}
-                        className={`flex items-center space-x-2 p-1.5 rounded-lg text-xs cursor-pointer select-none transition-colors ${
-                          isChecked ? 'bg-blue-50/80 text-[#1E5ABB] font-bold' : 'hover:bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setFormData({
-                                ...formData,
-                                targetOrgs: [...formData.targetOrgs, org]
-                              });
-                            } else {
-                              setFormData({
-                                ...formData,
-                                targetOrgs: formData.targetOrgs.filter((o) => o !== org)
-                              });
-                            }
-                          }}
-                          className="rounded text-[#1E5ABB] focus:ring-blue-500"
-                        />
-                        <span className="truncate">{org}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Summary Field */}
-              <div className="space-y-1.5">
-                <label className="font-bold text-slate-800">
-                  <span>摘要导语 (可选)</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="提炼该公文的核心指令要点或工作要求..."
-                  value={formData.summary}
-                  onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/20 focus:border-[#1E5ABB]"
-                />
-              </div>
-
-              {/* Main Content Area */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="font-bold text-slate-800 flex items-center space-x-1">
-                    <span className="text-rose-500">*</span>
-                    <span>公文正文内容</span>
-                  </label>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          content:
-                            prev.content +
-                            '\n\n一、提高思想认识，严格落实责任\n二、强化巡查监测，做到突发速报\n三、加强协同联动，提升处置效能'
-                        }))
-                      }
-                      className="text-[11px] text-[#1E5ABB] hover:underline cursor-pointer"
-                    >
-                      + 插入公文分段段落
-                    </button>
-                  </div>
-                </div>
-                <textarea
-                  rows={8}
-                  placeholder="请输入公文正文内容，支持公文标准行文规范..."
-                  value={formData.content}
-                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 leading-relaxed placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/20 focus:border-[#1E5ABB] font-mono"
-                />
-              </div>
-
-              {/* Attachments Section */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="font-bold text-slate-800 flex items-center space-x-1">
-                    <Paperclip className="w-3.5 h-3.5 text-slate-500" />
-                    <span>公文附件管理</span>
-                  </label>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      type="button"
-                      onClick={() => handleAddSampleAttachment('pdf')}
-                      className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-medium transition-colors cursor-pointer"
-                    >
-                      + 模拟添加PDF公文
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleAddSampleAttachment('image')}
-                      className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-medium transition-colors cursor-pointer"
-                    >
-                      + 添加图表证据
-                    </button>
-                  </div>
-                </div>
-
-                {formData.attachments && formData.attachments.length > 0 ? (
-                  <div className="space-y-1.5">
-                    {formData.attachments.map((att) => (
-                      <div
-                        key={att.id}
-                        className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-xl border border-slate-200"
-                      >
-                        <div className="flex items-center space-x-2 truncate">
-                          <FileText className="w-4 h-4 text-blue-600 shrink-0" />
-                          <span className="font-medium text-slate-800 truncate">{att.name}</span>
-                          <span className="text-[11px] text-slate-400 font-mono">({att.size})</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveAttachment(att.id)}
-                          className="text-slate-400 hover:text-rose-600 p-1"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="py-4 text-center border-2 border-dashed border-slate-200 rounded-xl text-slate-400 text-xs">
-                    暂未附加文件，支持拖拽 PDF、DOCX、PNG 等公文附件
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
-              <div className="flex items-center space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setIsPublishModalOpen(false)}
-                  className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold border border-slate-200 transition-colors cursor-pointer"
-                >
-                  取消
-                </button>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <button
-                  type="button"
-                  onClick={() => handleSaveNotice(true)}
-                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                >
-                  存为草稿
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSaveNotice(false)}
-                  className="px-5 py-2 bg-[#1E5ABB] hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer flex items-center space-x-1.5"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>立即正式发布</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================= */}
-      {/* OFFICIAL NOTICE DETAIL & RED-HEADER DOCUMENT MODAL */}
-      {/* ========================================================= */}
-      {viewingNotice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white w-full max-w-4xl max-h-[92vh] rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
-            {/* Modal Control Header */}
-            <div className="px-6 py-3.5 bg-slate-900 text-white flex items-center justify-between shrink-0">
-              <div className="flex items-center space-x-3">
-                <div className="flex items-center space-x-2">
-                  <FileText className="w-4 h-4 text-blue-400" />
-                  <span className="font-bold text-xs">政务公文与通知查阅中枢</span>
-                </div>
-                <span className="text-slate-400 font-mono text-xs">
-                  [{viewingNotice.id}]
-                </span>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => {
-                    window.print();
-                  }}
-                  className="px-3 py-1 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-medium flex items-center space-x-1 transition-colors cursor-pointer"
-                  title="打印公文"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>打印公文</span>
-                </button>
-                <button
-                  onClick={() => setViewingNotice(null)}
-                  className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Document Body (Red Header Layout) */}
-            <div className="p-8 overflow-y-auto space-y-6">
-              {/* Formal Red Header Document Style Banner */}
-              <div className="border-b-2 border-red-600 pb-6 text-center relative">
-                <h3 className="text-red-600 font-serif font-black text-2xl tracking-[0.25em] uppercase">
-                  中共台中市委网络安全和信息化委员会办公室
-                </h3>
-                <h4 className="text-red-600 font-serif font-bold text-xl tracking-[0.2em] mt-1">
-                  台 中 市 互 联 网 信 息 办 公 室
-                </h4>
-                <div className="mt-4 text-xs text-slate-500 font-serif flex items-center justify-between px-2">
-                  <span>台中网信发〔2026〕第 {viewingNotice.id.slice(-3)} 号</span>
-                  <div className="flex items-center space-x-2">
-                    {getPriorityBadge(viewingNotice.priority)}
-                    {getCategoryBadge(viewingNotice.category)}
-                  </div>
-                  <span>签发人：张建国</span>
-                </div>
-              </div>
-
-              {/* Title Section */}
-              <div className="text-center py-2 space-y-2">
-                <h1 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight">
-                  {viewingNotice.title}
-                </h1>
-                <div className="text-xs text-slate-500 flex items-center justify-center space-x-4 pt-1">
-                  <span>发布单位：{viewingNotice.publishOrg}</span>
-                  <span>·</span>
-                  <span>发布时间：{viewingNotice.publishTime}</span>
-                  <span>·</span>
-                  <span>送达范围：{viewingNotice.scope}</span>
-                </div>
-              </div>
-
-              {/* Target Scope Callout */}
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs text-slate-700">
-                <span className="font-bold text-slate-900">主送单位：</span>
-                <span>{viewingNotice.targetOrgs ? viewingNotice.targetOrgs.join('、') : '全网信系统直属各单位、各区县委宣传部'}</span>
-              </div>
-
-              {/* Content Paragraphs */}
-              <div className="text-slate-800 text-sm leading-relaxed space-y-4 font-sans whitespace-pre-wrap px-1">
-                {viewingNotice.content}
-              </div>
-
-              {/* Official Seal / Ending Stamp Simulation */}
-              <div className="flex justify-end pt-6 pr-6">
-                <div className="text-right space-y-1 relative">
-                  <div className="font-bold text-slate-900 text-sm">{viewingNotice.publishOrg}</div>
-                  <div className="text-xs text-slate-500 font-mono">{viewingNotice.publishTime.split(' ')[0]}</div>
-
-                  {/* Simulated Official Seal Stamp */}
-                  <div className="absolute -top-4 right-0 w-28 h-28 rounded-full border-2 border-red-500/70 text-red-500/70 flex flex-col items-center justify-center pointer-events-none rotate-[-12deg] select-none shadow-xs">
-                    <span className="text-[10px] font-bold text-center px-2">台中市互联网信息办公室</span>
-                    <span className="text-sm">★</span>
-                    <span className="text-[9px] font-serif">电子公文专用章</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Attachments Section */}
-              {viewingNotice.attachments && viewingNotice.attachments.length > 0 && (
-                <div className="pt-6 border-t border-slate-200 space-y-2.5">
-                  <h4 className="font-bold text-xs text-slate-800 flex items-center space-x-2">
-                    <Paperclip className="w-4 h-4 text-[#1E5ABB]" />
-                    <span>公文附件下载 ({viewingNotice.attachments.length})</span>
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {viewingNotice.attachments.map((att) => (
-                      <div
-                        key={att.id}
-                        className="flex items-center justify-between p-3 bg-slate-50 hover:bg-blue-50/60 rounded-xl border border-slate-200 transition-colors"
-                      >
-                        <div className="flex items-center space-x-2.5 truncate">
-                          <FileText className="w-4 h-4 text-[#1E5ABB] shrink-0" />
-                          <div className="truncate">
-                            <div className="font-bold text-xs text-slate-800 truncate">{att.name}</div>
-                            <div className="text-[10px] text-slate-400 font-mono">{att.size}</div>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => showToast(`已开始下载附件：${att.name}`)}
-                          className="px-2.5 py-1 bg-white hover:bg-[#1E5ABB] text-slate-700 hover:text-white rounded-lg text-xs font-medium border border-slate-200 transition-colors shadow-2xs shrink-0 cursor-pointer flex items-center space-x-1"
-                        >
-                          <Download className="w-3 h-3" />
-                          <span>下载</span>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Readers & Acknowledgment Status Panel */}
-              <div className="pt-6 border-t border-slate-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-xs text-slate-800 flex items-center space-x-2">
-                    <Users className="w-4 h-4 text-emerald-600" />
-                    <span>单位查阅与签收记录</span>
-                  </h4>
-                  <span className="text-xs font-bold text-slate-600">
-                    已阅 {viewingNotice.readCount} 人 / 目标 {viewingNotice.totalTargetCount} 人
-                    {viewingNotice.requireConfirm && ` (已确认签收 ${viewingNotice.confirmCount || 0} 份)`}
-                  </span>
-                </div>
-
-                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                  <div className="flex items-center space-x-2 text-xs text-slate-600">
-                    <span className="font-bold text-slate-800">最新签收记录：</span>
-                    {viewingNotice.readers && viewingNotice.readers.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5">
-                        {viewingNotice.readers.map((r, idx) => (
-                          <span
-                            key={idx}
-                            className="px-2 py-0.5 bg-white text-slate-700 rounded-md border border-slate-200 text-[11px] flex items-center space-x-1"
-                          >
-                            <Check className="w-3 h-3 text-emerald-600" />
-                            <span>{r.org} · {r.name}</span>
-                            <span className="text-[10px] text-slate-400 font-mono">({r.readTime.split(' ')[1]})</span>
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-slate-400">正在等待各接入单位操作员签收...</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Actions Footer */}
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => handleTogglePin(viewingNotice.id)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer flex items-center space-x-1 ${
-                    viewingNotice.isPinned
-                      ? 'bg-amber-50 text-amber-700 border-amber-300'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                  }`}
-                >
-                  <Pin className="w-3.5 h-3.5" />
-                  <span>{viewingNotice.isPinned ? '取消置顶' : '置顶展示'}</span>
-                </button>
-              </div>
-
-              <div className="flex items-center space-x-3">
-                {viewingNotice.requireConfirm && (
-                  <button
-                    onClick={() => handleConfirmRead(viewingNotice)}
-                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer flex items-center space-x-1.5"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>确认签收已阅公文</span>
-                  </button>
-                )}
-                <button
-                  onClick={() => setViewingNotice(null)}
-                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                >
-                  关闭
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================= */}
-      {/* DELETE CONFIRMATION DIALOG */}
-      {/* ========================================================= */}
-      {deleteConfirmId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white max-w-sm w-full rounded-2xl p-6 shadow-2xl border border-slate-200 space-y-4">
+          <div className="bg-white max-w-sm w-full rounded-2xl p-6 shadow-2xl border border-slate-200 space-y-4 animate-in zoom-in-95 duration-150">
             <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
               <Trash2 className="w-6 h-6" />
             </div>
             <div className="text-center">
               <h3 className="text-base font-bold text-slate-900">确认删除该公告？</h3>
               <p className="text-xs text-slate-500 mt-1">
-                删除后该公告信息将从历史归档中彻底移除，该操作不可撤销。
+                删除公文「{deleteConfirmNotice.title}」后信息将彻底移除，该操作不可撤销。
               </p>
             </div>
             <div className="flex items-center space-x-3 pt-2">
               <button
-                onClick={() => setDeleteConfirmId(null)}
+                onClick={() => setDeleteConfirmNotice(null)}
                 className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
               >
                 取消
               </button>
               <button
-                onClick={() => handleDelete(deleteConfirmId)}
+                onClick={() => handleDelete(deleteConfirmNotice.id)}
                 className="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-md"
               >
                 确认删除

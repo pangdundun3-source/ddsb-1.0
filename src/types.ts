@@ -51,7 +51,7 @@ export interface Attachment {
   id: string;
   name: string;
   size: string;
-  type: 'image' | 'pdf' | 'link';
+  type: 'image' | 'pdf' | 'word' | 'excel' | 'link' | string;
   url?: string;
   thumbnailUrl?: string;
 }
@@ -256,6 +256,24 @@ export type NoticePriority = '普通' | '重要' | '紧急' | '特急';
 
 export type NoticeStatus = '已发布' | '草稿' | '已撤回' | '已过期';
 
+export interface NoticePerson {
+  id: string;
+  name: string;
+  org: string;
+  role: string;
+  phone: string;
+  groups: string[];
+  avatarColor?: string;
+}
+
+export interface NoticeGroup {
+  id: string;
+  name: string;
+  description: string;
+  memberCount: number;
+  tag: string;
+}
+
 export interface NoticeReader {
   name: string;
   org: string;
@@ -270,6 +288,8 @@ export interface NoticeItem {
   priority: NoticePriority;
   scope: string; // e.g. '全网信系统' | '各区县宣传部' | '直属网信部门' | '审核员专班'
   targetOrgs: string[]; // e.g. ['台中市网信办', '西屯区宣传部', '北屯区宣传部', '南屯区宣传部']
+  targetPersonnelIds?: string[];
+  primaryPersonnelIds?: string[];
   publisher: string;
   publishOrg: string;
   publishTime: string;
@@ -292,6 +312,8 @@ export interface NewNoticeFormData {
   priority: NoticePriority;
   scope: string;
   targetOrgs: string[];
+  targetPersonnelIds?: string[];
+  primaryPersonnelIds?: string[];
   isPinned: boolean;
   requireConfirm: boolean;
   expireTime?: string;

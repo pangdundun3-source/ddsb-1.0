@@ -126,9 +126,13 @@ export const AttachmentPreviewModal: React.FC<AttachmentPreviewModalProps> = ({
       currentAtt.name.toLowerCase().endsWith(ext)
     );
   const isSpreadsheet =
+    currentAtt.type === 'excel' ||
     ['.xlsx', '.xls', '.csv'].some((ext) =>
       currentAtt.name.toLowerCase().endsWith(ext)
     ) || currentAtt.name.includes('表') || currentAtt.name.includes('统计');
+  const isWord =
+    currentAtt.type === 'word' ||
+    ['.doc', '.docx'].some((ext) => currentAtt.name.toLowerCase().endsWith(ext));
 
   return (
     <div
@@ -141,9 +145,11 @@ export const AttachmentPreviewModal: React.FC<AttachmentPreviewModalProps> = ({
         <div className="flex items-center space-x-3 min-w-0 pr-4">
           <div className="p-2 rounded-lg bg-gray-800 text-[#3B82F6] shrink-0">
             {isImage ? (
-              <ImageIcon className="w-5 h-5" />
+              <ImageIcon className="w-5 h-5 text-purple-400" />
             ) : isPdf ? (
               <FileText className="w-5 h-5 text-rose-400" />
+            ) : isWord ? (
+              <FileText className="w-5 h-5 text-blue-400" />
             ) : isSpreadsheet ? (
               <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
             ) : (
@@ -156,7 +162,7 @@ export const AttachmentPreviewModal: React.FC<AttachmentPreviewModalProps> = ({
                 {currentAtt.name}
               </h2>
               <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-400/30 uppercase shrink-0">
-                {isImage ? '图片预览' : isPdf ? 'PDF 文档' : isSpreadsheet ? '数据表格' : '附件'}
+                {isImage ? '图片预览' : isPdf ? 'PDF 文档' : isWord ? 'Word 文档' : isSpreadsheet ? 'Excel 表格' : '附件'}
               </span>
             </div>
             <div className="flex items-center space-x-3 text-xs text-gray-400 mt-0.5">
@@ -581,6 +587,52 @@ export const AttachmentPreviewModal: React.FC<AttachmentPreviewModalProps> = ({
                 </table>
               </div>
             </div>
+          ) : isWord ? (
+            /* Word Document Preview */
+            <div
+              className="bg-white text-gray-900 rounded-xl shadow-2xl overflow-y-auto max-h-[82vh] w-full max-w-3xl p-8 sm:p-12 border border-blue-200 transition-all duration-150"
+              style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top center' }}
+            >
+              <div className="border-b-2 border-blue-600 pb-3 mb-6 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <FileText className="w-6 h-6 text-blue-600" />
+                  <div>
+                    <h3 className="font-bold text-sm text-blue-950">{currentAtt.name}</h3>
+                    <p className="text-[10px] text-gray-400">Microsoft Word 文档格式 (.docx / .doc)</p>
+                  </div>
+                </div>
+                <span className="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded font-medium border border-blue-200">
+                  公文稿件排版视图
+                </span>
+              </div>
+
+              <div className="space-y-4 text-xs leading-relaxed text-gray-800">
+                <h2 className="text-base font-bold text-center text-gray-900 mb-4">
+                  {currentAtt.name.replace(/\.(docx|doc)$/i, '')}
+                </h2>
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                  <p className="font-bold text-slate-800">【公文附件正文说明】</p>
+                  <p className="text-slate-600 leading-relaxed indent-6">
+                    本件为系统下发之配套公文附件，请接件单位分管责任人及指定主责联络员遵照通知精神深入贯彻落实，有关考核指标要求与工作流程规范如下：
+                  </p>
+                </div>
+                <div className="space-y-2 pt-2">
+                  <h4 className="font-bold text-slate-900">一、协同执行与时效要求</h4>
+                  <p className="indent-6 text-slate-700 leading-relaxed">
+                    紧密围绕全市政务网络安全与突发舆情应急处置大局，压紧压实属地主体责任，确保各单位在规定时效内完成接收确认并按要求启动联动程序。
+                  </p>
+                  <h4 className="font-bold text-slate-900 pt-2">二、人员在岗与签收反馈</h4>
+                  <p className="indent-6 text-slate-700 leading-relaxed">
+                    请各区县网信办及直属单位指定的主要责任人保持24小时通讯畅通，落实每日双向回执机制与重点任务零差错报送。
+                  </p>
+                </div>
+
+                <div className="mt-10 pt-4 border-t border-slate-200 flex justify-between items-center text-[11px] text-slate-400">
+                  <span>台中市网络安全应急保障中心 · 编印</span>
+                  <span>文件大小：{currentAtt.size}</span>
+                </div>
+              </div>
+            </div>
           ) : (
             /* General File Preview */
             <div className="bg-white rounded-2xl p-8 max-w-md w-full text-center space-y-4 shadow-2xl border border-gray-200">
@@ -638,8 +690,10 @@ export const AttachmentPreviewModal: React.FC<AttachmentPreviewModalProps> = ({
                 <div className="w-8 h-8 rounded bg-gray-800 shrink-0 overflow-hidden flex items-center justify-center">
                   {att.type === 'image' && att.thumbnailUrl ? (
                     <img src={att.thumbnailUrl} alt={att.name} className="w-full h-full object-cover" />
-                  ) : att.type === 'pdf' ? (
+                  ) : att.type === 'pdf' || att.name.toLowerCase().endsWith('.pdf') ? (
                     <FileText className="w-4 h-4 text-rose-400" />
+                  ) : att.type === 'word' || att.name.toLowerCase().endsWith('.doc') || att.name.toLowerCase().endsWith('.docx') ? (
+                    <FileText className="w-4 h-4 text-blue-400" />
                   ) : (
                     <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
                   )}
