@@ -540,10 +540,10 @@ export const NoticeRecipientSelector: React.FC<NoticeRecipientSelectorProps> = (
                   ? 'bg-white text-slate-800 shadow-2xs font-bold'
                   : 'text-slate-500 hover:text-slate-800'
               }`}
-              title="按关联专班群组归集展示"
+              title="按关联群组归集展示"
             >
               <Users className="w-3 h-3" />
-              <span className="text-[11px]">按专班</span>
+              <span className="text-[11px]">按群组</span>
             </button>
           </div>
         </div>
@@ -757,7 +757,7 @@ export const NoticeRecipientSelector: React.FC<NoticeRecipientSelectorProps> = (
                         onClick={() => handleRemoveGroupMembers(groupName)}
                         className="text-[10px] text-rose-500 hover:text-rose-700 hover:underline cursor-pointer shrink-0"
                       >
-                        移出此专班人员
+                        移出此群组人员
                       </button>
                     </div>
 

@@ -1,7 +1,7 @@
 import { NoticeItem, NewNoticeFormData, NoticeReader } from '../types';
 import { INITIAL_NOTICES } from '../data/mockNotices';
 
-const NOTICE_STORAGE_KEY = 'ddsb_system_notices_v1';
+const NOTICE_STORAGE_KEY = 'ddsb_system_notices_v2';
 
 export const getStoredNotices = (): NoticeItem[] => {
   try {
@@ -29,7 +29,7 @@ export const saveStoredNotices = (notices: NoticeItem[]): void => {
 export const createNoticeItem = (
   formData: NewNoticeFormData,
   publisher: string = '张建国',
-  publishOrg: string = '台中市网信办',
+  publishOrg: string = '台中市互联网信息办公室',
   isDraft: boolean = false
 ): NoticeItem => {
   const now = new Date();

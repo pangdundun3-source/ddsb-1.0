@@ -103,7 +103,7 @@ export const INITIAL_NOTICES: NoticeItem[] = [
     scope: '全网信系统',
     targetOrgs: ['台中市网信办', '西屯区宣传部', '北屯区宣传部', '南屯区宣传部', '市公安网安支队', '市应急管理局'],
     publisher: '张建国 (市网信办值班长)',
-    publishOrg: '台中市网信办',
+    publishOrg: '台中市互联网信息办公室',
     publishTime: '2026-09-04 09:30',
     status: '已发布',
     isPinned: true,

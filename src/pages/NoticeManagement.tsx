@@ -16,6 +16,7 @@ import {
 } from '../services/noticeService';
 import { AttachmentPreviewModal } from '../components/AttachmentPreviewModal';
 import { NoticeRecipientSelector } from '../components/NoticeRecipientSelector';
+import { NoticeReadStatusTracker } from '../components/NoticeReadStatusTracker';
 import {
   NOTICE_AVAILABLE_ORGS,
   getDefaultPersonnelForOrgs
@@ -24,7 +25,6 @@ import {
   Megaphone,
   Plus,
   Search,
-  Pin,
   Flame,
   AlertCircle,
   FileText,
@@ -104,6 +104,7 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
 
   // File upload ref & drag-drop state
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const contentTextareaRef = React.useRef<HTMLTextAreaElement | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
 
   // Form State with Linked Personnel
@@ -129,6 +130,39 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
     setTimeout(() => setToastMessage(null), 3200);
   };
 
+  // Insert text at current cursor / selection position in content textarea
+  const handleInsertAtCursor = (textToInsert: string) => {
+    const textarea = contentTextareaRef.current;
+    if (!textarea) {
+      setFormData((prev) => ({
+        ...prev,
+        content: prev.content ? `${prev.content}\n\n${textToInsert}` : textToInsert
+      }));
+      return;
+    }
+
+    const start = textarea.selectionStart ?? textarea.value.length;
+    const end = textarea.selectionEnd ?? textarea.value.length;
+    const currentVal = formData.content;
+
+    const before = currentVal.substring(0, start);
+    const after = currentVal.substring(end);
+    const newContent = `${before}${textToInsert}${after}`;
+
+    setFormData((prev) => ({
+      ...prev,
+      content: newContent
+    }));
+
+    setTimeout(() => {
+      if (contentTextareaRef.current) {
+        contentTextareaRef.current.focus();
+        const newPos = start + textToInsert.length;
+        contentTextareaRef.current.setSelectionRange(newPos, newPos);
+      }
+    }, 0);
+  };
+
   // Sync to localStorage
   const updateNoticesState = (newNotices: NoticeItem[]) => {
     setNotices(newNotices);
@@ -146,7 +180,6 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
   const stats = useMemo(() => {
     const total = notices.length;
     const published = notices.filter((n) => n.status === '已发布').length;
-    const pinned = notices.filter((n) => n.isPinned && n.status === '已发布').length;
     const urgent = notices.filter(
       (n) => (n.priority === '紧急' || n.priority === '特急') && n.status === '已发布'
     ).length;
@@ -164,7 +197,7 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
     const avgReadRate =
       totalTarget > 0 ? ((totalRead / totalTarget) * 100).toFixed(1) : '92.4';
 
-    return { total, published, pinned, urgent, drafts, confirmNeeded, avgReadRate };
+    return { total, published, urgent, drafts, confirmNeeded, avgReadRate };
   }, [notices]);
 
   // Filtered notice items
@@ -201,8 +234,6 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
         return true;
       })
       .sort((a, b) => {
-        // Pinned first, then by publish time descending
-        if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
         return new Date(b.publishTime).getTime() - new Date(a.publishTime).getTime();
       });
   }, [notices, activeTab, selectedCategory, selectedPriority, selectedStatus, searchKeyword, currentUser, currentOrg]);
@@ -240,6 +271,10 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
   };
 
   const handleStartEdit = (notice: NoticeItem, from: 'list' | 'detail' = 'list') => {
+    if (notice.status === '已发布') {
+      showToast('已发布的公告不支持直接编辑，如需修改请先撤回公文');
+      return;
+    }
     setSelectedNotice(notice);
     setFormMode('edit');
     setSourceBeforeEdit(from);
@@ -346,17 +381,6 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
     }
   };
 
-  const handleTogglePin = (id: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    const updated = notices.map((n) => (n.id === id ? { ...n, isPinned: !n.isPinned } : n));
-    updateNoticesState(updated);
-    const target = updated.find((n) => n.id === id);
-    if (selectedNotice && selectedNotice.id === id && target) {
-      setSelectedNotice(target);
-    }
-    showToast(target?.isPinned ? '📌 已将该公告置顶展示' : '已取消置顶展示');
-  };
-
   const handleRecall = (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     const updated = notices.map((n) =>
@@ -367,7 +391,7 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
     if (selectedNotice && selectedNotice.id === id && target) {
       setSelectedNotice(target);
     }
-    showToast('公文已撤回，各单位接收端将停止置顶展示');
+    showToast('公文已撤回，各单位接收端将停止展示');
   };
 
   const handleDelete = (id: string) => {
@@ -699,35 +723,8 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
             </div>
           </div>
 
-          {/* Actions & Tab Switcher in Header */}
+          {/* Actions in Header */}
           <div className="flex items-center space-x-2.5 w-full md:w-auto justify-end flex-wrap gap-y-2">
-            <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs">
-              <button
-                type="button"
-                onClick={() => setFormTab('edit')}
-                className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
-                  formTab === 'edit'
-                    ? 'bg-white text-[#1E5ABB] shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Edit className="w-3.5 h-3.5" />
-                <span>表单编辑</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setFormTab('preview')}
-                className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
-                  formTab === 'preview'
-                    ? 'bg-white text-[#1E5ABB] shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Eye className="w-3.5 h-3.5" />
-                <span>红头文件实时预览</span>
-              </button>
-            </div>
-
             <button
               type="button"
               onClick={handleBackFromForm}
@@ -857,13 +854,9 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                     <button
                       type="button"
                       onClick={() =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          content:
-                            prev.content +
-                            (prev.content ? '\n\n' : '') +
-                            '一、提高思想认识，坚决落实责任\n二、强化巡查监测，做到突发速报\n三、加强协同联动，提升处置效能'
-                        }))
+                        handleInsertAtCursor(
+                          '一、提高思想认识，坚决落实责任\n二、强化巡查监测，做到突发速报\n三、加强协同联动，提升处置效能'
+                        )
                       }
                       className="text-xs text-[#1E5ABB] hover:underline cursor-pointer flex items-center space-x-1"
                     >
@@ -873,13 +866,9 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                     <button
                       type="button"
                       onClick={() =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          content:
-                            prev.content +
-                            (prev.content ? '\n\n' : '') +
-                            '1. 明确责任人员，实行24小时带班制度；\n2. 发现重大紧急线索，须在15分钟内完成速报初报；\n3. 定期报送处置动态，严防次生衍生风险。'
-                        }))
+                        handleInsertAtCursor(
+                          '1. 明确责任人员，实行24小时带班制度；\n2. 发现重大紧急线索，须在15分钟内完成速报初报；\n3. 定期报送处置动态，严防次生衍生风险。'
+                        )
                       }
                       className="text-xs text-[#1E5ABB] hover:underline cursor-pointer flex items-center space-x-1"
                     >
@@ -889,6 +878,7 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                 </div>
 
                 <textarea
+                  ref={contentTextareaRef}
                   rows={13}
                   placeholder="请输入公文正式行文内容，遵循政务公文格式，支持空行分段与条目规范..."
                   value={formData.content}
@@ -1324,43 +1314,17 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
-            <div>
-              <div className="flex items-center space-x-2 text-xs text-slate-400">
-                <span>系统管理</span>
-                <span>/</span>
-                <button
-                  onClick={handleBackToList}
-                  className="text-slate-600 hover:text-[#1E5ABB] transition-colors cursor-pointer"
-                >
-                  公告管理
-                </button>
-                <span>/</span>
-                <span className="text-[#1E5ABB] font-bold">公告详情</span>
-                <span className="font-mono text-slate-400 text-[11px]">({selectedNotice.id})</span>
-              </div>
-              <div className="flex items-center space-x-2.5 mt-0.5 flex-wrap gap-y-1">
-                <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
-                  {selectedNotice.title}
-                </h1>
-                {selectedNotice.isPinned && (
-                  <span className="px-2 py-0.5 bg-amber-500 text-white text-[11px] font-extrabold rounded-md flex items-center space-x-1 shadow-2xs">
-                    <Pin className="w-3 h-3" />
-                    <span>置顶展示</span>
-                  </span>
-                )}
-                {getCategoryBadge(selectedNotice.category)}
-                {getPriorityBadge(selectedNotice.priority)}
-                {selectedNotice.status === '草稿' && (
-                  <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[11px] font-bold rounded-md border border-slate-300">
-                    草稿箱
-                  </span>
-                )}
-                {selectedNotice.status === '已撤回' && (
-                  <span className="px-2 py-0.5 bg-rose-50 text-rose-600 text-[11px] font-bold rounded-md border border-rose-200">
-                    已撤回
-                  </span>
-                )}
-              </div>
+            <div className="flex items-center space-x-2 text-xs text-slate-400">
+              <span>系统管理</span>
+              <span>/</span>
+              <button
+                onClick={handleBackToList}
+                className="text-slate-600 hover:text-[#1E5ABB] transition-colors cursor-pointer"
+              >
+                公告管理
+              </button>
+              <span>/</span>
+              <span className="text-[#1E5ABB] font-bold">公告详情</span>
             </div>
           </div>
 
@@ -1398,25 +1362,15 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
               </button>
             </div>
 
-            <button
-              onClick={() => handleTogglePin(selectedNotice.id)}
-              className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer flex items-center space-x-1 ${
-                selectedNotice.isPinned
-                  ? 'bg-amber-50 text-amber-700 border-amber-300'
-                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-              }`}
-            >
-              <Pin className="w-3.5 h-3.5" />
-              <span>{selectedNotice.isPinned ? '取消置顶' : '置顶'}</span>
-            </button>
-
-            <button
-              onClick={() => handleStartEdit(selectedNotice, 'detail')}
-              className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center space-x-1.5"
-            >
-              <Edit className="w-3.5 h-3.5 text-blue-600" />
-              <span>编辑公文</span>
-            </button>
+            {selectedNotice.status !== '已发布' && (
+              <button
+                onClick={() => handleStartEdit(selectedNotice, 'detail')}
+                className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center space-x-1.5"
+              >
+                <Edit className="w-3.5 h-3.5 text-blue-600" />
+                <span>编辑公文</span>
+              </button>
+            )}
 
             {selectedNotice.status === '已发布' && (
               <button
@@ -1430,15 +1384,6 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
             )}
 
             <button
-              onClick={() => window.print()}
-              className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center space-x-1.5"
-              title="打印公文"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>打印</span>
-            </button>
-
-            <button
               onClick={() => setDeleteConfirmNotice(selectedNotice)}
               className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-xl transition-colors cursor-pointer"
               title="删除公文"
@@ -1448,97 +1393,70 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
           </div>
         </div>
 
-        {/* Main Content Layout: Left 8 Cols (Document) + Right 4 Cols (Read/Receipt tracking) */}
+        {/* Main Content Layout: Left 7 Cols (Document) + Right 5 Cols (Read/Receipt tracking, matching selector layout) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
           {/* Main Document Content Body */}
-          <div className="lg:col-span-8 space-y-5">
+          <div className="lg:col-span-7 space-y-5">
             <div className="bg-white rounded-2xl p-6 sm:p-10 border border-slate-200/80 shadow-xs space-y-6">
-              {/* Formal Red Header Banner */}
-              <div className="border-b-2 border-red-600 pb-5 text-center relative">
-                <h3 className="text-red-600 font-serif font-black text-xl sm:text-2xl tracking-[0.25em] uppercase">
-                  中共台中市委网络安全和信息化委员会办公室
-                </h3>
-                <h4 className="text-red-600 font-serif font-bold text-lg sm:text-xl tracking-[0.2em] mt-1.5">
-                  台 中 市 互 联 网 信 息 办 公 室
-                </h4>
-                <div className="mt-5 text-xs text-slate-500 font-serif flex items-center justify-between px-2">
-                  <span>台中网信发〔2026〕第 {selectedNotice.id.slice(-3)} 号</span>
-                  <div className="flex items-center space-x-2">
-                    {getPriorityBadge(selectedNotice.priority)}
-                    {getCategoryBadge(selectedNotice.category)}
-                  </div>
-                  <span>签发人：张建国</span>
-                </div>
-              </div>
-
               {/* Title Section */}
-              <div className="text-center py-2 space-y-2">
-                <h1 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight">
-                  {selectedNotice.title}
+              <div className="text-center py-2 space-y-2.5">
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 leading-relaxed text-center">
+                  <span>{selectedNotice.title}</span>
+                  <span className="inline-flex items-center space-x-1.5 ml-2.5 align-middle font-normal whitespace-nowrap">
+                    {getCategoryBadge(selectedNotice.category)}
+                    {getPriorityBadge(selectedNotice.priority)}
+                    {selectedNotice.status === '草稿' && (
+                      <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[11px] font-bold rounded-md border border-slate-300">
+                        草稿箱
+                      </span>
+                    )}
+                    {selectedNotice.status === '已撤回' && (
+                      <span className="px-2 py-0.5 bg-rose-50 text-rose-600 text-[11px] font-bold rounded-md border border-rose-200">
+                        已撤回
+                      </span>
+                    )}
+                  </span>
                 </h1>
+
                 <div className="text-xs text-slate-500 flex items-center justify-center space-x-4 pt-1 flex-wrap">
                   <span>发布单位：{selectedNotice.publishOrg}</span>
                   <span>·</span>
                   <span>发布时间：{selectedNotice.publishTime}</span>
-                  <span>·</span>
-                  <span>送达范围：{selectedNotice.scope}</span>
-                  <span>·</span>
-                  <span>起草人：{selectedNotice.publisher}</span>
                 </div>
               </div>
 
-              {/* Target Scope Callout */}
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs text-slate-700 space-y-1.5">
-                <div>
-                  <span className="font-bold text-slate-900">主送单位：</span>
-                  <span className="leading-relaxed">
-                    {selectedNotice.targetOrgs && selectedNotice.targetOrgs.length > 0
-                      ? selectedNotice.targetOrgs.join('、')
-                      : '全网信系统直属各单位、各区县委宣传部'}
-                  </span>
-                </div>
-                {selectedNotice.targetPersonnelIds && selectedNotice.targetPersonnelIds.length > 0 && (
-                  <div className="text-slate-600 text-xs flex items-center space-x-1.5 pt-1 border-t border-slate-200/60">
-                    <Users className="w-3.5 h-3.5 text-[#1E5ABB]" />
-                    <span>
-                      已联动直达责任人：<strong className="text-slate-900">{selectedNotice.targetPersonnelIds.length} 人</strong>
-                    </span>
-                  </div>
-                )}
-              </div>
+              {/* Document Body & Right-aligned Signature */}
+              {(() => {
+                const content = selectedNotice.content;
+                const signatureRegex = /\n\n([\u4e00-\u9fa5\w\s·（）()]+)\s*\n\s*(\d{4}年\d{1,2}月\d{1,2}日|\d{4}-\d{2}-\d{2})\s*$/;
+                const match = content.match(signatureRegex);
+                const bodyText = match ? content.slice(0, match.index).trim() : content;
+                const signatureOrg = match
+                  ? match[1].trim()
+                  : selectedNotice.publishOrg === '台中市网信办'
+                  ? '台中市互联网信息办公室'
+                  : selectedNotice.publishOrg;
 
-              {/* Summary Box if any */}
-              {selectedNotice.summary && (
-                <div className="bg-blue-50/60 p-4 rounded-xl border border-blue-200/60 text-xs text-blue-900 space-y-1">
-                  <div className="font-bold flex items-center space-x-1.5 text-[#1E5ABB]">
-                    <Info className="w-3.5 h-3.5" />
-                    <span>核心指令要点摘要</span>
-                  </div>
-                  <p className="leading-relaxed text-blue-950/80">{selectedNotice.summary}</p>
-                </div>
-              )}
+                return (
+                  <>
+                    <div className="text-slate-800 text-sm leading-relaxed space-y-4 font-sans whitespace-pre-wrap px-1">
+                      {bodyText}
+                    </div>
 
-              {/* Document Body */}
-              <div className="text-slate-800 text-sm leading-relaxed space-y-4 font-sans whitespace-pre-wrap px-1">
-                {selectedNotice.content}
-              </div>
-
-              {/* Official Seal / Ending Stamp */}
-              <div className="flex justify-end pt-8 pr-6">
-                <div className="text-right space-y-1 relative">
-                  <div className="font-bold text-slate-900 text-sm">{selectedNotice.publishOrg}</div>
-                  <div className="text-xs text-slate-500 font-mono">
-                    {selectedNotice.publishTime.split(' ')[0]}
-                  </div>
-
-                  {/* Simulated Official Seal Stamp */}
-                  <div className="absolute -top-4 right-0 w-28 h-28 rounded-full border-2 border-red-500/70 text-red-500/70 flex flex-col items-center justify-center pointer-events-none rotate-[-12deg] select-none shadow-xs">
-                    <span className="text-[10px] font-bold text-center px-2">台中市互联网信息办公室</span>
-                    <span className="text-sm">★</span>
-                    <span className="text-[9px] font-serif">电子公文专用章</span>
-                  </div>
-                </div>
-              </div>
+                    {/* Ending Publisher / Date Info (Right-Aligned, non-bold, time to minute) */}
+                    <div className="flex justify-end pt-8 pr-4 sm:pr-6">
+                      <div className="text-right space-y-1">
+                        <div className="text-slate-800 text-sm">
+                          {signatureOrg}
+                        </div>
+                        <div className="text-xs text-slate-500 font-mono">
+                          {selectedNotice.publishTime}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
 
               {/* Official Attachments Download List */}
               {selectedNotice.attachments && selectedNotice.attachments.length > 0 && (
@@ -1600,171 +1518,17 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                 </div>
               )}
             </div>
-
-            {/* Bottom Return Button */}
-            <div className="flex items-center justify-between">
-              <button
-                onClick={handleBackToList}
-                className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center space-x-1.5"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>返回公告列表</span>
-              </button>
-
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => handleStartEdit(selectedNotice, 'detail')}
-                  className="px-4 py-2 bg-[#1E5ABB] hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer flex items-center space-x-1.5"
-                >
-                  <Edit className="w-3.5 h-3.5" />
-                  <span>修改此公文</span>
-                </button>
-              </div>
-            </div>
           </div>
 
-          {/* Right 4 Cols: Readers Tracking & Sign-off Operations */}
-          <div className="lg:col-span-4 space-y-5">
-            {/* Quick Sign-off Action Card (If requireConfirm is true) */}
-            {selectedNotice.requireConfirm && (
-              <div className="bg-white rounded-2xl p-5 border border-indigo-200 shadow-xs space-y-3.5 bg-gradient-to-br from-white via-indigo-50/20 to-indigo-50/40">
-                <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs shrink-0">
-                    <FileCheck className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-900">公文签收回执确认</h3>
-                    <p className="text-[11px] text-slate-500">本公文要求各接入单位签发人即阅即签</p>
-                  </div>
-                </div>
-
-                {isCurrentConfirmed ? (
-                  <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center space-x-2 text-xs text-emerald-800 font-bold">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>✓ 您所在的单位（{currentOrg}）已完成公文签收回执</span>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-xs text-slate-600 leading-relaxed">
-                      请仔细核对公文内容，确认知悉工作部署要求后点击下方按钮完成签收备案。
-                    </p>
-                    <button
-                      onClick={() => handleConfirmRead(selectedNotice)}
-                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center space-x-2 active:scale-98"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>确认签收已阅公文</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Read Rate & Progress Statistics Card */}
-            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h3 className="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
-                  <Users className="w-4 h-4 text-[#1E5ABB]" />
-                  <span>单位查阅与送达统计</span>
-                </h3>
-                <span className="text-xs font-bold text-slate-800">
-                  {readPercentage}% 查阅率
-                </span>
-              </div>
-
-              {/* Progress bar */}
-              <div>
-                <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1.5">
-                  <span>已阅单位/人员：</span>
-                  <span className="font-bold text-slate-800">
-                    {selectedNotice.readCount} / {selectedNotice.totalTargetCount} 人
-                  </span>
-                </div>
-                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      readPercentage > 80
-                        ? 'bg-emerald-500'
-                        : readPercentage > 50
-                        ? 'bg-blue-500'
-                        : 'bg-amber-500'
-                    }`}
-                    style={{ width: `${readPercentage}%` }}
-                  />
-                </div>
-                {selectedNotice.requireConfirm && (
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2">
-                    <span>已签收回执份数：</span>
-                    <span className="font-bold text-indigo-700">
-                      {selectedNotice.confirmCount || 0} 份
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Target Organizations Checklist */}
-              <div className="space-y-2 pt-2 border-t border-slate-100">
-                <div className="text-xs font-bold text-slate-800">受送达接入单位列表：</div>
-                <div className="max-h-[200px] overflow-y-auto space-y-1.5 pr-1 text-xs">
-                  {selectedNotice.targetOrgs?.map((org) => {
-                    const isRead = selectedNotice.readers?.some((r) => r.org === org);
-                    return (
-                      <div
-                        key={org}
-                        className="flex items-center justify-between p-2 bg-slate-50 rounded-lg text-slate-700"
-                      >
-                        <span className="truncate">{org}</span>
-                        {isRead ? (
-                          <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded flex items-center space-x-0.5 shrink-0 border border-emerald-200">
-                            <Check className="w-2.5 h-2.5" />
-                            <span>已阅</span>
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-slate-400 shrink-0">待查阅</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Reader Logs List Card */}
-            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-3">
-              <h3 className="text-xs font-bold text-slate-800 flex items-center space-x-1.5 border-b border-slate-100 pb-2.5">
-                <Clock className="w-4 h-4 text-emerald-600" />
-                <span>电子查阅与签收日志明细</span>
-              </h3>
-
-              {selectedNotice.readers && selectedNotice.readers.length > 0 ? (
-                <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
-                  {selectedNotice.readers.map((r, idx) => (
-                    <div
-                      key={idx}
-                      className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-xs space-y-1"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-slate-800">{r.name}</span>
-                        <span className="text-[10px] text-slate-400 font-mono">{r.readTime}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-[11px] text-slate-500">
-                        <span>{r.org}</span>
-                        {r.confirmed && (
-                          <span className="text-emerald-700 font-bold flex items-center space-x-0.5">
-                            <Check className="w-3 h-3" />
-                            <span>已回执</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="py-6 text-center text-slate-400 text-xs">
-                  暂无人员查阅记录，正等待各单位接收处理
-                </div>
-              )}
-            </div>
+          {/* Right 5 Cols: Redesigned Readers Tracking & Sign-off Operations (Matching NoticeRecipientSelector aesthetic) */}
+          <div className="lg:col-span-5 space-y-5">
+            <NoticeReadStatusTracker
+              notice={selectedNotice}
+              currentUser={currentUser}
+              currentOrg={currentOrg}
+              onConfirmRead={handleConfirmRead}
+              showToast={showToast}
+            />
           </div>
         </div>
       </div>
@@ -1791,15 +1555,7 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
             <Megaphone className="w-6 h-6" />
           </div>
           <div>
-            <div className="flex items-center space-x-3">
-              <h1 className="text-xl font-black text-slate-800 tracking-tight">公告管理</h1>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-[#1E5ABB] border border-blue-200">
-                政务红头公告发布中枢
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 mt-1">
-              支持政务红头公文多级签发、置顶管控、单位定向下发、签收回执跟踪与详情管理。
-            </p>
+            <h1 className="text-xl font-black text-slate-800 tracking-tight">公告管理</h1>
           </div>
         </div>
 
@@ -1877,77 +1633,60 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
           </div>
         </div>
 
-        {/* Filter Controls */}
-        <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 flex-1">
-            {/* Keyword Search */}
-            <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="搜索公告标题、正文、发布人、受众..."
-                value={searchKeyword}
-                onChange={(e) => setSearchKeyword(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/20 focus:border-[#1E5ABB] transition-all"
-              />
-              {searchKeyword && (
-                <button
-                  onClick={() => setSearchKeyword('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-
-            {/* Category Filter */}
-            <div className="flex items-center space-x-2">
-              <span className="text-xs text-slate-500 shrink-0 font-medium">分类：</span>
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/20 focus:border-[#1E5ABB] transition-all"
+        {/* Filter Controls: Merged in one row */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+          {/* Keyword Search */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="搜索公告标题、正文、发布人、受众..."
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/20 focus:border-[#1E5ABB] transition-all"
+            />
+            {searchKeyword && (
+              <button
+                onClick={() => setSearchKeyword('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
               >
-                <option value="all">全部分类</option>
-                <option value="紧急通知">紧急通知</option>
-                <option value="业务通报">业务通报</option>
-                <option value="工作提示">工作提示</option>
-                <option value="政策下达">政策下达</option>
-                <option value="系统通知">系统通知</option>
-                <option value="考核公示">考核公示</option>
-              </select>
-            </div>
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
 
-            {/* Priority Filter */}
-            <div className="flex items-center space-x-2">
-              <span className="text-xs text-slate-500 shrink-0 font-medium">级别：</span>
-              <select
-                value={selectedPriority}
-                onChange={(e) => setSelectedPriority(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/20 focus:border-[#1E5ABB] transition-all"
-              >
-                <option value="all">全部优先级</option>
-                <option value="特急">特急</option>
-                <option value="紧急">紧急</option>
-                <option value="重要">重要</option>
-                <option value="普通">普通</option>
-              </select>
-            </div>
+          {/* Category Filter */}
+          <div className="flex items-center space-x-2 shrink-0">
+            <span className="text-xs text-slate-500 shrink-0 font-medium">分类：</span>
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/20 focus:border-[#1E5ABB] transition-all min-w-[110px]"
+            >
+              <option value="all">全部分类</option>
+              <option value="紧急通知">紧急通知</option>
+              <option value="业务通报">业务通报</option>
+              <option value="工作提示">工作提示</option>
+              <option value="政策下达">政策下达</option>
+              <option value="系统通知">系统通知</option>
+              <option value="考核公示">考核公示</option>
+            </select>
+          </div>
 
-            {/* Status Filter */}
-            <div className="flex items-center space-x-2">
-              <span className="text-xs text-slate-500 shrink-0 font-medium">状态：</span>
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/20 focus:border-[#1E5ABB] transition-all"
-              >
-                <option value="all">全部状态</option>
-                <option value="已发布">已发布</option>
-                <option value="草稿">草稿箱</option>
-                <option value="已撤回">已撤回</option>
-              </select>
-            </div>
+          {/* Priority Filter */}
+          <div className="flex items-center space-x-2 shrink-0">
+            <span className="text-xs text-slate-500 shrink-0 font-medium">级别：</span>
+            <select
+              value={selectedPriority}
+              onChange={(e) => setSelectedPriority(e.target.value)}
+              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/20 focus:border-[#1E5ABB] transition-all min-w-[110px]"
+            >
+              <option value="all">全部优先级</option>
+              <option value="特急">特急</option>
+              <option value="紧急">紧急</option>
+              <option value="重要">重要</option>
+              <option value="普通">普通</option>
+            </select>
           </div>
 
           {/* Actions: 查询 和 重置 */}
@@ -2000,24 +1739,19 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
               <div
                 key={notice.id}
                 onClick={() => handleOpenDetail(notice)}
-                className={`bg-white rounded-2xl p-5 border transition-all duration-200 hover:shadow-md cursor-pointer relative group flex flex-col justify-between ${
-                  notice.isPinned
-                    ? 'border-amber-300/80 bg-gradient-to-br from-amber-50/20 via-white to-white ring-1 ring-amber-400/20'
-                    : 'border-slate-200/90 hover:border-[#1E5ABB]/50'
-                }`}
+                className="bg-white rounded-2xl p-5 border border-slate-200/90 hover:border-[#1E5ABB]/50 transition-all duration-200 hover:shadow-md cursor-pointer relative group flex flex-col justify-between"
               >
                 <div>
                   {/* Top Badges & Meta */}
                   <div className="flex items-center justify-between gap-2 mb-2.5">
                     <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                      {notice.isPinned && (
-                        <span className="px-2 py-0.5 bg-amber-500 text-white text-[11px] font-extrabold rounded-md flex items-center space-x-1 shadow-2xs">
-                          <Pin className="w-3 h-3" />
-                          <span>置顶</span>
-                        </span>
-                      )}
                       {getCategoryBadge(notice.category)}
                       {getPriorityBadge(notice.priority)}
+                      {notice.scope && (
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[11px] font-medium rounded-md border border-slate-200/80">
+                          {notice.scope} ({notice.totalTargetCount}人)
+                        </span>
+                      )}
                       {notice.requireConfirm && (
                         <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[11px] font-bold rounded-md border border-indigo-200 flex items-center space-x-1">
                           <FileCheck className="w-3 h-3" />
@@ -2099,25 +1833,15 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
 
                     {/* Quick Button Group */}
                     <div className="flex items-center space-x-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={(e) => handleTogglePin(notice.id, e)}
-                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                          notice.isPinned
-                            ? 'text-amber-600 bg-amber-50 hover:bg-amber-100'
-                            : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
-                        }`}
-                        title={notice.isPinned ? '取消置顶' : '置顶展示'}
-                      >
-                        <Pin className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        onClick={() => handleStartEdit(notice, 'list')}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                        title="编辑公文详情"
-                      >
-                        <Edit className="w-3.5 h-3.5" />
-                      </button>
+                      {notice.status !== '已发布' && (
+                        <button
+                          onClick={() => handleStartEdit(notice, 'list')}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                          title="编辑公文详情"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                      )}
 
                       {notice.status === '已发布' && (
                         <button
@@ -2164,7 +1888,6 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                   <th className="py-3.5 px-4 w-36">受众范围</th>
                   <th className="py-3.5 px-4 w-36">签发单位</th>
                   <th className="py-3.5 px-4 w-40">发布人/发布时间</th>
-                  <th className="py-3.5 px-4 w-24 text-center">状态</th>
                   <th className="py-3.5 px-4 w-48 text-right">操作</th>
                 </tr>
               </thead>
@@ -2192,11 +1915,6 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                           <span className="font-bold text-slate-900 group-hover:text-[#1E5ABB] transition-colors text-[13px] line-clamp-1">
                             {notice.title}
                           </span>
-                          {notice.isPinned && (
-                            <span className="px-1.5 py-0.2 bg-amber-500 text-white text-[10px] font-extrabold rounded">
-                              置顶
-                            </span>
-                          )}
                           {notice.attachments && notice.attachments.length > 0 && (
                             <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded flex items-center space-x-0.5 shrink-0 border border-slate-200">
                               <Paperclip className="w-2.5 h-2.5 text-slate-400" />
@@ -2209,8 +1927,9 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                         </div>
                       </td>
                       <td className="py-4 px-4">
-                        <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[11px] font-medium border border-slate-200/60 inline-block">
-                          {notice.scope}
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[11px] font-medium border border-slate-200/60 inline-flex items-center space-x-1">
+                          <span>{notice.scope}</span>
+                          <span className="text-slate-500 font-mono font-normal">({notice.totalTargetCount}人)</span>
                         </span>
                       </td>
                       <td className="py-4 px-4">
@@ -2219,23 +1938,6 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                       <td className="py-4 px-4">
                         <div className="font-semibold text-slate-800">{notice.publisher}</div>
                         <div className="text-[11px] text-slate-400 font-mono">{notice.publishTime}</div>
-                      </td>
-                      <td className="py-4 px-4 text-center">
-                        {notice.status === '已发布' && (
-                          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[11px] font-bold rounded-full border border-emerald-200">
-                            已发布
-                          </span>
-                        )}
-                        {notice.status === '草稿' && (
-                          <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[11px] font-bold rounded-full border border-slate-300">
-                            草稿箱
-                          </span>
-                        )}
-                        {notice.status === '已撤回' && (
-                          <span className="px-2 py-0.5 bg-rose-50 text-rose-600 text-[11px] font-bold rounded-full border border-rose-200">
-                            已撤回
-                          </span>
-                        )}
                       </td>
                       <td className="py-4 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end space-x-1">
@@ -2247,24 +1949,15 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                             <Eye className="w-3 h-3" />
                             <span>详情</span>
                           </button>
-                          <button
-                            onClick={() => handleStartEdit(notice, 'list')}
-                            className="p-1 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors cursor-pointer"
-                            title="编辑公文详情"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={(e) => handleTogglePin(notice.id, e)}
-                            className={`p-1 rounded transition-colors cursor-pointer ${
-                              notice.isPinned
-                                ? 'text-amber-600 bg-amber-50 hover:bg-amber-100'
-                                : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
-                            }`}
-                            title={notice.isPinned ? '取消置顶' : '置顶'}
-                          >
-                            <Pin className="w-3.5 h-3.5" />
-                          </button>
+                          {notice.status !== '已发布' && (
+                            <button
+                              onClick={() => handleStartEdit(notice, 'list')}
+                              className="p-1 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors cursor-pointer"
+                              title="编辑公文详情"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           {notice.status === '已发布' && (
                             <button
                               onClick={(e) => handleRecall(notice.id, e)}

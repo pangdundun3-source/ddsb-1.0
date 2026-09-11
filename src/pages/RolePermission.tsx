@@ -247,7 +247,7 @@ const permissionGroups: PermissionGroup[] = [
           { key: 'add', label: '发布公告' },
           { key: 'edit', label: '编辑公告' },
           { key: 'delete', label: '删除公告' },
-          { key: 'status', label: '置顶/撤回' },
+          { key: 'status', label: '撤回公告' },
         ],
       },
       {
@@ -1067,7 +1067,7 @@ export const RolePermission: React.FC = () => {
                         <span>公告管理</span>
                       </label>
                       <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
-                        {['view:查看公告', 'add:发布公告', 'edit:编辑公告', 'delete:删除公告', 'status:置顶/撤回'].map(item => {
+                        {['view:查看公告', 'add:发布公告', 'edit:编辑公告', 'delete:删除公告', 'status:撤回公告'].map(item => {
                           const [key, label] = item.split(':');
                           const permKey = `system_notice_${key}`;
                           return (
