@@ -28,6 +28,7 @@ import {
   Award,
   Building2,
   GitBranch,
+  GitCommit,
   UserCheck,
   Clock,
   ShieldCheck,
@@ -37,11 +38,13 @@ import {
   Square,
   GripVertical,
   ChevronRight,
+  ChevronDown,
   Smartphone,
   ArrowRight,
   Copy,
   RotateCcw,
   Sliders,
+  SlidersHorizontal,
   Workflow
 } from 'lucide-react';
 import { TemplateOtherConfigPanel } from '../components/TemplateOtherConfigPanel';
@@ -406,15 +409,38 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     }
   }, [initialModule]);
 
-  // Module items list definition
+  // Module items list definition - matching the 5 sub-modules for 其他业务配置
   const moduleList = [
-    { id: 'report_template', label: '模板管理' },
-    { id: 'data_dict', label: '数据字典管理' },
-    { id: 'value_added', label: '增值业务申请' },
-    { id: 'audit_score', label: '审核打分规则' },
-    { id: 'evaluation_rule', label: '考核规则' },
-    { id: 'stats_metric', label: '统计指标' },
-    { id: 'audit_flow', label: '审核流程层级设计' }
+    {
+      id: 'report_template',
+      label: '模板管理',
+      icon: FileText,
+      desc: '报送/激活模版与动态表单'
+    },
+    {
+      id: 'audit_flow',
+      label: '审核流程配置',
+      icon: GitBranch,
+      desc: '多级流转节点与审批链路'
+    },
+    {
+      id: 'audit_score',
+      label: '审核打分配置',
+      icon: Award,
+      desc: '五级打分标准与评分规则'
+    },
+    {
+      id: 'data_dict',
+      label: '数据字典管理',
+      icon: ListFilter,
+      desc: '驳回原由/信息分类/来源渠道'
+    },
+    {
+      id: 'value_added',
+      label: '增值业务申请',
+      icon: Sparkles,
+      desc: '扩展服务能力与业务开通'
+    }
   ];
 
   // Data state for each configuration module
@@ -749,7 +775,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         status: '启用',
         activatedStatus: '已开通',
         updateTime: '2023-11-10 10:00:00',
-        description: '基于智能文本相似度与事件指纹比对算法，自动识别多源上报线索并打上首发与重复标识，有效防止多头报送与重复审核计分',
+        description: '通过抓取报送链接的文章原文比对判断内容是否重复，并结合提交时间线智能判定首发，避免多头报送与重复审核计分。',
         isDefault: true
       },
       {
@@ -790,6 +816,8 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 
   const [searchQuery, setSearchQuery] = useState('');
   const [templateTypeFilter, setTemplateTypeFilter] = useState<'报送' | '激活'>('报送');
+  const [auditFlowModeFilter, setAuditFlowModeFilter] = useState<'all' | 'step_by_step' | 'direct_headquarters' | 'max_n_steps'>('all');
+  const [auditScoreStatusFilter, setAuditScoreStatusFilter] = useState<'all' | 'active' | 'backup'>('all');
   const [metricNameInput, setMetricNameInput] = useState('');
   const [metricNameQuery, setMetricNameQuery] = useState('');
   const [metricBindings, setMetricBindings] = useState<MetricDisplayBinding[]>(() => getDefaultMetricBindings());
@@ -1994,6 +2022,14 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       return false;
     }
 
+    if (activeModule === 'audit_flow') {
+      return true;
+    }
+
+    if (activeModule === 'audit_score') {
+      return true;
+    }
+
     const matchesQuery =
       item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -2039,17 +2075,20 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     fields: TemplateField[],
     emptyText = '请先配置表单字段',
     templateType: ConfigModuleItem['templateType'] = formTemplateType,
-    variant: 'compact' | 'full' = 'compact'
-  ) => (
-    <div className="bg-slate-100 rounded-lg border border-gray-200 overflow-hidden">
-      <div className={`${variant === 'full' ? 'w-full' : 'mx-auto max-w-[430px]'} bg-white shadow-2xs`}>
-        <div className="h-11 bg-[#1E5ABB] text-white flex items-center justify-center px-3">
-          <span className="text-sm font-bold">{templateType === '激活' ? '账号激活' : '快速上报'}</span>
+    variant: 'compact' | 'full' = 'compact',
+    customTitle?: string
+  ) => {
+    const titleText = customTitle || (templateType === '激活' ? '账号激活' : '标准图文报送模板');
+
+    return (
+      <div className="bg-[#F8FAFC] rounded-2xl border border-gray-200/90 shadow-2xs overflow-hidden w-full">
+        <div className="h-11 bg-[#1E5ABB] text-white flex items-center justify-center px-4 select-none">
+          <span className="text-sm font-bold tracking-wide truncate max-w-[90%]">{titleText}</span>
         </div>
 
-        <div className={`bg-slate-100 p-3 ${variant === 'full' ? 'space-y-3' : 'space-y-2.5'}`}>
+        <div className={`p-3.5 sm:p-4 ${variant === 'full' ? 'space-y-3' : 'space-y-2.5'}`}>
           {fields.length === 0 ? (
-            <div className="py-12 text-center text-gray-400 text-xs bg-white rounded-lg border border-dashed border-gray-200">
+            <div className="py-12 text-center text-gray-400 text-xs bg-white rounded-xl border border-dashed border-gray-200">
               {emptyText}
             </div>
           ) : (
@@ -2060,15 +2099,21 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
               const isLongText = field.type === 'text' && /内容|摘要|简述|说明|情况|描述|详情/.test(field.name);
               const selectOptions = field.options && field.options.length > 0
                 ? field.options.filter(option => option.trim())
-                : ['一般信息', '重点关注', '紧急处置'];
+                : ['突发敏感事件', '网络舆情动态', '民生诉求建议'];
 
               return (
-                <div key={field.id || idx} className="bg-white rounded-lg border border-gray-100 p-3 space-y-2">
+                <div key={field.id || idx} className="bg-white rounded-xl border border-gray-200/80 p-3 sm:p-3.5 space-y-2 shadow-2xs">
                   <label className="flex items-center justify-between gap-2">
                     <span className="text-xs font-bold text-gray-800 flex items-center gap-1.5 min-w-0">
-                      <IconComp className="w-3.5 h-3.5 text-[#1E5ABB] shrink-0" />
+                      {field.type === 'text' ? (
+                        <span className="w-4 h-4 text-blue-600 font-bold font-serif text-sm flex items-center justify-center shrink-0">T</span>
+                      ) : field.type === 'number' ? (
+                        <span className="w-4 h-4 text-[#1E5ABB] font-bold text-sm flex items-center justify-center shrink-0">#</span>
+                      ) : (
+                        <IconComp className="w-3.5 h-3.5 text-[#1E5ABB] shrink-0" />
+                      )}
                       <span className="truncate">{field.name}</span>
-                      {field.required && <span className="text-rose-500 shrink-0">*</span>}
+                      {field.required && <span className="text-rose-500 font-bold ml-0.5 shrink-0">*</span>}
                     </span>
                   </label>
 
@@ -2142,58 +2187,65 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                   )}
 
                   {field.type === 'date' && (
-                    <div className="relative">
+                    <div className="relative flex items-center border border-gray-200 rounded-lg px-3 py-2 bg-white focus-within:ring-1 focus-within:ring-[#1E5ABB] focus-within:border-[#1E5ABB]">
+                      <Calendar className="w-4 h-4 text-gray-400 mr-2 shrink-0 pointer-events-none" />
                       <input
-                        type="datetime-local"
+                        type={fieldValue ? 'datetime-local' : 'text'}
+                        onFocus={(e) => { e.currentTarget.type = 'datetime-local'; }}
+                        onBlur={(e) => { if (!e.currentTarget.value) e.currentTarget.type = 'text'; }}
                         value={fieldValue}
                         onChange={(e) => handlePreviewValueChange(field.id, e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white"
+                        placeholder={field.placeholder || '请选择事件发生或传播时间'}
+                        className="w-full text-xs text-gray-700 bg-transparent focus:outline-none placeholder:text-gray-400 cursor-pointer"
                       />
-                      <Calendar className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+                      <Calendar className="w-4 h-4 text-gray-400 ml-2 shrink-0 pointer-events-none" />
                     </div>
                   )}
 
                   {field.type === 'file' && (
-                    <label className="block border border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-[#1E5ABB] transition-colors cursor-pointer bg-gray-50">
+                    <label className="block border border-dashed border-blue-200/90 rounded-xl p-5 text-center hover:border-[#1E5ABB] hover:bg-blue-50/20 transition-colors cursor-pointer bg-white">
                       <input
                         type="file"
                         className="sr-only"
                         onChange={(e) => handlePreviewValueChange(field.id, e.target.files?.[0]?.name || '')}
                       />
-                      <Paperclip className="w-7 h-7 text-gray-400 mx-auto mb-1" />
-                      <p className="text-xs text-gray-700 font-medium break-words">
+                      <Paperclip className="w-7 h-7 text-gray-400 mx-auto mb-1.5" />
+                      <p className="text-xs text-gray-800 font-medium break-words">
                         {fieldValue || '上传图片、视频或证明材料'}
                       </p>
                       <p className="text-gray-400 text-[11px] mt-0.5">
-                        {field.placeholder || '支持图片、视频、PDF 等附件'}
+                        {field.placeholder || '支持图片、视频、PDF证明文档'}
                       </p>
                     </label>
                   )}
 
                   {field.type === 'link' && (
-                    <div className="relative">
+                    <div className="relative flex items-center border border-gray-200 rounded-lg px-3 py-2 bg-white focus-within:ring-1 focus-within:ring-[#1E5ABB] focus-within:border-[#1E5ABB]">
+                      <LinkIcon className="w-4 h-4 text-gray-400 mr-2 shrink-0 pointer-events-none" />
                       <input
                         type="url"
                         value={fieldValue}
                         onChange={(e) => handlePreviewValueChange(field.id, e.target.value)}
-                        placeholder={field.placeholder || 'https://example.com'}
-                        className="w-full pl-9 pr-3 py-2 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white placeholder:text-gray-400"
+                        placeholder={field.placeholder || 'https://...'}
+                        className="w-full text-xs text-gray-700 bg-transparent focus:outline-none placeholder:text-gray-400"
                       />
-                      <LinkIcon className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
                     </div>
                   )}
 
                   {field.type === 'select' && (
-                    <select
-                      value={fieldValue}
-                      onChange={(e) => handlePreviewValueChange(field.id, e.target.value)}
-                      className="w-full px-3 py-2 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white"
-                    >
-                      <option value="">{field.placeholder || '请选择'}</option>
-                      {selectOptions.map(option => (
-                        <option key={option} value={option}>{option}</option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <select
+                        value={fieldValue}
+                        onChange={(e) => handlePreviewValueChange(field.id, e.target.value)}
+                        className="w-full appearance-none px-3.5 py-2.5 text-xs text-gray-700 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-[#1E5ABB] focus:ring-1 focus:ring-[#1E5ABB] cursor-pointer"
+                      >
+                        <option value="">{field.placeholder || '请选择事件分类'}</option>
+                        {selectOptions.map(option => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-4 h-4 text-gray-500 absolute right-3 top-3 pointer-events-none" />
+                    </div>
                   )}
 
                   {field.type === 'identity' && (
@@ -2228,10 +2280,9 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
             })
           )}
         </div>
-
       </div>
-    </div>
-  );
+    );
+  };
 
   const enabledStatsMetrics = (dataStore.stats_metric || []).filter(item => item.status === '启用');
   const getMetricPageLabel = (page: MetricDisplayPage) => metricPageOptions.find(item => item.id === page)?.label || page;
@@ -3153,159 +3204,235 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     setIsModalOpen(false);
   };
 
+  const currentModuleDesc =
+    activeModule === 'report_template'
+      ? '管理各业务报送模版、验证激活模版与动态表单字段'
+      : activeModule === 'audit_flow'
+      ? '可视化设计多级审核流程链路、审批节点、责任人缺失兜底与适用机构范围'
+      : activeModule === 'audit_score'
+      ? '维护审核评分等级、各级分值标准、考核权重与打分触发时机规则'
+      : activeModule === 'data_dict'
+      ? '维护系统标准数据字典、驳回原由、信息分类、来源渠道与紧急程度代码'
+      : activeModule === 'value_added'
+      ? '展示系统当前支持的各项增值扩展功能及其详细功能介绍与开通申请'
+      : '管理系统内的各类业务规则与数据配置';
+
   return (
     <div className="space-y-4">
-      {/* Top Header - visible on list pages, hidden on template detail page */}
-      {!isTemplateDetailPageOpen && (
-        <div>
-          <h2 className="text-xl font-bold text-gray-800 tracking-tight">
-            {standaloneTitle || currentModuleLabel || '业务配置维护'}
-          </h2>
-          <p className="text-xs text-gray-500 mt-0.5">
-            {standaloneDescription || (
-              activeModule === 'report_template'
-                ? '管理各业务报送模版、验证激活模版与动态表单字段'
-                : activeModule === 'data_dict'
-                ? '维护系统标准数据字典、驳回原由、信息分类、来源渠道与紧急程度代码'
-                : activeModule === 'value_added'
-                ? '本模块展示系统当前支持的各项增值扩展功能及其详细功能介绍。'
-                : '管理系统内的各类业务规则与数据配置'
-            )}
-          </p>
+      {/* Top Page Title - aligns with system-wide page layout */}
+      <div>
+        <h2 className="text-xl font-bold text-gray-800 tracking-tight">其他业务配置</h2>
+        <p className="text-xs text-gray-400 mt-0.5">管理系统内的各类业务配置</p>
+      </div>
 
-          {/* Top tabs only when in generic business config mode without standalone title */}
-          {!standaloneTitle && (
-            <div className="flex items-center gap-1 border-b border-gray-200 mt-3">
-              {moduleList.map(mod => {
-                const isActive = activeModule === mod.id;
-                return (
-                  <button
-                    key={mod.id}
-                    onClick={() => {
-                      setActiveModule(mod.id);
-                      setSearchQuery('');
-                      setIsTemplateDetailPageOpen(false);
-                      if (onNavigatePage) {
-                        onNavigatePage('business-config', mod.id);
-                      }
-                    }}
-                    className={`px-3.5 py-2 text-xs font-medium border-b-2 transition-colors cursor-pointer ${
-                      isActive
-                        ? 'border-[#1E5ABB] text-[#1E5ABB] font-bold'
-                        : 'border-transparent text-gray-500 hover:text-gray-800'
-                    }`}
-                  >
-                    {mod.label}
-                  </button>
-                );
-              })}
+      <div className="flex flex-col lg:flex-row gap-5 items-start">
+        {/* Left Navigation (切换导航放在左侧) */}
+        <aside className="w-full lg:w-56 shrink-0 sticky top-4">
+          {/* Sidebar Navigation Card - top aligned with right side card */}
+          <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs p-3 space-y-1.5">
+            {moduleList.map(mod => {
+              const isActive = activeModule === mod.id;
+              return (
+                <button
+                  key={mod.id}
+                  onClick={() => {
+                    setActiveModule(mod.id);
+                    setSearchQuery('');
+                    setIsTemplateDetailPageOpen(false);
+                    if (onNavigatePage) {
+                      onNavigatePage('business-config', mod.id);
+                    }
+                  }}
+                  className={`w-full text-left px-5 py-3 rounded-xl relative flex items-center transition-all duration-150 cursor-pointer text-sm ${
+                    isActive
+                      ? 'bg-[#F0F5FF] text-[#1E5ABB] font-bold'
+                      : 'text-slate-700 font-normal hover:text-[#1E5ABB] hover:bg-slate-50'
+                  }`}
+                >
+                  {/* Left Active Indicator Bar */}
+                  {isActive && (
+                    <span className="absolute left-2.5 top-2.5 bottom-2.5 w-1 bg-[#1E5ABB] rounded-full" />
+                  )}
+                  <span>{mod.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </aside>
+
+        {/* Right Content Area */}
+        <section className="flex-1 min-w-0 w-full space-y-4">
+          {/* Top Header */}
+          <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center space-x-2">
+                <h2 className="text-base font-bold text-gray-800 tracking-tight">
+                  {isTemplateDetailPageOpen ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <span>{currentModuleLabel}</span>
+                      <span className="text-gray-300 font-normal">/</span>
+                      <span className="text-[#1E5ABB]">
+                        {editingItem?.id
+                          ? (editingItem.isDefault ? '查看模板详情' : '编辑模板')
+                          : (templateTypeFilter === '激活' ? '新增激活模板' : '新增报送模板')}
+                      </span>
+                    </span>
+                  ) : (
+                    currentModuleLabel
+                  )}
+                </h2>
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-50 text-[#1E5ABB] font-medium border border-blue-100">
+                  其他业务配置
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {isTemplateDetailPageOpen
+                  ? (templateTypeFilter === '激活'
+                      ? '配置验证激活模板字段结构、上报规则及关联流程'
+                      : '配置报送模板字段结构、移动端组件、关联审核流程与考核评分规则')
+                  : currentModuleDesc}
+              </p>
             </div>
-          )}
-        </div>
-      )}
 
-      {/* Main Container - Full Width Layout */}
-      <div className="w-full">
-        {/* Main Card: Dynamic Detail View */}
-        <div className="w-full bg-white rounded-lg border border-gray-200/80 shadow-2xs p-5 flex flex-col justify-between min-h-[460px] space-y-4">
+            {/* Right: Actions in Header */}
+            {(activeModule === 'audit_score' || activeModule === 'audit_flow' || activeModule === 'data_dict') && !isTemplateDetailPageOpen && (
+              <button
+                type="button"
+                onClick={openAddModal}
+                className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center space-x-1.5 cursor-pointer whitespace-nowrap self-start sm:self-auto"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>
+                  {activeModule === 'audit_flow'
+                    ? '新增审核流程'
+                    : activeModule === 'audit_score'
+                    ? '新增打分规则'
+                    : dictSubCategoryFilter === 'reject_reason'
+                    ? '新增驳回理由'
+                    : dictSubCategoryFilter === 'info_category'
+                    ? '新增人员标签'
+                    : '新增字典项'}
+                </span>
+              </button>
+            )}
+          </div>
+
+          {/* Main Card: Dynamic Detail View */}
+          <div className="w-full bg-white rounded-xl border border-slate-200/90 shadow-2xs p-5 flex flex-col justify-between min-h-[460px] space-y-4">
           <div className="space-y-4">
-            {/* Action Bar / Search & Add Toolbar for Table Modules (audit_score, audit_flow) */}
-            {activeModule !== 'value_added' && activeModule !== 'data_dict' && activeModule !== 'stats_metric' && activeModule !== 'report_template' && (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                {/* Left: Search & Filter Options */}
-                <div className="flex items-center gap-3 flex-wrap">
-                  <div className="relative">
-                    <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={e => setSearchQuery(e.target.value)}
-                      placeholder={`搜索${currentModuleLabel}名称/编码/描述...`}
-                      className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-md w-56 sm:w-64 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-gray-50/50 text-gray-700 placeholder:text-gray-400"
-                    />
+            {/* Action Bar / Search & Add Toolbar for Modules (hidden when editing/viewing template detail page) */}
+            {!isTemplateDetailPageOpen && (
+              activeModule === 'report_template' ? (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
+                  {/* Left: Template Type Switcher */}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="inline-flex items-center gap-1 p-1 bg-gray-100 border border-gray-200 rounded-lg">
+                      {([
+                        {
+                          id: '报送' as const,
+                          label: '报送模板',
+                          icon: FileText,
+                          count: (dataStore.report_template || []).filter(t => (t.templateType || '报送') === '报送').length
+                        },
+                        {
+                          id: '激活' as const,
+                          label: '激活模板',
+                          icon: Zap,
+                          count: (dataStore.report_template || []).filter(t => t.templateType === '激活').length
+                        }
+                      ]).map(tab => {
+                        const TabIcon = tab.icon;
+                        const isActive = templateTypeFilter === tab.id;
+                        return (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            aria-pressed={isActive}
+                            onClick={() => setTemplateTypeFilter(tab.id)}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-colors cursor-pointer ${
+                              isActive
+                                ? 'bg-white text-[#1E5ABB] shadow-sm'
+                                : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                          >
+                            <TabIcon className="w-3.5 h-3.5" />
+                            <span>{tab.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
-                  {/* Audit Flow Info Hint */}
-                  {activeModule === 'audit_flow' && (
-                    <div className="relative inline-flex items-center">
-                      <button
-                        type="button"
-                        onClick={() => showConfigToast('审核流程仅支持配置到一级机构，一级机构下的子机构默认继承上级流程，不支持单独配置。')}
-                        title="审核流程仅支持配置到一级机构，一级机构下的子机构默认继承上级流程，不支持单独配置。"
-                        className="w-5 h-5 rounded-full border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100 hover:border-amber-300 flex items-center justify-center cursor-pointer transition-colors"
-                        aria-label="审核流程配置规则说明"
-                      >
-                        <Info className="w-3 h-3" />
-                      </button>
-                      {configToastMessage && (
-                        <div className="absolute left-full top-1/2 ml-2 z-[80] w-[360px] -translate-y-1/2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-800 shadow-lg animate-in fade-in zoom-in-95">
-                          <span className="absolute -left-1 top-1/2 h-2 w-2 -translate-y-1/2 rotate-45 border-b border-l border-amber-200 bg-amber-50" />
-                          <span className="leading-relaxed">{configToastMessage}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Right: Add Button */}
-                {activeModule !== 'evaluation_rule' && (
+                  {/* Right: Add Template Button */}
                   <button
                     type="button"
-                    onClick={openAddModal}
+                    onClick={openAddTemplatePage}
                     className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center space-x-1.5 cursor-pointer whitespace-nowrap self-start sm:self-auto"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>新增{currentModuleLabel}</span>
+                    <span>{templateTypeFilter === '激活' ? '新增激活模板' : '新增报送模板'}</span>
                   </button>
-                )}
-              </div>
-            )}
+                </div>
+              ) : activeModule === 'audit_flow' ? null : activeModule === 'audit_score' ? null : activeModule === 'data_dict' ? (
+                <div className="pb-1">
+                  {/* Sub-category Tabs */}
+                  <div className="inline-flex items-center gap-1 p-1 bg-gray-100 border border-gray-200 rounded-lg flex-wrap">
+                    {dictCategoryTabOptions.map(option => {
+                      const tab = {
+                        ...option,
+                        count: (dataStore.data_dict || []).filter(i => (i.dictCategory || 'reject_reason') === option.id).length,
+                        isHighlight: option.id === 'reject_reason'
+                      };
+                      const isActive = dictSubCategoryFilter === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          onClick={() => setDictSubCategoryFilter(tab.id)}
+                          className={`px-3 py-1.5 rounded-md text-xs font-bold cursor-pointer transition-colors flex items-center space-x-1.5 ${
+                            isActive
+                              ? 'bg-white text-[#1E5ABB] shadow-sm'
+                              : 'text-gray-500 hover:text-gray-700'
+                          }`}
+                        >
+                          <span>{tab.fullLabel || tab.label}</span>
+                          <span className={`text-[10px] ${isActive ? 'text-[#1E5ABB]' : 'text-gray-400'}`}>
+                            {tab.count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+              /* Fallback Action Bar for other modules */
+              activeModule !== 'value_added' && activeModule !== 'stats_metric' && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        placeholder={`搜索${currentModuleLabel}名称/编码/描述...`}
+                        className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-md w-56 sm:w-64 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-gray-50/50 text-gray-700 placeholder:text-gray-400"
+                      />
+                    </div>
+                  </div>
 
-            {/* Data Dictionary Sub-category Tabs (Only visible in data_dict module) */}
-            {activeModule === 'data_dict' && (
-              <div className="flex items-center justify-between gap-3">
-                <div className="inline-flex items-center gap-1 p-1 bg-gray-100 border border-gray-200 rounded-lg flex-wrap">
-                  {dictCategoryTabOptions.map(option => {
-                    const tab = {
-                      ...option,
-                      count: (dataStore.data_dict || []).filter(i => (i.dictCategory || 'reject_reason') === option.id).length,
-                      isHighlight: option.id === 'reject_reason'
-                    };
-                    const isActive = dictSubCategoryFilter === tab.id;
-                    return (
-                      <button
-                        key={tab.id}
-                        onClick={() => setDictSubCategoryFilter(tab.id)}
-                        className={`px-3 py-1.5 rounded-md text-xs font-bold cursor-pointer transition-colors flex items-center space-x-1.5 ${
-                          isActive
-                            ? 'bg-white text-[#1E5ABB] shadow-sm'
-                            : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                      >
-                        <span>{tab.fullLabel || tab.label}</span>
-                        <span className={`text-[10px] ${isActive ? 'text-[#1E5ABB]' : 'text-gray-400'}`}>
-                          {tab.count}
-                        </span>
-                      </button>
-                    );
-                  })}
+                  {activeModule !== 'evaluation_rule' && (
+                    <button
+                      type="button"
+                      onClick={openAddModal}
+                      className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center space-x-1.5 cursor-pointer whitespace-nowrap self-start sm:self-auto"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>新增{currentModuleLabel}</span>
+                    </button>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  onClick={openAddModal}
-                  className="px-3 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>
-                    {dictSubCategoryFilter === 'reject_reason'
-                      ? '新增驳回理由'
-                      : dictSubCategoryFilter === 'info_category'
-                      ? '新增人员标签'
-                      : '新增字典项'}
-                  </span>
-                </button>
-                </div>
-            )}
+              )
+            ))}
 
             {/* Content Display Area (Stats Metric Builder / Value Added Cards / Standard Table) */}
             {activeModule === 'stats_metric' ? (
@@ -3464,150 +3591,144 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                   });
 
                   return (
-                    <>
-                      <div className="overflow-x-auto border border-gray-100 rounded-lg">
-                        <table className="w-full text-left border-collapse text-xs">
-                          <thead>
-                            <tr className="bg-gray-50/80 text-gray-500 border-b border-gray-200 font-medium">
-                              <th className="py-2.5 px-4 font-medium whitespace-nowrap">序号</th>
-                              <th className="py-2.5 px-4 font-medium whitespace-nowrap">
-                                {isRejectReasonView ? '驳回理由' : '字典项名称'}
-                              </th>
-                              {!isRejectReasonView && (
-                                <th className="py-2.5 px-4 font-medium whitespace-nowrap">所属分类</th>
-                              )}
-                              <th className="py-2.5 px-4 font-medium">
-                                {isRejectReasonView ? '审核员提示说明' : isPersonnelRoleView ? '角色分类' : '业务说明'}
-                              </th>
-                              <th className="py-2.5 px-4 font-medium whitespace-nowrap">状态</th>
-                              <th className="py-2.5 px-4 font-medium whitespace-nowrap">更新时间</th>
-                              <th className="py-2.5 px-4 font-medium text-center whitespace-nowrap">操作</th>
+                    <div className="overflow-x-auto border border-gray-200/80 rounded-lg bg-white shadow-2xs">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-gray-50/80 text-gray-500 border-b border-gray-200 font-medium">
+                            <th className="py-2.5 px-4 font-medium whitespace-nowrap w-14 text-center">序号</th>
+                            <th className="py-2.5 px-4 font-medium whitespace-nowrap min-w-36">
+                              {isRejectReasonView ? '驳回理由' : '字典项名称'}
+                            </th>
+                            <th className="py-2.5 px-4 font-medium whitespace-nowrap min-w-28 font-mono">字典编码</th>
+                            {!isRejectReasonView && (
+                              <th className="py-2.5 px-4 font-medium whitespace-nowrap">所属分类</th>
+                            )}
+                            <th className="py-2.5 px-4 font-medium min-w-56">
+                              {isRejectReasonView ? '审核员提示说明' : isPersonnelRoleView ? '角色分类' : '业务说明'}
+                            </th>
+                            <th className="py-2.5 px-4 font-medium whitespace-nowrap text-center w-16">排序号</th>
+                            <th className="py-2.5 px-4 font-medium whitespace-nowrap w-24">状态</th>
+                            <th className="py-2.5 px-4 font-medium whitespace-nowrap w-28">更新时间</th>
+                            <th className="py-2.5 px-4 font-medium text-center whitespace-nowrap w-24">操作</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 text-gray-700">
+                          {sortedDictList.length === 0 ? (
+                            <tr>
+                              <td colSpan={isRejectReasonView ? 8 : 9} className="py-12 text-center text-gray-400 text-xs">
+                                暂无相关字典条目
+                              </td>
                             </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100 text-gray-700">
-                            {sortedDictList.length === 0 ? (
-                              <tr>
-                                <td colSpan={isRejectReasonView ? 6 : 7} className="py-10 text-center text-gray-400 text-xs">
-                                  暂无相关字典条目
-                                </td>
-                              </tr>
-                            ) : (
-                              sortedDictList.map((item, index) => {
-                                const itemCategory = item.dictCategory || 'reject_reason';
-                                const itemMeta = getDictCategoryMeta(itemCategory);
-                                return (
-                                  <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
-                                    <td className="py-3 px-4 align-top whitespace-nowrap text-gray-500 font-mono">
-                                      {index + 1}
-                                    </td>
-                                    <td className="py-3 px-4 align-top max-w-44">
-                                      <div className="flex flex-col gap-1 min-w-0">
-                                        <div className="flex items-center gap-2 min-w-0">
-                                          <span className="font-bold text-gray-900 truncate min-w-0" title={item.name}>{item.name}</span>
-                                          {item.isDefault ? (
-                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 font-bold rounded border border-gray-200 shrink-0 whitespace-nowrap">
-                                              <Lock className="w-2.5 h-2.5 text-gray-400" />
-                                              系统默认
-                                            </span>
-                                          ) : (
-                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] bg-emerald-50 text-emerald-700 font-bold rounded border border-emerald-200 shrink-0 whitespace-nowrap">
-                                              <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
-                                              自定义
-                                            </span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </td>
-                                    {!isRejectReasonView && (
-                                      <td className="py-3 px-4 align-top whitespace-nowrap">
-                                        <span className={`inline-flex px-2 py-0.5 text-[10px] font-bold rounded border ${getDictCategoryBadge(itemCategory)}`}>
-                                          {itemMeta.label}
+                          ) : (
+                            sortedDictList.map((item, index) => {
+                              const itemCategory = item.dictCategory || 'reject_reason';
+                              const itemMeta = getDictCategoryMeta(itemCategory);
+                              return (
+                                <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
+                                  <td className="py-3 px-4 align-middle text-center whitespace-nowrap text-gray-400 font-mono">
+                                    {index + 1}
+                                  </td>
+                                  <td className="py-3 px-4 align-middle">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span className="font-bold text-gray-900 truncate" title={item.name}>{item.name}</span>
+                                      {item.isDefault ? (
+                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 font-bold rounded border border-gray-200 shrink-0">
+                                          <Lock className="w-2.5 h-2.5 text-gray-400" />
+                                          系统默认
                                         </span>
-                                      </td>
-                                    )}
-                                    <td className="py-3 px-4 align-top min-w-64">
-                                      <p className="text-[11px] text-gray-600 leading-relaxed line-clamp-2">
-                                        {isPersonnelRoleView && itemCategory === 'info_category'
-                                          ? getPersonnelRoleGroupLabel(item)
-                                          : item.description || (isRejectReasonView ? '审核员选择该理由后，将作为本次驳回说明同步给上报人。' : itemMeta.description)}
-                                      </p>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] bg-emerald-50 text-emerald-700 font-bold rounded border border-emerald-200 shrink-0">
+                                          <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+                                          自定义
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4 align-middle whitespace-nowrap font-mono text-gray-500 text-[11px]">
+                                    {item.dictCode || buildDictCode(itemCategory, item.sortOrder || index + 1)}
+                                  </td>
+                                  {!isRejectReasonView && (
+                                    <td className="py-3 px-4 align-middle whitespace-nowrap">
+                                      <span className={`inline-flex px-2 py-0.5 text-[10px] font-bold rounded border ${getDictCategoryBadge(itemCategory)}`}>
+                                        {itemMeta.label}
+                                      </span>
                                     </td>
-                                    <td className="py-3 px-4 align-top whitespace-nowrap">
+                                  )}
+                                  <td className="py-3 px-4 align-middle">
+                                    <p className="text-[11px] text-gray-600 leading-relaxed line-clamp-2" title={item.description || ''}>
+                                      {isPersonnelRoleView && itemCategory === 'info_category'
+                                        ? getPersonnelRoleGroupLabel(item)
+                                        : item.description || (isRejectReasonView ? '审核员选择该理由后，将作为本次驳回说明同步给上报人。' : itemMeta.description)}
+                                    </p>
+                                  </td>
+                                  <td className="py-3 px-4 align-middle text-center whitespace-nowrap font-mono text-gray-500">
+                                    {item.sortOrder || index + 1}
+                                  </td>
+                                  <td className="py-3 px-4 align-middle whitespace-nowrap">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleStatus(item.id)}
+                                      title={item.status === '启用' ? '点击停用' : '点击启用'}
+                                      className="flex items-center gap-1.5 cursor-pointer"
+                                    >
+                                      <div className={`w-7 h-3.5 flex items-center rounded-full p-0.5 transition-colors ${item.status === '启用' ? 'bg-emerald-500 justify-end' : 'bg-gray-300 justify-start'}`}>
+                                        <div className="w-2.5 h-2.5 bg-white rounded-full shadow-2xs" />
+                                      </div>
+                                      <span className={`text-[11px] font-bold ${item.status === '启用' ? 'text-emerald-700' : 'text-gray-500'}`}>
+                                        {item.status}
+                                      </span>
+                                    </button>
+                                  </td>
+                                  <td className="py-3 px-4 align-middle whitespace-nowrap font-mono text-gray-400 text-[11px]">
+                                    {item.updateTime}
+                                  </td>
+                                  <td className="py-3 px-4 align-middle text-center whitespace-nowrap">
+                                    <div className="flex items-center justify-center gap-1.5">
                                       <button
                                         type="button"
-                                        onClick={() => handleToggleStatus(item.id)}
-                                        title={item.status === '启用' ? '点击停用' : '点击启用'}
-                                        className="flex items-center gap-1.5 cursor-pointer"
+                                        onClick={() => openPreviewItem(item)}
+                                        title="查看详情"
+                                        className="p-1 text-gray-400 hover:text-[#1E5ABB] rounded hover:bg-blue-50 cursor-pointer"
                                       >
-                                        <div className={`w-7 h-3.5 flex items-center rounded-full p-0.5 transition-colors ${item.status === '启用' ? 'bg-emerald-500 justify-end' : 'bg-gray-300 justify-start'}`}>
-                                          <div className="w-2.5 h-2.5 bg-white rounded-full shadow-2xs" />
-                                        </div>
-                                        <span className={`text-[11px] font-bold ${item.status === '启用' ? 'text-emerald-700' : 'text-gray-500'}`}>
-                                          {item.status}
-                                        </span>
+                                        <Eye className="w-3.5 h-3.5" />
                                       </button>
-                                    </td>
-                                    <td className="py-3 px-4 align-top whitespace-nowrap font-mono text-gray-500">
-                                      {item.updateTime}
-                                    </td>
-                                    <td className="py-3 px-4 align-top text-center whitespace-nowrap">
-                                      <div className="flex items-center justify-center gap-3">
+                                      {item.isDefault ? (
+                                        <span className="p-1 text-gray-300 cursor-not-allowed" title="系统默认字典项暂不支持编辑">
+                                          <Edit3 className="w-3.5 h-3.5" />
+                                        </span>
+                                      ) : (
                                         <button
                                           type="button"
-                                          onClick={() => openPreviewItem(item)}
-                                          title="查看详情"
-                                          className="text-gray-400 hover:text-[#1E5ABB] cursor-pointer"
+                                          onClick={() => openEditModal(item)}
+                                          title="编辑"
+                                          className="p-1 text-[#1E5ABB] hover:bg-blue-50 rounded cursor-pointer"
                                         >
-                                          <Eye className="w-3.5 h-3.5" />
+                                          <Edit3 className="w-3.5 h-3.5" />
                                         </button>
-                                        {item.isDefault ? (
-                                          <button
-                                            type="button"
-                                            disabled
-                                            title="系统默认字典项暂不支持编辑"
-                                            className="text-gray-300 cursor-not-allowed opacity-50"
-                                          >
-                                            <Edit3 className="w-3.5 h-3.5" />
-                                          </button>
-                                        ) : (
-                                          <button
-                                            type="button"
-                                            onClick={() => openEditModal(item)}
-                                            title="编辑"
-                                            className="text-[#1E5ABB] hover:text-blue-700 cursor-pointer"
-                                          >
-                                            <Edit3 className="w-3.5 h-3.5" />
-                                          </button>
-                                        )}
-                                        {item.isDefault ? (
-                                          <button
-                                            type="button"
-                                            disabled
-                                            title="系统默认字典项不可删除"
-                                            className="text-gray-300 cursor-not-allowed opacity-50"
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                          </button>
-                                        ) : (
-                                          <button
-                                            type="button"
-                                            onClick={() => handleDelete(item)}
-                                            title="删除"
-                                            className="text-gray-400 hover:text-red-600 cursor-pointer"
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                          </button>
-                                        )}
-                                      </div>
-                                    </td>
-                                  </tr>
-                                );
-                              })
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </>
+                                      )}
+                                      {item.isDefault ? (
+                                        <span className="p-1 text-gray-300 cursor-not-allowed" title="系统默认字典项不可删除">
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </span>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDelete(item)}
+                                          title="删除"
+                                          className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   );
                 })()}
               </div>
@@ -3615,175 +3736,140 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
               <div className="space-y-3">
                 {filteredList.length === 0 ? (
                   <div className="py-12 text-center text-gray-400 text-xs bg-white rounded-lg border border-gray-100">
-                    暂无匹配的审核打分规则
+                    暂无相关审核打分规则配置
                   </div>
                 ) : (
-                  <div className="grid grid-cols-[repeat(auto-fill,minmax(285px,1fr))] gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     {filteredList.map(item => {
                       const isEnabled = item.status === '启用';
-                      const levels = item.scoreLevels || [];
+                      const levelCount = item.levelCount || (item.scoreLevels || []).length || 5;
+                      const totalScore = item.totalScore ?? ((item.scoreLevels && item.scoreLevels[0]?.score) || 100);
+                      const desc = item.description || '自定义审核打分规则组';
+
                       return (
                         <div
                           key={item.id}
-                          onClick={() => openPreviewItem(item)}
-                          className={`group bg-white border rounded-lg transition-all cursor-pointer overflow-hidden ${
+                          className={`rounded-xl border transition-all flex flex-col justify-between overflow-hidden bg-white ${
                             isEnabled
-                              ? 'border-emerald-200 shadow-sm'
-                              : 'border-gray-200/80 hover:border-blue-200 hover:shadow-md'
+                              ? 'border-blue-200/90 shadow-2xs hover:shadow-md hover:border-blue-300'
+                              : 'border-gray-200/80 shadow-2xs hover:shadow-md hover:border-gray-300'
                           }`}
                         >
-                          <div className="p-3 space-y-3">
-                            <div className="space-y-1">
-                              <div className="flex items-start justify-between gap-3">
-                                <h3 className="min-w-0 font-bold text-sm text-gray-900 group-hover:text-[#1E5ABB] break-words">
+                          <div className="p-4 space-y-3 min-w-0">
+                            {/* Top Title + Badge + Status Toggle */}
+                            <div className="flex items-center justify-between gap-2 min-w-0">
+                              <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+                                <h3 className="font-bold text-sm text-gray-900 truncate" title={item.name}>
                                   {item.name}
                                 </h3>
+                                {item.isDefault ? (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs bg-gray-100 text-gray-500 font-medium rounded border border-gray-200 shrink-0 whitespace-nowrap">
+                                    <Lock className="w-3 h-3 text-gray-400" />
+                                    系统默认
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs bg-blue-50 text-[#1E5ABB] font-medium rounded border border-blue-200 shrink-0 whitespace-nowrap">
+                                    <Sparkles className="w-3 h-3 text-[#1E5ABB]" />
+                                    自定义
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="shrink-0">
                                 <button
                                   type="button"
                                   onClick={e => {
                                     e.stopPropagation();
                                     handleToggleStatus(item.id);
                                   }}
-                                  className={`shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-full border cursor-pointer transition-colors ${
+                                  className={`flex items-center gap-1.5 py-1 rounded-full cursor-pointer transition-colors shadow-2xs ${
                                     isEnabled
-                                      ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                                      : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-blue-50 hover:text-[#1E5ABB] hover:border-blue-200'
+                                      ? 'pl-2.5 pr-1 bg-[#1E5ABB] text-white'
+                                      : 'pl-1 pr-2.5 bg-gray-200 text-gray-500'
                                   }`}
-                                  title={isEnabled ? '当前规则正在生效，点击停用' : '点击启用并替换当前生效规则'}
+                                  title={isEnabled ? '点击禁用' : '点击启用'}
                                 >
-                                  <span className="text-[10px] font-bold">{isEnabled ? '启用' : '停用'}</span>
-                                  <div className={`w-7 h-3.5 flex items-center rounded-full p-0.5 transition-colors ${isEnabled ? 'bg-emerald-500 justify-end' : 'bg-gray-300 justify-start'}`}>
-                                    <div className="w-2.5 h-2.5 bg-white rounded-full shadow-2xs" />
-                                  </div>
+                                  {isEnabled ? (
+                                    <>
+                                      <span className="text-xs font-bold whitespace-nowrap">启用</span>
+                                      <div className="w-3.5 h-3.5 bg-white rounded-full shadow-sm shrink-0" />
+                                    </>
+                                  ) : (
+                                    <>
+                                      <div className="w-3.5 h-3.5 bg-white rounded-full shadow-sm shrink-0" />
+                                      <span className="text-xs font-bold whitespace-nowrap">禁用</span>
+                                    </>
+                                  )}
                                 </button>
                               </div>
-                              <div className="flex items-center justify-between gap-2 min-w-0">
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                  {item.isDefault ? (
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 font-bold rounded border border-gray-200 shrink-0">
-                                      <Lock className="w-2.5 h-2.5 text-gray-400" />
-                                      系统默认
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] bg-emerald-50 text-emerald-700 font-bold rounded border border-emerald-200 shrink-0">
-                                      <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
-                                      自定义
-                                    </span>
-                                  )}
-                                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded border shrink-0 ${
-                                    isEnabled
-                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                      : 'bg-gray-50 text-gray-500 border-gray-200'
-                                  }`}>
-                                    {isEnabled ? <CheckCircle2 className="w-2.5 h-2.5" /> : <XCircle className="w-2.5 h-2.5" />}
-                                    {isEnabled ? '当前生效' : '备用规则'}
-                                  </span>
-                                </div>
-                                <span className="text-[10px] text-gray-500 font-mono whitespace-nowrap shrink-0 ml-auto">
-                                  {item.updateTime}
+                            </div>
+
+                            {/* Tags & Meta */}
+                            <div className="flex items-center justify-between gap-2 text-xs pt-0.5 min-w-0 overflow-hidden">
+                              <div className="flex items-center gap-2 shrink min-w-0 overflow-hidden">
+                                <span className="px-2 py-0.5 text-xs text-gray-700 bg-gray-100/80 rounded border border-gray-200 shrink-0 whitespace-nowrap">
+                                  总分 <strong className="font-bold text-gray-900">{totalScore} 分</strong>
+                                </span>
+                                <span className="px-2 py-0.5 text-xs font-medium rounded border border-blue-300 text-[#1E5ABB] bg-blue-50/50 shrink-0 whitespace-nowrap">
+                                  {levelCount} 个打分等级
                                 </span>
                               </div>
+                              <span className="text-xs text-gray-400 font-mono shrink-0 ml-auto whitespace-nowrap">{item.updateTime}</span>
                             </div>
 
-                            <div className="grid grid-cols-2 items-center gap-2 text-xs">
-                              <div className="flex items-center gap-1.5 text-blue-700 min-w-0 whitespace-nowrap">
-                                <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                                <span className="font-bold truncate">全部上报统一适用</span>
-                              </div>
-                              <div className="flex items-center gap-1.5 text-amber-700 min-w-0 whitespace-nowrap">
-                                <Award className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                <span className="font-bold truncate">总分 {item.totalScore || 100} / {levels.length || item.levelCount || 0} 等级</span>
-                              </div>
-                            </div>
-
-                            <div className="rounded-md border border-gray-100 bg-gray-50/70 px-2.5 py-2">
-                              {levels.length > 0 ? (
-                                <div className="flex items-center gap-1.5 overflow-hidden whitespace-nowrap">
-                                  {levels.slice(0, 3).map((level, idx) => (
-                                    <span
-                                      key={level.id || idx}
-                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] bg-white text-amber-800 border border-amber-200 rounded font-mono min-w-0 shrink"
-                                      title={`${level.levelName} ${level.score}分`}
-                                    >
-                                      <span className="font-bold text-gray-500 truncate">{level.levelName}</span>
-                                      <span className="shrink-0">{level.score}分</span>
-                                    </span>
-                                  ))}
-                                  {levels.length > 3 && (
-                                    <span className="px-1.5 py-0.5 text-[10px] text-gray-400 shrink-0">+{levels.length - 3} 个等级</span>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-[11px] text-gray-400">暂无等级配置</span>
-                              )}
-                            </div>
-
-                            <div className="rounded-md border border-gray-100 bg-gray-50/70 px-2.5 py-2">
-                              <p className="text-[11px] text-gray-500 truncate" title={item.description || '暂无规则说明'}>
-                                {item.description || '暂无规则说明'}
+                            {/* Description Box: Single line truncated */}
+                            <div className="rounded-lg bg-gray-50/80 border border-gray-100 px-3 py-2 text-xs text-gray-600">
+                              <p className="truncate text-gray-600" title={desc}>
+                                {desc}
                               </p>
                             </div>
                           </div>
 
-                          <div className="px-3 py-2 border-t border-gray-100 bg-gray-50/40 flex items-center justify-between">
-                            <span className="text-[10px] text-gray-400">
-                              点击卡片查看配置详情
-                            </span>
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={e => {
-                                  e.stopPropagation();
-                                  openPreviewItem(item);
-                                }}
-                                className="p-1.5 text-gray-400 hover:text-[#1E5ABB] cursor-pointer"
-                                title="查看详情"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                              </button>
+                          {/* Footer */}
+                          <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={e => {
+                                e.stopPropagation();
+                                openPreviewItem(item);
+                              }}
+                              className="text-xs text-gray-500 hover:text-[#1E5ABB] flex items-center gap-1 cursor-pointer transition-colors whitespace-nowrap truncate"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                              <span className="truncate">查看打分规则详情 →</span>
+                            </button>
+
+                            <div className="flex items-center gap-2 shrink-0">
                               {item.isDefault ? (
-                                <button
-                                  type="button"
-                                  disabled
-                                  className="p-1.5 text-gray-300 cursor-not-allowed"
-                                  title="系统默认规则不支持修改"
-                                >
-                                  <Edit3 className="w-3.5 h-3.5" />
-                                </button>
+                                <div className="flex items-center gap-1 text-xs text-gray-400 whitespace-nowrap">
+                                  <Lock className="w-3.5 h-3.5 shrink-0" />
+                                  <span>内置</span>
+                                </div>
                               ) : (
-                                <button
-                                  type="button"
-                                  onClick={e => {
-                                    e.stopPropagation();
-                                    openEditModal(item);
-                                  }}
-                                  className="p-1.5 text-[#1E5ABB] hover:bg-blue-50 rounded cursor-pointer"
-                                  title="编辑规则"
-                                >
-                                  <Edit3 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                              {item.isDefault ? (
-                                <button
-                                  type="button"
-                                  disabled
-                                  className="p-1.5 text-gray-300 cursor-not-allowed"
-                                  title="系统默认规则不支持删除"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={e => {
-                                    e.stopPropagation();
-                                    handleDelete(item);
-                                  }}
-                                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer"
-                                  title="删除规则"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      openEditModal(item);
+                                    }}
+                                    className="p-1 text-gray-400 hover:text-[#1E5ABB] rounded cursor-pointer transition-colors"
+                                    title="编辑"
+                                  >
+                                    <Edit3 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      handleDelete(item);
+                                    }}
+                                    className="p-1 text-gray-400 hover:text-red-600 rounded cursor-pointer transition-colors"
+                                    title="删除"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </>
                               )}
                             </div>
                           </div>
@@ -4142,27 +4228,25 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 
                       {/* Right Column: Live User Preview */}
                       <div className="bg-gray-50/80 rounded-lg border border-gray-200/80 p-4 space-y-3">
-                        <div className="flex items-center justify-between text-xs pb-2 border-b border-gray-200">
-                          <div className="flex items-center gap-1.5 font-bold text-gray-800">
-                            <Eye className="w-3.5 h-3.5 text-[#1E5ABB]" />
-                            <span>用户填报界面实时交互预览</span>
+                        <div className="w-full flex items-center justify-between text-xs pb-1">
+                          <div className="inline-flex items-center gap-1.5 font-bold text-xs text-gray-800">
+                            <Smartphone className="w-3.5 h-3.5 text-[#1E5ABB]" />
+                            <span>移动端填报实时模拟</span>
                           </div>
-                          <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${
-                            formTemplateType === '激活'
-                              ? 'bg-purple-50 text-purple-700 border-purple-200'
-                              : 'bg-blue-50 text-blue-700 border-blue-200'
-                          }`}>
-                            {formTemplateType}填报模式
-                          </span>
+                          <div className="text-xs text-gray-500 font-medium">
+                            共 {formFields.length} 个表单项 · 可直接体验输入
+                          </div>
                         </div>
 
-                        <div className="bg-white rounded-lg p-3.5 border border-gray-200/70 shadow-2xs">
-                          {renderUserReportPreview(
-                            formFields,
-                            '请先在左侧添加表单字段，即可在此处实时体验用户填报效果',
-                            formTemplateType,
-                            'full'
-                          )}
+                        <div className="flex justify-center">
+                          <div className="w-[375px] max-w-full bg-white rounded-lg p-3.5 border border-gray-200/70 shadow-2xs">
+                            {renderUserReportPreview(
+                              formFields,
+                              '请先在左侧添加表单字段，即可在此处实时体验用户填报效果',
+                              formTemplateType,
+                              'full'
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -4170,43 +4254,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="inline-flex items-center gap-1 p-1 bg-gray-100 border border-gray-200 rounded-lg">
-                      {([
-                        { id: '报送' as const, label: '报送模板', icon: FileText },
-                        { id: '激活' as const, label: '激活模板', icon: Zap }
-                      ]).map(tab => {
-                        const TabIcon = tab.icon;
-                        const isActive = templateTypeFilter === tab.id;
-
-                        return (
-                          <button
-                            key={tab.id}
-                            type="button"
-                            aria-pressed={isActive}
-                            onClick={() => setTemplateTypeFilter(tab.id)}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-colors cursor-pointer ${
-                              isActive
-                                ? 'bg-white text-[#1E5ABB] shadow-sm'
-                                : 'text-gray-500 hover:text-gray-700'
-                            }`}
-                          >
-                            <TabIcon className="w-3.5 h-3.5" />
-                            <span>{tab.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={openAddTemplatePage}
-                      className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center space-x-1.5 cursor-pointer whitespace-nowrap shrink-0"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>{templateTypeFilter === '激活' ? '新增激活模板' : '新增报送模板'}</span>
-                    </button>
-                  </div>
-
                   {(() => {
                     const activeSelectedTemplate = filteredList.find(item => item.id === selectedTemplateId) || filteredList[0] || null;
 
@@ -4229,18 +4276,18 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 
                     return (
                       <div className="bg-white rounded-xl border border-gray-200/90 shadow-2xs overflow-hidden">
-                        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] xl:grid-cols-[280px_1fr_360px] 2xl:grid-cols-[300px_1fr_390px] divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
+                        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] xl:grid-cols-[290px_1fr_280px] 2xl:grid-cols-[310px_1fr_300px] divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
                           {/* Left Master Column: Template directory with key essential information */}
                           <div className="flex flex-col min-h-0 bg-white">
-                            <div className="h-12 px-4 bg-gray-50/70 border-b border-gray-200 flex items-center justify-between shrink-0">
-                              <div className="flex items-center gap-2">
-                                <Layers className="w-3.5 h-3.5 text-[#1E5ABB]" />
-                                <span className="font-bold text-xs text-gray-800">模板目录</span>
-                                <span className="px-1.5 py-0.5 text-[10px] bg-white border border-gray-200 text-gray-600 rounded-full font-mono font-medium">
+                            <div className="h-12 px-3.5 bg-gray-50/70 border-b border-gray-200 flex items-center justify-between shrink-0 whitespace-nowrap">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <Layers className="w-3.5 h-3.5 text-[#1E5ABB] shrink-0" />
+                                <span className="font-bold text-xs text-gray-800 shrink-0">模板目录</span>
+                                <span className="px-1.5 py-0.5 text-[10px] bg-white border border-gray-200 text-gray-600 rounded-full font-mono font-medium shrink-0">
                                   {filteredList.length}
                                 </span>
                               </div>
-                              <span className="text-[11px] text-gray-400">点击切换右侧预览</span>
+                              <span className="text-[10px] text-gray-400 shrink-0">切换预览</span>
                             </div>
 
                             <div className="p-3 space-y-2 bg-gray-50/20 max-h-[750px] overflow-y-auto">
@@ -4258,26 +4305,11 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                         : 'border-gray-200/80 bg-white hover:border-blue-200 hover:bg-gray-50/50 hover:shadow-2xs'
                                     }`}
                                   >
-                                    {/* Top Row: Template Name + Badges + Status Switch */}
-                                    <div className="flex items-start justify-between gap-2">
-                                      <div className="min-w-0 flex-1">
-                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                          <h3 className={`font-bold text-xs truncate ${isSelected ? 'text-[#1E5ABB]' : 'text-gray-900'}`} title={item.name}>
-                                            {item.name}
-                                          </h3>
-                                          {item.isDefault ? (
-                                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 font-bold rounded border border-gray-200 shrink-0">
-                                              <Lock className="w-2.5 h-2.5 text-gray-400" />
-                                              系统默认
-                                            </span>
-                                          ) : (
-                                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] bg-emerald-50 text-emerald-700 font-bold rounded border border-emerald-200 shrink-0">
-                                              <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
-                                              自定义
-                                            </span>
-                                          )}
-                                        </div>
-                                      </div>
+                                    {/* Row 1: Template Name + Status Switch */}
+                                    <div className="flex items-center justify-between gap-2">
+                                      <h3 className={`font-bold text-xs truncate flex-1 ${isSelected ? 'text-[#1E5ABB]' : 'text-gray-900'}`} title={item.name}>
+                                        {item.name}
+                                      </h3>
 
                                       {/* Status Toggle */}
                                       <button
@@ -4300,11 +4332,20 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                       </button>
                                     </div>
 
-                                    {/* Description & Update Time */}
-                                    <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-gray-500">
-                                      <p className="truncate flex-1 text-gray-500" title={item.description || ''}>
-                                        {item.description || '暂无模板说明'}
-                                      </p>
+                                    {/* Row 2: Badge (系统默认/自定义) + Update Time */}
+                                    <div className="mt-1.5 flex items-center justify-between gap-2">
+                                      {item.isDefault ? (
+                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 font-bold rounded border border-gray-200 shrink-0">
+                                          <Lock className="w-2.5 h-2.5 text-gray-400" />
+                                          系统默认
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] bg-emerald-50 text-emerald-700 font-bold rounded border border-emerald-200 shrink-0">
+                                          <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+                                          自定义
+                                        </span>
+                                      )}
+
                                       {item.updateTime && (
                                         <span className="text-[10px] text-gray-400 font-mono shrink-0">
                                           {item.updateTime}
@@ -4312,27 +4353,34 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                       )}
                                     </div>
 
+                                    {/* Row 3: Description */}
+                                    <div className="mt-1.5 text-[11px] text-gray-500">
+                                      <p className="truncate text-gray-500" title={item.description || ''}>
+                                        {item.description || '暂无模板说明'}
+                                      </p>
+                                    </div>
+
                                     {/* Card bottom bar: selection state + actions */}
-                                    <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center justify-between">
+                                    <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center justify-between gap-1.5">
                                       {isSelected ? (
-                                        <div className="flex items-center gap-1 text-[11px] font-bold text-[#1E5ABB]">
-                                          <span className="text-[10px]">● 正在右侧预览</span>
+                                        <div className="flex items-center gap-1 text-[11px] font-bold text-[#1E5ABB] shrink-0 whitespace-nowrap">
+                                          <span className="text-[10px]">● 正在预览</span>
                                           <ChevronRight className="w-3.5 h-3.5 text-[#1E5ABB]" />
                                         </div>
                                       ) : (
-                                        <span className="text-[10px] text-gray-400 group-hover:text-gray-600">
-                                          点击查看右侧预览
+                                        <span className="text-[10px] text-gray-400 group-hover:text-gray-600 shrink-0 whitespace-nowrap">
+                                          点击预览
                                         </span>
                                       )}
 
-                                      <div className="flex items-center gap-1.5">
+                                      <div className="flex items-center gap-1 shrink-0 flex-nowrap">
                                         <button
                                           type="button"
                                           onClick={e => {
                                             e.stopPropagation();
                                             handleDuplicateTemplate(item);
                                           }}
-                                          className="px-2 py-0.5 text-[11px] text-gray-600 hover:text-[#1E5ABB] hover:bg-blue-50 border border-transparent hover:border-blue-200 rounded font-medium cursor-pointer transition-colors flex items-center gap-1"
+                                          className="px-1.5 py-0.5 text-[11px] text-gray-600 hover:text-[#1E5ABB] hover:bg-blue-50 border border-transparent hover:border-blue-200 rounded font-medium cursor-pointer transition-colors flex items-center gap-0.5 whitespace-nowrap shrink-0"
                                           title="复制并生成新模板"
                                         >
                                           <Copy className="w-3 h-3 text-gray-500" />
@@ -4344,7 +4392,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                             e.stopPropagation();
                                             openEditTemplatePage(item);
                                           }}
-                                          className="px-2 py-0.5 text-[11px] text-[#1E5ABB] hover:bg-blue-50 border border-transparent hover:border-blue-200 rounded font-medium cursor-pointer transition-colors flex items-center gap-1"
+                                          className="px-1.5 py-0.5 text-[11px] text-[#1E5ABB] hover:bg-blue-50 border border-transparent hover:border-blue-200 rounded font-medium cursor-pointer transition-colors flex items-center gap-0.5 whitespace-nowrap shrink-0"
                                           title={item.isDefault ? '查看详情' : '编辑模板'}
                                         >
                                           <Edit3 className="w-3 h-3" />
@@ -4357,7 +4405,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                               e.stopPropagation();
                                               handleDelete(item);
                                             }}
-                                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer transition-colors"
+                                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer transition-colors shrink-0"
                                             title="删除模板"
                                           >
                                             <Trash2 className="w-3 h-3" />
@@ -4375,27 +4423,25 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                           {activeSelectedTemplate && (
                             <div className="flex flex-col min-h-0 bg-white">
                               {/* Preview Header & Edit Entry */}
-                              <div className="h-12 px-5 bg-gray-50/70 border-b border-gray-200 flex items-center justify-between gap-3 shrink-0">
-                                <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="h-12 px-4 bg-gray-50/70 border-b border-gray-200 flex items-center justify-between gap-2.5 shrink-0 whitespace-nowrap">
+                                <div className="flex items-center gap-2 min-w-0 overflow-hidden">
                                   <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
-                                  <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                                    <span className="text-xs text-gray-500 font-medium shrink-0">当前预览:</span>
-                                    <span className="text-xs font-bold text-gray-900 truncate max-w-[200px]" title={activeSelectedTemplate.name}>
-                                      {activeSelectedTemplate.name}
+                                  <span className="text-xs text-gray-500 font-medium shrink-0">当前预览:</span>
+                                  <span className="text-xs font-bold text-gray-900 truncate max-w-[140px] sm:max-w-[200px] md:max-w-[260px]" title={activeSelectedTemplate.name}>
+                                    {activeSelectedTemplate.name}
+                                  </span>
+                                  <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded border shrink-0 ${
+                                    activeSelectedTemplate.status === '启用'
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                      : 'bg-gray-100 text-gray-500 border-gray-200'
+                                  }`}>
+                                    {activeSelectedTemplate.status}
+                                  </span>
+                                  {activeSelectedTemplate.isDefault && (
+                                    <span className="px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 border border-gray-200 font-bold rounded shrink-0">
+                                      系统默认
                                     </span>
-                                    <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded border shrink-0 ${
-                                      activeSelectedTemplate.status === '启用'
-                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                        : 'bg-gray-100 text-gray-500 border-gray-200'
-                                    }`}>
-                                      {activeSelectedTemplate.status}
-                                    </span>
-                                    {activeSelectedTemplate.isDefault && (
-                                      <span className="px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 border border-gray-200 font-bold rounded shrink-0">
-                                        系统默认
-                                      </span>
-                                    )}
-                                  </div>
+                                  )}
                                 </div>
 
                                 {/* Action Buttons: Edit into Detail Page */}
@@ -4403,48 +4449,36 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => openEditTemplatePage(activeSelectedTemplate)}
-                                    className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                                    className="px-3 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center gap-1 cursor-pointer transition-colors shrink-0 whitespace-nowrap"
                                   >
-                                    <Edit3 className="w-3.5 h-3.5" />
-                                    <span>{activeSelectedTemplate.isDefault ? '查看 / 复制模板' : '编辑此模板配置'}</span>
-                                    <ArrowRight className="w-3.5 h-3.5" />
+                                    <Edit3 className="w-3.5 h-3.5 shrink-0" />
+                                    <span>编辑</span>
+                                    <ArrowRight className="w-3.5 h-3.5 shrink-0" />
                                   </button>
                                 </div>
                               </div>
 
-                              {/* Simulation Stage Canvas */}
-                              <div className="p-6 bg-slate-50/60 flex-1 flex flex-col items-center justify-start min-h-[640px]">
-                                {/* Device Mockup Toolbar */}
-                                <div className="w-full max-w-[430px] mb-3 flex items-center justify-between text-xs text-gray-500">
-                                  <div className="flex items-center gap-1.5 font-bold text-gray-700">
+                              {/* Simulation Stage Canvas matching Add/Edit Detail Page Style */}
+                              <div className="bg-gray-50/80 rounded-lg border border-gray-200/80 p-4 space-y-3 m-4 flex flex-col items-center">
+                                {/* Preview Toolbar: Left and Right Aligned */}
+                                <div className="w-full flex items-center justify-between text-xs pb-1">
+                                  <div className="inline-flex items-center gap-1.5 font-bold text-xs text-gray-800">
                                     <Smartphone className="w-3.5 h-3.5 text-[#1E5ABB]" />
                                     <span>移动端填报实时模拟</span>
                                   </div>
-                                  <span className="text-[11px] text-gray-400">
-                                    共 {activeSelectedTemplate.fields?.length || 0} 个表单项 · 可直接体验输入
-                                  </span>
+                                  <div className="text-xs text-gray-500 font-medium">
+                                    共 {(activeSelectedTemplate.fields || []).length} 个表单项 · 可直接体验输入
+                                  </div>
                                 </div>
 
-                                {/* Mobile Phone Mockup Frame */}
-                                <div className="w-full max-w-[430px] bg-white rounded-2xl shadow-md border border-gray-300/80 overflow-hidden">
-                                  {/* Simulated Phone Notch / Status Bar */}
-                                  <div className="bg-gray-900 text-white px-5 py-2 flex items-center justify-between text-[11px] font-medium select-none">
-                                    <span>09:41</span>
-                                    <div className="w-16 h-3 bg-black rounded-full" />
-                                    <div className="flex items-center gap-1 text-[10px]">
-                                      <span>5G</span>
-                                      <div className="w-3 h-2 border border-white rounded-[2px] p-[1px]">
-                                        <div className="w-full h-full bg-white rounded-[1px]" />
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* Interactive Form Component */}
+                                {/* 375px Width Preview Container matching detail page */}
+                                <div className="w-[375px] max-w-full bg-white rounded-lg p-3.5 border border-gray-200/70 shadow-2xs">
                                   {renderUserReportPreview(
                                     activeSelectedTemplate.fields || [],
-                                    '当前模板暂未配置表单字段，请点击上方“编辑此模板配置”添加',
+                                    '当前模板暂未配置表单字段，请点击右上角“编辑”添加',
                                     activeSelectedTemplate.templateType || '报送',
-                                    'full'
+                                    'full',
+                                    activeSelectedTemplate.name
                                   )}
                                 </div>
                               </div>
@@ -4600,13 +4634,14 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                 </div>
               </div>
             ) : activeModule === 'audit_flow' ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
-                  {filteredList.length === 0 ? (
-                    <div className="md:col-span-2 py-12 text-center text-gray-400 text-xs bg-white rounded-lg border border-gray-100">
-                      暂无相关审核流程配置
-                    </div>
-                  ) : (
-                    filteredList.map(item => {
+              <div className="space-y-3">
+                {filteredList.length === 0 ? (
+                  <div className="py-12 text-center text-gray-400 text-xs bg-white rounded-lg border border-gray-100">
+                    暂无相关审核流程配置
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {filteredList.map(item => {
                       const isSelected = selectedAuditFlowId === item.id;
                       const isEnabled = item.status === '启用';
 
@@ -4614,20 +4649,32 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                         <div
                           key={item.id}
                           onClick={() => setSelectedAuditFlowId(item.id)}
-                          className={`border rounded-lg transition-all flex flex-col justify-between overflow-hidden group cursor-pointer ${
+                          className={`rounded-xl border transition-all flex flex-col justify-between overflow-hidden bg-white ${
                             isSelected
-                              ? 'bg-white border-[#1E5ABB] shadow-sm'
+                              ? 'border-[#1E5ABB] ring-2 ring-[#1E5ABB]/20 shadow-sm'
                               : isEnabled
-                                ? 'bg-white border-emerald-200 shadow-sm hover:shadow-md hover:border-emerald-300'
-                                : 'bg-white border-gray-200/80 hover:shadow-md hover:border-blue-200'
+                                ? 'border-blue-200/90 shadow-2xs hover:shadow-md hover:border-blue-300'
+                                : 'border-gray-200/80 shadow-2xs hover:shadow-md hover:border-gray-300'
                           }`}
                         >
-                          <div className="p-3 space-y-3">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <h3 className="font-bold text-sm text-gray-900 group-hover:text-[#1E5ABB] break-words">
+                          <div className="p-4 space-y-3 min-w-0">
+                            {/* Top Title + Badge + Status Toggle */}
+                            <div className="flex items-center justify-between gap-2 min-w-0">
+                              <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+                                <h3 className="font-bold text-sm text-gray-900 truncate" title={item.name.replace(/【默认推荐】/g, '').replace(/默认推荐/g, '').trim()}>
                                   {item.name.replace(/【默认推荐】/g, '').replace(/默认推荐/g, '').trim()}
                                 </h3>
+                                {item.isDefault ? (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs bg-gray-100 text-gray-500 font-medium rounded border border-gray-200 shrink-0 whitespace-nowrap">
+                                    <Lock className="w-3 h-3 text-gray-400" />
+                                    系统默认
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs bg-blue-50 text-[#1E5ABB] font-medium rounded border border-blue-200 shrink-0 whitespace-nowrap">
+                                    <Sparkles className="w-3 h-3 text-[#1E5ABB]" />
+                                    自定义
+                                  </span>
+                                )}
                               </div>
 
                               <div className="shrink-0">
@@ -4637,119 +4684,117 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                     e.stopPropagation();
                                     handleToggleStatus(item.id);
                                   }}
-                                  className={`flex items-center gap-1.5 px-2 py-1 rounded-full border cursor-pointer transition-colors ${
-                                    item.status === '启用'
-                                      ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                                      : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-blue-50 hover:text-[#1E5ABB] hover:border-blue-200'
+                                  className={`flex items-center gap-1.5 py-1 rounded-full cursor-pointer transition-colors shadow-2xs ${
+                                    isEnabled
+                                      ? 'pl-2.5 pr-1 bg-[#1E5ABB] text-white'
+                                      : 'pl-1 pr-2.5 bg-gray-200 text-gray-500'
                                   }`}
-                                  title={item.status === '启用' ? '点击停用' : '点击启用'}
+                                  title={isEnabled ? '点击禁用' : '点击启用'}
                                 >
-                                  <span className="text-[10px] font-bold">{item.status}</span>
-                                  <div className={`w-7 h-3.5 flex items-center rounded-full p-0.5 transition-colors ${item.status === '启用' ? 'bg-emerald-500 justify-end' : 'bg-gray-300 justify-start'}`}>
-                                    <div className="w-2.5 h-2.5 bg-white rounded-full shadow-2xs"></div>
-                                  </div>
+                                  {isEnabled ? (
+                                    <>
+                                      <span className="text-xs font-bold whitespace-nowrap">启用</span>
+                                      <div className="w-3.5 h-3.5 bg-white rounded-full shadow-sm shrink-0" />
+                                    </>
+                                  ) : (
+                                    <>
+                                      <div className="w-3.5 h-3.5 bg-white rounded-full shadow-sm shrink-0" />
+                                      <span className="text-xs font-bold whitespace-nowrap">禁用</span>
+                                    </>
+                                  )}
                                 </button>
                               </div>
                             </div>
 
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                {item.isDefault ? (
-                                  <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 font-bold rounded border border-gray-200 shrink-0">
-                                    <Lock className="w-2.5 h-2.5 text-gray-400" />
-                                    <span>系统默认</span>
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 text-[10px] bg-emerald-50 text-emerald-700 font-bold rounded border border-emerald-200 shrink-0">
-                                    <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
-                                    <span>自定义</span>
-                                  </span>
-                                )}
+                            {/* Tags & Meta */}
+                            <div className="flex items-center justify-between gap-2 text-xs pt-0.5 min-w-0 overflow-hidden">
+                              <div className="flex items-center gap-2 shrink min-w-0 overflow-hidden">
                                 {item.auditFlowMode === 'max_n_steps' ? (
-                                  <span
-                                    className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] bg-amber-50 text-amber-800 font-bold rounded border border-amber-200 shrink-0"
-                                    title={`最多${item.maxIntermediateNodes || 3}级中间审核`}
-                                  >
+                                  <span className="px-2 py-0.5 text-xs font-medium rounded border border-amber-300 text-amber-600 bg-amber-50/50 shrink-0 whitespace-nowrap">
                                     最多{item.maxIntermediateNodes || 3}级
                                   </span>
                                 ) : item.auditFlowMode === 'direct_headquarters' ? (
-                                  <span
-                                    className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] bg-purple-50 text-purple-700 font-bold rounded border border-purple-200 shrink-0"
-                                    title="直达总机构终审"
-                                  >
+                                  <span className="px-2 py-0.5 text-xs font-medium rounded border border-purple-300 text-purple-600 bg-purple-50/50 shrink-0 whitespace-nowrap">
                                     直达总机构
                                   </span>
                                 ) : (
-                                  <span
-                                    className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] bg-blue-50 text-blue-700 font-bold rounded border border-blue-200 shrink-0"
-                                    title="逐级审核（组织树自适应）"
-                                  >
+                                  <span className="px-2 py-0.5 text-xs font-medium rounded border border-blue-300 text-[#1E5ABB] bg-blue-50/50 shrink-0 whitespace-nowrap">
                                     逐级审核
                                   </span>
                                 )}
+                                <span className="px-2 py-0.5 text-xs text-gray-600 bg-gray-100/80 rounded border border-gray-200 shrink-0 whitespace-nowrap">
+                                  {(item.auditNodes || []).length || (item.auditFlowMode === 'direct_headquarters' ? 2 : 3)} 级审核节点
+                                </span>
                               </div>
-                              <span className="text-[10px] text-gray-400 font-mono shrink-0">{item.updateTime}</span>
+                              <span className="text-xs text-gray-400 font-mono shrink-0 ml-auto whitespace-nowrap">{item.updateTime}</span>
                             </div>
 
-                            <div className="rounded-md border border-gray-100 bg-gray-50/80 px-2.5 py-2">
-                              <p
-                                className="text-[11px] text-gray-500 line-clamp-2"
-                                title={(item.description || '按节点顺序完成通过、驳回和退回修改').replace(/【默认推荐】/g, '').replace(/默认推荐/g, '').trim()}
-                              >
+                            {/* Description Box: Single line truncated */}
+                            <div className="rounded-lg bg-gray-50/80 border border-gray-100 px-3 py-2 text-xs text-gray-600">
+                              <p className="truncate text-gray-600" title={(item.description || '按节点顺序完成通过、驳回和退回修改').replace(/【默认推荐】/g, '').replace(/默认推荐/g, '').trim()}>
                                 {(item.description || '按节点顺序完成通过、驳回和退回修改').replace(/【默认推荐】/g, '').replace(/默认推荐/g, '').trim()}
                               </p>
                             </div>
                           </div>
 
-                          <div className="px-3 py-2 border-t border-gray-100 bg-gray-50/40 flex items-center justify-between">
-                            <span className="text-[10px] text-gray-400">点击卡片查看配置详情</span>
-                            <div className="flex items-center space-x-2">
-                              <button
-                                type="button"
-                                onClick={e => {
-                                  e.stopPropagation();
-                                  setSelectedAuditFlowId(item.id);
-                                }}
-                                className="p-1.5 text-gray-400 hover:text-[#1E5ABB] cursor-pointer"
-                                title="查看详情"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                disabled={item.isDefault}
-                                onClick={e => {
-                                  e.stopPropagation();
-                                  openEditModal(item);
-                                }}
-                                className={item.isDefault ? 'p-1.5 text-gray-300 cursor-not-allowed' : 'p-1.5 text-[#1E5ABB] hover:bg-blue-50 rounded cursor-pointer'}
-                                title={item.isDefault ? '系统默认流程仅支持查看' : '编辑'}
-                              >
-                                <Edit3 className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                disabled={item.isDefault}
-                                onClick={e => {
-                                  e.stopPropagation();
-                                  handleDelete(item);
-                                }}
-                                className={item.isDefault ? 'p-1.5 text-gray-300 cursor-not-allowed' : 'p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer'}
-                                title={item.isDefault ? '系统默认流程不可删除' : '删除'}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                          {/* Footer */}
+                          <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={e => {
+                                e.stopPropagation();
+                                openPreviewItem(item);
+                              }}
+                              className="text-xs text-gray-500 hover:text-[#1E5ABB] flex items-center gap-1 cursor-pointer transition-colors whitespace-nowrap truncate"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                              <span className="truncate">查看流程节点设计 →</span>
+                            </button>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              {item.isDefault ? (
+                                <div className="flex items-center gap-1 text-xs text-gray-400 whitespace-nowrap">
+                                  <Lock className="w-3.5 h-3.5 shrink-0" />
+                                  <span>内置</span>
+                                </div>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      openEditModal(item);
+                                    }}
+                                    className="p-1 text-gray-400 hover:text-[#1E5ABB] rounded cursor-pointer transition-colors"
+                                    title="编辑"
+                                  >
+                                    <Edit3 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      handleDelete(item);
+                                    }}
+                                    className="p-1 text-gray-400 hover:text-red-600 rounded cursor-pointer transition-colors"
+                                    title="删除"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </>
+                              )}
                             </div>
                           </div>
                         </div>
                       );
-                    })
-                  )}
+                    })}
+                  </div>
+                )}
               </div>
             ) : activeModule === 'value_added' ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredList.length === 0 ? (
-                  <div className="col-span-2 py-12 text-center text-gray-400 text-xs bg-white rounded-lg border border-gray-100">
+                  <div className="col-span-full py-12 text-center text-gray-400 text-xs bg-white rounded-lg border border-gray-100">
                     暂无相关增值业务模块数据
                   </div>
                 ) : (
@@ -4805,23 +4850,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                 }`}>
                                   <span>{item.name}</span>
                                 </h3>
-                                <div className="flex items-center space-x-1.5 mt-1">
-                                  {/* 开通状态 Badge (未开通时提示) */}
-                                  {!isActivated && (
-                                    <span className="inline-flex items-center space-x-1 text-[10px] px-2 py-0.5 rounded border font-semibold bg-slate-100 text-slate-700 border-slate-200">
-                                      <Lock className="w-2.5 h-2.5 text-slate-500" />
-                                      <span>{item.activatedStatus || '未开通'}</span>
-                                    </span>
-                                  )}
-
-                                  <span className={`inline-block text-[10px] px-2 py-0.5 rounded border font-medium ${
-                                    isEnabled || !isActivated
-                                      ? 'text-amber-700 bg-amber-50 border-amber-200/80'
-                                      : 'text-gray-500 bg-gray-200/60 border-gray-300'
-                                  }`}>
-                                    增值扩展功能
-                                  </span>
-                                </div>
                               </div>
                             </div>
 
@@ -5181,9 +5209,9 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
               </div>
             )}
           </div>
-
         </div>
-      </div>
+      </section>
+    </div>
 
 
       {/* Audit Flow Detail Modal */}

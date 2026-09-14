@@ -332,18 +332,18 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
   return (
     <div className="flex flex-col min-h-0 bg-white">
       {/* 1. Header */}
-      <div className="h-12 px-4 bg-gray-50/70 border-b border-gray-200 flex items-center justify-between gap-2 shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <Sliders className="w-3.5 h-3.5 text-[#1E5ABB]" />
-          <span className="font-bold text-xs text-gray-800 shrink-0">其他业务配置</span>
+      <div className="h-12 px-3 bg-gray-50/70 border-b border-gray-200 flex items-center justify-between gap-1.5 shrink-0 whitespace-nowrap">
+        <div className="flex items-center gap-1.5 min-w-0 shrink-0">
+          <Sliders className="w-3.5 h-3.5 text-[#1E5ABB] shrink-0" />
+          <span className="font-bold text-xs text-gray-800 shrink-0 whitespace-nowrap">其他业务配置</span>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1 shrink-0 whitespace-nowrap">
           {isDirty && (
             <button
               type="button"
               onClick={handleReset}
-              className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded cursor-pointer transition-colors"
+              className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded cursor-pointer transition-colors shrink-0"
               title="撤销未保存修改"
             >
               <RotateCcw className="w-3 h-3" />
@@ -352,7 +352,7 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
           <button
             type="button"
             onClick={handleSave}
-            className={`px-2.5 py-1 text-xs font-bold rounded flex items-center gap-1 cursor-pointer transition-colors shadow-2xs ${
+            className={`px-2.5 py-1 text-xs font-bold rounded flex items-center gap-1 cursor-pointer transition-colors shadow-2xs shrink-0 whitespace-nowrap ${
               savedSuccess
                 ? 'bg-emerald-600 text-white'
                 : isDirty

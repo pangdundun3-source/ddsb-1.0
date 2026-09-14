@@ -359,55 +359,27 @@ export default function App() {
         )}
 
         {activePage === 'role-permission' && <RolePermission />}
-        {activePage === 'template-management' && (
+        {(activePage === 'business-config' ||
+          activePage === 'template-management' ||
+          activePage === 'audit-flow-config' ||
+          activePage === 'audit-score-config' ||
+          activePage === 'dict-management' ||
+          activePage === 'value-added-services') && (
           <BusinessConfig
-            key="template-management"
-            initialModule="report_template"
-            standaloneTitle="模板管理"
-            standaloneDescription="管理各业务报送模版、验证激活模版与动态表单字段"
-            onNavigatePage={handleNavigate}
-          />
-        )}
-        {activePage === 'audit-flow-config' && (
-          <BusinessConfig
-            key="audit-flow-config"
-            initialModule="audit_flow"
-            standaloneTitle="审核流程配置"
-            standaloneDescription="可视化设计多级审核流程链路、审批节点、责任人缺失兜底与适用机构范围"
-            onNavigatePage={handleNavigate}
-          />
-        )}
-        {activePage === 'audit-score-config' && (
-          <BusinessConfig
-            key="audit-score-config"
-            initialModule="audit_score"
-            standaloneTitle="审核打分配置"
-            standaloneDescription="维护审核评分等级、各级分值标准、考核权重与打分触发时机规则"
-            onNavigatePage={handleNavigate}
-          />
-        )}
-        {activePage === 'dict-management' && (
-          <BusinessConfig
-            key="dict-management"
-            initialModule="data_dict"
-            standaloneTitle="数据字典管理"
-            standaloneDescription="维护系统标准数据字典、驳回原由、信息分类、来源渠道与紧急程度代码"
-            onNavigatePage={handleNavigate}
-          />
-        )}
-        {activePage === 'value-added-services' && (
-          <BusinessConfig
-            key="value-added-services"
-            initialModule="value_added"
-            standaloneTitle="增值业务申请"
-            standaloneDescription="本模块展示系统当前支持的各项增值扩展功能及其详细功能介绍。"
-            onNavigatePage={handleNavigate}
-          />
-        )}
-        {activePage === 'business-config' && (
-          <BusinessConfig
-            key={`business-config-${businessConfigInitialModule}`}
-            initialModule={businessConfigInitialModule}
+            key="business-config"
+            initialModule={
+              activePage === 'template-management'
+                ? 'report_template'
+                : activePage === 'audit-flow-config'
+                ? 'audit_flow'
+                : activePage === 'audit-score-config'
+                ? 'audit_score'
+                : activePage === 'dict-management'
+                ? 'data_dict'
+                : activePage === 'value-added-services'
+                ? 'value_added'
+                : businessConfigInitialModule || 'report_template'
+            }
             onNavigatePage={handleNavigate}
           />
         )}

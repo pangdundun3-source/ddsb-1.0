@@ -435,56 +435,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span>角色权限配置</span>
                 </button>
 
+                {/* 增加二级子模块：其他业务配置 */}
                 <button
                   onClick={() => {
-                    onNavigate('template-management');
+                    onNavigate('business-config');
                     setSystemMenuOpen(false);
                   }}
                   className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center space-x-2.5 cursor-pointer transition-colors ${
-                    activePage === 'template-management' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
+                    activePage === 'business-config' || ['template-management', 'audit-flow-config', 'audit-score-config', 'dict-management', 'value-added-services'].includes(activePage) ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
                   }`}
                 >
-                  <FileText className="w-4 h-4 text-indigo-600" />
-                  <span>模板管理</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    onNavigate('audit-flow-config');
-                    setSystemMenuOpen(false);
-                  }}
-                  className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center space-x-2.5 cursor-pointer transition-colors ${
-                    activePage === 'audit-flow-config' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
-                  }`}
-                >
-                  <GitFork className="w-4 h-4 text-purple-600" />
-                  <span>审核流程配置</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    onNavigate('audit-score-config');
-                    setSystemMenuOpen(false);
-                  }}
-                  className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center space-x-2.5 cursor-pointer transition-colors ${
-                    activePage === 'audit-score-config' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
-                  }`}
-                >
-                  <Award className="w-4 h-4 text-amber-600" />
-                  <span>审核打分配置</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    onNavigate('dict-management');
-                    setSystemMenuOpen(false);
-                  }}
-                  className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center space-x-2.5 cursor-pointer transition-colors ${
-                    activePage === 'dict-management' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
-                  }`}
-                >
-                  <ListFilter className="w-4 h-4 text-teal-600" />
-                  <span>数据字典管理</span>
+                  <SlidersHorizontal className="w-4 h-4 text-indigo-600" />
+                  <span>其他业务配置</span>
                 </button>
 
                 <button
@@ -498,19 +460,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <Megaphone className="w-4 h-4 text-[#1E5ABB]" />
                   <span>公告管理</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    onNavigate('value-added-services');
-                    setSystemMenuOpen(false);
-                  }}
-                  className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center space-x-2.5 cursor-pointer transition-colors ${
-                    activePage === 'value-added-services' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
-                  }`}
-                >
-                  <Sparkles className="w-4 h-4 text-purple-600" />
-                  <span>增值业务申请</span>
                 </button>
 
                 <button
