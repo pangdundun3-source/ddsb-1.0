@@ -413,7 +413,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
   const moduleList = [
     {
       id: 'report_template',
-      label: '模板管理',
+      label: '模板配置',
       icon: FileText,
       desc: '报送/激活模版与动态表单'
     },
@@ -425,7 +425,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     },
     {
       id: 'audit_score',
-      label: '审核打分配置',
+      label: '审核打分规则',
       icon: Award,
       desc: '五级打分标准与评分规则'
     },

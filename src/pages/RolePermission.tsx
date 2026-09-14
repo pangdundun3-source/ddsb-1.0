@@ -193,7 +193,7 @@ const permissionGroups: PermissionGroup[] = [
       },
       {
         id: 'system_template',
-        label: '模板管理',
+        label: '模板配置',
         actions: [
           { key: 'view', label: '查看模板' },
           { key: 'add', label: '新建模板' },
@@ -217,7 +217,7 @@ const permissionGroups: PermissionGroup[] = [
       },
       {
         id: 'system_audit_score',
-        label: '审核打分配置',
+        label: '审核打分规则',
         actions: [
           { key: 'view', label: '查看打分规则' },
           { key: 'add', label: '新建打分组' },
@@ -990,7 +990,7 @@ export const RolePermission: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Sub 2: 模板管理 */}
+                    {/* Sub 2: 模板配置 */}
                     <div className="space-y-2 pt-3">
                       <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
                         <input
@@ -1000,7 +1000,7 @@ export const RolePermission: React.FC = () => {
                           onChange={() => handleToggleCheck('system_template_all')}
                           className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
                         />
-                        <span>模板管理</span>
+                        <span>模板配置</span>
                       </label>
                       <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
                         {['view:查看模板', 'add:新建模板', 'edit:编辑模板', 'delete:删除模板', 'status:启用/停用', 'preview:预览'].map(item => {
