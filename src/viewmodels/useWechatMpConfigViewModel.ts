@@ -50,6 +50,9 @@ interface UseWechatMpConfigViewModelOptions {
   onChangeConfig: (newConfig: WechatMpConfig) => void;
   showToast: (msg: string, type?: 'success' | 'warning' | 'info') => void;
   onNavigateToMigration?: () => void;
+  onBindStarted?: () => void;
+  onBindCancelled?: () => void;
+  onBindSucceeded?: (boundToCustom: boolean) => void;
 }
 
 export const useWechatMpConfigViewModel = ({
@@ -59,6 +62,9 @@ export const useWechatMpConfigViewModel = ({
   onChangeConfig,
   showToast,
   onNavigateToMigration,
+  onBindStarted,
+  onBindCancelled,
+  onBindSucceeded,
 }: UseWechatMpConfigViewModelOptions) => {
   const [formData, setFormData] = useState<WechatMpConfig>(() => {
     const initial = config || defaultConfig;
@@ -147,7 +153,7 @@ export const useWechatMpConfigViewModel = ({
         remark: mpData.remark || '',
       };
       updatedList = [...list, newMp];
-      showToast(`已成功录入自有公众号【${mpData.mpName}】！请点击卡片上的【立即换绑】完成正式生效切换。`, 'info');
+      showToast(`已成功录入自有公众号【${mpData.mpName}】！请点击卡片上的【切换通道】完成通道换绑。`, 'info');
     }
 
     const updatedConfig: WechatMpConfig = {
@@ -181,11 +187,13 @@ export const useWechatMpConfigViewModel = ({
   const openBindConfirmModal = (target: BindTargetType) => {
     setTargetToBind(target);
     setShowBindConfirmModal(true);
+    onBindStarted?.();
   };
 
   const closeBindConfirmModal = () => {
     setTargetToBind(null);
     setShowBindConfirmModal(false);
+    onBindCancelled?.();
   };
 
   // 执行正式换绑
@@ -222,7 +230,8 @@ export const useWechatMpConfigViewModel = ({
           lastBoundTime: now,
           isCustomBound: false, // 切换回平台默认号，人员换绑不可再向自有号迁移
         };
-        showToast('已成功换绑为【平台统配·点点速报】！', 'success');
+        showToast('已回退为【平台统配·点点速报】！人员换绑已暂时锁定。', 'success');
+        onBindSucceeded?.(false);
       } else {
         // 换绑至选定的自有公众号 (多个中仅这一个为 isBound: true)
         const updatedList = (formData.customMps || []).map((m) => ({
@@ -246,7 +255,12 @@ export const useWechatMpConfigViewModel = ({
           lastBoundTime: now,
           isCustomBound: true, // 明确标记已成功换绑为自有公众号，满足人员迁移前置条件
         };
-        showToast(`已成功换绑为【${targetToBind.mpName}】！通道已全面切换，可前往「人员换绑」发起采编人员迁移。`, 'success');
+        showToast(
+          `通道已切换为【${targetToBind.mpName}】！可立即发起采编人员换绑。`,
+          'success'
+        );
+        onBindSucceeded?.(true);
+        onNavigateToMigration?.();
       }
 
       setFormData(updatedConfig);

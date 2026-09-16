@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import type { FormEvent } from 'react';
 import {
   MpMigrationConfig,
   MpMigrationStatus,
@@ -46,6 +45,11 @@ export const useMpPersonnelMigrationViewModel = ({
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmModalType, setConfirmModalType] = useState<'all' | 'single'>('all');
   const [targetPersonToMigrate, setTargetPersonToMigrate] =
+    useState<MpPersonnelMigrationItem | null>(null);
+
+  // 人工确认二次弹窗
+  const [showManualConfirmModal, setShowManualConfirmModal] = useState(false);
+  const [manualConfirmTarget, setManualConfirmTarget] =
     useState<MpPersonnelMigrationItem | null>(null);
 
   // 核心业务属性：源公众号与目标公众号
@@ -216,7 +220,24 @@ export const useMpPersonnelMigrationViewModel = ({
         : person
     );
     persistMigration(updated);
+    setShowManualConfirmModal(false);
+    setManualConfirmTarget(null);
     showToast(`已人工确认完成【${name}】的换绑！`, 'success');
+  };
+
+  const openManualConfirmModal = (person: MpPersonnelMigrationItem) => {
+    setManualConfirmTarget(person);
+    setShowManualConfirmModal(true);
+  };
+
+  const closeManualConfirmModal = () => {
+    setShowManualConfirmModal(false);
+    setManualConfirmTarget(null);
+  };
+
+  const confirmManualMigration = () => {
+    if (!manualConfirmTarget) return;
+    handleManualConfirmMigration(manualConfirmTarget.id, manualConfirmTarget.name);
   };
 
   return {
@@ -232,6 +253,8 @@ export const useMpPersonnelMigrationViewModel = ({
       targetPersonToMigrate,
       isLaunching,
       selectedPersonForQr,
+      showManualConfirmModal,
+      manualConfirmTarget,
       sourceMpName,
       targetMpName,
       isCustomBound,
@@ -254,6 +277,9 @@ export const useMpPersonnelMigrationViewModel = ({
       handleExecuteConfirmedMigration,
       setSelectedPersonForQr,
       handleManualConfirmMigration,
+      openManualConfirmModal,
+      closeManualConfirmModal,
+      confirmManualMigration,
       onNavigateToMpConfig,
     },
   };

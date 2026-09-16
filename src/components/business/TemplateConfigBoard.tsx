@@ -311,6 +311,32 @@ const initialDefaultTemplates: BusinessTemplateItem[] = [
   }
 ];
 
+const COLUMN_WIDTH_STORAGE_KEY = 'v8_template_board_column_widths';
+const LEFT_COL_DEFAULT = 260;
+const RIGHT_COL_DEFAULT = 310;
+const LEFT_COL_MIN = 200;
+const LEFT_COL_MAX = 420;
+const RIGHT_COL_MIN = 260;
+const RIGHT_COL_MAX = 480;
+const CENTER_COL_MIN = 320;
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+
+const readStoredColumnWidths = (): { left: number; right: number } => {
+  try {
+    const raw = localStorage.getItem(COLUMN_WIDTH_STORAGE_KEY);
+    if (!raw) return { left: LEFT_COL_DEFAULT, right: RIGHT_COL_DEFAULT };
+    const parsed = JSON.parse(raw) as { left?: number; right?: number };
+    return {
+      left: clamp(Number(parsed.left) || LEFT_COL_DEFAULT, LEFT_COL_MIN, LEFT_COL_MAX),
+      right: clamp(Number(parsed.right) || RIGHT_COL_DEFAULT, RIGHT_COL_MIN, RIGHT_COL_MAX),
+    };
+  } catch {
+    return { left: LEFT_COL_DEFAULT, right: RIGHT_COL_DEFAULT };
+  }
+};
+
 export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   institutionId,
   isGlobalScope = false,
@@ -339,6 +365,76 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     setTemplates(newTemplates);
     localStorage.setItem(storageKey, JSON.stringify(newTemplates));
   };
+
+  // Desktop 3-column widths (mouse-draggable)
+  const [leftColWidth, setLeftColWidth] = useState(() => readStoredColumnWidths().left);
+  const [rightColWidth, setRightColWidth] = useState(() => readStoredColumnWidths().right);
+  const [resizingSide, setResizingSide] = useState<'left' | 'right' | null>(null);
+  const workbenchRef = useRef<HTMLDivElement | null>(null);
+  const leftColWidthRef = useRef(leftColWidth);
+  const rightColWidthRef = useRef(rightColWidth);
+
+  useEffect(() => {
+    leftColWidthRef.current = leftColWidth;
+  }, [leftColWidth]);
+
+  useEffect(() => {
+    rightColWidthRef.current = rightColWidth;
+  }, [rightColWidth]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        COLUMN_WIDTH_STORAGE_KEY,
+        JSON.stringify({ left: leftColWidth, right: rightColWidth })
+      );
+    } catch {
+      // ignore storage failures
+    }
+  }, [leftColWidth, rightColWidth]);
+
+  useEffect(() => {
+    if (!resizingSide) return;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const container = workbenchRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+
+      if (resizingSide === 'left') {
+        const maxLeft = Math.min(
+          LEFT_COL_MAX,
+          rect.width - rightColWidthRef.current - CENTER_COL_MIN - 16
+        );
+        setLeftColWidth(clamp(x, LEFT_COL_MIN, Math.max(LEFT_COL_MIN, maxLeft)));
+        return;
+      }
+
+      const fromRight = rect.width - x;
+      const maxRight = Math.min(
+        RIGHT_COL_MAX,
+        rect.width - leftColWidthRef.current - CENTER_COL_MIN - 16
+      );
+      setRightColWidth(clamp(fromRight, RIGHT_COL_MIN, Math.max(RIGHT_COL_MIN, maxRight)));
+    };
+
+    const stopResize = () => setResizingSide(null);
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', stopResize);
+    window.addEventListener('pointercancel', stopResize);
+
+    return () => {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', stopResize);
+      window.removeEventListener('pointercancel', stopResize);
+    };
+  }, [resizingSide]);
 
   // Active top tab: 报送模板 vs 激活模板
   const [topTab, setTopTab] = useState<TemplateType>('报送');
@@ -1498,11 +1594,23 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
       {/* ================================================================= */}
       {/* UNIFIED 3-COLUMN WORKBENCH CONTAINER (Figma / Axure Prototype)    */}
       {/* ================================================================= */}
-      <div className="bg-white rounded-xl border border-gray-200/80 shadow-2xs flex flex-col lg:flex-row min-h-[760px] overflow-hidden">
+      <div
+        ref={workbenchRef}
+        className={`bg-white rounded-xl border border-gray-200/80 shadow-2xs flex flex-col lg:flex-row min-h-[760px] overflow-hidden ${
+          resizingSide ? 'select-none' : ''
+        }`}
+      >
+        <style>{`
+          @media (min-width: 1024px) {
+            .tpl-board-col-left { width: ${leftColWidth}px !important; max-width: ${leftColWidth}px !important; }
+            .tpl-board-col-right { width: ${rightColWidth}px !important; max-width: ${rightColWidth}px !important; }
+          }
+        `}</style>
+
         {/* ================================================================= */}
         {/* COLUMN 1: 模板目录 (Left Column, ~260px) */}
         {/* ================================================================= */}
-        <div className="w-full lg:w-[260px] shrink-0 border-b lg:border-b-0 lg:border-r border-gray-200/80 flex flex-col bg-white">
+        <div className="tpl-board-col-left w-full shrink-0 border-b lg:border-b-0 flex flex-col bg-white">
           {/* Header */}
           <div className="h-[52px] px-3.5 border-b border-gray-200/80 flex items-center justify-between shrink-0 bg-white">
             <div className="flex items-center gap-1.5">
@@ -1639,10 +1747,27 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
           </div>
         </div>
 
+        {/* Resize handle: left | center */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="调整模板目录宽度"
+          title="拖动调整宽度"
+          onPointerDown={e => {
+            e.preventDefault();
+            setResizingSide('left');
+          }}
+          className={`hidden lg:flex w-1.5 shrink-0 cursor-col-resize items-center justify-center border-x border-gray-200/80 bg-gray-50 hover:bg-blue-50 transition-colors ${
+            resizingSide === 'left' ? 'bg-blue-100' : ''
+          }`}
+        >
+          <span className="w-px h-8 rounded-full bg-gray-300" />
+        </div>
+
         {/* ================================================================= */}
         {/* COLUMN 2: 移动端填报实时模拟 (Center Column, flex-1) */}
         {/* ================================================================= */}
-        <div className="flex-1 min-w-0 flex flex-col bg-white">
+        <div className="flex-1 min-w-0 flex flex-col bg-white lg:min-w-[320px]">
           {/* Top Info Header */}
           <div className="h-[52px] px-4 border-b border-gray-200/80 flex items-center justify-between shrink-0 bg-white gap-2">
             <div className="flex items-center gap-2 min-w-0">
@@ -1696,10 +1821,27 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
           </div>
         </div>
 
+        {/* Resize handle: center | right */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="调整其他业务配置宽度"
+          title="拖动调整宽度"
+          onPointerDown={e => {
+            e.preventDefault();
+            setResizingSide('right');
+          }}
+          className={`hidden lg:flex w-1.5 shrink-0 cursor-col-resize items-center justify-center border-x border-gray-200/80 bg-gray-50 hover:bg-blue-50 transition-colors ${
+            resizingSide === 'right' ? 'bg-blue-100' : ''
+          }`}
+        >
+          <span className="w-px h-8 rounded-full bg-gray-300" />
+        </div>
+
         {/* ================================================================= */}
         {/* COLUMN 3: 其他业务配置 (Right Column, ~310px) */}
         {/* ================================================================= */}
-        <div className="w-full lg:w-[310px] shrink-0 border-t lg:border-t-0 lg:border-l border-gray-200/80 flex flex-col bg-white">
+        <div className="tpl-board-col-right w-full shrink-0 border-t lg:border-t-0 flex flex-col bg-white">
           {/* Header */}
           <div className="h-[52px] px-4 border-b border-gray-200/80 flex items-center justify-between shrink-0 bg-white">
             <div className="flex items-center gap-1.5 text-xs font-bold text-gray-800">

@@ -329,21 +329,39 @@ export interface GlobalMpMigrationMethods {
   };
 }
 
+/** 全平台换绑生效门槛（对齐机构侧「确认换绑」与微信服务号真实约束） */
+export interface GlobalMpRebindConditions {
+  /** 仅允许认证微信服务号作为自有发稿通道（订阅号不可用模板/客服能力） */
+  requireServiceAccount: boolean;
+  /** 须完成公众号后台开发者配置与接口授权连通后才可换绑生效 */
+  requireAuthorizedApi: boolean;
+  /** 自有号须挂载至与平台相同的微信开放平台主体（UnionID 静默匹配前提） */
+  requireSameOpenPlatform: boolean;
+  /** 是否允许机构「换绑回平台默认号」 */
+  allowRevertToPlatform: boolean;
+  /** 同时仅允许 1 个自有号生效（与机构侧互斥规则一致，只读策略） */
+  singleActiveCustomMp: boolean;
+}
+
 export interface GlobalMpControlConfig {
-  // 1. 公众号使用方式配置
+  // —— 阶段1：平台接入与授权 ——
   allowDefaultPlatformMp: boolean; // (a) 使用机构默认的“点点速报”
   allowCustomOfficialMp: boolean; // (b) 支持使用机构自有的公众号
   defaultPreferredMode: WechatMpMode; // 新建机构默认选用方式
-  // 2. 自有公众号人员迁移方式
+  platformMpAppId?: string; // 平台统配「点点速报」母版 AppID
+  platformOpenPlatformSubject?: string; // 微信开放平台主体名称
+
+  // —— 阶段2：换绑生效条件 ——
+  rebindConditions?: GlobalMpRebindConditions;
+
+  // —— 阶段3：人员迁移通路 ——
   migrationMethods: GlobalMpMigrationMethods;
-  // 迁移数据继承保障
   dataInheritance: {
     inheritDrafts: boolean;
     inheritAuditLogs: boolean;
     inheritPoints: boolean;
     inheritRoles: boolean;
   };
-  // 运营管控参数
   migrationGracePeriodDays: number;
   maxDailyRemindCount: number;
   updatedAt?: string;
