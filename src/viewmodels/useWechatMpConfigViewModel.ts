@@ -80,6 +80,9 @@ export const useWechatMpConfigViewModel = ({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [testResults, setTestResults] = useState<TestResults | null>(null);
+  const [testingMpId, setTestingMpId] = useState<string | null>(null);
+  const [isModalTesting, setIsModalTesting] = useState(false);
+  const [modalTestResult, setModalTestResult] = useState<'success' | 'fail' | null>(null);
   const [showQrModal, setShowQrModal] = useState(false);
 
   // 新增/编辑自有公众号弹窗状态
@@ -97,21 +100,25 @@ export const useWechatMpConfigViewModel = ({
       ? '点点速报 (平台统配)'
       : formData.mpName || '随州融媒发布 (官方服务号)';
 
+  const closeAddModal = () => {
+    setEditingMp(null);
+    setShowAddModal(false);
+    setIsModalTesting(false);
+    setModalTestResult(null);
+  };
+
   // 打开新增自有公众号弹窗
   const openAddModal = () => {
     setEditingMp(null);
+    setModalTestResult(null);
     setShowAddModal(true);
   };
 
   // 打开编辑自有公众号弹窗
   const openEditModal = (mp: CustomWechatMpItem) => {
     setEditingMp(mp);
+    setModalTestResult(null);
     setShowAddModal(true);
-  };
-
-  const closeAddModal = () => {
-    setEditingMp(null);
-    setShowAddModal(false);
   };
 
   // 保存新增或编辑的自有公众号
@@ -303,6 +310,81 @@ export const useWechatMpConfigViewModel = ({
     }, 600);
   };
 
+  /** 列表卡片：按单个自有公众号做连通性测试 */
+  const handleTestCustomMp = (mp: CustomWechatMpItem) => {
+    if (testingMpId || isModalTesting || isTesting) return;
+    setTestingMpId(mp.id);
+    showToast(`正在检测「${mp.mpName}」接口连通性...`, 'info');
+
+    window.setTimeout(() => {
+      setTestingMpId(null);
+      const isSuccess = Boolean(mp.appId?.trim()) && Boolean(mp.appSecret?.trim());
+      const nextAuth: CustomWechatMpItem['authStatus'] = isSuccess ? 'authorized' : 'abnormal';
+      const updatedList = (formData.customMps || []).map((item) =>
+        item.id === mp.id ? { ...item, authStatus: nextAuth } : item
+      );
+      const updatedConfig: WechatMpConfig = {
+        ...formData,
+        customMps: updatedList,
+        ...(formData.activeCustomMpId === mp.id
+          ? {
+              authStatus: nextAuth,
+              lastVerifyTime: isSuccess ? formatDateTime() : formData.lastVerifyTime,
+            }
+          : {}),
+      };
+      setFormData(updatedConfig);
+      onChangeConfig(updatedConfig);
+
+      if (isSuccess) {
+        showToast(`「${mp.mpName}」接口连接正常`, 'success');
+      } else {
+        showToast(`「${mp.mpName}」检测未通过：请确认 AppID 与 AppSecret`, 'warning');
+      }
+    }, 600);
+  };
+
+  /** 弹窗内：用当前表单填写的 AppID / AppSecret 做连通性测试 */
+  const handleTestModalCredentials = (appId: string, appSecret: string) => {
+    if (testingMpId || isModalTesting || isTesting) return;
+    const trimmedId = appId.trim();
+    const trimmedSecret = appSecret.trim();
+    if (!trimmedId || !trimmedSecret) {
+      setModalTestResult('fail');
+      showToast('请先填写 AppID 与 AppSecret 再测试连通性', 'warning');
+      return;
+    }
+
+    setIsModalTesting(true);
+    setModalTestResult(null);
+    showToast('正在检测当前填写的接口凭证...', 'info');
+
+    window.setTimeout(() => {
+      setIsModalTesting(false);
+      // 模拟：AppID 需以 wx 开头且密钥不少于 8 位
+      const isSuccess = /^wx/i.test(trimmedId) && trimmedSecret.length >= 8;
+      setModalTestResult(isSuccess ? 'success' : 'fail');
+
+      if (isSuccess && editingMp) {
+        const updatedList = (formData.customMps || []).map((item) =>
+          item.id === editingMp.id ? { ...item, authStatus: 'authorized' as const } : item
+        );
+        const updatedConfig: WechatMpConfig = {
+          ...formData,
+          customMps: updatedList,
+        };
+        setFormData(updatedConfig);
+        onChangeConfig(updatedConfig);
+      }
+
+      if (isSuccess) {
+        showToast('接口连通性测试通过', 'success');
+      } else {
+        showToast('检测未通过：请确认 AppID 以 wx 开头且 AppSecret 填写正确', 'warning');
+      }
+    }, 600);
+  };
+
   const handleSave = (event: FormEvent) => {
     event.preventDefault();
     onChangeConfig(formData);
@@ -317,6 +399,9 @@ export const useWechatMpConfigViewModel = ({
       showAdvanced,
       isTesting,
       testResults,
+      testingMpId,
+      isModalTesting,
+      modalTestResult,
       showQrModal,
       showAddModal,
       editingMp,
@@ -338,6 +423,8 @@ export const useWechatMpConfigViewModel = ({
       closeBindConfirmModal,
       handleExecuteBind,
       handleRunDiagnostics,
+      handleTestCustomMp,
+      handleTestModalCredentials,
       handleSave,
       onNavigateToMigration,
     },

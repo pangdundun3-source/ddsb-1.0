@@ -87,6 +87,8 @@ export const OtherBusinessConfigTab: React.FC<OtherBusinessConfigTabProps> = ({
   const [showSwitchDrawer, setShowSwitchDrawer] = useState(false);
   const [highlightMigrate, setHighlightMigrate] = useState(false);
   const [showGuideHelp, setShowGuideHelp] = useState(false);
+  // 仅会话内关闭；刷新后重新出现（不写 localStorage）
+  const [showGuideBanner, setShowGuideBanner] = useState(true);
 
   // 预览热更新后保持停留在「机构详情 → 公众号换绑」
   useEffect(() => {
@@ -129,95 +131,108 @@ export const OtherBusinessConfigTab: React.FC<OtherBusinessConfigTabProps> = ({
   if (!isCustomBound) {
     return (
       <div className="space-y-4 text-gray-800">
-        <div className="bg-white rounded-xl border border-gray-200/80 shadow-2xs p-4 sm:p-5">
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-4">
-            <div>
-              <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                <span className="material-symbols-outlined text-[18px] text-[#1890ff]">
-                  sync_alt
-                </span>
-                公众号换绑引导
-              </h2>
-              <p className="text-xs text-gray-500 mt-1">
-                当前发稿通道【{currentMpName}】。先完成「通道换绑」至自有号，再向采编发起「人员换绑」。
-              </p>
+        {showGuideBanner && (
+          <div className="bg-white rounded-xl border border-gray-200/80 shadow-2xs p-4 sm:p-5">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-4">
+              <div>
+                <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[18px] text-[#1890ff]">
+                    sync_alt
+                  </span>
+                  公众号换绑引导
+                </h2>
+                <p className="text-xs text-gray-500 mt-1">
+                  当前发稿通道【{currentMpName}】。先完成「通道换绑」至自有号，再向采编发起「人员换绑」。
+                </p>
+              </div>
+              <div className="flex items-center gap-1 shrink-0 self-end sm:self-start">
+                <button
+                  type="button"
+                  onClick={() => setShowGuideHelp((v) => !v)}
+                  className="text-xs text-gray-500 hover:text-[#1890ff] flex items-center gap-1 cursor-pointer px-1.5 py-1 rounded-md hover:bg-gray-50"
+                >
+                  <span className="material-symbols-outlined text-[15px]">help_outline</span>
+                  {showGuideHelp ? '收起指引' : '查看指引'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowGuideBanner(false)}
+                  className="p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 cursor-pointer"
+                  title="关闭引导"
+                  aria-label="关闭引导"
+                >
+                  <span className="material-symbols-outlined text-[18px]">close</span>
+                </button>
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowGuideHelp((v) => !v)}
-              className="text-xs text-gray-500 hover:text-[#1890ff] flex items-center gap-1 cursor-pointer shrink-0"
-            >
-              <span className="material-symbols-outlined text-[15px]">help_outline</span>
-              {showGuideHelp ? '收起指引' : '查看指引'}
-            </button>
-          </div>
 
-          {showGuideHelp && (
-            <div className="mb-4 p-3 rounded-lg bg-blue-50/70 border border-blue-100 text-[11px] text-gray-600 leading-relaxed space-y-1">
-              <p>
-                <strong>第 1 步 · 录入：</strong>仅保存自有服务号参数，不会改变发稿通道。
-              </p>
-              <p>
-                <strong>第 2 步 · 通道换绑：</strong>点击「切换通道」确认后，发稿与模板消息立即切到新号。
-              </p>
-              <p>
-                <strong>第 3 步 · 人员换绑：</strong>向采编发送换绑通知，扫码关注即可继承稿件与积分。
-              </p>
-            </div>
-          )}
+            {showGuideHelp && (
+              <div className="mb-4 p-3 rounded-lg bg-blue-50/70 border border-blue-100 text-[11px] text-gray-600 leading-relaxed space-y-1">
+                <p>
+                  <strong>第 1 步 · 录入：</strong>仅保存自有服务号参数，不会改变发稿通道。
+                </p>
+                <p>
+                  <strong>第 2 步 · 通道换绑：</strong>点击「切换通道」确认后，发稿与模板消息立即切到新号。
+                </p>
+                <p>
+                  <strong>第 3 步 · 人员换绑：</strong>向采编发送换绑通知，扫码关注即可继承稿件与积分。
+                </p>
+              </div>
+            )}
 
-          {/* 步骤条 */}
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-0 sm:items-center">
-            {GUIDE_STEPS.map((item, index) => {
-              const active = guideStep === item.step;
-              const done = guideStep > item.step;
-              return (
-                <React.Fragment key={item.step}>
-                  <div
-                    className={`flex items-center gap-2.5 flex-1 min-w-0 rounded-lg px-3 py-2.5 border transition-colors ${
-                      active
-                        ? 'bg-blue-50 border-blue-200'
-                        : done
-                          ? 'bg-emerald-50/60 border-emerald-200/70'
-                          : 'bg-gray-50 border-gray-200/70'
-                    }`}
-                  >
+            {/* 步骤条 */}
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-0 sm:items-center">
+              {GUIDE_STEPS.map((item, index) => {
+                const active = guideStep === item.step;
+                const done = guideStep > item.step;
+                return (
+                  <React.Fragment key={item.step}>
                     <div
-                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                      className={`flex items-center gap-2.5 flex-1 min-w-0 rounded-lg px-3 py-2.5 border transition-colors ${
                         active
-                          ? 'bg-[#1890ff] text-white'
+                          ? 'bg-blue-50 border-blue-200'
                           : done
-                            ? 'bg-emerald-500 text-white'
-                            : 'bg-white text-gray-400 border border-gray-200'
+                            ? 'bg-emerald-50/60 border-emerald-200/70'
+                            : 'bg-gray-50 border-gray-200/70'
                       }`}
                     >
-                      {done ? (
-                        <span className="material-symbols-outlined text-[16px]">check</span>
-                      ) : (
-                        item.step
-                      )}
-                    </div>
-                    <div className="min-w-0">
                       <div
-                        className={`text-xs font-bold truncate ${
-                          active ? 'text-[#1890ff]' : done ? 'text-emerald-800' : 'text-gray-600'
+                        className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                          active
+                            ? 'bg-[#1890ff] text-white'
+                            : done
+                              ? 'bg-emerald-500 text-white'
+                              : 'bg-white text-gray-400 border border-gray-200'
                         }`}
                       >
-                        {item.label}
+                        {done ? (
+                          <span className="material-symbols-outlined text-[16px]">check</span>
+                        ) : (
+                          item.step
+                        )}
                       </div>
-                      <div className="text-[10px] text-gray-400 truncate">{item.hint}</div>
+                      <div className="min-w-0">
+                        <div
+                          className={`text-xs font-bold truncate ${
+                            active ? 'text-[#1890ff]' : done ? 'text-emerald-800' : 'text-gray-600'
+                          }`}
+                        >
+                          {item.label}
+                        </div>
+                        <div className="text-[10px] text-gray-400 truncate">{item.hint}</div>
+                      </div>
                     </div>
-                  </div>
-                  {index < GUIDE_STEPS.length - 1 && (
-                    <div className="hidden sm:flex items-center px-1.5 text-gray-300">
-                      <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-                    </div>
-                  )}
-                </React.Fragment>
-              );
-            })}
+                    {index < GUIDE_STEPS.length - 1 && (
+                      <div className="hidden sm:flex items-center px-1.5 text-gray-300">
+                        <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                      </div>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
         {guideStep <= 2 && (
           <WechatMpConfigSection

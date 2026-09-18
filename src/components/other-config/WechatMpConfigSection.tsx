@@ -84,6 +84,9 @@ export const WechatMpConfigSection: React.FC<WechatMpConfigSectionProps> = ({
     showAdvanced,
     isTesting,
     testResults,
+    testingMpId,
+    isModalTesting,
+    modalTestResult,
     showQrModal,
     showAddModal,
     editingMp,
@@ -105,6 +108,8 @@ export const WechatMpConfigSection: React.FC<WechatMpConfigSectionProps> = ({
     closeBindConfirmModal,
     handleExecuteBind,
     handleRunDiagnostics,
+    handleTestCustomMp,
+    handleTestModalCredentials,
   } = actions;
 
   // 新增/编辑表单局部状态
@@ -159,9 +164,71 @@ export const WechatMpConfigSection: React.FC<WechatMpConfigSectionProps> = ({
   const canSwitchChannel = wizardPhase === 'all' || isSwitchPhase;
   const canAddMp = wizardPhase === 'all' || isAccessPhase;
 
+  const platformDefaultCard = (
+    <div className={`bg-white rounded-xl border border-gray-200/80 shadow-2xs ${isCompact ? 'px-3 py-2.5' : 'p-4 sm:p-5'}`}>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div
+            className={`rounded-md flex items-center justify-center shrink-0 ${
+              isCompact ? 'w-7 h-7' : 'w-10 h-10'
+            } ${isPlatformDefaultBound ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}
+          >
+            <span className={`material-symbols-outlined ${isCompact ? 'text-[16px]' : 'text-[20px]'}`}>
+              public
+            </span>
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h4 className={`font-bold text-gray-900 ${isCompact ? 'text-xs' : 'text-sm'}`}>
+                点点速报 (平台统配)
+              </h4>
+              {isPlatformDefaultBound ? (
+                <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  当前生效
+                </span>
+              ) : (
+                <span className="text-[10px] px-1.5 py-0.5 rounded font-normal bg-gray-100 text-gray-500">
+                  备用通道
+                </span>
+              )}
+            </div>
+            {!isCompact && (
+              <p className="text-xs text-gray-500 mt-0.5">
+                平台统一托管服务号，免去机构自主认证对接
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="shrink-0 self-end sm:self-auto">
+          {isPlatformDefaultBound ? (
+            <span className="text-[11px] text-blue-700 font-medium px-2 py-1 bg-blue-50 rounded-md border border-blue-200">
+              当前发稿通道
+            </span>
+          ) : canSwitchChannel ? (
+            <button
+              type="button"
+              onClick={() => openBindConfirmModal('platform_default')}
+              className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-300 transition-colors flex items-center gap-1 cursor-pointer"
+              title="回退后将关闭人员换绑能力"
+            >
+              <span className="material-symbols-outlined text-[14px]">undo</span>
+              <span>回退平台默认号</span>
+            </button>
+          ) : (
+            <span className="text-[11px] text-gray-400 px-2 py-1">本步不处理回退</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-4 text-gray-800">
-      {/* 核心换绑操作区：自有公众号管理 (支持添加多个，仅可启用换绑一个) */}
+      {/* 第一行：平台统配默认通道 */}
+      {platformDefaultCard}
+
+      {/* 第二行：自有公众号管理（含新增） */}
       <div className="bg-white rounded-xl border border-gray-200/80 p-4 sm:p-5 shadow-2xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
           <div>
@@ -336,6 +403,24 @@ export const WechatMpConfigSection: React.FC<WechatMpConfigSectionProps> = ({
                     )}
                     <button
                       type="button"
+                      onClick={() => handleTestCustomMp(item)}
+                      disabled={Boolean(testingMpId) || isModalTesting}
+                      className="px-2 py-1 rounded-md text-[11px] font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-colors flex items-center gap-0.5 cursor-pointer disabled:opacity-60"
+                      title="连通性测试"
+                    >
+                      <span
+                        className={`material-symbols-outlined text-[14px] ${
+                          testingMpId === item.id ? 'animate-spin' : ''
+                        }`}
+                      >
+                        {testingMpId === item.id ? 'sync' : 'network_check'}
+                      </span>
+                      <span className="hidden sm:inline">
+                        {testingMpId === item.id ? '检测中' : '连通测试'}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => openEditModal(item)}
                       className="p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 cursor-pointer"
                       title="编辑参数"
@@ -429,6 +514,22 @@ export const WechatMpConfigSection: React.FC<WechatMpConfigSectionProps> = ({
 
                     <button
                       type="button"
+                      onClick={() => handleTestCustomMp(item)}
+                      disabled={Boolean(testingMpId) || isModalTesting}
+                      className="p-1 rounded text-gray-400 hover:text-[#1890ff] hover:bg-blue-50 transition-colors cursor-pointer disabled:opacity-60"
+                      title={testingMpId === item.id ? '检测中...' : '连通性测试'}
+                    >
+                      <span
+                        className={`material-symbols-outlined text-[16px] ${
+                          testingMpId === item.id ? 'animate-spin' : ''
+                        }`}
+                      >
+                        {testingMpId === item.id ? 'sync' : 'network_check'}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => openEditModal(item)}
                       className="p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
                       title="编辑参数"
@@ -454,65 +555,7 @@ export const WechatMpConfigSection: React.FC<WechatMpConfigSectionProps> = ({
         </div>
       </div>
 
-      {/* 3. 平台默认公众号通道（点点速报） */}
-      <div className={`bg-white rounded-xl border border-gray-200/80 shadow-2xs ${isCompact ? 'px-3 py-2.5' : 'p-4 sm:p-5'}`}>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div
-              className={`rounded-md flex items-center justify-center shrink-0 ${
-                isCompact ? 'w-7 h-7' : 'w-10 h-10'
-              } ${isPlatformDefaultBound ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}
-            >
-              <span className={`material-symbols-outlined ${isCompact ? 'text-[16px]' : 'text-[20px]'}`}>
-                public
-              </span>
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h4 className={`font-bold text-gray-900 ${isCompact ? 'text-xs' : 'text-sm'}`}>
-                  点点速报 (平台统配)
-                </h4>
-                {isPlatformDefaultBound ? (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                    当前生效
-                  </span>
-                ) : (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded font-normal bg-gray-100 text-gray-500">
-                    备用通道
-                  </span>
-                )}
-              </div>
-              {!isCompact && (
-                <p className="text-xs text-gray-500 mt-0.5">
-                  平台统一托管服务号，免去机构自主认证对接
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="shrink-0 self-end sm:self-auto">
-            {isPlatformDefaultBound ? (
-              <span className="text-[11px] text-blue-700 font-medium px-2 py-1 bg-blue-50 rounded-md border border-blue-200">
-                当前发稿通道
-              </span>
-            ) : canSwitchChannel ? (
-              <button
-                type="button"
-                onClick={() => openBindConfirmModal('platform_default')}
-                className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-300 transition-colors flex items-center gap-1 cursor-pointer"
-                title="回退后将关闭人员换绑能力"
-              >
-                <span className="material-symbols-outlined text-[14px]">undo</span>
-                <span>回退平台默认号</span>
-              </button>
-            ) : (
-              <span className="text-[11px] text-gray-400 px-2 py-1">本步不处理回退</span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* 4. 高级接口与模板消息配置（折叠面板） */}
+      {/* 高级接口与模板消息配置（折叠面板） */}
       {!hideAdvanced && (
       <div className="bg-white rounded-xl border border-gray-200/80 p-4 shadow-2xs">
         <button
@@ -826,24 +869,58 @@ export const WechatMpConfigSection: React.FC<WechatMpConfigSectionProps> = ({
               <div className="p-2.5 rounded-lg bg-blue-50/70 border border-blue-200/80 text-[11px] text-blue-800 flex items-start gap-1.5">
                 <span className="material-symbols-outlined text-[16px] text-[#1890ff] shrink-0 mt-0.5">info</span>
                 <span>
-                  新增后为「待切换」状态，请在列表中点击<strong>【切换通道】</strong>完成通道换绑。
+                  建议先点「测试连通性」校验 AppID / AppSecret；新增后为「待切换」状态，请在列表中点击<strong>【切换通道】</strong>完成通道换绑。
                 </span>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
+              {modalTestResult && (
+                <div
+                  className={`p-2.5 rounded-lg border text-[11px] flex items-center gap-1.5 ${
+                    modalTestResult === 'success'
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                      : 'bg-amber-50 border-amber-200 text-amber-900'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[16px]">
+                    {modalTestResult === 'success' ? 'check_circle' : 'warning'}
+                  </span>
+                  <span>
+                    {modalTestResult === 'success'
+                      ? '连通性测试通过：AccessToken / 模板消息接口可用'
+                      : '连通性测试未通过：请核对 AppID（wx 开头）与 AppSecret'}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between gap-2 pt-3 border-t border-gray-100">
                 <button
                   type="button"
-                  onClick={closeAddModal}
-                  className="px-4 py-2 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+                  onClick={() => handleTestModalCredentials(formAppId, formAppSecret)}
+                  disabled={isModalTesting}
+                  className="px-3 py-2 rounded-lg text-xs font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-60"
                 >
-                  取消
+                  <span
+                    className={`material-symbols-outlined text-[16px] ${isModalTesting ? 'animate-spin' : ''}`}
+                  >
+                    {isModalTesting ? 'sync' : 'network_check'}
+                  </span>
+                  <span>{isModalTesting ? '检测中...' : '测试连通性'}</span>
                 </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-lg text-xs font-bold bg-[#1890ff] text-white hover:bg-blue-600 transition-all cursor-pointer shadow-2xs"
-                >
-                  {editingMp ? '保存修改' : '确认新增'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={closeAddModal}
+                    className="px-4 py-2 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-lg text-xs font-bold bg-[#1890ff] text-white hover:bg-blue-600 transition-all cursor-pointer shadow-2xs"
+                  >
+                    {editingMp ? '保存修改' : '确认新增'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
