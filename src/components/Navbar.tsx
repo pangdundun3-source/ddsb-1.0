@@ -19,7 +19,7 @@ import {
   Clock,
   CheckCircle2,
   SlidersHorizontal,
-  Building2,
+  Users,
   FileText,
   GitFork,
   ListFilter,
@@ -59,6 +59,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isSystemActive = [
     'notice-management',
     'org-management',
+    'user-org-management',
     'role-permission',
     'template-management',
     'audit-flow-config',
@@ -411,28 +412,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="absolute left-0 top-full mt-0.5 w-52 bg-white text-slate-800 rounded-xl shadow-2xl border border-slate-100 p-1.5 z-50 text-sm animate-in fade-in duration-150">
                 <button
                   onClick={() => {
-                    onNavigate('org-management');
+                    onNavigate('user-org-management', 'account');
                     setSystemMenuOpen(false);
                   }}
                   className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center space-x-2.5 cursor-pointer transition-colors ${
-                    activePage === 'org-management' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
+                    ['user-org-management', 'org-management', 'role-permission'].includes(activePage)
+                      ? 'text-[#1E5ABB] font-bold bg-blue-50/80'
+                      : 'text-slate-700'
                   }`}
                 >
-                  <Building2 className="w-4 h-4 text-blue-600" />
-                  <span>组织架构管理</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    onNavigate('role-permission');
-                    setSystemMenuOpen(false);
-                  }}
-                  className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center space-x-2.5 cursor-pointer transition-colors ${
-                    activePage === 'role-permission' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
-                  }`}
-                >
-                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                  <span>角色权限配置</span>
+                  <Users className="w-4 h-4 text-blue-600" />
+                  <span>用户与组织管理</span>
                 </button>
 
                 {/* 增加二级子模块：其他业务配置 */}

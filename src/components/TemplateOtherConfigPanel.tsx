@@ -330,7 +330,7 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
   };
 
   return (
-    <div className="flex flex-col min-h-0 bg-white">
+    <div className="flex flex-col min-h-0 h-full bg-white">
       {/* 1. Header */}
       <div className="h-12 px-3 bg-gray-50/70 border-b border-gray-200 flex items-center justify-between gap-1.5 shrink-0 whitespace-nowrap">
         <div className="flex items-center gap-1.5 min-w-0 shrink-0">

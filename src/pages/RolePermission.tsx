@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Edit3, Lock, ChevronDown, ChevronUp, Check, Trash2, Info } from 'lucide-react';
+import { Plus, Edit3, Lock, ChevronDown, ChevronUp, Check, Trash2, Info, Search, X } from 'lucide-react';
 
 interface RoleItem {
   id: number;
@@ -16,6 +16,7 @@ interface PermissionAction {
 interface PermissionSubModule {
   id: string;
   label: string;
+  section?: string;
   actions: PermissionAction[];
 }
 
@@ -34,10 +35,8 @@ const permissionGroups: PermissionGroup[] = [
         id: 'home_dashboard',
         label: '首页工作台',
         actions: [
-          { key: 'view', label: '查看' },
-          { key: 'quick_report', label: '新建上报' },
+          { key: 'view', label: '查看工作台' },
           { key: 'todo', label: '查看待办' },
-          { key: 'stats', label: '查看统计' },
           { key: 'detail', label: '跳转详情' },
         ],
       },
@@ -48,40 +47,47 @@ const permissionGroups: PermissionGroup[] = [
     label: '报送管理',
     children: [
       {
-        id: 'report_audit',
-        label: '报送审核',
+        id: 'report_todo',
+        label: '报送待办',
+        actions: [
+          { key: 'view', label: '查看' },
+          { key: 'detail', label: '查看详情' },
+          { key: 'add', label: '新建速报' },
+          { key: 'edit', label: '编辑' },
+          { key: 'withdraw', label: '撤回' },
+          { key: 'delete', label: '删除' },
+        ],
+      },
+      {
+        id: 'report_records',
+        label: '报送记录',
+        actions: [
+          { key: 'view', label: '查看' },
+          { key: 'detail', label: '查看详情' },
+          { key: 'add', label: '新建速报' },
+          { key: 'edit', label: '编辑' },
+          { key: 'withdraw', label: '撤回' },
+          { key: 'delete', label: '删除' },
+          { key: 'export', label: '导出台账' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'audit',
+    label: '审核管理',
+    children: [
+      {
+        id: 'audit_todo',
+        label: '审核待办',
         actions: [
           { key: 'view', label: '查看' },
           { key: 'detail', label: '查看详情' },
           { key: 'approve', label: '审核通过' },
           { key: 'reject', label: '审核退回' },
           { key: 'transfer', label: '转办' },
-          { key: 'export', label: '导出' },
-        ],
-      },
-      {
-        id: 'negative_info',
-        label: '不良信息库',
-        actions: [
-          { key: 'view', label: '查看' },
-          { key: 'detail', label: '查看详情' },
-          { key: 'add', label: '新增' },
-          { key: 'edit', label: '编辑' },
-          { key: 'delete', label: '删除' },
-          { key: 'export', label: '导出' },
-        ],
-      },
-      {
-        id: 'report_summary',
-        label: '报送记录',
-        actions: [
-          { key: 'view', label: '查看' },
-          { key: 'detail', label: '查看详情' },
-          { key: 'add', label: '新增' },
-          { key: 'edit', label: '编辑' },
-          { key: 'delete', label: '删除' },
-          { key: 'print', label: '打印' },
-          { key: 'export', label: '导出' },
+          { key: 'batch', label: '批量审核' },
+          { key: 'match', label: '批量匹配' },
         ],
       },
       {
@@ -90,7 +96,21 @@ const permissionGroups: PermissionGroup[] = [
         actions: [
           { key: 'view', label: '查看' },
           { key: 'detail', label: '查看详情' },
-          { key: 'export', label: '导出' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'negative',
+    label: '不良信息库',
+    children: [
+      {
+        id: 'negative_info',
+        label: '不良信息库',
+        actions: [
+          { key: 'view', label: '查看' },
+          { key: 'detail', label: '查看详情' },
+          { key: 'transfer', label: '转办' },
         ],
       },
     ],
@@ -100,73 +120,51 @@ const permissionGroups: PermissionGroup[] = [
     label: '统计管理',
     children: [
       {
-        id: 'stats_overview',
-        label: '数据总览',
+        id: 'stats_org',
+        label: '机构效能总览',
         actions: [
           { key: 'view', label: '查看' },
           { key: 'filter', label: '筛选' },
-          { key: 'export', label: '导出' },
+          { key: 'export', label: '导出全景报表' },
+          { key: 'print', label: '打印统计报告' },
         ],
       },
       {
-        id: 'stats_region',
-        label: '区域统计',
+        id: 'stats_reporter',
+        label: '上报员效能',
         actions: [
           { key: 'view', label: '查看' },
           { key: 'filter', label: '筛选' },
-          { key: 'export', label: '导出' },
         ],
       },
       {
-        id: 'stats_type',
-        label: '类型统计',
+        id: 'stats_auditor',
+        label: '审核员效能',
         actions: [
           { key: 'view', label: '查看' },
           { key: 'filter', label: '筛选' },
-          { key: 'export', label: '导出' },
-        ],
-      },
-      {
-        id: 'stats_trend',
-        label: '趋势分析',
-        actions: [
-          { key: 'view', label: '查看' },
-          { key: 'filter', label: '筛选' },
-          { key: 'export', label: '导出' },
         ],
       },
     ],
   },
   {
-    id: 'audit',
+    id: 'evaluation',
     label: '考核管理',
     children: [
       {
-        id: 'evaluation_rank',
-        label: '考核排名',
+        id: 'evaluation_board',
+        label: '考核总榜',
         actions: [
           { key: 'view', label: '查看' },
           { key: 'filter', label: '筛选' },
-          { key: 'export', label: '导出' },
+          { key: 'export', label: '导出考评大表' },
         ],
       },
       {
         id: 'evaluation_rule',
-        label: '考核规则',
+        label: '考核赋分规则',
         actions: [
-          { key: 'view', label: '查看' },
-          { key: 'add', label: '新增' },
-          { key: 'edit', label: '编辑' },
-          { key: 'delete', label: '删除' },
-        ],
-      },
-      {
-        id: 'evaluation_org',
-        label: '机构考核',
-        actions: [
-          { key: 'view', label: '查看' },
-          { key: 'edit', label: '编辑' },
-          { key: 'export', label: '导出' },
+          { key: 'view', label: '查看规则' },
         ],
       },
     ],
@@ -176,8 +174,21 @@ const permissionGroups: PermissionGroup[] = [
     label: '系统管理',
     children: [
       {
+        id: 'system_account',
+        label: '系统账号管理',
+        section: '用户与组织管理',
+        actions: [
+          { key: 'view', label: '查看' },
+          { key: 'add', label: '邀请用户' },
+          { key: 'edit', label: '编辑账号' },
+          { key: 'disable', label: '启用/停用' },
+          { key: 'delete', label: '删除账号' },
+        ],
+      },
+      {
         id: 'system_org',
-        label: '组织架构管理',
+        label: '组织机构设置',
+        section: '用户与组织管理',
         actions: [
           { key: 'view', label: '查看' },
           { key: 'add_org', label: '新增机构' },
@@ -187,13 +198,39 @@ const permissionGroups: PermissionGroup[] = [
           { key: 'edit_user', label: '编辑人员' },
           { key: 'delete_user', label: '删除人员' },
           { key: 'reset_password', label: '重置密码' },
-          { key: 'qrcode', label: '二维码配置' },
-          { key: 'export', label: '导出' },
+          { key: 'qrcode', label: '下发二维码' },
+        ],
+      },
+      {
+        id: 'system_role',
+        label: '角色权限设置',
+        section: '用户与组织管理',
+        actions: [
+          { key: 'view', label: '查看' },
+          { key: 'add', label: '新增角色' },
+          { key: 'edit', label: '编辑角色' },
+          { key: 'delete', label: '删除角色' },
+          { key: 'config', label: '配置权限' },
+          { key: 'save', label: '保存配置' },
+        ],
+      },
+      {
+        id: 'system_group',
+        label: '人员分组管理',
+        section: '用户与组织管理',
+        actions: [
+          { key: 'view', label: '查看' },
+          { key: 'add', label: '新建分组' },
+          { key: 'edit', label: '编辑分组' },
+          { key: 'delete', label: '删除分组' },
+          { key: 'add_member', label: '添加成员' },
+          { key: 'remove_member', label: '移出成员' },
         ],
       },
       {
         id: 'system_template',
         label: '模板配置',
+        section: '其他业务配置',
         actions: [
           { key: 'view', label: '查看模板' },
           { key: 'add', label: '新建模板' },
@@ -206,6 +243,7 @@ const permissionGroups: PermissionGroup[] = [
       {
         id: 'system_audit_flow',
         label: '审核流程配置',
+        section: '其他业务配置',
         actions: [
           { key: 'view', label: '查看流程' },
           { key: 'add', label: '新建流程' },
@@ -218,6 +256,7 @@ const permissionGroups: PermissionGroup[] = [
       {
         id: 'system_audit_score',
         label: '审核打分规则',
+        section: '其他业务配置',
         actions: [
           { key: 'view', label: '查看打分规则' },
           { key: 'add', label: '新建打分组' },
@@ -230,29 +269,19 @@ const permissionGroups: PermissionGroup[] = [
       {
         id: 'system_dict',
         label: '数据字典管理',
+        section: '其他业务配置',
         actions: [
           { key: 'view', label: '查看字典' },
           { key: 'add', label: '新增字典项' },
           { key: 'edit', label: '编辑字典项' },
           { key: 'delete', label: '删除字典项' },
           { key: 'sort', label: '排序调整' },
-          { key: 'export', label: '导出字典' },
-        ],
-      },
-      {
-        id: 'system_notice',
-        label: '公告管理',
-        actions: [
-          { key: 'view', label: '查看公告' },
-          { key: 'add', label: '发布公告' },
-          { key: 'edit', label: '编辑公告' },
-          { key: 'delete', label: '删除公告' },
-          { key: 'status', label: '撤回公告' },
         ],
       },
       {
         id: 'system_value_added',
         label: '增值业务申请',
+        section: '其他业务配置',
         actions: [
           { key: 'view', label: '查看功能' },
           { key: 'apply', label: '提交申请' },
@@ -261,15 +290,14 @@ const permissionGroups: PermissionGroup[] = [
         ],
       },
       {
-        id: 'system_role',
-        label: '角色权限配置',
+        id: 'system_notice',
+        label: '公告管理',
         actions: [
-          { key: 'view', label: '查看' },
-          { key: 'add', label: '新增角色' },
-          { key: 'edit', label: '编辑角色' },
-          { key: 'delete', label: '删除角色' },
-          { key: 'config', label: '配置权限' },
-          { key: 'save', label: '保存配置' },
+          { key: 'view', label: '查看公告' },
+          { key: 'add', label: '起草发布' },
+          { key: 'edit', label: '编辑公告' },
+          { key: 'status', label: '撤回公告' },
+          { key: 'delete', label: '删除公告' },
         ],
       },
       {
@@ -279,7 +307,7 @@ const permissionGroups: PermissionGroup[] = [
           { key: 'view', label: '查看' },
           { key: 'detail', label: '查看详情' },
           { key: 'filter', label: '筛选' },
-          { key: 'export', label: '导出' },
+          { key: 'export', label: '导出当前结果' },
         ],
       },
     ],
@@ -301,7 +329,7 @@ const createCheckedPermissions = (checked: boolean) =>
     return acc;
   }, {});
 
-export const RolePermission: React.FC = () => {
+export const RolePermission: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const [roles, setRoles] = useState<RoleItem[]>([
     { id: 1, name: '超级管理员', isDefault: true, description: '拥有系统所有模块与数据的全量控制权限' },
     { id: 2, name: '机构管理员', isDefault: true, description: '具备本机构及下属单位节点的全量管理权限' },
@@ -317,8 +345,10 @@ export const RolePermission: React.FC = () => {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     home: false,
     report: true,
-    stats: false,
     audit: false,
+    negative: false,
+    stats: false,
+    evaluation: false,
     system: false
   });
 
@@ -328,10 +358,10 @@ export const RolePermission: React.FC = () => {
   const [selectAll, setSelectAll] = useState(true);
   const [showSavedToast, setShowSavedToast] = useState(false);
 
-  // Modal for new role
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
-  const [newRoleDesc, setNewRoleDesc] = useState('');
+  const [isAddingRole, setIsAddingRole] = useState(false);
+  const [inlineRoleName, setInlineRoleName] = useState('');
+  const [toast, setToast] = useState('');
 
   // Modal for editing custom role (e.g. 临时审核员)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -406,20 +436,54 @@ export const RolePermission: React.FC = () => {
     setSelectAll(true);
   };
 
-  const handleAddRole = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newRoleName.trim()) return;
+  const triggerToast = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(''), 2200);
+  };
+
+  const createRoleByName = (rawName: string) => {
+    const name = rawName.trim();
+    if (!name) return false;
+    if (roles.some((role) => role.name === name)) {
+      triggerToast('已存在同名角色');
+      return false;
+    }
     const newR: RoleItem = {
       id: Date.now(),
-      name: newRoleName.trim(),
+      name,
       isDefault: false,
-      description: newRoleDesc.trim() || '自定义角色'
+      description: '自定义角色'
     };
-    setRoles([...roles, newR]);
+    setRoles((prev) => [...prev, newR]);
     setSelectedRole(newR);
-    setNewRoleName('');
-    setNewRoleDesc('');
-    setIsModalOpen(false);
+    triggerToast(`已新增角色【${name}】`);
+    return true;
+  };
+
+  const handleAddRole = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (createRoleByName(newRoleName)) {
+      setNewRoleName('');
+      setIsAddingRole(false);
+      setInlineRoleName('');
+      return;
+    }
+    if (!newRoleName.trim()) {
+      setIsAddingRole(true);
+      setInlineRoleName('');
+    }
+  };
+
+  const confirmInlineRole = () => {
+    if (createRoleByName(inlineRoleName) || !inlineRoleName.trim()) {
+      setIsAddingRole(false);
+      setInlineRoleName('');
+    }
+  };
+
+  const cancelInlineRole = () => {
+    setIsAddingRole(false);
+    setInlineRoleName('');
   };
 
   const handleOpenEditModal = (role: RoleItem) => {
@@ -459,25 +523,108 @@ export const RolePermission: React.FC = () => {
     }
   };
 
-  return (
-    <div className="space-y-4">
-      {/* Page Title */}
-      <div>
-        <h2 className="text-xl font-bold text-gray-800 tracking-tight">角色权限配置</h2>
-        <p className="text-xs text-gray-400 mt-0.5">管理系统内的角色以及权限分配，默认角色不可修改，自定义/临时角色支持编辑与配置</p>
+  const renderSubModule = (child: PermissionSubModule, extraClassName = '') => (
+    <div key={child.id} className={`space-y-2 ${extraClassName}`}>
+      <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
+        <input
+          type="checkbox"
+          disabled={selectedRole.isDefault}
+          checked={!!checkedPerms[`${child.id}_all`]}
+          onChange={() => handleToggleCheck(`${child.id}_all`)}
+          className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
+        />
+        <span>{child.label}</span>
+      </label>
+      <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
+        {child.actions.map((action) => {
+          const permKey = `${child.id}_${action.key}`;
+          return (
+            <label key={permKey} className="flex items-center space-x-1.5 cursor-pointer">
+              <input
+                type="checkbox"
+                disabled={selectedRole.isDefault}
+                checked={!!checkedPerms[permKey]}
+                onChange={() => handleToggleCheck(permKey)}
+                className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
+              />
+              <span>{action.label}</span>
+            </label>
+          );
+        })}
       </div>
+    </div>
+  );
 
-      <div className="flex flex-col lg:flex-row gap-5">
+  const renderGroupedChildren = (children: PermissionSubModule[]) => {
+    const nodes: React.ReactNode[] = [];
+    let index = 0;
+    while (index < children.length) {
+      const child = children[index];
+      if (child.section) {
+        const section = child.section;
+        const bundled: PermissionSubModule[] = [];
+        while (index < children.length && children[index].section === section) {
+          bundled.push(children[index]);
+          index += 1;
+        }
+        nodes.push(
+          <div key={section} className={`space-y-3 ${nodes.length > 0 ? 'pt-3' : ''}`}>
+            <div className="font-bold text-gray-800">{section}</div>
+            <div className="pl-3 space-y-3 border-l-2 border-blue-100">
+              {bundled.map(item => renderSubModule(item))}
+            </div>
+          </div>
+        );
+      } else {
+        nodes.push(renderSubModule(child, nodes.length > 0 ? 'pt-3' : ''));
+        index += 1;
+      }
+    }
+    return nodes;
+  };
+
+  return (
+    <div className={embedded ? 'h-full min-h-[680px] relative' : 'space-y-4'}>
+      {toast && (
+        <div className={`px-3 py-2 rounded-lg bg-[#1E5ABB] text-white text-xs font-bold ${embedded ? 'absolute left-4 right-4 top-3 z-20' : ''}`}>
+          {toast}
+        </div>
+      )}
+      {!embedded && (
+        <div>
+          <h2 className="text-xl font-bold text-gray-800 tracking-tight">角色权限设置</h2>
+          <p className="text-xs text-gray-400 mt-0.5">管理系统内的角色以及权限分配，默认角色不可修改，自定义/临时角色支持编辑与配置</p>
+        </div>
+      )}
+
+      <div className={embedded ? 'flex h-full min-h-0' : 'flex flex-col lg:flex-row gap-5'}>
         {/* Left Side: Role List Panel */}
-        <div className="w-full lg:w-80 bg-white rounded-lg border border-gray-200/80 shadow-2xs p-4 flex flex-col space-y-3 shrink-0">
-          <div className="flex items-center justify-between border-b border-gray-100 pb-2.5">
-            <span className="text-sm font-bold text-gray-800">角色列表</span>
+        <div className={embedded
+          ? 'w-[260px] shrink-0 border-r border-slate-100 p-3 flex flex-col gap-3 min-h-0 bg-slate-50/30'
+          : 'w-full lg:w-80 bg-white rounded-lg border border-gray-200/80 shadow-2xs p-4 flex flex-col space-y-3 shrink-0'}>
+          <div className="flex items-center gap-2 border-b border-gray-100 pb-2.5">
+            <div className="relative flex-1 min-w-0">
+              <input
+                value={newRoleName}
+                onChange={(e) => setNewRoleName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddRole();
+                  }
+                }}
+                placeholder="输入角色名称"
+                className="w-full pl-3 pr-8 py-1.5 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white"
+              />
+              <Search className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-2 pointer-events-none" />
+            </div>
             <button
-              onClick={() => setIsModalOpen(true)}
-              className="px-3 py-1 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center space-x-1 cursor-pointer"
+              type="button"
+              onClick={() => handleAddRole()}
+              title="新增角色"
+              className="w-8 h-8 shrink-0 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded flex items-center justify-center cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>新增角色</span>
+              <Plus className="w-4 h-4" />
             </button>
           </div>
 
@@ -487,7 +634,52 @@ export const RolePermission: React.FC = () => {
           </div>
 
           {/* Role Item List */}
-          <div className="space-y-1.5 pt-1">
+          <div className="space-y-1.5 pt-1 flex-1 min-h-0 overflow-y-auto">
+            {isAddingRole && (
+              <div className="flex items-center gap-1 px-1 py-1">
+                <input
+                  autoFocus
+                  value={inlineRoleName}
+                  onChange={(e) => setInlineRoleName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      confirmInlineRole();
+                    }
+                    if (e.key === 'Escape') {
+                      e.preventDefault();
+                      cancelInlineRole();
+                    }
+                  }}
+                  placeholder="输入角色名称，回车保存"
+                  className="flex-1 min-w-0 px-2 py-1.5 text-xs border border-[#1E5ABB] rounded bg-white text-gray-800 font-normal focus:outline-none"
+                />
+                <button
+                  type="button"
+                  title="保存"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    confirmInlineRole();
+                  }}
+                  className="p-1 rounded text-[#1E5ABB] hover:bg-blue-50 cursor-pointer"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  title="取消"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    cancelInlineRole();
+                  }}
+                  className="p-1 rounded text-gray-400 hover:bg-gray-100 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
             {roles.map((role) => {
               const isSelected = selectedRole.id === role.id;
               return (
@@ -538,7 +730,9 @@ export const RolePermission: React.FC = () => {
         </div>
 
         {/* Right Side: Permissions Configuration Panel */}
-        <div className="flex-1 bg-white rounded-lg border border-gray-200/80 shadow-2xs p-5 flex flex-col justify-between space-y-4">
+        <div className={embedded
+          ? 'flex-1 min-w-0 p-5 flex flex-col justify-between space-y-4'
+          : 'flex-1 bg-white rounded-lg border border-gray-200/80 shadow-2xs p-5 flex flex-col justify-between space-y-4'}>
           <div className="space-y-4">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 pb-3 gap-2">
@@ -629,563 +823,13 @@ export const RolePermission: React.FC = () => {
 
                   {openGroups[group.id] && (
                     <div className="p-4 bg-white space-y-4 divide-y divide-gray-100">
-                      {group.children.map((child, index) => (
-                        <div key={child.id} className={`space-y-2 ${index > 0 ? 'pt-3' : ''}`}>
-                          <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              disabled={selectedRole.isDefault}
-                              checked={!!checkedPerms[`${child.id}_all`]}
-                              onChange={() => handleToggleCheck(`${child.id}_all`)}
-                              className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
-                            />
-                            <span>{child.label}</span>
-                          </label>
-                          <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
-                            {child.actions.map((action) => {
-                              const permKey = `${child.id}_${action.key}`;
-                              return (
-                                <label key={permKey} className="flex items-center space-x-1.5 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    disabled={selectedRole.isDefault}
-                                    checked={!!checkedPerms[permKey]}
-                                    onChange={() => handleToggleCheck(permKey)}
-                                    className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
-                                  />
-                                  <span>{action.label}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))}
+                      {renderGroupedChildren(group.children)}
                     </div>
                   )}
                 </div>
               ))}
             </div>
 
-            {/* Legacy static permission tree retained disabled during config migration */}
-            {false && (
-            <div className={`space-y-3 text-xs ${selectedRole.isDefault ? 'opacity-85' : ''}`}>
-              {/* Group 1: 首页 */}
-              <div className="border border-gray-200/80 rounded-lg overflow-hidden">
-                <div
-                  onClick={() => toggleGroup('home')}
-                  className="p-3 bg-gray-50/70 hover:bg-gray-100/70 flex items-center justify-between cursor-pointer font-bold text-gray-800"
-                >
-                  <label className="flex items-center space-x-2 cursor-pointer" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      disabled={selectedRole.isDefault}
-                      checked={!!checkedPerms['home_all']}
-                      onChange={() => handleToggleCheck('home_all')}
-                      className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5 disabled:opacity-60"
-                    />
-                    <span>首页</span>
-                  </label>
-                  {openGroups['home'] ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-                </div>
-              </div>
-
-              {/* Group 2: 报送管理 */}
-              <div className="border border-gray-200/80 rounded-lg overflow-hidden">
-                <div
-                  onClick={() => toggleGroup('report')}
-                  className="p-3 bg-gray-50/70 hover:bg-gray-100/70 flex items-center justify-between cursor-pointer font-bold text-gray-800"
-                >
-                  <label className="flex items-center space-x-2 cursor-pointer" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      disabled={selectedRole.isDefault}
-                      checked={!!checkedPerms['report_all']}
-                      onChange={() => handleToggleCheck('report_all')}
-                      className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5 disabled:opacity-60"
-                    />
-                    <span>报送管理</span>
-                  </label>
-                  {openGroups['report'] ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-                </div>
-
-                {openGroups['report'] && (
-                  <div className="p-4 bg-white space-y-4 divide-y divide-gray-100">
-                    {/* Sub 1: 报送审核 */}
-                    <div className="space-y-2">
-                      <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          disabled={selectedRole.isDefault}
-                          checked={!!checkedPerms['report_audit_all']}
-                          onChange={() => handleToggleCheck('report_audit_all')}
-                          className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5 disabled:opacity-60"
-                        />
-                        <span>报送审核</span>
-                      </label>
-                      <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
-                        <label className="flex items-center space-x-1.5 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            disabled={selectedRole.isDefault}
-                            checked={!!checkedPerms['report_audit_view']}
-                            onChange={() => handleToggleCheck('report_audit_view')}
-                            className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5 disabled:opacity-60"
-                          />
-                          <span>查看</span>
-                        </label>
-                        <label className="flex items-center space-x-1.5 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            disabled={selectedRole.isDefault}
-                            checked={!!checkedPerms['report_audit_approve']}
-                            onChange={() => handleToggleCheck('report_audit_approve')}
-                            className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5 disabled:opacity-60"
-                          />
-                          <span>审核通过</span>
-                        </label>
-                        <label className="flex items-center space-x-1.5 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            disabled={selectedRole.isDefault}
-                            checked={!!checkedPerms['report_audit_reject']}
-                            onChange={() => handleToggleCheck('report_audit_reject')}
-                            className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5 disabled:opacity-60"
-                          />
-                          <span>审核退回</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Sub 2: 不良信息库 */}
-                    <div className="space-y-2 pt-3">
-                      <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          disabled={selectedRole.isDefault}
-                          checked={!!checkedPerms['negative_info_all']}
-                          onChange={() => handleToggleCheck('negative_info_all')}
-                          className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5 disabled:opacity-60"
-                        />
-                        <span>不良信息库</span>
-                      </label>
-                      <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
-                        <label className="flex items-center space-x-1.5 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            disabled={selectedRole.isDefault}
-                            checked={!!checkedPerms['negative_info_view']}
-                            onChange={() => handleToggleCheck('negative_info_view')}
-                            className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5 disabled:opacity-60"
-                          />
-                          <span>查看</span>
-                        </label>
-                        <label className="flex items-center space-x-1.5 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            disabled={selectedRole.isDefault}
-                            checked={!!checkedPerms['negative_info_export']}
-                            onChange={() => handleToggleCheck('negative_info_export')}
-                            className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5 disabled:opacity-60"
-                          />
-                          <span>导出</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Sub 3: 报送记录 */}
-                    <div className="space-y-2 pt-3">
-                      <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          disabled={selectedRole.isDefault}
-                          checked={!!checkedPerms['report_summary_all']}
-                          onChange={() => handleToggleCheck('report_summary_all')}
-                          className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5 disabled:opacity-60"
-                        />
-                        <span>报送记录</span>
-                      </label>
-                      <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
-                        <label className="flex items-center space-x-1.5 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            disabled={selectedRole.isDefault}
-                            checked={!!checkedPerms['report_summary_view']}
-                            onChange={() => handleToggleCheck('report_summary_view')}
-                            className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5 disabled:opacity-60"
-                          />
-                          <span>查看</span>
-                        </label>
-                        <label className="flex items-center space-x-1.5 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            disabled={selectedRole.isDefault}
-                            checked={!!checkedPerms['report_summary_add']}
-                            onChange={() => handleToggleCheck('report_summary_add')}
-                            className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5 disabled:opacity-60"
-                          />
-                          <span>新增</span>
-                        </label>
-                        <label className="flex items-center space-x-1.5 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            disabled={selectedRole.isDefault}
-                            checked={!!checkedPerms['report_summary_edit']}
-                            onChange={() => handleToggleCheck('report_summary_edit')}
-                            className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5 disabled:opacity-60"
-                          />
-                          <span>编辑</span>
-                        </label>
-                        <label className="flex items-center space-x-1.5 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            disabled={selectedRole.isDefault}
-                            checked={!!checkedPerms['report_summary_delete']}
-                            onChange={() => handleToggleCheck('report_summary_delete')}
-                            className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5 disabled:opacity-60"
-                          />
-                          <span>删除</span>
-                        </label>
-                        <label className="flex items-center space-x-1.5 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            disabled={selectedRole.isDefault}
-                            checked={!!checkedPerms['report_summary_export']}
-                            onChange={() => handleToggleCheck('report_summary_export')}
-                            className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5 disabled:opacity-60"
-                          />
-                          <span>导出</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Sub 4: 审核记录 */}
-                    <div className="space-y-2 pt-3">
-                      <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          disabled={selectedRole.isDefault}
-                          checked={!!checkedPerms['report_record_all']}
-                          onChange={() => handleToggleCheck('report_record_all')}
-                          className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5 disabled:opacity-60"
-                        />
-                        <span>审核记录</span>
-                      </label>
-                      <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
-                        <label className="flex items-center space-x-1.5 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            disabled={selectedRole.isDefault}
-                            checked={!!checkedPerms['report_record_view']}
-                            onChange={() => handleToggleCheck('report_record_view')}
-                            className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5 disabled:opacity-60"
-                          />
-                          <span>查看</span>
-                        </label>
-                        <label className="flex items-center space-x-1.5 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            disabled={selectedRole.isDefault}
-                            checked={!!checkedPerms['report_record_export']}
-                            onChange={() => handleToggleCheck('report_record_export')}
-                            className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5 disabled:opacity-60"
-                          />
-                          <span>导出</span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Group 3: 统计管理 */}
-              <div className="border border-gray-200/80 rounded-lg overflow-hidden">
-                <div
-                  onClick={() => toggleGroup('stats')}
-                  className="p-3 bg-gray-50/70 hover:bg-gray-100/70 flex items-center justify-between cursor-pointer font-bold text-gray-800"
-                >
-                  <label className="flex items-center space-x-2 cursor-pointer" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      disabled={selectedRole.isDefault}
-                      checked={!!checkedPerms['stats_all']}
-                      onChange={() => handleToggleCheck('stats_all')}
-                      className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5 disabled:opacity-60"
-                    />
-                    <span>统计管理</span>
-                  </label>
-                  {openGroups['stats'] ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-                </div>
-              </div>
-
-              {/* Group 4: 考核管理 */}
-              <div className="border border-gray-200/80 rounded-lg overflow-hidden">
-                <div
-                  onClick={() => toggleGroup('audit')}
-                  className="p-3 bg-gray-50/70 hover:bg-gray-100/70 flex items-center justify-between cursor-pointer font-bold text-gray-800"
-                >
-                  <label className="flex items-center space-x-2 cursor-pointer" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      disabled={selectedRole.isDefault}
-                      checked={!!checkedPerms['audit_all']}
-                      onChange={() => handleToggleCheck('audit_all')}
-                      className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
-                    />
-                    <span>考核管理</span>
-                  </label>
-                  {openGroups['audit'] ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-                </div>
-              </div>
-
-              {/* Group 5: 系统管理 */}
-              <div className="border border-gray-200/80 rounded-lg overflow-hidden">
-                <div
-                  onClick={() => toggleGroup('system')}
-                  className="p-3 bg-gray-50/70 hover:bg-gray-100/70 flex items-center justify-between cursor-pointer font-bold text-gray-800"
-                >
-                  <label className="flex items-center space-x-2 cursor-pointer" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      disabled={selectedRole.isDefault}
-                      checked={!!checkedPerms['system_all']}
-                      onChange={() => handleToggleCheck('system_all')}
-                      className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
-                    />
-                    <span>系统管理</span>
-                  </label>
-                  {openGroups['system'] ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-                </div>
-
-                {openGroups['system'] && (
-                  <div className="p-4 bg-white space-y-4 divide-y divide-gray-100 text-xs">
-                    {/* Sub 1: 组织架构管理 */}
-                    <div className="space-y-2">
-                      <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          disabled={selectedRole.isDefault}
-                          checked={!!checkedPerms['system_org_all']}
-                          onChange={() => handleToggleCheck('system_org_all')}
-                          className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
-                        />
-                        <span>组织架构管理</span>
-                      </label>
-                      <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
-                        {['view:查看', 'add_org:新增机构', 'edit_org:编辑机构', 'delete_org:删除机构', 'add_user:新增人员', 'edit_user:编辑人员', 'delete_user:删除人员', 'reset_password:重置密码', 'qrcode:二维码配置', 'export:导出'].map(item => {
-                          const [key, label] = item.split(':');
-                          const permKey = `system_org_${key}`;
-                          return (
-                            <label key={permKey} className="flex items-center space-x-1.5 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                disabled={selectedRole.isDefault}
-                                checked={!!checkedPerms[permKey]}
-                                onChange={() => handleToggleCheck(permKey)}
-                                className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
-                              />
-                              <span>{label}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Sub 2: 模板配置 */}
-                    <div className="space-y-2 pt-3">
-                      <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          disabled={selectedRole.isDefault}
-                          checked={!!checkedPerms['system_template_all']}
-                          onChange={() => handleToggleCheck('system_template_all')}
-                          className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
-                        />
-                        <span>模板配置</span>
-                      </label>
-                      <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
-                        {['view:查看模板', 'add:新建模板', 'edit:编辑模板', 'delete:删除模板', 'status:启用/停用', 'preview:预览'].map(item => {
-                          const [key, label] = item.split(':');
-                          const permKey = `system_template_${key}`;
-                          return (
-                            <label key={permKey} className="flex items-center space-x-1.5 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                disabled={selectedRole.isDefault}
-                                checked={!!checkedPerms[permKey]}
-                                onChange={() => handleToggleCheck(permKey)}
-                                className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
-                              />
-                              <span>{label}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Sub 3: 数据字典管理 */}
-                    <div className="space-y-2 pt-3">
-                      <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          disabled={selectedRole.isDefault}
-                          checked={!!checkedPerms['system_dict_all']}
-                          onChange={() => handleToggleCheck('system_dict_all')}
-                          className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
-                        />
-                        <span>数据字典管理</span>
-                      </label>
-                      <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
-                        {['view:查看字典', 'add:新增字典项', 'edit:编辑字典项', 'delete:删除字典项', 'sort:排序调整', 'export:导出字典'].map(item => {
-                          const [key, label] = item.split(':');
-                          const permKey = `system_dict_${key}`;
-                          return (
-                            <label key={permKey} className="flex items-center space-x-1.5 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                disabled={selectedRole.isDefault}
-                                checked={!!checkedPerms[permKey]}
-                                onChange={() => handleToggleCheck(permKey)}
-                                className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
-                              />
-                              <span>{label}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Sub: 公告管理 */}
-                    <div className="space-y-2 pt-3">
-                      <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          disabled={selectedRole.isDefault}
-                          checked={!!checkedPerms['system_notice_all']}
-                          onChange={() => handleToggleCheck('system_notice_all')}
-                          className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
-                        />
-                        <span>公告管理</span>
-                      </label>
-                      <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
-                        {['view:查看公告', 'add:发布公告', 'edit:编辑公告', 'delete:删除公告', 'status:撤回公告'].map(item => {
-                          const [key, label] = item.split(':');
-                          const permKey = `system_notice_${key}`;
-                          return (
-                            <label key={permKey} className="flex items-center space-x-1.5 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                disabled={selectedRole.isDefault}
-                                checked={!!checkedPerms[permKey]}
-                                onChange={() => handleToggleCheck(permKey)}
-                                className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
-                              />
-                              <span>{label}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Sub 4: 增值业务申请 */}
-                    <div className="space-y-2 pt-3">
-                      <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          disabled={selectedRole.isDefault}
-                          checked={!!checkedPerms['system_value_added_all']}
-                          onChange={() => handleToggleCheck('system_value_added_all')}
-                          className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
-                        />
-                        <span>增值业务申请</span>
-                      </label>
-                      <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
-                        {['view:查看功能', 'apply:提交申请', 'record:查看申请单', 'config:授权开通'].map(item => {
-                          const [key, label] = item.split(':');
-                          const permKey = `system_value_added_${key}`;
-                          return (
-                            <label key={permKey} className="flex items-center space-x-1.5 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                disabled={selectedRole.isDefault}
-                                checked={!!checkedPerms[permKey]}
-                                onChange={() => handleToggleCheck(permKey)}
-                                className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
-                              />
-                              <span>{label}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Sub 5: 角色权限配置 */}
-                    <div className="space-y-2 pt-3">
-                      <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          disabled={selectedRole.isDefault}
-                          checked={!!checkedPerms['system_role_all']}
-                          onChange={() => handleToggleCheck('system_role_all')}
-                          className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
-                        />
-                        <span>角色权限配置</span>
-                      </label>
-                      <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
-                        {['view:查看', 'add:新增角色', 'edit:编辑角色', 'delete:删除角色', 'config:配置权限', 'save:保存配置'].map(item => {
-                          const [key, label] = item.split(':');
-                          const permKey = `system_role_${key}`;
-                          return (
-                            <label key={permKey} className="flex items-center space-x-1.5 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                disabled={selectedRole.isDefault}
-                                checked={!!checkedPerms[permKey]}
-                                onChange={() => handleToggleCheck(permKey)}
-                                className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
-                              />
-                              <span>{label}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Sub 6: 系统审计日志 */}
-                    <div className="space-y-2 pt-3">
-                      <label className="flex items-center space-x-2 font-bold text-gray-800 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          disabled={selectedRole.isDefault}
-                          checked={!!checkedPerms['system_logs_all']}
-                          onChange={() => handleToggleCheck('system_logs_all')}
-                          className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
-                        />
-                        <span>系统审计日志</span>
-                      </label>
-                      <div className="pl-6 flex flex-wrap gap-x-6 gap-y-2 text-gray-700">
-                        {['view:查看', 'detail:查看详情', 'filter:筛选', 'export:导出'].map(item => {
-                          const [key, label] = item.split(':');
-                          const permKey = `system_logs_${key}`;
-                          return (
-                            <label key={permKey} className="flex items-center space-x-1.5 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                disabled={selectedRole.isDefault}
-                                checked={!!checkedPerms[permKey]}
-                                onChange={() => handleToggleCheck(permKey)}
-                                className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
-                              />
-                              <span>{label}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-            )}
           </div>
 
           {/* Bottom Action Buttons */}
@@ -1222,61 +866,6 @@ export const RolePermission: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Add New Role Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-              <h3 className="text-sm font-bold text-gray-800">新增自定义角色</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 font-bold">
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleAddRole} className="p-5 space-y-3 text-xs">
-              <div>
-                <label className="block text-gray-700 font-medium mb-1">角色名称 *</label>
-                <input
-                  type="text"
-                  required
-                  value={newRoleName}
-                  onChange={(e) => setNewRoleName(e.target.value)}
-                  placeholder="如: 临时审核员 / 专项监管员"
-                  className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-medium mb-1">角色描述</label>
-                <textarea
-                  rows={2}
-                  value={newRoleDesc}
-                  onChange={(e) => setNewRoleDesc(e.target.value)}
-                  placeholder="请输入该角色的功能职责说明"
-                  className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                />
-              </div>
-
-              <div className="flex justify-end space-x-2 pt-3 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-1.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50"
-                >
-                  取消
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded font-bold"
-                >
-                  保存
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Edit Custom Role Modal (e.g. 临时审核员) */}
       {isEditModalOpen && editingRole && (

@@ -21,8 +21,8 @@ import { StatisticsReference } from './pages/StatisticsReference';
 import { Evaluation } from './pages/Evaluation';
 import { EvaluationReference } from './pages/EvaluationReference';
 import { NoticeManagement } from './pages/NoticeManagement';
-import { OrgManagement } from './pages/OrgManagement';
-import { RolePermission } from './pages/RolePermission';
+import { UserOrgManagement } from './pages/UserOrgManagement';
+import { parseUserOrgModule } from './data/userOrgShared';
 import { BusinessConfig } from './pages/BusinessConfig';
 import { SystemLogs } from './pages/SystemLogs';
 import { Login } from './pages/Login';
@@ -39,6 +39,7 @@ export default function App() {
     handleLogin,
     handleLogout,
     businessConfigInitialModule,
+    userOrgInitialModule,
     reports,
     auditRecords,
     orgs,
@@ -348,17 +349,25 @@ export default function App() {
           />
         )}
 
-        {activePage === 'org-management' && (
-          <OrgManagement
+        {(activePage === 'user-org-management' ||
+          activePage === 'org-management' ||
+          activePage === 'role-permission') && (
+          <UserOrgManagement
+            key="user-org-management"
+            initialModule={
+              activePage === 'role-permission'
+                ? 'role'
+                : activePage === 'org-management'
+                ? 'org'
+                : parseUserOrgModule(userOrgInitialModule)
+            }
+            onNavigatePage={handleNavigate}
             orgList={orgs}
-            onNavigate={handleNavigate}
             onAddOrg={handleAddOrg}
             onUpdateOrg={handleUpdateOrg}
             onDeleteOrg={handleDeleteOrg}
           />
         )}
-
-        {activePage === 'role-permission' && <RolePermission />}
         {(activePage === 'business-config' ||
           activePage === 'template-management' ||
           activePage === 'audit-flow-config' ||

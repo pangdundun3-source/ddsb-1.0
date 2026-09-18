@@ -156,7 +156,7 @@ export const Home: React.FC<HomeProps> = ({
 
             {/* 机构人员 */}
             <div
-              onClick={() => onNavigate('org-management')}
+              onClick={() => onNavigate('user-org-management')}
               className="p-3 bg-slate-50 hover:bg-blue-50/70 border border-slate-200 hover:border-blue-300 rounded-xl transition-all cursor-pointer flex items-center justify-between group"
             >
               <div className="flex items-center space-x-2.5">

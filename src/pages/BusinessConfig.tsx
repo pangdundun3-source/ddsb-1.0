@@ -387,6 +387,32 @@ const getDefaultEvaluationMetricRules = (target: EvaluationTarget): EvaluationMe
     }));
 };
 
+const COLUMN_WIDTH_STORAGE_KEY = 'v8_template_board_column_widths';
+const LEFT_COL_DEFAULT = 260;
+const RIGHT_COL_DEFAULT = 310;
+const LEFT_COL_MIN = 200;
+const LEFT_COL_MAX = 420;
+const RIGHT_COL_MIN = 260;
+const RIGHT_COL_MAX = 480;
+const CENTER_COL_MIN = 320;
+
+const clampColumnWidth = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+
+const readStoredColumnWidths = (): { left: number; right: number } => {
+  try {
+    const raw = localStorage.getItem(COLUMN_WIDTH_STORAGE_KEY);
+    if (!raw) return { left: LEFT_COL_DEFAULT, right: RIGHT_COL_DEFAULT };
+    const parsed = JSON.parse(raw) as { left?: number; right?: number };
+    return {
+      left: clampColumnWidth(Number(parsed.left) || LEFT_COL_DEFAULT, LEFT_COL_MIN, LEFT_COL_MAX),
+      right: clampColumnWidth(Number(parsed.right) || RIGHT_COL_DEFAULT, RIGHT_COL_MIN, RIGHT_COL_MAX),
+    };
+  } catch {
+    return { left: LEFT_COL_DEFAULT, right: RIGHT_COL_DEFAULT };
+  }
+};
+
 interface BusinessConfigProps {
   initialModule?: string;
   standaloneTitle?: string;
@@ -915,6 +941,76 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [isTemplateDetailPageOpen, setIsTemplateDetailPageOpen] = useState(false);
   const [templateDetailMode, setTemplateDetailMode] = useState<'create' | 'edit' | 'view'>('create');
+
+  // Desktop 3-column widths for template workbench (mouse-draggable, synced with MT)
+  const [leftColWidth, setLeftColWidth] = useState(() => readStoredColumnWidths().left);
+  const [rightColWidth, setRightColWidth] = useState(() => readStoredColumnWidths().right);
+  const [resizingSide, setResizingSide] = useState<'left' | 'right' | null>(null);
+  const workbenchRef = useRef<HTMLDivElement | null>(null);
+  const leftColWidthRef = useRef(leftColWidth);
+  const rightColWidthRef = useRef(rightColWidth);
+
+  useEffect(() => {
+    leftColWidthRef.current = leftColWidth;
+  }, [leftColWidth]);
+
+  useEffect(() => {
+    rightColWidthRef.current = rightColWidth;
+  }, [rightColWidth]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        COLUMN_WIDTH_STORAGE_KEY,
+        JSON.stringify({ left: leftColWidth, right: rightColWidth })
+      );
+    } catch {
+      // ignore storage failures
+    }
+  }, [leftColWidth, rightColWidth]);
+
+  useEffect(() => {
+    if (!resizingSide) return;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const container = workbenchRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+
+      if (resizingSide === 'left') {
+        const maxLeft = Math.min(
+          LEFT_COL_MAX,
+          rect.width - rightColWidthRef.current - CENTER_COL_MIN - 16
+        );
+        setLeftColWidth(clampColumnWidth(x, LEFT_COL_MIN, Math.max(LEFT_COL_MIN, maxLeft)));
+        return;
+      }
+
+      const fromRight = rect.width - x;
+      const maxRight = Math.min(
+        RIGHT_COL_MAX,
+        rect.width - leftColWidthRef.current - CENTER_COL_MIN - 16
+      );
+      setRightColWidth(clampColumnWidth(fromRight, RIGHT_COL_MIN, Math.max(RIGHT_COL_MIN, maxRight)));
+    };
+
+    const stopResize = () => setResizingSide(null);
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', stopResize);
+    window.addEventListener('pointercancel', stopResize);
+
+    return () => {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', stopResize);
+      window.removeEventListener('pointercancel', stopResize);
+    };
+  }, [resizingSide]);
 
   useEffect(() => {
     if (!fieldAddNotice) return;
@@ -4275,10 +4371,21 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                     }
 
                     return (
-                      <div className="bg-white rounded-xl border border-gray-200/90 shadow-2xs overflow-hidden">
-                        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] xl:grid-cols-[290px_1fr_280px] 2xl:grid-cols-[310px_1fr_300px] divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
+                      <div
+                        ref={workbenchRef}
+                        className={`bg-white rounded-xl border border-gray-200/90 shadow-2xs overflow-hidden flex flex-col lg:flex-row min-h-[760px] ${
+                          resizingSide ? 'select-none' : ''
+                        }`}
+                      >
+                        <style>{`
+                          @media (min-width: 1024px) {
+                            .tpl-board-col-left { width: ${leftColWidth}px !important; max-width: ${leftColWidth}px !important; }
+                            .tpl-board-col-right { width: ${rightColWidth}px !important; max-width: ${rightColWidth}px !important; }
+                          }
+                        `}</style>
+
                           {/* Left Master Column: Template directory with key essential information */}
-                          <div className="flex flex-col min-h-0 bg-white">
+                          <div className="tpl-board-col-left w-full shrink-0 border-b lg:border-b-0 flex flex-col min-h-0 bg-white">
                             <div className="h-12 px-3.5 bg-gray-50/70 border-b border-gray-200 flex items-center justify-between shrink-0 whitespace-nowrap">
                               <div className="flex items-center gap-1.5 min-w-0">
                                 <Layers className="w-3.5 h-3.5 text-[#1E5ABB] shrink-0" />
@@ -4290,7 +4397,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               <span className="text-[10px] text-gray-400 shrink-0">切换预览</span>
                             </div>
 
-                            <div className="p-3 space-y-2 bg-gray-50/20 max-h-[750px] overflow-y-auto">
+                            <div className="p-3 space-y-2 bg-gray-50/20 flex-1 max-h-[750px] overflow-y-auto">
                               {filteredList.map(item => {
                                 const isSelected = activeSelectedTemplate?.id === item.id;
                                 const isEnabled = item.status === '启用';
@@ -4333,21 +4440,21 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                     </div>
 
                                     {/* Row 2: Badge (系统默认/自定义) + Update Time */}
-                                    <div className="mt-1.5 flex items-center justify-between gap-2">
+                                    <div className="mt-1.5 flex items-center gap-2 flex-wrap">
                                       {item.isDefault ? (
-                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 font-bold rounded border border-gray-200 shrink-0">
+                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 font-bold rounded border border-gray-200 shrink-0 whitespace-nowrap">
                                           <Lock className="w-2.5 h-2.5 text-gray-400" />
                                           系统默认
                                         </span>
                                       ) : (
-                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] bg-emerald-50 text-emerald-700 font-bold rounded border border-emerald-200 shrink-0">
+                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] bg-emerald-50 text-emerald-700 font-bold rounded border border-emerald-200 shrink-0 whitespace-nowrap">
                                           <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
                                           自定义
                                         </span>
                                       )}
 
                                       {item.updateTime && (
-                                        <span className="text-[10px] text-gray-400 font-mono shrink-0">
+                                        <span className="text-[10px] text-gray-400 font-mono">
                                           {item.updateTime}
                                         </span>
                                       )}
@@ -4361,29 +4468,29 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                     </div>
 
                                     {/* Card bottom bar: selection state + actions */}
-                                    <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center justify-between gap-1.5">
+                                    <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center justify-between gap-x-2 gap-y-1.5 flex-wrap text-xs">
                                       {isSelected ? (
-                                        <div className="flex items-center gap-1 text-[11px] font-bold text-[#1E5ABB] shrink-0 whitespace-nowrap">
-                                          <span className="text-[10px]">● 正在预览</span>
-                                          <ChevronRight className="w-3.5 h-3.5 text-[#1E5ABB]" />
-                                        </div>
+                                        <span className="text-[#1E5ABB] text-[11px] font-bold flex items-center gap-1">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-[#1E5ABB]" />
+                                          <span>正在预览</span>
+                                        </span>
                                       ) : (
-                                        <span className="text-[10px] text-gray-400 group-hover:text-gray-600 shrink-0 whitespace-nowrap">
+                                        <span className="text-[11px] text-gray-400 group-hover:text-gray-600 transition-colors">
                                           点击预览
                                         </span>
                                       )}
 
-                                      <div className="flex items-center gap-1 shrink-0 flex-nowrap">
+                                      <div className="flex items-center gap-2 text-gray-500">
                                         <button
                                           type="button"
                                           onClick={e => {
                                             e.stopPropagation();
                                             handleDuplicateTemplate(item);
                                           }}
-                                          className="px-1.5 py-0.5 text-[11px] text-gray-600 hover:text-[#1E5ABB] hover:bg-blue-50 border border-transparent hover:border-blue-200 rounded font-medium cursor-pointer transition-colors flex items-center gap-0.5 whitespace-nowrap shrink-0"
+                                          className="hover:text-[#1E5ABB] flex items-center gap-0.5 text-[11px] cursor-pointer"
                                           title="复制并生成新模板"
                                         >
-                                          <Copy className="w-3 h-3 text-gray-500" />
+                                          <Copy className="w-3 h-3" />
                                           <span>复制</span>
                                         </button>
                                         <button
@@ -4392,10 +4499,10 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                             e.stopPropagation();
                                             openEditTemplatePage(item);
                                           }}
-                                          className="px-1.5 py-0.5 text-[11px] text-[#1E5ABB] hover:bg-blue-50 border border-transparent hover:border-blue-200 rounded font-medium cursor-pointer transition-colors flex items-center gap-0.5 whitespace-nowrap shrink-0"
+                                          className="hover:text-[#1E5ABB] flex items-center gap-0.5 text-[11px] cursor-pointer"
                                           title={item.isDefault ? '查看详情' : '编辑模板'}
                                         >
-                                          <Edit3 className="w-3 h-3" />
+                                          <Edit3 className="w-3.5 h-3.5" />
                                           <span>{item.isDefault ? '详情' : '编辑'}</span>
                                         </button>
                                         {!item.isDefault && (
@@ -4405,7 +4512,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                               e.stopPropagation();
                                               handleDelete(item);
                                             }}
-                                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer transition-colors shrink-0"
+                                            className="hover:text-rose-600 p-0.5 cursor-pointer"
                                             title="删除模板"
                                           >
                                             <Trash2 className="w-3 h-3" />
@@ -4419,9 +4526,28 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                             </div>
                           </div>
 
+                          {/* Resize handle: left | center */}
+                          {activeSelectedTemplate && (
+                            <div
+                              role="separator"
+                              aria-orientation="vertical"
+                              aria-label="调整模板目录宽度"
+                              title="拖动调整宽度"
+                              onPointerDown={e => {
+                                e.preventDefault();
+                                setResizingSide('left');
+                              }}
+                              className={`hidden lg:flex w-1.5 shrink-0 cursor-col-resize items-center justify-center border-x border-gray-200/80 bg-gray-50 hover:bg-blue-50 transition-colors ${
+                                resizingSide === 'left' ? 'bg-blue-100' : ''
+                              }`}
+                            >
+                              <span className="w-px h-8 rounded-full bg-gray-300" />
+                            </div>
+                          )}
+
                           {/* Right Detail & Simulation Column: Synchronized Preview Studio */}
                           {activeSelectedTemplate && (
-                            <div className="flex flex-col min-h-0 bg-white">
+                            <div className="flex-1 min-w-0 flex flex-col min-h-0 bg-white lg:min-w-[320px]">
                               {/* Preview Header & Edit Entry */}
                               <div className="h-12 px-4 bg-gray-50/70 border-b border-gray-200 flex items-center justify-between gap-2.5 shrink-0 whitespace-nowrap">
                                 <div className="flex items-center gap-2 min-w-0 overflow-hidden">
@@ -4459,7 +4585,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               </div>
 
                               {/* Simulation Stage Canvas matching Add/Edit Detail Page Style */}
-                              <div className="bg-gray-50/80 rounded-lg border border-gray-200/80 p-4 space-y-3 m-4 flex flex-col items-center">
+                              <div className="bg-gray-50/80 rounded-lg border border-gray-200/80 p-4 space-y-3 m-4 flex flex-col items-center flex-1 overflow-y-auto">
                                 {/* Preview Toolbar: Left and Right Aligned */}
                                 <div className="w-full flex items-center justify-between text-xs pb-1">
                                   <div className="inline-flex items-center gap-1.5 font-bold text-xs text-gray-800">
@@ -4485,37 +4611,57 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                             </div>
                           )}
 
+                          {/* Resize handle: center | right */}
+                          {activeSelectedTemplate && (
+                            <div
+                              role="separator"
+                              aria-orientation="vertical"
+                              aria-label="调整其他业务配置宽度"
+                              title="拖动调整宽度"
+                              onPointerDown={e => {
+                                e.preventDefault();
+                                setResizingSide('right');
+                              }}
+                              className={`hidden lg:flex w-1.5 shrink-0 cursor-col-resize items-center justify-center border-x border-gray-200/80 bg-gray-50 hover:bg-blue-50 transition-colors ${
+                                resizingSide === 'right' ? 'bg-blue-100' : ''
+                              }`}
+                            >
+                              <span className="w-px h-8 rounded-full bg-gray-300" />
+                            </div>
+                          )}
+
                           {/* Right Column: Other configurations for this template (Scoring rule & Audit flow associations only) */}
                           {activeSelectedTemplate && (
-                            <TemplateOtherConfigPanel
-                              template={activeSelectedTemplate}
-                              scoreRules={dataStore.audit_score || []}
-                              auditFlows={dataStore.audit_flow || []}
-                              onSave={(updatedConfig) => {
-                                const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
-                                setDataStore(prev => ({
-                                  ...prev,
-                                  report_template: (prev.report_template || []).map(item => {
-                                    if (item.id === activeSelectedTemplate.id) {
-                                      return {
-                                        ...item,
-                                        ...updatedConfig,
-                                        updateTime: nowStr
-                                      };
-                                    }
-                                    return item;
-                                  })
-                                }));
-                                showConfigToast(
-                                  activeSelectedTemplate.templateType === '激活'
-                                    ? `已成功保存激活模板「${activeSelectedTemplate.name}」的验证与人员角色配置`
-                                    : `已成功保存模板「${activeSelectedTemplate.name}」的打分与流程关联`
-                                );
-                              }}
-                              onNavigateToModule={(moduleId) => setActiveModule(moduleId)}
-                            />
+                            <div className="tpl-board-col-right w-full shrink-0 border-t lg:border-t-0 flex flex-col min-h-0 bg-white">
+                              <TemplateOtherConfigPanel
+                                template={activeSelectedTemplate}
+                                scoreRules={dataStore.audit_score || []}
+                                auditFlows={dataStore.audit_flow || []}
+                                onSave={(updatedConfig) => {
+                                  const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+                                  setDataStore(prev => ({
+                                    ...prev,
+                                    report_template: (prev.report_template || []).map(item => {
+                                      if (item.id === activeSelectedTemplate.id) {
+                                        return {
+                                          ...item,
+                                          ...updatedConfig,
+                                          updateTime: nowStr
+                                        };
+                                      }
+                                      return item;
+                                    })
+                                  }));
+                                  showConfigToast(
+                                    activeSelectedTemplate.templateType === '激活'
+                                      ? `已成功保存激活模板「${activeSelectedTemplate.name}」的验证与人员角色配置`
+                                      : `已成功保存模板「${activeSelectedTemplate.name}」的打分与流程关联`
+                                  );
+                                }}
+                                onNavigateToModule={(moduleId) => setActiveModule(moduleId)}
+                              />
+                            </div>
                           )}
-                        </div>
                       </div>
                     );
                   })()}

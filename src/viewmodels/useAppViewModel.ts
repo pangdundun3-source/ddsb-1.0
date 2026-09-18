@@ -20,6 +20,7 @@ import {
   transferReport
 } from '../services/reportWorkflowService';
 import { AuditRecordItem, LogItem, NewReportFormData, OrgItem, PageId, ReportItem } from '../types';
+import { parseUserOrgModule } from '../data/userOrgShared';
 
 const VALID_PAGES: PageId[] = [
   'login',
@@ -38,6 +39,7 @@ const VALID_PAGES: PageId[] = [
   'evaluation',
   'notice-management',
   'org-management',
+  'user-org-management',
   'template-management',
   'audit-flow-config',
   'audit-score-config',
@@ -88,7 +90,7 @@ const parseHashRoute = (hash: string): HashRouteInfo => {
 const buildHashRoute = (page: PageId, extraModule?: string, id?: number, sourcePage?: PageId): string => {
   let hash = `#/${page}`;
   const params = new URLSearchParams();
-  if (extraModule && page === 'business-config') {
+  if (extraModule && (page === 'business-config' || page === 'user-org-management')) {
     params.set('module', extraModule);
   }
   if (id !== undefined) {
@@ -141,6 +143,16 @@ export const useAppViewModel = () => {
       if (parsed.extraModule) return parsed.extraModule;
     }
     return 'report_template';
+  });
+
+  const [userOrgInitialModule, setUserOrgInitialModule] = useState<string>(() => {
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const parsed = parseHashRoute(window.location.hash);
+      if (parsed.page === 'role-permission' || parsed.extraModule === 'role') return 'role';
+      if (parsed.page === 'org-management' || parsed.extraModule === 'org') return 'org';
+      if (parsed.extraModule === 'group') return 'group';
+    }
+    return 'account';
   });
 
   const [reports, setReports] = useState<ReportItem[]>([
@@ -213,6 +225,14 @@ export const useAppViewModel = () => {
         setBusinessConfigInitialModule('value_added');
       } else if (route.extraModule && route.page === 'business-config') {
         setBusinessConfigInitialModule(route.extraModule);
+      }
+
+      if (route.page === 'role-permission') {
+        setUserOrgInitialModule('role');
+      } else if (route.page === 'org-management') {
+        setUserOrgInitialModule('org');
+      } else if (route.page === 'user-org-management') {
+        setUserOrgInitialModule(parseUserOrgModule(route.extraModule));
       }
 
       if (route.sourcePage) {
@@ -310,6 +330,12 @@ export const useAppViewModel = () => {
       setBusinessConfigInitialModule('value_added');
     } else if (extraModule && page === 'business-config') {
       setBusinessConfigInitialModule(extraModule);
+    } else if (page === 'role-permission') {
+      setUserOrgInitialModule('role');
+    } else if (page === 'org-management') {
+      setUserOrgInitialModule('org');
+    } else if (page === 'user-org-management') {
+      setUserOrgInitialModule(parseUserOrgModule(extraModule));
     }
     const targetHash = buildHashRoute(page, extraModule);
     if (typeof window !== 'undefined' && window.location.hash !== targetHash) {
@@ -623,6 +649,7 @@ export const useAppViewModel = () => {
   return {
     activePage,
     businessConfigInitialModule,
+    userOrgInitialModule,
     reports,
     reportTemplates,
     auditRecords,

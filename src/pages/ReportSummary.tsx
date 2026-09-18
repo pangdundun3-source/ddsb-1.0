@@ -608,12 +608,14 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                     </div>
 
                     {/* Content description */}
-                    <p
-                      className="line-clamp-2 rounded bg-gray-50/60 p-2 text-xs leading-relaxed text-gray-600"
-                      title={item.detailContent?.summary || item.occurAddress || '暂无详细描述'}
-                    >
-                      {item.detailContent?.summary || item.occurAddress || '暂无详细描述'}
-                    </p>
+                    <div className="rounded bg-gray-50/60 p-2">
+                      <p
+                        className="line-clamp-2 overflow-hidden break-words text-xs leading-relaxed text-gray-600"
+                        title={item.detailContent?.summary || item.occurAddress || '暂无详细描述'}
+                      >
+                        {item.detailContent?.summary || item.occurAddress || '暂无详细描述'}
+                      </p>
+                    </div>
 
                     {/* Rejection Banner */}
                     {isRejected && (
