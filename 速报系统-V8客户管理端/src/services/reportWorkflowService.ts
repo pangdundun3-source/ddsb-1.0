@@ -1,0 +1,276 @@
+import { isFinalAuditStage } from '../auditStage';
+import { AuditRecordItem, LogItem, NewReportFormData, ReportItem, TimelineNode } from '../types';
+import { resolveIdentification } from './identificationService';
+
+export const getNowText = () => new Date().toLocaleString('zh-CN', { hour12: false });
+
+export const appendTimeline = (report: ReportItem, nodes: TimelineNode[]): ReportItem => ({
+  ...report,
+  timeline: [...(report.timeline || []), ...nodes]
+});
+
+export const createSubmitNode = (
+  report: ReportItem,
+  time: string,
+  title = '提交上报'
+): TimelineNode => ({
+  title,
+  operator: `${report.author}·${report.organization}`,
+  time,
+  status: 'completed'
+});
+
+export const createWaitingAuditNode = (): TimelineNode => ({
+  title: '审核处理',
+  operator: '市委宣传部舆情科',
+  status: 'current',
+  note: '待审核'
+});
+
+const createReportFromForm = (
+  input: NewReportFormData,
+  id: number,
+  submitTime: string
+): ReportItem => ({
+  id,
+  title: input.title,
+  source: input.source,
+  region: input.region,
+  infoType: input.infoType,
+  author: input.author,
+  organization: input.organization,
+  submitTime,
+  auditStatus: '待审核',
+  score: '--',
+  occurAddress: input.occurAddress || `${input.region}相关涉事区域`,
+  detailContent: {
+    summary: input.summary || '暂无详细摘要描述。',
+    coreDemands: input.demands || '网民核心诉求正在整理核实中。',
+    publicOpinionTrend: '话题关注度一般，总体舆情可控。',
+    recommendations: input.recommendations
+      ? input.recommendations.split('\n')
+      : ['建议相关责任部门持续监测关注。']
+  },
+  attachments:
+    input.attachments && input.attachments.length > 0
+      ? input.attachments
+      : [{ id: 'att-1', name: '速报凭证材料.jpg', size: '1.5 MB', type: 'image' }]
+});
+
+export const createSubmittedReport = (
+  input: NewReportFormData,
+  id = Date.now(),
+  submitTime = getNowText(),
+  allReports?: ReportItem[]
+): ReportItem => {
+  const baseReport = createReportFromForm(input, id, submitTime);
+  const report: ReportItem = {
+    ...baseReport,
+    identificationStatus: '识别中',
+    identificationDetail: {
+      status: '识别中',
+      similarity: 50,
+      matchReason: '系统正在并发检索不良信息库、待审件与全网线索指纹...',
+      checkTime: '正在比对'
+    }
+  };
+
+  return appendTimeline(report, [
+    createSubmitNode(report, submitTime),
+    createWaitingAuditNode()
+  ]);
+};
+
+export const resubmitReport = (report: ReportItem, now = getNowText()): ReportItem => {
+  const { status, detail } = resolveIdentification({
+    ...report,
+    auditStatus: '待审核'
+  });
+  const resubmittedReport: ReportItem = {
+    ...report,
+    auditStatus: '待审核',
+    submitTime: now,
+    rejectReason: undefined,
+    rejectDetail: undefined,
+    score: '--',
+    identificationStatus: status || '疑似首发',
+    identificationDetail: detail
+  };
+
+  return appendTimeline(resubmittedReport, [
+    createSubmitNode(
+      resubmittedReport,
+      now,
+      report.rejectReason ? '提交上报（重新提交）' : '提交上报'
+    ),
+    createWaitingAuditNode()
+  ]);
+};
+
+export const approveReport = (
+  report: ReportItem,
+  score?: number,
+  now = getNowText(),
+  manualIdentification?: any
+): ReportItem => {
+  const finalAudit = isFinalAuditStage(report);
+  const appliedScore = score !== undefined ? score : undefined;
+
+  // 终审采纳流程完成后，无需人工介入，系统自动转换为正式标识“首发”或“重复”并入库归档
+  let finalIdentStatus = report.identificationStatus;
+  if (manualIdentification) {
+    finalIdentStatus =
+      manualIdentification === '重复' || manualIdentification === '重复报送' ? '重复' : '首发';
+  } else if (finalAudit) {
+    if (
+      finalIdentStatus === '疑似重复' ||
+      finalIdentStatus === '重复' ||
+      finalIdentStatus === '重复报送'
+    ) {
+      finalIdentStatus = '重复';
+    } else {
+      finalIdentStatus = '首发';
+    }
+  }
+
+  const approveNode: TimelineNode = {
+    title: '审核处理',
+    operator: '王主任·市委宣传部舆情科',
+    time: now,
+    status: 'completed',
+    ...(appliedScore !== undefined ? { score: appliedScore } : {}),
+    note: finalAudit
+      ? `终审通过，流程结束并已采纳${appliedScore !== undefined ? `（评分: ${appliedScore}分）` : ''}。`
+      : `审核通过，进入下一审核节点${appliedScore !== undefined ? `（评分: ${appliedScore}分）` : ''}。`
+  };
+
+  return appendTimeline(
+    {
+      ...report,
+      auditStatus: finalAudit ? '已采纳' : '已通过',
+      score: appliedScore !== undefined ? appliedScore : (report.score || '--'),
+      auditor: '王主任',
+      auditTime: now,
+      identificationStatus: finalIdentStatus
+    },
+    [
+      approveNode,
+      ...(finalAudit
+        ? [
+            {
+              title: '结束',
+              operator: '流程结束',
+              status: 'completed' as const,
+              note: '已采纳。'
+            }
+          ]
+        : [
+            {
+              title: '结束',
+              operator: '流程结束',
+              status: 'current' as const,
+              note: '待采纳'
+            }
+          ])
+    ]
+  );
+};
+
+export const rejectReport = (
+  report: ReportItem,
+  reason: string,
+  detail: string,
+  now = getNowText()
+): ReportItem => {
+  const fullReason = `${reason}${detail ? ` (${detail})` : ''}`;
+  return appendTimeline(
+    {
+      ...report,
+      auditStatus: '被驳回',
+      rejectReason: fullReason,
+      rejectDetail: detail,
+      auditor: '王主任',
+      auditTime: now
+    },
+    [
+      {
+        title: '审核处理',
+        operator: '王主任·市委宣传部舆情科',
+        time: now,
+        status: 'rejected',
+        note: fullReason
+      }
+    ]
+  );
+};
+
+export const transferReport = (
+  report: ReportItem,
+  opinion: string,
+  now = getNowText()
+): ReportItem =>
+  appendTimeline(
+    {
+      ...report,
+      auditStatus: '已转办',
+      transferTime: now,
+      transferOpinion: opinion
+    },
+    [
+      {
+        title: '结束',
+        operator: '市委宣传部舆情科',
+        time: now,
+        status: 'completed',
+        note: opinion || '已提交责任单位转办。'
+      }
+    ]
+  );
+
+export const createAuditRecord = (
+  report: ReportItem,
+  result: AuditRecordItem['auditResult'],
+  now: string,
+  score?: number,
+  reason?: string,
+  detail?: string
+): AuditRecordItem => {
+  const isDuplicate =
+    report.identificationStatus === '疑似重复' ||
+    report.identificationStatus === '重复' ||
+    report.identificationStatus === '重复报送' ||
+    reason?.includes('重复');
+  const finalIdentStatus = isDuplicate ? '重复' : '首发';
+
+  return {
+    id: Date.now(),
+    reportId: report.id,
+    title: report.title,
+    organization: report.organization,
+    submitter: report.author,
+    submitTime: report.submitTime,
+    auditor: '王主任',
+    auditResult: result,
+    auditTime: now,
+    ...(score !== undefined && isFinalAuditStage(report) ? { score } : {}),
+    ...(reason ? { rejectReason: reason } : {}),
+    ...(detail ? { rejectDetail: detail } : {}),
+    identificationStatus: finalIdentStatus
+  };
+};
+
+export const createOperationLog = (
+  actionType: string,
+  details: string,
+  now: string,
+  operator = '王主任',
+  organization = '市委宣传部舆情科'
+): LogItem => ({
+  id: Date.now(),
+  operator,
+  organization,
+  actionType,
+  details,
+  timestamp: now,
+  ipAddress: '192.168.1.12'
+});

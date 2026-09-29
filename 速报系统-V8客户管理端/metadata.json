@@ -1,0 +1,8 @@
+{
+  "name": "正管用 · 网络生态综合治理平台",
+  "description": "正管用 · 网络生态综合治理平台 - 人工智能+网络生态综合治理，包含舆情速报、多级审核、考核与公告管理处置转办。",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
