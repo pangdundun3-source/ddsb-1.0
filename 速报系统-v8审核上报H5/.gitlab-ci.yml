@@ -1,0 +1,20 @@
+image: node:20-alpine
+
+stages:
+  - deploy
+
+pages:
+  stage: deploy
+  script:
+    - corepack enable
+    - pnpm install --frozen-lockfile
+    - pnpm build
+    - rm -rf public
+    - mkdir -p public
+    - cp -r dist/* public/
+    - touch public/.nojekyll
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
