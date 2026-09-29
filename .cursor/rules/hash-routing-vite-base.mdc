@@ -7,5 +7,5 @@ alwaysApply: true
 
 - 页面路由使用 hash 模式，地址形如 `#/路径`，通过 `window.location.hash` 读写。
 - 不要改成 history 模式，不要使用 `BrowserRouter`、`createBrowserRouter` 或 `history.pushState` 做页面路由。
-- 每个应用的 Vite `base` 保持 `'./'`，包括 `速报系统门户/vite.config.ts` 和 `速报系统门户/scripts/suite-vite.config.mjs`。
+- 每个应用的 Vite `base` 保持 `'./'`，包括根目录的 `vite.config.ts`、`scripts/suite-vite.config.mjs` 和四个端各自的 `vite.config.ts`。
 - 构建产物可以放在任意目录。Nginx 只托管静态文件，不需要为 history 路由加回退配置。
