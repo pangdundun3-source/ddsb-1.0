@@ -7,7 +7,7 @@ alwaysApply: true
 
 用户说「启动项目」或要求把本地服务跑起来时：
 
-- 在仓库根目录 `速豹系统门户1.0` 执行 `npm run dev`（`scripts/start-suite.mjs`）。四个端作为子目录放在仓库根目录下。
+- 在仓库根目录 `速豹系统门户1.0` 执行 `npm run dev:suite`（`scripts/start-suite.mjs`）。四个端作为子目录放在仓库根目录下。`npm run dev` 只启动门户，供 AI Studio 等单端口环境使用。
 - 同时启动五个应用，不要只启动门户：
   - 门户 http://localhost:3000/
   - V8客户管理端 http://localhost:3001/
