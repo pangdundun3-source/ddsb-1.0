@@ -147,18 +147,21 @@ export default function App() {
   const getUrl = (terminal: Terminal) =>
     getTerminalUrl(terminal.id, terminalModes[terminal.id] ?? 'static');
 
-  // Sync initial terminal from hash if present
+  // Sync initial terminal from hash if present (standard #/path format)
   useEffect(() => {
     const handleHashChange = () => {
-      const hash = window.location.hash;
-      const match = hash.match(/terminal=([a-z0-9-]+)/);
+      const hash = window.location.hash || '';
+      // Support standard #/terminal/:id, #/:id, and legacy #terminal=:id
+      const match = hash.match(/^#\/?(?:terminal\/)?([a-z0-9-]+)/) || hash.match(/terminal=([a-z0-9-]+)/);
       if (match) {
         const found = TERMINALS.find((t) => t.id === match[1]);
         if (found) {
           setActiveTerminal(found);
           setRecentTerminals((prev) => [found, ...prev.filter((t) => t.id !== found.id)].slice(0, 4));
+          return;
         }
-      } else if (!hash || hash === '#') {
+      }
+      if (!hash || hash === '#' || hash === '#/') {
         setActiveTerminal(null);
       }
     };
@@ -211,12 +214,12 @@ export default function App() {
     setActiveTerminal(terminal);
     setIframeKey((prev) => prev + 1);
     setRecentTerminals((prev) => [terminal, ...prev.filter((t) => t.id !== terminal.id)].slice(0, 4));
-    window.location.hash = `terminal=${terminal.id}`;
+    window.location.hash = `#/terminal/${terminal.id}`;
   };
 
   const closeTerminal = () => {
     setActiveTerminal(null);
-    window.location.hash = '';
+    window.location.hash = '#/';
   };
 
   const refreshIframe = () => {
