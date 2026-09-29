@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { SUITE_APPS, staticAppsDir } from './suite-apps.mjs';
 
@@ -33,13 +33,16 @@ for (const app of targets) {
   if (!existsSync(path.join(app.dir, 'node_modules'))) {
     npm(['install', '--no-audit', '--no-fund'], app.dir);
   }
-  npm(['run', 'build', '--', '--outDir', outDir, '--emptyOutDir'], app.dir);
+  // Deploy pipelines pick the first folder holding index.html + assets/ as the site root,
+  // so the embedded apps must not look like standalone sites.
+  npm(['run', 'build', '--', '--outDir', outDir, '--emptyOutDir', '--assetsDir', 'app-assets'], app.dir);
+  renameSync(path.join(outDir, 'index.html'), path.join(outDir, 'app.html'));
 }
 
 const manifest = {
   builtAt: new Date().toISOString(),
   apps: SUITE_APPS
-    .filter((app) => existsSync(path.join(staticAppsDir, app.id, 'index.html')))
+    .filter((app) => existsSync(path.join(staticAppsDir, app.id, 'app.html')))
     .map((app) => app.id),
 };
 writeFileSync(path.join(staticAppsDir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);

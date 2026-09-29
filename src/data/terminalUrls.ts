@@ -22,5 +22,5 @@ export function getTerminalUrl(id: TerminalId, mode: TerminalMode = 'static'): s
   if (mode === 'dev' && isLocalhost) {
     return `${window.location.protocol}//${window.location.hostname}:${port}/${hash}`;
   }
-  return `./apps/${id}/index.html${hash}`;
+  return `./apps/${id}/app.html${hash}`;
 }
