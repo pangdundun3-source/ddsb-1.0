@@ -4,7 +4,7 @@ import path from 'node:path';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(scriptDir, '..');
-const suiteRoot = path.resolve(rootDir, '..');
+const suiteRoot = rootDir;
 const isWin = process.platform === 'win32';
 const suiteViteConfig = path.join(scriptDir, 'suite-vite.config.mjs');
 

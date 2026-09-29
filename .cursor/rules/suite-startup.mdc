@@ -1,0 +1,18 @@
+---
+description: 启动速豹套件时同时拉起全部应用并打开门户
+alwaysApply: true
+---
+
+# 启动项目
+
+用户说「启动项目」或要求把本地服务跑起来时：
+
+- 在 `速报系统门户` 执行 `npm run dev`（`scripts/start-suite.mjs`）。
+- 同时启动五个应用，不要只启动门户：
+  - 门户 http://localhost:3000/
+  - V8客户管理端 http://localhost:3001/
+  - V8审核上报PC http://localhost:3002/
+  - V8审核上报H5 http://localhost:3003/
+  - MT应用管理端 http://localhost:3004/
+- 默认打开门户 http://localhost:3000/。启动脚本会打开系统浏览器；若没有打开，再用浏览器打开该地址。
+- 端口已在监听时不要重复启动。
