@@ -4,13 +4,14 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node scripts/start-suite.mjs",
+    "dev": "vite --port=3000 --host=0.0.0.0",
     "dev:portal": "vite --port=3000 --host=0.0.0.0 --strictPort",
+    "dev:suite": "node scripts/start-suite.mjs",
     "dev:all": "node scripts/start-suite.mjs",
     "build": "vite build",
     "build:apps": "node scripts/build-apps.mjs",
     "build:all": "node scripts/build-apps.mjs && vite build",
-    "preview": "vite preview",
+    "preview": "vite preview --port=3000 --host=0.0.0.0",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"
   },

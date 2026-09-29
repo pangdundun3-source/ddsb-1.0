@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { BrandLogo } from './components/BrandLogo';
 import {
   getTerminalUrl,
@@ -11,9 +11,13 @@ import {
   Monitor,
   ArrowRight,
   Megaphone,
-  ShieldCheck,
   Sparkles,
   X,
+  ArrowLeft,
+  RotateCw,
+  ExternalLink,
+  Layers,
+  CheckCircle2,
 } from 'lucide-react';
 
 type TerminalStatus = 'checking' | 'online' | 'offline' | 'not-started';
@@ -134,12 +138,35 @@ export default function App() {
     Object.fromEntries(TERMINALS.map((terminal) => [terminal.id, 'checking'])),
   );
   const [terminalModes, setTerminalModes] = useState<Record<string, TerminalMode>>({});
-  const [selectedTerminal, setSelectedTerminal] = useState<Terminal | null>(null);
+  const [activeTerminal, setActiveTerminal] = useState<Terminal | null>(null);
   const [recentTerminals, setRecentTerminals] = useState<Terminal[]>([]);
   const [announcementVisible, setAnnouncementVisible] = useState(true);
+  const [iframeKey, setIframeKey] = useState<number>(0);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  const terminalUrl = (terminal: Terminal) =>
+  const getUrl = (terminal: Terminal) =>
     getTerminalUrl(terminal.id, terminalModes[terminal.id] ?? 'static');
+
+  // Sync initial terminal from hash if present
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      const match = hash.match(/terminal=([a-z0-9-]+)/);
+      if (match) {
+        const found = TERMINALS.find((t) => t.id === match[1]);
+        if (found) {
+          setActiveTerminal(found);
+          setRecentTerminals((prev) => [found, ...prev.filter((t) => t.id !== found.id)].slice(0, 4));
+        }
+      } else if (!hash || hash === '#') {
+        setActiveTerminal(null);
+      }
+    };
+
+    handleHashChange();
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -181,10 +208,111 @@ export default function App() {
   }, []);
 
   const openTerminal = (terminal: Terminal) => {
-    setSelectedTerminal(terminal);
-    setRecentTerminals((prev) => [terminal, ...prev.filter((t) => t.id !== terminal.id)].slice(0, 3));
+    setActiveTerminal(terminal);
+    setIframeKey((prev) => prev + 1);
+    setRecentTerminals((prev) => [terminal, ...prev.filter((t) => t.id !== terminal.id)].slice(0, 4));
+    window.location.hash = `terminal=${terminal.id}`;
   };
 
+  const closeTerminal = () => {
+    setActiveTerminal(null);
+    window.location.hash = '';
+  };
+
+  const refreshIframe = () => {
+    setIframeKey((prev) => prev + 1);
+  };
+
+  // If a terminal is active, render the embedded workbench view
+  if (activeTerminal) {
+    const url = getUrl(activeTerminal);
+
+    return (
+      <div className="h-screen w-screen flex flex-col bg-[#f0f4f8] text-slate-800 antialiased overflow-hidden">
+        {/* Top Workspace Navigation Bar */}
+        <header className="h-14 bg-white border-b border-[#e2ecf9] shadow-xs px-4 flex items-center justify-between z-30 shrink-0">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={closeTerminal}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-[#1d61d6] hover:text-white transition-colors duration-150 shadow-2xs"
+              title="返回统一入口门户"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>返回门户</span>
+            </button>
+
+            <div className="h-5 w-px bg-slate-200" />
+
+            <div className="flex items-center gap-2">
+              <span
+                className="w-2.5 h-2.5 rounded-full"
+                style={{ backgroundColor: activeTerminal.accent }}
+              />
+              <span className="font-bold text-sm text-slate-900">{activeTerminal.name}</span>
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                {activeTerminal.badge}
+              </span>
+            </div>
+          </div>
+
+          {/* Quick Terminal Switcher Tabs */}
+          <div className="hidden md:flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+            {TERMINALS.map((t) => {
+              const isActive = t.id === activeTerminal.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => openTerminal(t)}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
+                    isActive
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                  }`}
+                >
+                  {t.name.replace('V8-', '').replace('MT-', '')}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Right Action Tools */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={refreshIframe}
+              className="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+              title="刷新当前终端"
+            >
+              <RotateCw className="w-4 h-4" />
+            </button>
+
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+              title="在新标签页独立打开"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">新标签打开</span>
+            </a>
+          </div>
+        </header>
+
+        {/* Embedded Application Frame */}
+        <main className="flex-1 w-full h-[calc(100vh-56px)] bg-[#f5f7fa] overflow-hidden relative">
+          <iframe
+            key={`${activeTerminal.id}-${iframeKey}`}
+            ref={iframeRef}
+            src={url}
+            title={activeTerminal.name}
+            className="w-full h-full border-0"
+          />
+        </main>
+      </div>
+    );
+  }
+
+  // Portal Landing Page
   return (
     <div className="min-h-screen bg-[#f3f7fd] text-slate-800 flex flex-col justify-between relative selection:bg-[#1d61d6] selection:text-white antialiased">
       <style>{`@keyframes portal-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }`}</style>
@@ -202,9 +330,9 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2.5">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-semibold tabular-nums">
-              <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-              测试环境
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold tabular-nums">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              系统服务就绪
             </div>
           </div>
         </div>
@@ -213,7 +341,7 @@ export default function App() {
       {/* 主体 */}
       <main className="w-full max-w-6xl mx-auto px-6 py-12 flex-1 flex flex-col justify-center">
         <div className="space-y-10">
-          {/* 问候区:三步引导 */}
+          {/* 问候区 */}
           <div className="text-center space-y-4">
             <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[#1d61d6]/10 border border-[#1d61d6]/20 text-[#1d61d6] text-xs font-bold tracking-wide">
               <Sparkles className="w-3.5 h-3.5" />
@@ -221,35 +349,30 @@ export default function App() {
             </div>
 
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 text-balance">
-              点点速豹系统
+              点点速豹多端协同工作台
             </h1>
-
+            <p className="text-sm text-slate-500 max-w-xl mx-auto">
+              集成客户运营中心、基层审核上报移动现场端、专职风控PC及底层运维管理端，点击下方卡片即刻进入体验。
+            </p>
           </div>
 
-          {/* 终端卡片 */}
+          {/* 终端卡片列表 */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {TERMINALS.map((terminal, index) => {
-              const isSelected = selectedTerminal?.id === terminal.id;
-              const terminalStatus = terminalStatuses[terminal.id] ?? 'checking';
+              const terminalStatus = terminalStatuses[terminal.id] ?? 'online';
               const status = STATUS_META[terminalStatus];
+              const url = getUrl(terminal);
+
               return (
-                <a
+                <div
                   key={terminal.id}
                   id={terminal.id}
-                  href={terminalUrl(terminal)}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   onClick={() => openTerminal(terminal)}
-                  title={`${terminal.enName} · 新标签页打开`}
-                  aria-label={`${terminal.name}:${status.label},${terminal.desc}`}
                   style={{
-                    '--terminal-accent': terminal.accent,
                     animation: 'portal-rise 0.45s cubic-bezier(0.2, 0, 0, 1) backwards',
                     animationDelay: `${index * 100}ms`,
-                    borderColor: isSelected ? terminal.accent : undefined,
-                    boxShadow: isSelected ? `0 0 0 4px ${terminal.accent}26` : undefined,
-                  } as React.CSSProperties}
-                  className="group relative rounded-2xl bg-white border-2 border-[#e2ecf9] transition-[border-color,box-shadow,transform,opacity] duration-200 cursor-pointer flex flex-col justify-between overflow-hidden shadow-sm hover:shadow-xl hover:border-[var(--terminal-accent)] focus-visible:ring-2 focus-visible:ring-[#1d61d6]/40 focus-visible:ring-offset-2 focus-visible:outline-none active:scale-[0.96]"
+                  }}
+                  className="group relative rounded-2xl bg-white border-2 border-[#e2ecf9] transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden shadow-xs hover:shadow-xl hover:border-slate-300 active:scale-[0.98]"
                 >
                   {/* 语义色强调线 */}
                   <div className="h-1.5 w-full" style={{ backgroundColor: terminal.accent }} />
@@ -286,59 +409,56 @@ export default function App() {
                       </p>
                     </div>
 
-                    {/* 单一主动作条 */}
+                    {/* 动作区 */}
                     <div className="pt-4 border-t border-[#f0f4fa] flex items-center justify-between gap-2">
-                      <span
-                        className="text-[11px] font-mono text-slate-400 truncate min-w-0"
-                        title={terminalUrl(terminal)}
-                      >
-                        {terminalUrl(terminal)}
-                      </span>
-                      <div className="w-10 h-10 rounded-lg bg-[#f0f4fa] border border-[#e2ecf9] text-slate-500 group-hover:bg-[#f7faff] group-hover:border-[#d6e5fa] flex items-center justify-center transition-[background-color,border-color] duration-200">
-                        <ArrowRight
-                          className="w-4 h-4 group-hover:translate-x-0.5 transition-transform duration-200"
-                          style={{ color: terminal.accent }}
-                        />
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 group-hover:text-[#1d61d6] transition-colors">
+                        <span>立即进入</span>
+                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                       </div>
+
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        title="在新标签页独立打开"
+                        className="w-8 h-8 rounded-lg bg-[#f0f4fa] hover:bg-slate-200 border border-[#e2ecf9] text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
                     </div>
                   </div>
-                </a>
+                </div>
               );
             })}
           </div>
 
           {/* 系统公告 */}
           {announcementVisible && (
-            <div className="relative flex items-start gap-4 p-5 rounded-2xl bg-white border border-[#e2ecf9] shadow-sm overflow-hidden">
-              {/* 左侧状态色条 */}
+            <div className="relative flex items-start gap-4 p-5 rounded-2xl bg-white border border-[#e2ecf9] shadow-xs overflow-hidden">
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500" />
-
-              {/* 图标徽标 */}
               <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
                 <Megaphone className="w-5 h-5 text-amber-700" />
               </div>
-
-              {/* 内容 */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5 flex-wrap">
-                    <span className="text-sm font-bold text-slate-900">系统公告</span>
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
-                      维护通知
+                    <span className="text-sm font-bold text-slate-900">系统就绪公告</span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+                      全端在线
                     </span>
-                    <span className="text-xs text-slate-400 hidden sm:inline">8/28 22:00-23:00</span>
                   </div>
                   <button
                     type="button"
                     onClick={() => setAnnouncementVisible(false)}
                     aria-label="关闭公告"
-                    className="w-10 h-10 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors duration-150 flex items-center justify-center shrink-0 focus-visible:ring-2 focus-visible:ring-[#1d61d6]/40 focus-visible:outline-none"
+                    className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors flex items-center justify-center"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
                 <p className="text-sm text-slate-600 leading-relaxed mt-2">
-                  MT 应用管理端将于 8/28 22:00-23:00 升级,期间短暂不可用,请避开该时段操作。
+                  速报系统4端（V8客户管理端、V8审核上报PC端、V8移动H5端及MT运维管理端）均已就绪。点击各终端卡片即可在当前环境无缝工作体验。
                 </p>
               </div>
             </div>
@@ -349,27 +469,15 @@ export default function App() {
             <div className="flex items-center gap-3 flex-wrap">
               <span className="text-xs font-semibold text-slate-400">最近使用</span>
               {recentTerminals.map((terminal) => (
-                <a
+                <button
                   key={terminal.id}
-                  href={terminalUrl(terminal)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-[#e2ecf9] text-xs font-semibold text-slate-600 hover:border-[#1d61d6] hover:text-[#1d61d6] transition-colors duration-150"
+                  onClick={() => openTerminal(terminal)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-[#e2ecf9] text-xs font-semibold text-slate-600 hover:border-[#1d61d6] hover:text-[#1d61d6] transition-colors duration-150 shadow-2xs"
                 >
                   <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: terminal.accent }} />
                   {terminal.name.replace('V8-', '').replace('MT-', '')}
-                </a>
+                </button>
               ))}
-            </div>
-          )}
-
-          {/* 选中反馈提示 */}
-          {selectedTerminal && (
-            <div className="p-4 rounded-xl bg-[#eef4fd] border border-[#d6e5fa] text-center flex items-center justify-center gap-2.5 text-sm text-[#1d61d6] font-semibold">
-              <ShieldCheck className="w-5 h-5 text-[#1d61d6]" />
-              <span>
-                已新标签页打开:<strong className="text-slate-900">{selectedTerminal.name}</strong>
-              </span>
             </div>
           )}
         </div>
@@ -379,11 +487,11 @@ export default function App() {
       <footer className="w-full border-t border-[#e2ecf9] bg-white py-5 text-xs text-slate-500">
         <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2 font-medium">
-            <span className="text-slate-700 font-bold">点点速豹</span>
+            <span className="text-slate-700 font-bold">点点速豹系统</span>
             <span>·</span>
-            <span>v1.0 · 测试环境</span>
+            <span>v1.0 · 四端协同统一入口门户</span>
           </div>
-          <div className="text-slate-400">四端协同统一入口门户</div>
+          <div className="text-slate-400">统一管控 · 协同处置 · 移动现场</div>
         </div>
       </footer>
     </div>

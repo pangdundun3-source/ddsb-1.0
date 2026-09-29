@@ -13,9 +13,13 @@ const TERMINAL_LINKS: Record<TerminalId, { port: number; hash: string }> = {
 
 export const STATIC_APPS_MANIFEST = './apps/manifest.json';
 
-export function getTerminalUrl(id: TerminalId, mode: TerminalMode): string {
+export function getTerminalUrl(id: TerminalId, mode: TerminalMode = 'static'): string {
   const { port, hash } = TERMINAL_LINKS[id];
-  if (mode === 'dev') {
+  const isLocalhost =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+  if (mode === 'dev' && isLocalhost) {
     return `${window.location.protocol}//${window.location.hostname}:${port}/${hash}`;
   }
   return `./apps/${id}/index.html${hash}`;
