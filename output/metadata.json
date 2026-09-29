@@ -1,0 +1,6 @@
+{
+  "name": "速报系统统一入口门户",
+  "description": "速报系统多端业务协同入口选择门户，包含V8客户管理端、V8审核上报H5、V8审核上报PC及MT应用管理端",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,18 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "🌐 窗口内打开简易浏览器 (3000)",
+      "command": "${input:openPortal}",
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "openPortal",
+      "type": "command",
+      "command": "simpleBrowser.show",
+      "args": ["http://localhost:3000/"]
+    }
+  ]
+}

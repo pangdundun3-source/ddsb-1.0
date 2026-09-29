@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 240" width="100%" height="100%">
+  <defs>
+    <style>
+      .brand-blue { fill: #1d61d6; }
+      .brand-stroke { stroke: #1d61d6; stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+  </defs>
+
+  <!-- Left Icon Geometry & Leopard Silhouette -->
+  <g transform="translate(130, 120)">
+    <!-- Outer Hexagonal / Icosahedral Network Framework -->
+    <!-- Circles and Nodes -->
+    <!-- Center circular background for Leopard head -->
+    <circle cx="0" cy="0" r="46" class="brand-blue" />
+    
+    <!-- Leopard head cutout in pure white -->
+    <path d="M -22 18 C -24 6 -20 -8 -12 -18 C -8 -23 0 -26 12 -24 C 18 -23 23 -17 25 -10 C 27 -5 32 -3 36 -1 C 41 2 40 10 35 15 C 30 19 22 22 14 23 C 4 24 -12 24 -22 18 Z" fill="#ffffff" />
+    
+    <!-- Leopard inner eye & ear detail cutout in brand blue -->
+    <circle cx="16" cy="-8" r="3.2" class="brand-blue" />
+    <path d="M 2 12 Q 10 14 16 11" stroke="#1d61d6" stroke-width="2" fill="none" stroke-linecap="round" />
+    <path d="M -6 -14 Q -2 -19 4 -16" stroke="#1d61d6" stroke-width="2" fill="none" stroke-linecap="round" />
+
+    <!-- Outer geometric polyhedron network lines -->
+    <!-- Concentric connected web -->
+    <!-- 8 Outer Nodes at radius 78 -->
+    <!-- Connecting outer ring -->
+    <polygon points="
+      0,-78 55,-55 78,0 55,55 0,78 -55,55 -78,0 -55,-55
+    " fill="none" class="brand-stroke" />
+
+    <!-- Inner connection chords to nodes -->
+    <line x1="0" y1="-78" x2="0" y2="78" class="brand-stroke" />
+    <line x1="-78" y1="0" x2="78" y2="0" class="brand-stroke" />
+    <line x1="-55" y1="-55" x2="55" y2="55" class="brand-stroke" />
+    <line x1="-55" y1="55" x2="55" y2="-55" class="brand-stroke" />
+
+    <!-- Secondary inner polygon at radius 58 -->
+    <polygon points="
+      0,-58 41,-41 58,0 41,41 0,58 -41,41 -58,0 -41,-41
+    " fill="none" class="brand-stroke" />
+
+    <!-- Joint Nodes / Circles on vertices -->
+    <circle cx="0" cy="-78" r="7.5" class="brand-blue" />
+    <circle cx="55" cy="-55" r="7.5" class="brand-blue" />
+    <circle cx="78" cy="0" r="7.5" class="brand-blue" />
+    <circle cx="55" cy="55" r="7.5" class="brand-blue" />
+    <circle cx="0" cy="78" r="7.5" class="brand-blue" />
+    <circle cx="-55" cy="55" r="7.5" class="brand-blue" />
+    <circle cx="-78" cy="0" r="7.5" class="brand-blue" />
+    <circle cx="-55" cy="-55" r="7.5" class="brand-blue" />
+
+    <circle cx="41" cy="-41" r="5" class="brand-blue" />
+    <circle cx="41" cy="41" r="5" class="brand-blue" />
+    <circle cx="-41" cy="41" r="5" class="brand-blue" />
+    <circle cx="-41" cy="-41" r="5" class="brand-blue" />
+  </g>
+
+  <!-- Middle Vertical Divider -->
+  <line x1="260" y1="45" x2="260" y2="195" stroke="#1d61d6" stroke-width="2.5" stroke-linecap="round" />
+
+  <!-- Right Typography: 点点速豹 subao.cn -->
+  <g transform="translate(290, 0)">
+    <!-- 点点速豹 Text -->
+    <text x="0" y="108" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif" font-size="64" font-weight="900" class="brand-blue" letter-spacing="4">点点速豹</text>
+    
+    <!-- subao.cn Text -->
+    <text x="0" y="182" font-family="-apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif" font-size="52" font-weight="800" class="brand-blue" letter-spacing="1.5">subao.cn</text>
+  </g>
+</svg>
