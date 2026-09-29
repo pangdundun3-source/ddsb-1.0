@@ -1,0 +1,9 @@
+{
+  "builtAt": "2026-09-29T04:38:41.010Z",
+  "apps": [
+    "v8-client",
+    "v8-audit-pc",
+    "v8-audit-h5",
+    "mt-app"
+  ]
+}

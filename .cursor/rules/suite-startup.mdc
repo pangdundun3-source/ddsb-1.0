@@ -16,3 +16,4 @@ alwaysApply: true
   - MT应用管理端 http://localhost:3004/
 - 默认打开门户 http://localhost:3000/。启动脚本会打开系统浏览器；若没有打开，再用浏览器打开该地址。
 - 端口已在监听时不要重复启动。
+- 只有门户在运行时（如 AI Studio 预览、静态部署），门户会改用 `public/apps/<端>/` 下的静态构建。修改四个端的代码后，执行 `npm run build:apps` 更新这些构建并一起提交。

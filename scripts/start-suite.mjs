@@ -1,14 +1,13 @@
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { SUITE_APPS, rootDir } from './suite-apps.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const rootDir = path.resolve(scriptDir, '..');
-const suiteRoot = rootDir;
 const isWin = process.platform === 'win32';
 const suiteViteConfig = path.join(scriptDir, 'suite-vite.config.mjs');
 
-/** Fixed local ports — keep in sync with each app's package.json and src/data/terminalUrls.ts */
 const apps = [
   {
     name: '点点速豹门户',
@@ -16,30 +15,12 @@ const apps = [
     port: 3000,
     args: ['run', 'dev:portal', '--', '--configLoader=runner'],
   },
-  {
-    name: 'V8客户管理端',
-    dir: path.join(suiteRoot, '速报系统-V8客户管理端'),
-    port: 3001,
+  ...SUITE_APPS.map((app) => ({
+    name: app.name,
+    dir: app.dir,
+    port: app.port,
     args: ['run', 'dev', '--', '--config', suiteViteConfig, '--configLoader=runner'],
-  },
-  {
-    name: 'V8审核上报H5',
-    dir: path.join(suiteRoot, '速报系统-v8审核上报H5'),
-    port: 3003,
-    args: ['run', 'dev', '--', '--config', suiteViteConfig, '--configLoader=runner'],
-  },
-  {
-    name: 'V8审核上报PC',
-    dir: path.join(suiteRoot, '速报系统-v8审核上报PC'),
-    port: 3002,
-    args: ['run', 'dev', '--', '--config', suiteViteConfig, '--configLoader=runner'],
-  },
-  {
-    name: 'MT应用管理端',
-    dir: path.join(suiteRoot, '速报系统-MT应用管理端'),
-    port: 3004,
-    args: ['run', 'dev', '--', '--config', suiteViteConfig, '--configLoader=runner'],
-  },
+  })),
 ];
 
 const running = new Set();
@@ -106,6 +87,11 @@ for (const app of apps) {
     continue;
   }
 
+  if (app.dir !== rootDir && !existsSync(path.join(app.dir, 'node_modules'))) {
+    console.log(`[${app.name}] skipped: dependencies not installed, the portal serves public/apps instead`);
+    continue;
+  }
+
   console.log(`[${app.name}] starting at http://localhost:${app.port}/`);
   startApp(app);
 }
@@ -129,6 +115,9 @@ function openPortal() {
         detached: true,
         stdio: 'ignore',
       });
+  child.on('error', () => {
+    console.log(`[点点速豹门户] no system browser available, open ${portalUrl} manually`);
+  });
   child.unref();
 }
 

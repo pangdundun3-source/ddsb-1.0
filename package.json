@@ -8,6 +8,8 @@
     "dev:portal": "vite --port=3000 --host=0.0.0.0 --strictPort",
     "dev:all": "node scripts/start-suite.mjs",
     "build": "vite build",
+    "build:apps": "node scripts/build-apps.mjs",
+    "build:all": "node scripts/build-apps.mjs && vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"

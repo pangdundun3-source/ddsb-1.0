@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { BrandLogo } from './components/BrandLogo';
-import { TERMINAL_URLS } from './data/terminalUrls';
+import {
+  getTerminalUrl,
+  STATIC_APPS_MANIFEST,
+  type TerminalId,
+  type TerminalMode,
+} from './data/terminalUrls';
 import {
   Smartphone,
   Monitor,
@@ -14,12 +19,11 @@ import {
 type TerminalStatus = 'checking' | 'online' | 'offline' | 'not-started';
 
 interface Terminal {
-  id: string;
+  id: TerminalId;
   name: string;
   enName: string;
   badge: string;
   desc: string;
-  url: string;
   accent: string;
   action: 'enter' | 'qr';
   icon: React.ReactNode;
@@ -29,6 +33,36 @@ interface TerminalStatusResponse {
   terminals?: Record<string, TerminalStatus>;
 }
 
+interface StaticAppsManifest {
+  apps?: string[];
+}
+
+async function fetchDevStatuses(): Promise<Record<string, TerminalStatus> | null> {
+  try {
+    const response = await fetch(`./api/terminal-status?ts=${Date.now()}`, { cache: 'no-store' });
+    if (!response.ok) {
+      return null;
+    }
+    const data = (await response.json()) as TerminalStatusResponse;
+    return data.terminals ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchStaticApps(): Promise<Set<string>> {
+  try {
+    const response = await fetch(STATIC_APPS_MANIFEST, { cache: 'no-store' });
+    if (!response.ok) {
+      return new Set();
+    }
+    const data = (await response.json()) as StaticAppsManifest;
+    return new Set(data.apps ?? []);
+  } catch {
+    return new Set();
+  }
+}
+
 const TERMINALS: Terminal[] = [
   {
     id: 'v8-client',
@@ -36,7 +70,6 @@ const TERMINALS: Terminal[] = [
     enName: 'V8 CRM & Operations',
     badge: '客户运营',
     desc: '面向租户管理员（V8客户身份）的PC端管理应用，具备全机构范围的管理和配置能力，是租户运营的核心管理工具。',
-    url: TERMINAL_URLS.v8Client,
     accent: '#1d61d6',
     action: 'enter',
     icon: <Monitor className="w-7 h-7" />,
@@ -47,7 +80,6 @@ const TERMINALS: Terminal[] = [
     enName: 'V8 Risk Control PC',
     badge: '专职风控',
     desc: '面向子机构管理员（V8网格员身份）的PC端管理应用，以应用内嵌微信身份登录，聚焦子机构范围内的报送管理和统计考核，是连接一线上报与租户管理的中间枢纽',
-    url: TERMINAL_URLS.v8AuditPC,
     accent: '#7c3aed',
     action: 'enter',
     icon: <Monitor className="w-7 h-7" />,
@@ -58,7 +90,6 @@ const TERMINALS: Terminal[] = [
     enName: 'V8 Mobile Field Audit',
     badge: '移动现场',
     desc: '面向一线上报员和基层审核员的移动端应用，以H5形式提供，支持微信内嵌访问，无需下载安装，即开即用',
-    url: TERMINAL_URLS.v8AuditH5,
     accent: '#059669',
     action: 'enter',
     icon: <Smartphone className="w-7 h-7" />,
@@ -69,7 +100,6 @@ const TERMINALS: Terminal[] = [
     enName: 'MT Master Ops Center',
     badge: '底层运维',
     desc: '面向平台运营方（MT身份）的PC端管理应用，负责多租户运营管理和全局配置，是速报系统平台化运营的核心管理工具',
-    url: TERMINAL_URLS.mtApp,
     accent: '#d97706',
     action: 'enter',
     icon: <Monitor className="w-7 h-7" />,
@@ -103,41 +133,42 @@ export default function App() {
   const [terminalStatuses, setTerminalStatuses] = useState<Record<string, TerminalStatus>>(() =>
     Object.fromEntries(TERMINALS.map((terminal) => [terminal.id, 'checking'])),
   );
+  const [terminalModes, setTerminalModes] = useState<Record<string, TerminalMode>>({});
   const [selectedTerminal, setSelectedTerminal] = useState<Terminal | null>(null);
   const [recentTerminals, setRecentTerminals] = useState<Terminal[]>([]);
   const [announcementVisible, setAnnouncementVisible] = useState(true);
 
+  const terminalUrl = (terminal: Terminal) =>
+    getTerminalUrl(terminal.id, terminalModes[terminal.id] ?? 'static');
+
   useEffect(() => {
     let isMounted = true;
+    const staticAppsPromise = fetchStaticApps();
 
     const refreshTerminalStatuses = async () => {
-      try {
-        const response = await fetch(`/api/terminal-status?ts=${Date.now()}`, {
-          cache: 'no-store',
-        });
-
-        if (!response.ok) {
-          throw new Error('Status check failed');
-        }
-
-        const data = (await response.json()) as TerminalStatusResponse;
-        if (!isMounted || !data.terminals) {
-          return;
-        }
-
-        setTerminalStatuses((currentStatuses) => ({
-          ...currentStatuses,
-          ...data.terminals,
-        }));
-      } catch {
-        if (!isMounted) {
-          return;
-        }
-
-        setTerminalStatuses(
-          Object.fromEntries(TERMINALS.map((terminal) => [terminal.id, 'not-started'])),
-        );
+      const [devStatuses, staticApps] = await Promise.all([fetchDevStatuses(), staticAppsPromise]);
+      if (!isMounted) {
+        return;
       }
+
+      const statuses: Record<string, TerminalStatus> = {};
+      const modes: Record<string, TerminalMode> = {};
+      for (const terminal of TERMINALS) {
+        const devStatus = devStatuses?.[terminal.id];
+        if (devStatus === 'online') {
+          statuses[terminal.id] = 'online';
+          modes[terminal.id] = 'dev';
+        } else if (staticApps.has(terminal.id)) {
+          statuses[terminal.id] = 'online';
+          modes[terminal.id] = 'static';
+        } else {
+          statuses[terminal.id] = devStatus ?? 'not-started';
+          modes[terminal.id] = 'static';
+        }
+      }
+
+      setTerminalStatuses(statuses);
+      setTerminalModes(modes);
     };
 
     void refreshTerminalStatuses();
@@ -205,7 +236,7 @@ export default function App() {
                 <a
                   key={terminal.id}
                   id={terminal.id}
-                  href={terminal.url}
+                  href={terminalUrl(terminal)}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => openTerminal(terminal)}
@@ -259,9 +290,9 @@ export default function App() {
                     <div className="pt-4 border-t border-[#f0f4fa] flex items-center justify-between gap-2">
                       <span
                         className="text-[11px] font-mono text-slate-400 truncate min-w-0"
-                        title={terminal.url}
+                        title={terminalUrl(terminal)}
                       >
-                        {terminal.url}
+                        {terminalUrl(terminal)}
                       </span>
                       <div className="w-10 h-10 rounded-lg bg-[#f0f4fa] border border-[#e2ecf9] text-slate-500 group-hover:bg-[#f7faff] group-hover:border-[#d6e5fa] flex items-center justify-center transition-[background-color,border-color] duration-200">
                         <ArrowRight
@@ -320,7 +351,7 @@ export default function App() {
               {recentTerminals.map((terminal) => (
                 <a
                   key={terminal.id}
-                  href={terminal.url}
+                  href={terminalUrl(terminal)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-[#e2ecf9] text-xs font-semibold text-slate-600 hover:border-[#1d61d6] hover:text-[#1d61d6] transition-colors duration-150"
