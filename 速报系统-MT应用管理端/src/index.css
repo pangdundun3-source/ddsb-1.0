@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .sidebar-bg-pattern {
+    background-image: url('data:image/svg+xml;utf8,<svg width="213" height="150" viewBox="0 0 213 150" fill="none" xmlns="http://www.w3.org/2000/svg"><path opacity="0.1" d="M0 150V90H30V150H0ZM40 150V110H70V150H40ZM80 150V70H120V150H80ZM130 150V100H160V150H130ZM170 150V80H213V150H170Z" fill="%231e88e5"/></svg>');
+    background-repeat: no-repeat;
+    background-position: bottom center;
+    background-size: 100% auto;
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: #333333;
+  margin: 0;
+  background: #dfefff;
+}
+
+/* Custom Scrollbar for administrative tables and main area */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #999;
+}

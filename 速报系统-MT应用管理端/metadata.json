@@ -1,0 +1,8 @@
+{
+  "name": "MT-速报系统管理端",
+  "description": "MT-融媒体速报系统管理端，包含首页运营数据大屏、机构管理、全局配置、运营监控及系统管理。",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
