@@ -1,18 +1,51 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
-import { DashboardHome } from './components/DashboardHome';
-import { InstitutionManagement } from './components/InstitutionManagement';
-import { GlobalConfig } from './components/GlobalConfig';
-import { OperationsMonitoring } from './components/OperationsMonitoring';
-import { SystemManagement } from './components/SystemManagement';
-import { InstitutionDetailPage } from './components/InstitutionDetailPage';
 import { DeleteConfirmModal } from './components/DeleteConfirmModal';
 import { WechatQrLogin } from './components/WechatQrLogin';
 import { MtPortalWorkspace } from './components/MtPortalWorkspace';
 import { LogoutConfirmModal } from './components/LogoutConfirmModal';
 import { useAppEntryViewModel } from './viewmodels/useAppEntryViewModel';
 import { useAdminShellViewModel } from './viewmodels/useAdminShellViewModel';
+
+/** Heavy pages (echarts / large forms) — split so shell + sidebar paint first. */
+const DashboardHome = lazy(() =>
+  import('./components/DashboardHome').then((m) => ({ default: m.DashboardHome }))
+);
+const InstitutionManagement = lazy(() =>
+  import('./components/InstitutionManagement').then((m) => ({
+    default: m.InstitutionManagement,
+  }))
+);
+const GlobalConfig = lazy(() =>
+  import('./components/GlobalConfig').then((m) => ({ default: m.GlobalConfig }))
+);
+const OperationsMonitoring = lazy(() =>
+  import('./components/OperationsMonitoring').then((m) => ({
+    default: m.OperationsMonitoring,
+  }))
+);
+const SystemManagement = lazy(() =>
+  import('./components/SystemManagement').then((m) => ({
+    default: m.SystemManagement,
+  }))
+);
+const InstitutionDetailPage = lazy(() =>
+  import('./components/InstitutionDetailPage').then((m) => ({
+    default: m.InstitutionDetailPage,
+  }))
+);
+
+function PageLoadingFallback() {
+  return (
+    <div className="flex items-center justify-center min-h-[calc(100vh-74px)] text-[#8c8c8c] text-sm gap-2">
+      <span className="material-symbols-outlined text-[20px] animate-pulse">
+        progress_activity
+      </span>
+      加载中…
+    </div>
+  );
+}
 
 export default function App() {
   const {
@@ -122,68 +155,70 @@ export default function App() {
 
         {/* Right Content Body */}
         <main className="flex-1 bg-[#f5f7fa] overflow-y-auto overflow-x-auto min-h-[calc(100vh-74px)]">
-          {/* If create mode is open, show the full Add Institution Page */}
-          {isCreatingInstitution ? (
-            <InstitutionDetailPage
-              isCreateMode={true}
-              onBack={handleCloseAddInstitution}
-              onSave={handleSaveInstitution}
-              auditLogs={auditLogs}
-            />
-          ) : (activeTab === 'institutions' && activeDetailInstitution) ? (
-            /* If secondary institution detail page is open */
-            <InstitutionDetailPage
-              key={`inst-${activeDetailInstitution.id}-${isEditingInstitution ? 'edit' : 'detail'}`}
-              institution={activeDetailInstitution}
-              isCreateMode={false}
-              initialIsEditing={isEditingInstitution}
-              onEditModeChange={handleEditModeChange}
-              onBack={handleCloseInstitutionDetail}
-              onSave={handleSaveInstitution}
-              onDelete={(inst) => setDeletingInstitution(inst)}
-              onToggleStatus={handleToggleStatus}
-              auditLogs={auditLogs}
-            />
-          ) : (
-            <>
-              {activeTab === 'home' && (
-                <DashboardHome
-                  expiringInstitutions={expiringInstitutions}
-                  onSelectInstitution={handleSelectExpiringInstitution}
-                  setActiveTab={handleTabChange}
-                />
-              )}
+          <Suspense fallback={<PageLoadingFallback />}>
+            {/* If create mode is open, show the full Add Institution Page */}
+            {isCreatingInstitution ? (
+              <InstitutionDetailPage
+                isCreateMode={true}
+                onBack={handleCloseAddInstitution}
+                onSave={handleSaveInstitution}
+                auditLogs={auditLogs}
+              />
+            ) : activeTab === 'institutions' && activeDetailInstitution ? (
+              /* If secondary institution detail page is open */
+              <InstitutionDetailPage
+                key={`inst-${activeDetailInstitution.id}-${isEditingInstitution ? 'edit' : 'detail'}`}
+                institution={activeDetailInstitution}
+                isCreateMode={false}
+                initialIsEditing={isEditingInstitution}
+                onEditModeChange={handleEditModeChange}
+                onBack={handleCloseInstitutionDetail}
+                onSave={handleSaveInstitution}
+                onDelete={(inst) => setDeletingInstitution(inst)}
+                onToggleStatus={handleToggleStatus}
+                auditLogs={auditLogs}
+              />
+            ) : (
+              <>
+                {activeTab === 'home' && (
+                  <DashboardHome
+                    expiringInstitutions={expiringInstitutions}
+                    onSelectInstitution={handleSelectExpiringInstitution}
+                    setActiveTab={handleTabChange}
+                  />
+                )}
 
-              {activeTab === 'institutions' && (
-                <InstitutionManagement
-                  institutions={institutions}
-                  onAddClick={handleOpenAddInstitution}
-                  onEditClick={(inst) => {
-                    openInstitutionDetail(inst.id, true);
-                  }}
-                  onDetailClick={(inst) => {
-                    openInstitutionDetail(inst.id, false);
-                  }}
-                  onDeleteClick={(inst) => setDeletingInstitution(inst)}
-                  onToggleStatus={handleToggleStatus}
-                  onProvisionInstitution={handleProvisionInstitution}
-                />
-              )}
+                {activeTab === 'institutions' && (
+                  <InstitutionManagement
+                    institutions={institutions}
+                    onAddClick={handleOpenAddInstitution}
+                    onEditClick={(inst) => {
+                      openInstitutionDetail(inst.id, true);
+                    }}
+                    onDetailClick={(inst) => {
+                      openInstitutionDetail(inst.id, false);
+                    }}
+                    onDeleteClick={(inst) => setDeletingInstitution(inst)}
+                    onToggleStatus={handleToggleStatus}
+                    onProvisionInstitution={handleProvisionInstitution}
+                  />
+                )}
 
-              {activeTab === 'config' && <GlobalConfig onShowToast={showToast} />}
+                {activeTab === 'config' && <GlobalConfig onShowToast={showToast} />}
 
-              {activeTab === 'monitoring' && <OperationsMonitoring />}
+                {activeTab === 'monitoring' && <OperationsMonitoring />}
 
-              {activeTab === 'system' && (
-                <SystemManagement
-                  auditLogs={auditLogs}
-                  initialSubTab={systemSubTab}
-                  onSubTabChange={handleSystemSubTabChange}
-                  onShowToast={showToast}
-                />
-              )}
-            </>
-          )}
+                {activeTab === 'system' && (
+                  <SystemManagement
+                    auditLogs={auditLogs}
+                    initialSubTab={systemSubTab}
+                    onSubTabChange={handleSystemSubTabChange}
+                    onShowToast={showToast}
+                  />
+                )}
+              </>
+            )}
+          </Suspense>
         </main>
       </div>
 

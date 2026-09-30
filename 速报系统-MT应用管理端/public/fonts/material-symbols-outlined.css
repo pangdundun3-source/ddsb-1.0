@@ -1,0 +1,38 @@
+/* Local Material Symbols — no Google Fonts dependency.
+   Fallback with size-adjust:0% hides ligature text names while the woff2 loads
+   or if the network fails, so navigation never flashes "home"/"corporate_fare". */
+@font-face {
+  font-family: "Material Symbols Outlined Fallback";
+  src: local("Arial");
+  size-adjust: 0%;
+  ascent-override: 0;
+  descent-override: 0;
+  line-gap-override: 0;
+}
+
+@font-face {
+  font-family: "Material Symbols Outlined";
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: block;
+  src: url("./material-symbols-outlined.woff2") format("woff2");
+}
+
+.material-symbols-outlined {
+  font-family: "Material Symbols Outlined", "Material Symbols Outlined Fallback";
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "liga";
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+}

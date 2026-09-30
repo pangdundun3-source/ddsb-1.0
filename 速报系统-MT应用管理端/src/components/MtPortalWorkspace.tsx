@@ -247,7 +247,7 @@ const TaizhangIcon = () => (
 );
 
 /**
- * 卡片 4 图标: 点点速报 (清朗净网鉴谣速报系统)
+ * 卡片 4 图标: 点点速豹 (清朗净网鉴谣速报系统)
  */
 const DiandianIcon = () => (
   <div className="w-12 h-12 rounded-[14px] bg-[#0066eb] flex items-center justify-center flex-shrink-0 relative overflow-hidden shadow-xs">
@@ -324,7 +324,7 @@ export const MtPortalWorkspace: React.FC<MtPortalWorkspaceProps> = ({
     },
     {
       id: 'diandian',
-      name: '点点速报',
+      name: '点点速豹',
       tag: 'pc端',
       sub: '清朗净网鉴谣速报系统',
       manager: '王飞飞',
