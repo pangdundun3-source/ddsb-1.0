@@ -70,7 +70,14 @@ import {
 export type TimeDimension = 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
 export type ViewPerspective = 'submitter' | 'auditor' | 'global_org';
 
-export const Statistics: React.FC = () => {
+export type StatisticsScope = 'submit' | 'audit';
+
+const SCOPE_TITLES: Record<StatisticsScope, string> = {
+  submit: '报送统计',
+  audit: '审核统计'
+};
+
+export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
   // View mode: 'submitter' (上报员看板), 'auditor' (审核员看板), 'global_org' (全域大盘)
   const [viewPerspective, setViewPerspective] = useState<ViewPerspective>('submitter');
   const [timeDim, setTimeDim] = useState<TimeDimension>('week');
@@ -700,7 +707,7 @@ export const Statistics: React.FC = () => {
             </div>
             <div>
               <div className="flex items-center space-x-2.5">
-                <h2 className="text-lg font-extrabold text-gray-900 tracking-tight">统计管理与效能分析</h2>
+                <h2 className="text-lg font-extrabold text-gray-900 tracking-tight">{SCOPE_TITLES[scope]}</h2>
               </div>
             </div>
           </div>
@@ -789,6 +796,7 @@ export const Statistics: React.FC = () => {
       {/* ========================================================================= */}
       {/* 2. 上报趋势图与报送统计 */}
       {/* ========================================================================= */}
+      {scope !== 'audit' && (
       <div className="space-y-5 animate-in fade-in duration-200">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           {/* 左侧 2 列: 上报趋势图 (包含全部6大指标) */}
@@ -992,10 +1000,12 @@ export const Statistics: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
 
       {/* ========================================================================= */}
       {/* 3. 审核趋势图与审核统计 */}
       {/* ========================================================================= */}
+      {scope !== 'submit' && (
       <div className="space-y-5 animate-in fade-in duration-200">
         {/* 3.1 审核趋势图与审核统计环状图 (并排置于同一行展示) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -1175,6 +1185,7 @@ export const Statistics: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
 
       {/* ========================================================================= */}
       {/* 4. 全域机构综合总览 (Global Perspective) */}

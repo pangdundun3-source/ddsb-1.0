@@ -17,8 +17,6 @@ import {
   Trash2,
   Undo2,
   MapPin,
-  LayoutGrid,
-  List,
   Building2,
   Calendar,
   Layers,
@@ -52,7 +50,6 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   const [keyword, setKeyword] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
 
   // Modals
   const [withdrawTarget, setWithdrawTarget] = useState<ReportItem | null>(null);
@@ -320,30 +317,6 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
               );
             })}
           </div>
-
-          {/* View Mode Toggle */}
-          <div className="flex items-center space-x-1 border border-gray-200 p-0.5 rounded-lg bg-gray-50 text-xs">
-            <button
-              onClick={() => setViewMode('table')}
-              className={`px-2.5 py-1 rounded flex items-center space-x-1 transition-colors cursor-pointer ${
-                viewMode === 'table' ? 'bg-white text-[#1E5ABB] font-bold shadow-2xs' : 'text-gray-500 hover:text-gray-800'
-              }`}
-              title="表格视图"
-            >
-              <List className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">表格视图</span>
-            </button>
-            <button
-              onClick={() => setViewMode('cards')}
-              className={`px-2.5 py-1 rounded flex items-center space-x-1 transition-colors cursor-pointer ${
-                viewMode === 'cards' ? 'bg-white text-[#1E5ABB] font-bold shadow-2xs' : 'text-gray-500 hover:text-gray-800'
-              }`}
-              title="卡片看板"
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">卡片看板</span>
-            </button>
-          </div>
         </div>
 
         {/* Bottom: Search & Filter Row */}
@@ -413,7 +386,6 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
       </div>
 
       {/* 4. Main Content: Table View OR Card Grid View */}
-      {viewMode === 'table' ? (
         <div className="bg-white rounded-xl border border-gray-200/80 shadow-2xs overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
@@ -564,130 +536,6 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
             />
           </div>
         </div>
-      ) : (
-        /* Card Grid View (PC Optimized 3-Column Bento Cards) */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.length === 0 ? (
-            <div className="col-span-full py-12 text-center text-gray-400 bg-white rounded-xl border border-gray-200">
-              <FileText className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-              未查找到匹配的上报记录
-            </div>
-          ) : (
-            pagedReports.map((item) => {
-              const isDraft = item.auditStatus === '草稿';
-              const isPending = item.auditStatus === '待审核';
-              const isRejected = item.auditStatus === '被驳回' || item.auditStatus === '已驳回';
-
-              return (
-                <div
-                  key={item.id}
-                  className="bg-white rounded-xl border border-gray-200/80 shadow-2xs hover:shadow-md transition-all p-4.5 flex flex-col justify-between"
-                >
-                  <div className="space-y-2.5">
-                    {/* Header */}
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="space-y-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <h4
-                            onClick={() => {
-                              onSelectReport(item);
-                              onNavigate('report-detail');
-                            }}
-                            className="text-xs font-bold text-gray-900 hover:text-[#1E5ABB] cursor-pointer line-clamp-2 leading-snug"
-                          >
-                            {item.title}
-                          </h4>
-                          <IdentificationBadge
-                            status={reportIdentMap.get(item.id)?.status}
-                            size="xs"
-                            showIcon
-                          />
-                        </div>
-                      </div>
-                      <AuditStatusBadge status={item.auditStatus} className="shrink-0" />
-                    </div>
-
-                    {/* Content description */}
-                    <div className="rounded bg-gray-50/60 p-2">
-                      <p
-                        className="line-clamp-2 overflow-hidden break-words text-xs leading-relaxed text-gray-600"
-                        title={item.detailContent?.summary || item.occurAddress || '暂无详细描述'}
-                      >
-                        {item.detailContent?.summary || item.occurAddress || '暂无详细描述'}
-                      </p>
-                    </div>
-
-                    {/* Rejection Banner */}
-                    {isRejected && (
-                      <div className="p-2.5 bg-rose-50/90 border border-rose-200 rounded-lg text-xs text-rose-800 flex items-start space-x-1.5">
-                        <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
-                        <div className="leading-tight">
-                          <span className="font-bold text-rose-900">驳回说明：</span>
-                          <span>{item.rejectReason || '信息不完整，请补充相关材料后重新提交。'}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Author & Org */}
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-gray-700 truncate text-[11px]">{item.author || '—'}</span>
-                      <OrgPathDisplay organization={item.organization} compact className="max-w-[170px] text-right" />
-                    </div>
-                  </div>
-
-                  {/* Footer */}
-                  <div className="pt-3 mt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
-                    <div className="font-mono text-[11px] text-gray-500">
-                      {item.submitTime.slice(5)}
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      {(isPending || isRejected) && onDeleteReport && (
-                        <button
-                          onClick={() => setDeleteTarget(item)}
-                          className="text-rose-600 hover:underline font-semibold cursor-pointer"
-                        >
-                          删除
-                        </button>
-                      )}
-                      {isRejected && (
-                        <button
-                          onClick={() => onOpenEditReport && onOpenEditReport(item)}
-                          className="text-indigo-600 hover:underline font-semibold cursor-pointer"
-                        >
-                          编辑
-                        </button>
-                      )}
-                      <button
-                        onClick={() => {
-                          onSelectReport(item);
-                          onNavigate('report-detail');
-                        }}
-                        className="text-[#1E5ABB] hover:underline font-semibold cursor-pointer"
-                      >
-                        详情 &gt;
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-          {/* Cards Footer / Pagination */}
-          <div className="col-span-full mt-4 rounded-xl border border-gray-200/90 shadow-2xs overflow-hidden bg-gray-50/80">
-            <PaginationBar
-              total={filtered.length}
-              page={safePage}
-              pageSize={pageSize}
-              onPageChange={setCurrentPage}
-              onPageSizeChange={(size) => {
-                setPageSize(size);
-                setCurrentPage(1);
-              }}
-            />
-          </div>
-        </div>
-      )}
 
       {/* Withdraw Modal */}
       {withdrawTarget && (

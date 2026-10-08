@@ -10,14 +10,12 @@ import {
   ShieldAlert,
   Search,
   Home,
-  FileEdit,
   ShieldCheck,
   BarChart3,
   Award,
   Megaphone,
   Settings,
   Clock,
-  CheckCircle2,
   SlidersHorizontal,
   Users,
   FileText,
@@ -34,30 +32,20 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({
   activePage,
-  reportDetailSourcePage = 'report-summary',
   onNavigate
 }) => {
-  const [reportMenuOpen, setReportMenuOpen] = useState(false);
-  const [auditMenuOpen, setAuditMenuOpen] = useState(false);
   const [systemMenuOpen, setSystemMenuOpen] = useState(false);
   const [appGridOpen, setAppGridOpen] = useState(false);
-
-  const isReportActive = ['report-summary', 'report-records', 'report-detail'].includes(activePage);
-  const isFromReportRecords =
-    activePage === 'report-detail' && reportDetailSourcePage === 'report-records';
-  const isFromReportSummary =
-    activePage === 'report-detail' &&
-    (reportDetailSourcePage === 'report-summary' || !reportDetailSourcePage);
 
   const isAuditActive = [
     'report-audit',
     'audit-detail',
     'audit-records',
-    'audit-record-detail'
+    'audit-record-detail',
+    'audit-statistics'
   ].includes(activePage);
 
   const isSystemActive = [
-    'notice-management',
     'org-management',
     'user-org-management',
     'role-permission',
@@ -72,7 +60,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <nav className="bg-[#1E5ABB] text-white shadow-md relative z-20 border-t border-white/10">
-      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 flex items-center h-12 text-[15px] font-medium select-none">
+      <div className="lg:w-[90%] mx-auto px-4 sm:px-6 lg:px-0 flex items-center h-12 text-[15px] font-medium select-none">
         {/* Navigation Items Bar */}
         <div className="flex items-center space-x-1.5 relative">
           {/* App Grid Launcher Button (Left of 首页) */}
@@ -228,127 +216,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>首页</span>
           </button>
 
-          {/* 报送管理 Dropdown */}
-          <div
-            className="relative"
-            onMouseEnter={() => setReportMenuOpen(true)}
-            onMouseLeave={() => setReportMenuOpen(false)}
+          {/* 审核管理 */}
+          <button
+            onClick={() => onNavigate('report-audit')}
+            className={`px-3.5 py-1.5 transition-all duration-150 cursor-pointer rounded-lg flex items-center space-x-1.5 ${
+              isAuditActive
+                ? 'bg-blue-700/95 font-bold text-white shadow-xs'
+                : 'hover:bg-white/15 text-white/90'
+            }`}
           >
-            <button
-              onClick={() => onNavigate('report-summary')}
-              className={`px-3.5 py-1.5 transition-all duration-150 cursor-pointer rounded-lg flex items-center space-x-1.5 ${
-                isReportActive
-                  ? 'bg-blue-700/95 font-bold text-white shadow-xs'
-                  : 'hover:bg-white/15 text-white/90'
-              }`}
-            >
-              <FileEdit className="w-4 h-4 stroke-[2.2]" />
-              <span>报送管理</span>
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 opacity-80 ${reportMenuOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {reportMenuOpen && (
-              <div className="absolute left-0 top-full mt-0.5 w-48 bg-white text-slate-800 rounded-xl shadow-2xl border border-slate-100 p-1.5 z-50 text-sm animate-in fade-in duration-150">
-                {/* 1. 报送待办 */}
-                <button
-                  onClick={() => {
-                    onNavigate('report-summary');
-                    setReportMenuOpen(false);
-                  }}
-                  className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center justify-between cursor-pointer transition-colors ${
-                    activePage === 'report-summary' || isFromReportSummary ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center space-x-2">
-                    <Clock className="w-4 h-4 text-amber-500" />
-                    <span>报送待办</span>
-                  </div>
-                  {(activePage === 'report-summary' || isFromReportSummary) && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#1E5ABB]"></span>
-                  )}
-                </button>
-                {/* 2. 报送记录 */}
-                <button
-                  onClick={() => {
-                    onNavigate('report-records');
-                    setReportMenuOpen(false);
-                  }}
-                  className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center justify-between cursor-pointer transition-colors ${
-                    activePage === 'report-records' || isFromReportRecords ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    <span>报送记录</span>
-                  </div>
-                  {(activePage === 'report-records' || isFromReportRecords) && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#1E5ABB]"></span>
-                  )}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* 审核管理 Dropdown */}
-          <div
-            className="relative"
-            onMouseEnter={() => setAuditMenuOpen(true)}
-            onMouseLeave={() => setAuditMenuOpen(false)}
-          >
-            <button
-              onClick={() => onNavigate('report-audit')}
-              className={`px-3.5 py-1.5 transition-all duration-150 cursor-pointer rounded-lg flex items-center space-x-1.5 ${
-                isAuditActive
-                  ? 'bg-blue-700/95 font-bold text-white shadow-xs'
-                  : 'hover:bg-white/15 text-white/90'
-              }`}
-            >
-              <ShieldCheck className="w-4 h-4 stroke-[2.2]" />
-              <span>审核管理</span>
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 opacity-80 ${auditMenuOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {auditMenuOpen && (
-              <div className="absolute left-0 top-full mt-0.5 w-48 bg-white text-slate-800 rounded-xl shadow-2xl border border-slate-100 p-1.5 z-50 text-sm animate-in fade-in duration-150">
-                {/* 1. 审核待办 */}
-                <button
-                  onClick={() => {
-                    onNavigate('report-audit');
-                    setAuditMenuOpen(false);
-                  }}
-                  className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center justify-between cursor-pointer transition-colors ${
-                    activePage === 'report-audit' || activePage === 'audit-detail' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center space-x-2">
-                    <Clock className="w-4 h-4 text-amber-500" />
-                    <span>审核待办</span>
-                  </div>
-                  {(activePage === 'report-audit' || activePage === 'audit-detail') && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#1E5ABB]"></span>
-                  )}
-                </button>
-                {/* 2. 审核记录 */}
-                <button
-                  onClick={() => {
-                    onNavigate('audit-records');
-                    setAuditMenuOpen(false);
-                  }}
-                  className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center justify-between cursor-pointer transition-colors ${
-                    ['audit-records', 'audit-record-detail'].includes(activePage) ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    <span>审核记录</span>
-                  </div>
-                  {['audit-records', 'audit-record-detail'].includes(activePage) && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#1E5ABB]"></span>
-                  )}
-                </button>
-              </div>
-            )}
-          </div>
+            <ShieldCheck className="w-4 h-4 stroke-[2.2]" />
+            <span>审核管理</span>
+          </button>
 
           {/* 不良信息库 */}
           <button
@@ -361,6 +240,19 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <ShieldAlert className="w-4 h-4 stroke-[2.2]" />
             <span>不良信息库</span>
+          </button>
+
+          {/* 公告管理 */}
+          <button
+            onClick={() => onNavigate('notice-management')}
+            className={`px-3.5 py-1.5 transition-all duration-150 cursor-pointer rounded-lg flex items-center space-x-1.5 ${
+              activePage === 'notice-management'
+                ? 'bg-blue-700/95 font-bold text-white shadow-xs'
+                : 'hover:bg-white/15 text-white/90'
+            }`}
+          >
+            <Megaphone className="w-4 h-4 stroke-[2.2]" />
+            <span>公告管理</span>
           </button>
 
           {/* 统计管理 */}
@@ -396,7 +288,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             onMouseLeave={() => setSystemMenuOpen(false)}
           >
             <button
-              onClick={() => onNavigate('notice-management')}
+              onClick={() => onNavigate('user-org-management', 'account')}
               className={`px-3.5 py-1.5 transition-all duration-150 cursor-pointer rounded-lg flex items-center space-x-1.5 ${
                 isSystemActive
                   ? 'bg-blue-700/95 font-bold text-white shadow-xs'
@@ -441,19 +333,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 <button
                   onClick={() => {
-                    onNavigate('notice-management');
-                    setSystemMenuOpen(false);
-                  }}
-                  className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center space-x-2.5 cursor-pointer transition-colors ${
-                    activePage === 'notice-management' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
-                  }`}
-                >
-                  <Megaphone className="w-4 h-4 text-[#1E5ABB]" />
-                  <span>公告管理</span>
-                </button>
-
-                <button
-                  onClick={() => {
                     onNavigate('system-logs');
                     setSystemMenuOpen(false);
                   }}
@@ -462,7 +341,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   }`}
                 >
                   <Clock className="w-4 h-4 text-emerald-600" />
-                  <span>系统审计日志</span>
+                  <span>系统日志</span>
                 </button>
               </div>
             )}

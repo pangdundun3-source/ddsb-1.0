@@ -79,7 +79,7 @@ const permissionGroups: PermissionGroup[] = [
     children: [
       {
         id: 'audit_todo',
-        label: '审核待办',
+        label: '我的审核',
         actions: [
           { key: 'view', label: '查看' },
           { key: 'detail', label: '查看详情' },
@@ -302,7 +302,7 @@ const permissionGroups: PermissionGroup[] = [
       },
       {
         id: 'system_logs',
-        label: '系统审计日志',
+        label: '系统日志',
         actions: [
           { key: 'view', label: '查看' },
           { key: 'detail', label: '查看详情' },

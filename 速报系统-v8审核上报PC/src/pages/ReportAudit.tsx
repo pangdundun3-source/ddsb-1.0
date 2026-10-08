@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PaginationBar } from '../components/PaginationBar';
 import { OrgPathDisplay, getOrganizationPathText } from '../components/OrgPathDisplay';
+import { StackedDateTime } from '../components/StackedDateTime';
 import { AuditStatusBadge } from '../components/AuditStatusBadge';
 import { ReportOriginBadge } from '../components/ReportOriginBadge';
 import { ReportItem, PageId } from '../types';
@@ -18,8 +19,6 @@ import {
   X,
   ExternalLink,
   ChevronRight,
-  List,
-  LayoutGrid,
   MapPin,
   Calendar,
   Sparkles,
@@ -62,7 +61,6 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
   const [selectedOrg, setSelectedOrg] = useState('全部');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [isBatchMatchActive, setIsBatchMatchActive] = useState(false);
 
   // 50% Right Drawer State
@@ -255,23 +253,12 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
           <div>
             <div className="flex items-center space-x-2">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
-              <h2 className="text-xl font-bold tracking-tight">【审核员】审核数据统计</h2>
+              <h2 className="text-xl font-bold tracking-tight">审核管理工作台</h2>
             </div>
             <p className="text-xs text-blue-100/80 mt-1 flex items-center space-x-1.5">
               <Calendar className="w-3.5 h-3.5" />
-              <span>集中处理审核待办、同源批量匹配及审核记录事项 · 审核待办</span>
+              <span>集中处理审核待办、同源批量匹配及审核记录事项 · 我的审核</span>
             </p>
-          </div>
-
-          <div className="flex items-center space-x-2.5">
-            <button
-              onClick={() => onNavigate('audit-records')}
-              className="px-3.5 py-2 bg-white/15 hover:bg-white/25 text-white text-xs font-semibold rounded-lg border border-white/20 transition-all flex items-center space-x-1.5 cursor-pointer"
-              title="查看历史审核记录台账"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>审核记录台账</span>
-            </button>
           </div>
         </div>
 
@@ -351,7 +338,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
       {/* 2. Unified Search & Filter Bar with Screenshot Style + Smart Matching */}
       <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-2xs space-y-4">
         {/* Filter items with inline label and input */}
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-4 text-xs">
+        <div className="flex flex-col lg:flex-row lg:flex-wrap items-stretch lg:items-center gap-4 text-xs">
           {/* 事件标题 */}
           <div className="flex-1 min-w-[240px]">
             <div className="relative flex-1">
@@ -397,12 +384,13 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
           </div>
 
           {/* 上报机构 */}
-          <div className="flex items-center space-x-2 shrink-0 min-w-[200px]">
+          <div className="flex items-center space-x-2 min-w-0 lg:w-60">
             <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">上报机构</label>
             <select
               value={selectedOrg}
               onChange={(e) => setSelectedOrg(e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 shadow-2xs cursor-pointer"
+              title={selectedOrg}
+              className="flex-1 min-w-0 w-full truncate px-3 py-2 border border-gray-300 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 shadow-2xs cursor-pointer"
             >
               {orgOptions.map((org) => (
                 <option key={org} value={org}>
@@ -447,29 +435,6 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
           </div>
 
           <div className="flex items-center space-x-2">
-            {/* View Mode Toggle */}
-            <div className="flex items-center space-x-1 border border-gray-200 p-0.5 rounded-lg bg-gray-50 text-xs mr-2">
-              <button
-                onClick={() => setViewMode('table')}
-                className={`px-2.5 py-1 rounded flex items-center space-x-1 transition-colors cursor-pointer ${
-                  viewMode === 'table' ? 'bg-white text-[#1E5ABB] font-bold shadow-2xs' : 'text-gray-500 hover:text-gray-800'
-                }`}
-                title="表格视图"
-              >
-                <List className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">表格视图</span>
-              </button>
-              <button
-                onClick={() => setViewMode('cards')}
-                className={`px-2.5 py-1 rounded flex items-center space-x-1 transition-colors cursor-pointer ${
-                  viewMode === 'cards' ? 'bg-white text-[#1E5ABB] font-bold shadow-2xs' : 'text-gray-500 hover:text-gray-800'
-                }`}
-                title="卡片看板"
-              >
-                <LayoutGrid className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">卡片看板</span>
-              </button>
-            </div>
 
             <button
               onClick={() => {}}
@@ -490,25 +455,23 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
       </div>
 
       {/* 3. Main Content: In-Table Clustered View or Cards */}
-      {viewMode === 'table' ? (
         <div className="bg-white rounded-xl border border-gray-200/80 shadow-2xs overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-gray-50/90 border-b border-gray-200 text-gray-600 font-semibold">
                   <th className="py-3.5 px-4 w-12 text-center">序号</th>
-                  <th className="py-3.5 px-4 min-w-[240px]">事件标题</th>
-                  <th className="py-3.5 px-4 min-w-[200px]">内容描述</th>
-                  <th className="py-3.5 px-4 min-w-[170px] whitespace-nowrap">上报人员 / 机构</th>
+                  <th className="py-3.5 px-4 min-w-[220px] w-full">事件标题 / 内容描述</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">上报人员 / 机构</th>
                   <th className="py-3.5 px-4 whitespace-nowrap">报送时间</th>
                   <th className="py-3.5 px-4 text-center whitespace-nowrap">审核状态</th>
-                  <th className="py-3.5 px-4 text-center min-w-[140px] whitespace-nowrap">操作</th>
+                  <th className="py-3.5 px-4 text-center whitespace-nowrap">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-gray-700">
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-gray-400">
+                    <td colSpan={6} className="py-12 text-center text-gray-400">
                       <FileText className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                       当前筛选条件下暂无待审核记录
                     </td>
@@ -520,7 +483,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                       <React.Fragment key={`cluster-${cIdx}`}>
                         {/* Cluster Header Row */}
                         <tr className="bg-amber-50/90 border-t border-b border-amber-200">
-                          <td colSpan={7} className="py-2.5 px-4">
+                          <td colSpan={6} className="py-2.5 px-4">
                             <div className="flex items-center justify-between gap-3">
                               <div className="flex items-center space-x-2.5 min-w-0">
                                 <div className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
@@ -566,27 +529,25 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                             <tr key={`cluster-item-${item.id}`} className="hover:bg-amber-50/30 transition-colors">
                               <td className="py-3 px-4 text-center text-amber-800/70 font-mono text-xs">{itemIdx + 1}</td>
                               <td className="py-3 px-4">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 w-0 min-w-full">
                                   <button
                                     onClick={() => handleOpenAuditDrawer(item)}
-                                    className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer block leading-snug"
+                                    className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer leading-snug truncate min-w-0" title={item.title}
                                   >
                                     {item.title}
                                   </button>
                                   <ReportOriginBadge report={item} size="sm" className="shrink-0" />
                                 </div>
-                              </td>
-                              <td className="py-3 px-4 text-gray-500 text-xs">
-                                <span className="line-clamp-2" title={item.detailContent?.summary || item.title}>
+                                <div className="text-gray-500 text-[11px] truncate leading-relaxed mt-1 w-0 min-w-full" title={item.detailContent?.summary || item.title}>
                                   {item.detailContent?.summary || '暂无内容描述'}
-                                </span>
+                                </div>
                               </td>
                               <td className="py-3 px-4">
                                 <div className="font-semibold text-gray-900 leading-snug">{item.author}</div>
-                                <OrgPathDisplay organization={item.organization} className="max-w-[220px]" />
+                                <OrgPathDisplay organization={item.organization} className="max-w-[190px]" />
                               </td>
                               <td className="py-3 px-4 font-mono text-gray-500 whitespace-nowrap text-xs">
-                                {item.submitTime}
+                                <StackedDateTime value={item.submitTime} />
                               </td>
                               <td className="py-3 px-4 text-center">
                                 {isPending && (
@@ -655,7 +616,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                     {/* Section Header for Other Pending Items */}
                     {otherPendingItems.length > 0 && (
                       <tr className="bg-gray-50/80 border-t-2 border-b border-gray-200">
-                        <td colSpan={7} className="py-2.5 px-4 font-bold text-gray-700 text-xs">
+                        <td colSpan={6} className="py-2.5 px-4 font-bold text-gray-700 text-xs">
                           <div className="flex items-center justify-between">
                             <span>其他待审核报送 ({otherPendingItems.length} 条)</span>
                             <span className="text-[11px] text-gray-400 font-normal">支持单独逐条进行详细审核或快捷处置</span>
@@ -674,27 +635,25 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                         <tr key={`other-item-${item.id}`} className="hover:bg-blue-50/20 transition-colors">
                           <td className="py-3 px-4 text-center text-gray-400 font-mono text-xs">{itemIdx + 1}</td>
                           <td className="py-3 px-4">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 w-0 min-w-full">
                               <button
                                 onClick={() => handleOpenAuditDrawer(item)}
-                                className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer block leading-snug"
+                                className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer leading-snug truncate min-w-0" title={item.title}
                               >
                                 {item.title}
                               </button>
                               <ReportOriginBadge report={item} size="sm" className="shrink-0" />
                             </div>
-                          </td>
-                          <td className="py-3 px-4 text-gray-500 text-xs">
-                            <span className="line-clamp-2" title={item.detailContent?.summary || item.title}>
+                            <div className="text-gray-500 text-[11px] truncate leading-relaxed mt-1 w-0 min-w-full" title={item.detailContent?.summary || item.title}>
                               {item.detailContent?.summary || '暂无内容描述'}
-                            </span>
+                            </div>
                           </td>
                           <td className="py-3 px-4">
                             <div className="font-semibold text-gray-900 leading-snug">{item.author}</div>
-                            <OrgPathDisplay organization={item.organization} className="max-w-[220px]" />
+                            <OrgPathDisplay organization={item.organization} className="max-w-[190px]" />
                           </td>
                           <td className="py-3 px-4 font-mono text-gray-500 whitespace-nowrap text-xs">
-                            {item.submitTime}
+                            <StackedDateTime value={item.submitTime} />
                           </td>
                           <td className="py-3 px-4 text-center">
                             {isPending && (
@@ -766,27 +725,25 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                       <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
                         <td className="py-3 px-4 text-center text-gray-400 font-mono text-xs">{(safePage - 1) * pageSize + index + 1}</td>
                         <td className="py-3 px-4">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 w-0 min-w-full">
                             <button
                               onClick={() => handleOpenAuditDrawer(item)}
-                              className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer block leading-snug"
+                              className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer leading-snug truncate min-w-0" title={item.title}
                             >
                               {item.title}
                             </button>
                             <ReportOriginBadge report={item} size="sm" className="shrink-0" />
                           </div>
-                        </td>
-                        <td className="py-3 px-4 text-gray-500 text-xs">
-                          <span className="line-clamp-2" title={item.detailContent?.summary || item.title}>
+                          <div className="text-gray-500 text-[11px] truncate leading-relaxed mt-1 w-0 min-w-full" title={item.detailContent?.summary || item.title}>
                             {item.detailContent?.summary || '暂无内容描述'}
-                          </span>
+                          </div>
                         </td>
                         <td className="py-3 px-4">
                           <div className="font-semibold text-gray-900 leading-snug">{item.author}</div>
-                          <OrgPathDisplay organization={item.organization} className="max-w-[220px]" />
+                          <OrgPathDisplay organization={item.organization} className="max-w-[190px]" />
                         </td>
                         <td className="py-3 px-4 font-mono text-gray-500 whitespace-nowrap text-xs">
-                          {item.submitTime}
+                          <StackedDateTime value={item.submitTime} />
                         </td>
                         <td className="py-3 px-4 text-center whitespace-nowrap">
                           {isPending && (
@@ -865,97 +822,6 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
             />
           </div>
         </div>
-      ) : (
-        /* Card Grid View (PC Adapted Responsive Cards) */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.length === 0 ? (
-            <div className="col-span-full py-12 text-center text-gray-400 bg-white rounded-xl border border-gray-200">
-              <FileText className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-              当前分类下暂无待处理记录
-            </div>
-          ) : (
-            pagedReports.map((item) => {
-              const isPending = item.auditStatus === '待审核';
-              const isRejected = item.auditStatus === '被驳回' || item.auditStatus === '已驳回';
-              const isAdopted = item.auditStatus === '已采纳' || item.auditStatus === '已通过';
-
-              return (
-                <div
-                  key={item.id}
-                  className="bg-white rounded-xl border border-gray-200/80 shadow-2xs hover:shadow-md transition-all p-4.5 flex flex-col justify-between"
-                >
-                  <div className="space-y-2.5">
-                    {/* Top Row */}
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <h4
-                          onClick={() => handleOpenAuditDrawer(item)}
-                          className="text-xs font-bold text-gray-900 hover:text-[#1E5ABB] cursor-pointer line-clamp-2 leading-snug"
-                        >
-                          {item.title}
-                        </h4>
-                        <ReportOriginBadge report={item} size="sm" className="shrink-0" />
-                      </div>
-                      <AuditStatusBadge status={item.auditStatus} className="shrink-0" />
-                    </div>
-
-                    {/* Match URL Link tag */}
-                    {item.matchUrl && (
-                      <div
-                        onClick={() => setPreviewUrlItem(item)}
-                        className="p-1.5 bg-blue-50/80 rounded border border-blue-200/80 text-[11px] text-[#1E5ABB] hover:underline cursor-pointer flex items-center justify-between"
-                      >
-                        <span className="truncate font-mono">{item.matchUrl}</span>
-                        <ExternalLink className="w-3 h-3 shrink-0 ml-1" />
-                      </div>
-                    )}
-
-                    {/* Summary */}
-                    {item.detailContent?.summary && (
-                      <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed bg-gray-50/50 p-2 rounded">
-                        {item.detailContent.summary}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Footer */}
-                  <div className="pt-3 mt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
-                    <div className="flex min-w-0 flex-col text-[11px]">
-                      <div className="flex items-center space-x-1">
-                        <span className="text-gray-800 font-medium">{item.author}</span>
-                        <span>·</span>
-                        <span className="font-mono">{item.submitTime.slice(5)}</span>
-                      </div>
-                      <OrgPathDisplay organization={item.organization} compact className="max-w-[210px]" />
-                    </div>
-
-                    <button
-                      onClick={() => handleOpenAuditDrawer(item)}
-                      className="px-3 py-1 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg font-bold text-xs flex items-center space-x-0.5 cursor-pointer shadow-2xs"
-                    >
-                      <span>{isPending ? '审核' : '详情'}</span>
-                      <ChevronRight className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })
-          )}
-          {/* Cards Footer / Pagination */}
-          <div className="col-span-full mt-4 rounded-xl border border-gray-200/90 shadow-2xs overflow-hidden bg-gray-50/80">
-            <PaginationBar
-              total={filtered.length}
-              page={safePage}
-              pageSize={pageSize}
-              onPageChange={setCurrentPage}
-              onPageSizeChange={(size) => {
-                setPageSize(size);
-                setCurrentPage(1);
-              }}
-            />
-          </div>
-        </div>
-      )}
 
       {/* 6. Batch Audit Modal (Matching mobile screenshots 3, 4, 5) */}
       {batchModalGroup && (

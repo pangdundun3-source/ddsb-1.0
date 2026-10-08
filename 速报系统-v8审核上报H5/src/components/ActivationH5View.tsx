@@ -40,13 +40,15 @@ export const ActivationH5View: React.FC<ActivationH5ViewProps> = ({
   // Form States
   const [realName, setRealName] = useState<string>(user.name || '张三');
   const [activationCode, setActivationCode] = useState<string>('JH-2026-8899');
-  const [assignedRole, setAssignedRole] = useState<UserRole>(user.role || '综合网格员');
-  const [assignedRoleDesc, setAssignedRoleDesc] = useState<string>('兼具一线事件巡查上报与网格工单审核流转权限');
-  const [selectedRoleTypes, setSelectedRoleTypes] = useState<('上报员' | '审核员')[]>(() => {
-    if (user.role === '审核员') return ['审核员'];
-    if (user.role === '网格员') return ['上报员'];
-    return ['上报员', '审核员'];
-  });
+  const [assignedRole, setAssignedRole] = useState<UserRole>(user.role || '上报员');
+  const [assignedRoleDesc, setAssignedRoleDesc] = useState<string>(
+    user.role === '审核员'
+      ? '网格监督治理 · 负责上报事件复核与工单转办'
+      : '基层网格化治理 · 负责日常巡查与事件现场上报'
+  );
+  const [selectedRoleTypes, setSelectedRoleTypes] = useState<('上报员' | '审核员')[]>(() => [
+    user.role === '审核员' ? '审核员' : '上报员',
+  ]);
   const [phone, setPhone] = useState<string>(user.phone?.replace(/\*/g, '8') || '13800138000');
   const [verifyCode, setVerifyCode] = useState<string>('');
   const [countdown, setCountdown] = useState<number>(0);
@@ -87,17 +89,10 @@ export const ActivationH5View: React.FC<ActivationH5ViewProps> = ({
         department: matched.department,
         role: matched.role,
         roleDesc:
-          matched.role === '综合网格员'
-            ? '兼具一线事件巡查上报与网格工单审核流转权限'
-            : matched.role === '审核员'
+          matched.role === '审核员'
             ? '网格监督治理 · 负责上报事件复核与工单转办'
             : '基层网格化治理 · 负责日常巡查与事件现场上报',
-        roles:
-          matched.role === '综合网格员'
-            ? (['上报员', '审核员'] as ('上报员' | '审核员')[])
-            : matched.role === '审核员'
-            ? (['审核员'] as ('上报员' | '审核员')[])
-            : (['上报员'] as ('上报员' | '审核员')[]),
+        roles: [matched.role] as ('上报员' | '审核员')[],
         gridCode: matched.gridCode,
         gridName: matched.gridName,
         ticketNo: matched.ticketNo,
@@ -111,9 +106,9 @@ export const ActivationH5View: React.FC<ActivationH5ViewProps> = ({
     const dept = CODE_DEPT_MAP[trimmed] || '台中市网信办 · 网格化治理中心';
     return {
       department: dept,
-      role: '综合网格员' as UserRole,
-      roleDesc: '兼具一线事件巡查上报与网格工单审核流转权限',
-      roles: ['上报员', '审核员'] as ('上报员' | '审核员')[],
+      role: '上报员' as UserRole,
+      roleDesc: '基层网格化治理 · 负责日常巡查与事件现场上报',
+      roles: ['上报员'] as ('上报员' | '审核员')[],
       gridCode: 'XBA-03-018',
       gridName: '台中网格04区（西坝-阳光花园）',
       ticketNo: 'WB-2026-0813',
@@ -152,7 +147,7 @@ export const ActivationH5View: React.FC<ActivationH5ViewProps> = ({
     {
       code: 'JH-2026-9866',
       name: '张建国',
-      role: '综合网格员' as UserRole,
+      role: '上报员' as UserRole,
       phone: '13892108888',
       department: '台中市西坝区街道办事处',
       gridCode: 'XBA-03-018',
@@ -161,12 +156,12 @@ export const ActivationH5View: React.FC<ActivationH5ViewProps> = ({
       idCard: '420106199208151234',
       bankCard: '6222021402008888912',
       bankName: '中国工商银行台中市西坝支行',
-      label: '西坝街道 04区综合网格员',
+      label: '西坝街道 04区上报员',
     },
     {
       code: 'JH-2026-5521',
       name: '李敏',
-      role: '网格员' as UserRole,
+      role: '上报员' as UserRole,
       phone: '13971236655',
       department: '西坝区网格化综合治理中心',
       gridCode: 'XBA-01-002',
@@ -175,7 +170,7 @@ export const ActivationH5View: React.FC<ActivationH5ViewProps> = ({
       idCard: '420106199504128833',
       bankCard: '6217002010098273611',
       bankName: '中国建设银行台中西坝支行',
-      label: '西坝一区 一线巡查网格员',
+      label: '西坝一区 一线巡查上报员',
     },
     {
       code: 'JH-2026-1188',
@@ -194,7 +189,7 @@ export const ActivationH5View: React.FC<ActivationH5ViewProps> = ({
     {
       code: 'JH-2026-8899',
       name: '张三',
-      role: '综合网格员' as UserRole,
+      role: '上报员' as UserRole,
       phone: '13800138000',
       department: '台中市网信办 · 网格化治理中心',
       gridCode: 'WH-02-14',

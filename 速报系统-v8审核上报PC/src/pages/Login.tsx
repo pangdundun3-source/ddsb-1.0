@@ -3,6 +3,34 @@ import { Shield, UserCheck, Phone, X, Check, RefreshCw } from 'lucide-react';
 import { LoginQrCode } from '../components/LoginQrCode';
 import type { PageId } from '../types';
 
+/** Keep in sync with the client port in scripts/suite-apps.mjs */
+const CLIENT_DEV_PORT = '3001';
+const CLIENT_ENTRY_HASH = '#/portal?sso=admin';
+
+/** 开发时客户管理端单独占用 3001 端口；静态部署时与本端同在 apps/ 目录下 */
+const getClientAppUrl = () => {
+  const { protocol, hostname, port, href } = window.location;
+  if (port === '3002') {
+    return `${protocol}//${hostname}:${CLIENT_DEV_PORT}/${CLIENT_ENTRY_HASH}`;
+  }
+  return new URL(`../v8-client/app.html${CLIENT_ENTRY_HASH}`, href).href;
+};
+
+/** 嵌在门户里时请门户切换到客户管理端（门户会替换掉本 iframe）；独立打开或门户未响应时直接跳转 */
+const openClientApp = () => {
+  if (window.parent !== window) {
+    window.parent.postMessage(
+      { type: 'suite:open-terminal', terminalId: 'v8-client', hash: CLIENT_ENTRY_HASH },
+      '*'
+    );
+    window.setTimeout(() => {
+      window.location.href = getClientAppUrl();
+    }, 600);
+    return;
+  }
+  window.location.href = getClientAppUrl();
+};
+
 interface LoginProps {
   onLoginSuccess: (userRole?: string) => void;
   onNavigate?: (page: PageId) => void;
@@ -54,26 +82,26 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
   // Click QR code handler
   const handleQrClick = () => {
-    if (activeRole === 'reviewer') {
-      // 审核上报员: 点击二维码进入系统操作
-      if (isExpired) {
-        setCountdown(180);
-        setIsExpired(false);
-        return;
-      }
-      setIsScanning(true);
-      showToast('📱 已检测到微信扫码，正在授权审核上报员账号...');
-      setTimeout(() => {
-        setScanSuccess(true);
-        showToast('✓ 审核上报员微信授权成功，正在进入工作台...');
-        setTimeout(() => {
-          onLoginSuccess('审核上报员');
-        }, 800);
-      }, 900);
-    } else {
-      // 管理员: 切换管理员 点击二维码不要绑定操作链接 (无任何跳转操作)
-      showToast('管理员微信通道暂未绑定快捷模拟操作，请切换至审核上报员');
+    if (isScanning) return;
+    if (isExpired) {
+      setCountdown(180);
+      setIsExpired(false);
+      return;
     }
+    const isAdmin = activeRole === 'admin';
+    setIsScanning(true);
+    showToast(`📱 已检测到微信扫码，正在授权${isAdmin ? '管理员' : '审核上报员'}账号...`);
+    setTimeout(() => {
+      setScanSuccess(true);
+      showToast(isAdmin ? '✓ 管理员微信授权成功，正在进入网络生态综合治理平台...' : '✓ 审核上报员微信授权成功，正在进入工作台...');
+      setTimeout(() => {
+        if (isAdmin) {
+          openClientApp();
+        } else {
+          onLoginSuccess('审核上报员');
+        }
+      }, 800);
+    }, 900);
   };
 
   const refreshQrCode = (e: React.MouseEvent) => {
@@ -611,17 +639,9 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               {/* White Container Box for QR code */}
               <div
                 onClick={handleQrClick}
-                className={`relative p-3.5 bg-white rounded-2xl shadow-xs border border-slate-100/90 transition-transform duration-200 ${
-                  activeRole === 'reviewer'
-                    ? 'hover:scale-[1.01] hover:shadow-md cursor-pointer group'
-                    : 'cursor-default'
-                }`}
+                className="relative p-3.5 bg-white rounded-2xl shadow-xs border border-slate-100/90 transition-transform duration-200 hover:scale-[1.01] hover:shadow-md cursor-pointer group"
               >
-                <LoginQrCode
-                  size={192}
-                  isScanning={isScanning}
-                  clickable={activeRole === 'reviewer'}
-                />
+                <LoginQrCode size={192} isScanning={isScanning} />
 
                 {/* QR Expired Overlay */}
                 {isExpired && (
@@ -649,16 +669,15 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   <div className="absolute inset-0 bg-emerald-700/90 backdrop-blur-xs rounded-2xl flex flex-col items-center justify-center text-white p-4 z-10 animate-in zoom-in-95">
                     <Check className="w-10 h-10 text-white mb-2" />
                     <span className="text-xs font-bold">授权通过</span>
-                    <span className="text-[10px] text-emerald-100 mt-1">正在载入系统...</span>
+                    <span className="text-[10px] text-emerald-100 mt-1">
+                      {activeRole === 'admin' ? '正在进入治理平台...' : '正在载入系统...'}
+                    </span>
                   </div>
                 )}
 
-                {/* Quick Click Hint Hover Pill only for 审核上报员 */}
-                {activeRole === 'reviewer' && (
-                  <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 bg-[#163868] text-white text-[10px] font-medium rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md pointer-events-none whitespace-nowrap">
-                    点击快速模拟扫码登录
-                  </div>
-                )}
+                <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 bg-[#163868] text-white text-[10px] font-medium rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md pointer-events-none whitespace-nowrap">
+                  {activeRole === 'admin' ? '点击模拟扫码，登录后进入治理平台' : '点击快速模拟扫码登录'}
+                </div>
               </div>
 
               {/* Subtext: —— 请使用审核上报员微信扫码 —— / —— 请使用管理员微信扫码 —— */}

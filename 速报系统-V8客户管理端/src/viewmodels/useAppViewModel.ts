@@ -33,6 +33,7 @@ const VALID_PAGES: PageId[] = [
   'audit-detail',
   'audit-records',
   'audit-record-detail',
+  'audit-statistics',
   'negative-info',
   'negative-detail',
   'statistics',
@@ -106,8 +107,27 @@ const buildHashRoute = (page: PageId, extraModule?: string, id?: number, sourceP
   return hash;
 };
 
+/** 审核上报 PC 登录页的管理员扫码会带 sso=admin 跳转过来，视为已授权登录 */
+const consumeSsoLogin = () => {
+  if (typeof window === 'undefined') return;
+  const [pathPart, queryPart] = window.location.hash.split('?');
+  if (!queryPart) return;
+  const params = new URLSearchParams(queryPart);
+  if (params.get('sso') !== 'admin') return;
+  try {
+    localStorage.setItem('ddsb_is_logged_in', 'true');
+    localStorage.setItem('ddsb_current_user', '张三 (系统管理员)');
+  } catch {
+    // Ignore storage failures
+  }
+  params.delete('sso');
+  const rest = params.toString();
+  window.location.replace(`${pathPart || '#/portal'}${rest ? `?${rest}` : ''}`);
+};
+
 export const useAppViewModel = () => {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    consumeSsoLogin();
     try {
       return localStorage.getItem('ddsb_is_logged_in') === 'true';
     } catch {

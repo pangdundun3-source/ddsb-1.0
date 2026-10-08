@@ -279,7 +279,7 @@ export const SystemLogs: React.FC<SystemLogsProps> = ({ logs = [] }) => {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `系统审计日志-${activeTab}-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.download = `系统日志-${activeTab}-${new Date().toISOString().slice(0, 10)}.csv`;
     anchor.click();
     URL.revokeObjectURL(url);
   };
@@ -288,7 +288,7 @@ export const SystemLogs: React.FC<SystemLogsProps> = ({ logs = [] }) => {
     <div className="space-y-4">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-gray-800 tracking-tight">系统审计日志</h2>
+          <h2 className="text-xl font-bold text-gray-800 tracking-tight">系统日志</h2>
           <p className="text-xs text-gray-400 mt-0.5">统一查看系统操作与登录行为，支持按条件追溯和导出</p>
         </div>
         <div className="flex items-center gap-2">

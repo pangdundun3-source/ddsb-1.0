@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ReportItem, PageId, Attachment } from '../types';
 import { getFinalAuditScore } from '../auditStage';
+import { getReportAttachments, getReportDetailContent, getRejectReasonText } from '../data/reportContent';
 import {
   Info,
   FileText,
@@ -60,11 +61,14 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
 
+  const backPage: PageId = sourcePage === 'report-records' ? 'report-records' : 'report-summary';
+  const backLabel = sourcePage === 'report-records' ? '报送记录' : '报送管理';
+
   const handleClose = () => {
     if (onClose) {
       onClose();
     } else {
-      onNavigate(sourcePage === 'report-records' ? 'report-records' : 'report-summary');
+      onNavigate(backPage);
     }
   };
 
@@ -74,10 +78,10 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
       <div className="p-12 text-center text-gray-500 bg-white rounded-xl border border-gray-200">
         <p className="text-sm">未选择速报记录，请返回报送管理列表选择。</p>
         <button
-          onClick={() => onNavigate(sourcePage === 'report-records' ? 'report-records' : 'report-summary')}
+          onClick={() => onNavigate(backPage)}
           className="mt-4 px-4 py-2 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg text-xs font-semibold cursor-pointer"
         >
-          返回{sourcePage === 'report-records' ? '报送记录' : '报送管理'}
+          返回{backLabel}
         </button>
       </div>
     );
@@ -90,25 +94,13 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
   const isAdopted = report.auditStatus === '已采纳' || report.auditStatus === '已通过';
   const isWaitingTransfer = report.auditStatus === '待转办';
   const isTransferred = report.auditStatus === '已转办';
-  const rejectReasonText = report.rejectReason || '信息不完整，请补充政策原文链接和现场排查核实依据后重新提交。';
+  const rejectReasonText = getRejectReasonText(report);
   const rejectFollowUpText = '请点击右上角【修改补充并重新提交】按钮补充修正后再次送审。';
   const finalScore = getFinalAuditScore(report);
 
-  const detail = report.detailContent || {
-    summary: '多名网民在微信群和短视频平台反映西坝区阳光花园一期、明月居等小区突发停水。经初步核查，受影响范围涉及居民约3万人。',
-    coreDemands: '建议区政府协调水务集团查明原因并公布预计恢复时间，保障居民基本用水。',
-    publicOpinionTrend: '本地同城话题阅读量持续上升，暂未发现线下聚集，但个别自媒体开始传播未经核实的停水范围。',
-    recommendations: [
-      '1. 建议区政府立即协调水务集团查明停水原因，并明确预计恢复供水时间。',
-      '2. 通过官方渠道（微博、微信公众号）紧急发布停水情况说明，澄清不实传言。',
-      '3. 若短时间内无法恢复，建议安排应急送水车前往受影响小区，保障居民基本用水需求。'
-    ]
-  };
+  const detail = getReportDetailContent(report);
 
-  const attachments = report.attachments || [
-    { id: 'a1', name: '现场网民留言截图1.png', size: '1.2 MB', type: 'image', thumbnailUrl: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=200&auto=format&fit=crop' },
-    { id: 'a2', name: '网格巡查记录单.pdf', size: '2.4 MB', type: 'pdf' }
-  ];
+  const attachments = getReportAttachments(report);
 
   const handleCopySummary = () => {
     const text = `【速报标题】${report.title}\n【发生地址】${report.occurAddress || report.region}\n【信息类型】${report.infoType}（${report.source}）\n【上报机构】${report.organization} · ${report.author}\n【报送时间】${report.submitTime}\n【内容摘要】${detail.summary}\n【核心诉求】${detail.coreDemands}\n【处置建议】\n${Array.isArray(detail.recommendations) ? detail.recommendations.join('\n') : detail.recommendations}`;
@@ -619,7 +611,7 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
                 onClick={() => onNavigate('report-summary')}
                 className="text-gray-600 hover:text-[#1E5ABB] hover:underline font-medium flex items-center space-x-1 cursor-pointer transition-colors"
               >
-                <span>报送待办</span>
+                <span>我的报送</span>
               </button>
               <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
               <span className="text-gray-900 font-bold">报送详情</span>
@@ -1254,7 +1246,7 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
                     onDeleteReport(report.id);
                   }
                   setIsDeleteModalOpen(false);
-                  onNavigate('report-summary');
+                  onNavigate(backPage);
                 }}
                 className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold shadow-sm"
               >

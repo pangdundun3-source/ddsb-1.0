@@ -48,7 +48,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         setIsScanning(false);
         setScanSuccess(true);
         setTimeout(() => {
-          onLogin('张三 (系统管理员)', 'home');
+          onLogin('张三 (系统管理员)', 'portal');
         }, 400);
       }, 500);
     } else {
@@ -82,7 +82,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
       setIsScanning(false);
       setScanSuccess(true);
       setTimeout(() => {
-        onLogin('张三 (系统管理员)', 'home');
+        onLogin('张三 (系统管理员)', 'portal');
       }, 250);
     } else {
       setReporterFeedback('审核上报员微信扫码鉴权已完成！该角色为移动端专属上报通道，暂不跳转PC管理中枢后台。');

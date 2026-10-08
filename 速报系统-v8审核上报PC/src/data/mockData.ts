@@ -1,4 +1,4 @@
-import { ReportItem, AuditRecordItem, OrgItem, OrgUser, OrgNode, TemplateItem, LogItem, EvaluationItem, ReportTemplateDef } from '../types';
+import { ReportItem, AuditRecordItem, OrgItem, OrgUser, OrgNode, TemplateItem, LogItem, ReportTemplateDef } from '../types';
 import type { OrgAccount } from '../types';
 
 export const AVAILABLE_ORGS: OrgAccount[] = [
@@ -1479,14 +1479,6 @@ export const INITIAL_NEGATIVE_INFO: ReportItem[] = [
   }
 ];
 
-export const INITIAL_EVALUATION: EvaluationItem[] = [
-  { rank: 1, name: '政务部门', totalReports: 1240, passedReports: 1180, passRate: '95.2%', participants: 150, participationRate: '98%', totalScore: 5800 },
-  { rank: 2, name: '医疗卫生', totalReports: 860, passedReports: 750, passRate: '87.2%', participants: 80, participationRate: '85%', totalScore: 3200 },
-  { rank: 3, name: '教育机构', totalReports: 1100, passedReports: 980, passRate: '89.1%', participants: 120, participationRate: '92%', totalScore: 4500 },
-  { rank: 4, name: '交通运输', totalReports: 650, passedReports: 580, passRate: '89.2%', participants: 60, participationRate: '80%', totalScore: 2600 },
-  { rank: 5, name: '企业单位', totalReports: 420, passedReports: 350, passRate: '83.3%', participants: 45, participationRate: '75%', totalScore: 1500 }
-];
-
 export const INITIAL_ORG_USERS: OrgUser[] = [
   { id: 'u1', subOrg: '中共台中市委宣传部', account: 'admin_xcb', realName: '张建国', wechat: 'zjg1980', phone: '138****0001', role: '管理员', registerTime: '2023-10-01', status: '启用' },
   { id: 'u2', subOrg: '中共台中市委宣传部', account: 'lihua_bs', realName: '李华', wechat: 'lihua_work', phone: '139****8822', role: '报送员', registerTime: '2023-10-15', status: '启用' },
@@ -1520,7 +1512,6 @@ export const initialReports = INITIAL_REPORTS;
 export const initialAuditPending = INITIAL_AUDIT_PENDING;
 export const initialAuditRecords = INITIAL_AUDIT_RECORDS;
 export const initialNegativeInfo = INITIAL_NEGATIVE_INFO;
-export const initialEvaluations = INITIAL_EVALUATION;
 export const initialOrgs = INITIAL_ORGS;
 export const initialOrgUsers = INITIAL_ORG_USERS;
 export const initialTemplates = INITIAL_TEMPLATES;

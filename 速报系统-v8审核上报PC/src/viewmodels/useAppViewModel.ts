@@ -21,9 +21,15 @@ import {
   transferReport
 } from '../services/reportWorkflowService';
 import {
+  INITIAL_NOTIFICATIONS,
+  NOTIFICATIONS_STORAGE_KEY,
+  formatNotificationTime
+} from '../data/notifications';
+import {
   AuditRecordItem,
   LogItem,
   NewReportFormData,
+  NotificationItem,
   OrgAccount,
   OrgItem,
   PageId,
@@ -37,19 +43,20 @@ const VALID_PAGES: PageId[] = [
   'report-summary',
   'report-records',
   'report-detail',
+  'report-statistics',
   'report-audit',
+  'audit-statistics',
   'audit-detail',
   'audit-records',
   'audit-record-detail',
   'negative-info',
   'negative-detail',
-  'statistics',
-  'evaluation',
   'personal-info',
   'org-management',
   'role-permission',
   'business-config',
-  'system-logs'
+  'system-logs',
+  'messages'
 ];
 
 export function getHashRoute(): { page: PageId; module?: string } | null {
@@ -173,6 +180,44 @@ export const useAppViewModel = () => {
   const [editingReport, setEditingReport] = useState<ReportItem | null>(null);
   const [isH5MobileOpen, setIsH5MobileOpen] = useState(false);
   const [toastInfo, setToastInfo] = useState<ToastInfo | null>(null);
+  const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
+      if (saved) return JSON.parse(saved) as NotificationItem[];
+    } catch {
+      // Fall back to demo data
+    }
+    return INITIAL_NOTIFICATIONS;
+  });
+
+  const [messageCenterTab, setMessageCenterTab] = useState<'unread' | 'read'>('unread');
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(notifications));
+    } catch {
+      // Ignore storage failures in restricted browser contexts.
+    }
+  }, [notifications]);
+
+  const markNotificationsRead = (ids: string[]) => {
+    const now = formatNotificationTime();
+    setNotifications((previous) =>
+      previous.map((n) => (ids.includes(n.id) && n.isUnread ? { ...n, isUnread: false, readAt: now } : n))
+    );
+  };
+
+  /** 速报审核完成后，对应的待审核提醒自动转为已读 */
+  const resolvePendingNotifications = (reportIds: number[]) => {
+    const now = formatNotificationTime();
+    setNotifications((previous) =>
+      previous.map((n) =>
+        n.type === 'audit_pending' && n.isUnread && n.relatedReportId !== undefined && reportIds.includes(n.relatedReportId)
+          ? { ...n, isUnread: false, readAt: now }
+          : n
+      )
+    );
+  };
 
   const showToast = (
     message: string,
@@ -202,6 +247,37 @@ export const useAppViewModel = () => {
         : `#/${page}`;
     if (window.location.hash !== targetHash) {
       window.location.hash = targetHash;
+    }
+  };
+
+  const openMessageCenter = (tab: 'unread' | 'read' = 'unread') => {
+    setMessageCenterTab(tab);
+    handleNavigate('messages');
+  };
+
+  const openNotificationTarget = (item: NotificationItem) => {
+    markNotificationsRead([item.id]);
+    const related =
+      item.relatedReportId !== undefined
+        ? reports.find((report) => report.id === item.relatedReportId)
+        : undefined;
+
+    if (item.type === 'audit_pending') {
+      if (related && related.auditStatus === '待审核') {
+        setSelectedAudit(related);
+        handleNavigate('audit-detail');
+      } else {
+        handleNavigate('report-audit');
+      }
+      return;
+    }
+
+    if (related) {
+      setSelectedReport(related);
+      setReportDetailSourcePage('report-records');
+      handleNavigate('report-detail');
+    } else {
+      handleNavigate('report-records');
     }
   };
 
@@ -300,6 +376,7 @@ export const useAppViewModel = () => {
           return report;
         })
       );
+      resolvePendingNotifications([...matchedIds]);
       const selectedUpdate = reports.find((report) => report.id === selectedAudit?.id);
       if (selectedUpdate) {
         const updatedSelected = approveReport(selectedUpdate, score, now);
@@ -314,6 +391,7 @@ export const useAppViewModel = () => {
       const updated = approveReport(target, score, now);
       finalReportToRecord = updated;
       setReports((previous) => previous.map((report) => (report.id === id ? updated : report)));
+      resolvePendingNotifications([id]);
       if (selectedAudit?.id === id) setSelectedAudit(updated);
       if (selectedReport?.id === id) setSelectedReport(updated);
       showToast(
@@ -357,6 +435,7 @@ export const useAppViewModel = () => {
     const now = getNowText();
     const updated = rejectReport(target, reason, detail, now);
     setReports((previous) => previous.map((report) => (report.id === id ? updated : report)));
+    resolvePendingNotifications([id]);
     if (selectedAudit?.id === id) setSelectedAudit(updated);
     if (selectedReport?.id === id) setSelectedReport(updated);
     setAuditRecords((previous) => [
@@ -383,6 +462,7 @@ export const useAppViewModel = () => {
     setReports((previous) =>
       previous.map((report) => updates.get(report.id) || report)
     );
+    resolvePendingNotifications(ids);
     if (selectedAudit && updates.has(selectedAudit.id)) {
       setSelectedAudit(updates.get(selectedAudit.id)!);
     }
@@ -426,6 +506,7 @@ export const useAppViewModel = () => {
     setReports((previous) =>
       previous.map((report) => updates.get(report.id) || report)
     );
+    resolvePendingNotifications(ids);
     if (selectedAudit && updates.has(selectedAudit.id)) {
       setSelectedAudit(updates.get(selectedAudit.id)!);
     }
@@ -548,6 +629,12 @@ export const useAppViewModel = () => {
     handleTransferSubmit,
     handleAddOrg,
     handleUpdateOrg,
-    handleDeleteOrg
+    handleDeleteOrg,
+    notifications,
+    markNotificationsRead,
+    openNotificationTarget,
+    messageCenterTab,
+    setMessageCenterTab,
+    openMessageCenter
   };
 };

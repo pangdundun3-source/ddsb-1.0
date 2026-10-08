@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { PaginationBar } from '../components/PaginationBar';
 import { OrgPathDisplay, getOrganizationPathText } from '../components/OrgPathDisplay';
+import { StackedDateTime } from '../components/StackedDateTime';
 import { AuditStatusBadge } from '../components/AuditStatusBadge';
 import { ReportOriginBadge } from '../components/ReportOriginBadge';
 import { ReportDetail } from './ReportDetail';
@@ -232,16 +233,6 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Quick Switch to Report Todo */}
-          <button
-            onClick={() => onNavigate('report-summary')}
-            className="px-3.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg border border-gray-200 transition-all flex items-center space-x-1.5 cursor-pointer"
-            title="前往报送待办处理草稿与驳回事项"
-          >
-            <FileEdit className="w-3.5 h-3.5" />
-            <span>报送待办</span>
-          </button>
-
           {/* Export Button */}
           <button
             onClick={() => setIsExportModalOpen(true)}
@@ -251,22 +242,12 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
             <Download className="w-3.5 h-3.5" />
             <span>导出台账</span>
           </button>
-
-          {/* New Report Button */}
-          <button
-            onClick={() => onOpenNewReport && onOpenNewReport()}
-            className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-semibold rounded-lg shadow-2xs transition-all flex items-center space-x-1.5 cursor-pointer"
-            id="btn-create-new-report-records"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>新建速报</span>
-          </button>
         </div>
       </div>
 
       {/* 2. Search & Filter Area */}
       <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-2xs space-y-4">
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-4 text-xs">
+        <div className="flex flex-col lg:flex-row lg:flex-wrap items-stretch lg:items-center gap-4 text-xs">
           {/* 关键词搜索 */}
           <div className="flex-1 min-w-[260px]">
             <div className="relative flex-1">
@@ -370,12 +351,11 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
               <thead>
                 <tr className="bg-gray-50/90 border-b border-gray-200/90 text-gray-600 font-bold">
                   <th className="py-3 px-3.5 w-12 text-center">序号</th>
-                  <th className="py-3 px-3.5 min-w-[320px]">事件标题</th>
-                  <th className="py-3 px-3.5 min-w-[240px]">内容描述</th>
-                  <th className="py-3 px-3 w-40">报送人员 / 机构</th>
-                  <th className="py-3 px-3 w-36">报送时间</th>
-                  <th className="py-3 px-3 w-28 text-center whitespace-nowrap">审核状态</th>
-                  <th className="py-3 px-3.5 w-40 text-center sticky right-0 bg-gray-50/95 shadow-xs">操作</th>
+                  <th className="py-3 px-3.5 min-w-[220px] w-full">事件标题 / 内容描述</th>
+                  <th className="py-3 px-3 whitespace-nowrap">报送人员 / 机构</th>
+                  <th className="py-3 px-3 whitespace-nowrap">报送时间</th>
+                  <th className="py-3 px-3 text-center whitespace-nowrap">审核状态</th>
+                  <th className="py-3 px-3.5 text-center whitespace-nowrap sticky right-0 bg-gray-50/95 shadow-xs">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -397,28 +377,25 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
 
                       {/* Title & Location */}
                       <td className="py-3 px-3.5">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 w-0 min-w-full">
                           <button
                             onClick={() => {
                               onSelectReport(item);
                               setDrawerReport(item);
                             }}
-                            className="font-bold text-gray-900 group-hover:text-[#1E5ABB] transition-colors text-left text-xs line-clamp-2 cursor-pointer hover:underline flex items-start space-x-1.5"
+                            className="font-bold text-gray-900 group-hover:text-[#1E5ABB] transition-colors text-left text-xs leading-snug truncate min-w-0 cursor-pointer hover:underline"
+                            title={item.title}
                           >
-                            <span className="leading-snug">{item.title}</span>
+                            {item.title}
                           </button>
                           <ReportOriginBadge report={item} size="sm" className="shrink-0" />
                         </div>
-                      </td>
-
-                      {/* Content Summary */}
-                      <td className="py-3 px-3.5 text-gray-500 text-[11px]">
-                        <span
-                          className="line-clamp-2 leading-relaxed"
+                        <div
+                          className="text-gray-500 text-[11px] truncate leading-relaxed mt-1 w-0 min-w-full"
                           title={item.detailContent?.summary || '暂无内容描述'}
                         >
                           {item.detailContent?.summary || '暂无内容描述'}
-                        </span>
+                        </div>
                       </td>
 
                       {/* Author & Org */}
@@ -426,12 +403,12 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
                         <div className="text-[11px] text-gray-800 font-medium">
                           {item.author || currentUser}
                         </div>
-                        <OrgPathDisplay organization={item.organization} fallback={currentOrg?.name} className="max-w-[220px]" />
+                        <OrgPathDisplay organization={item.organization} fallback={currentOrg?.name} className="max-w-[190px]" />
                       </td>
 
                       {/* Submit Time */}
-                      <td className="py-3 px-3 text-gray-500 font-mono text-[11px]">
-                        {item.submitTime || '2026-08-13 10:00'}
+                      <td className="py-3 px-3 text-gray-500 font-mono text-[11px] whitespace-nowrap">
+                        <StackedDateTime value={item.submitTime || '2026-08-13 10:00'} />
                       </td>
 
                       {/* Audit Status */}

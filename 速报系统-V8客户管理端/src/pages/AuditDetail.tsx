@@ -274,7 +274,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
             onClick={() => onNavigate('report-audit')}
             className="mt-4 px-4 py-2 bg-[#1E5ABB] text-white rounded-lg text-xs font-semibold mx-auto cursor-pointer"
           >
-            返回审核待办
+            返回我的审核
           </button>
         </div>
       </div>

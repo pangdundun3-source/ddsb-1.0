@@ -5,8 +5,6 @@ import {
   UploadCloud,
   Link as LinkIcon,
   FileText,
-  Save,
-  Clock,
   Trash2,
   CheckCircle2,
   Sparkles,
@@ -24,19 +22,13 @@ import {
 import {
   Attachment,
   NewReportFormData,
-  DraftReport,
   ReportTemplateDef,
   ReportTemplateInput,
   ReportItem
 } from '../types';
 import { PRESET_REPORT_TEMPLATES as PRESET_TEMPLATES } from '../data/mockData';
+import { getReportAttachments, getReportDetailContent, getRejectReasonText } from '../data/reportContent';
 import { AttachmentPreviewModal } from './AttachmentPreviewModal';
-import {
-  loadDrafts,
-  removeDraft,
-  REPORT_DRAFT_STORAGE_KEY,
-  upsertDraft
-} from '../services/reportDraftStorage';
 
 const DEFAULT_ATTACHMENTS: Attachment[] = [
   {
@@ -88,10 +80,6 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
   const [demands, setDemands] = useState('');
   const [recommendations, setRecommendations] = useState('');
 
-  // Draft States
-  const [drafts, setDrafts] = useState<DraftReport[]>([]);
-  const [showDraftBox, setShowDraftBox] = useState(false);
-  const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
   const [toastNotice, setToastNotice] = useState<string | null>(null);
 
   // Attachments State
@@ -127,9 +115,7 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
     if (!isOpen) return;
 
     // Reset transient panel states on every open
-    setShowDraftBox(false);
     setPreviewAttachment(null);
-    setActiveDraftId(null);
 
     if (editingReport) {
       // Edit mode: prefill from the existing draft / rejected report
@@ -140,13 +126,14 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
       setInfoType(editingReport.infoType || '突发事件');
       setAuthor(editingReport.author || '张三');
       setOrganization(editingReport.organization || '台中市网信办');
-      setSummary(editingReport.detailContent?.summary || '');
-      setDemands(editingReport.detailContent?.coreDemands || '');
-      const recommendations = editingReport.detailContent?.recommendations;
+      const detail = getReportDetailContent(editingReport);
+      setSummary(detail.summary || '');
+      setDemands(detail.coreDemands || '');
+      const recommendations = detail.recommendations;
       setRecommendations(
         Array.isArray(recommendations) ? recommendations.join('\n') : recommendations || ''
       );
-      setAttachments(editingReport.attachments || []);
+      setAttachments(getReportAttachments(editingReport));
       setSelectedTemplateId('standard');
     } else if (initialTemplate) {
       setTitle(initialTemplate.title || '');
@@ -171,72 +158,11 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
       setRecommendations(defaultTpl.recommendationsTemplate);
       setAttachments([...DEFAULT_ATTACHMENTS]);
     }
-
-    try {
-      setDrafts(loadDrafts(REPORT_DRAFT_STORAGE_KEY));
-    } catch (e) {
-      // ignore
-    }
   }, [isOpen, editingReport, initialTemplate]);
 
   const triggerToast = (msg: string) => {
     setToastNotice(msg);
     setTimeout(() => setToastNotice(null), 2500);
-  };
-
-  // Save current form as draft
-  const handleSaveDraft = () => {
-    if (!title.trim() && !summary.trim() && !demands.trim()) {
-      triggerToast('请至少填写标题或摘要内容再保存草稿');
-      return;
-    }
-
-    const draftId = activeDraftId || `draft-${Date.now()}`;
-    const newDraft: DraftReport = {
-      id: draftId,
-      title: title.trim() || '未命名草稿',
-      source,
-      region,
-      infoType,
-      author,
-      organization,
-      summary,
-      demands,
-      recommendations,
-      saveTime: new Date().toISOString().replace('T', ' ').substring(0, 16)
-    };
-
-    const updated = upsertDraft(newDraft, REPORT_DRAFT_STORAGE_KEY);
-    setDrafts(updated);
-    setActiveDraftId(draftId);
-    triggerToast('草稿保存成功！随时可在草稿箱中恢复');
-  };
-
-  // Load selected draft
-  const handleLoadDraft = (draft: DraftReport) => {
-    setTitle(draft.title === '未命名草稿' ? '' : draft.title);
-    setSource(draft.source || '群众举报');
-    setRegion(draft.region || '西屯区');
-    setInfoType(draft.infoType || '突发事件');
-    setAuthor(draft.author || '张三');
-    setOrganization(draft.organization || '台中市网信办');
-    setSummary(draft.summary || '');
-    setDemands(draft.demands || '');
-    setRecommendations(draft.recommendations || '');
-    setActiveDraftId(draft.id);
-    setShowDraftBox(false);
-    triggerToast(`已成功恢复草稿: "${draft.title}"`);
-  };
-
-  // Delete draft
-  const handleDeleteDraft = (draftId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const updated = removeDraft(draftId, REPORT_DRAFT_STORAGE_KEY);
-    setDrafts(updated);
-    if (activeDraftId === draftId) {
-      setActiveDraftId(null);
-    }
-    triggerToast('草稿已删除');
   };
 
   if (!isOpen) return null;
@@ -283,19 +209,12 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
       });
     }
 
-    // If submitted from a draft, remove it from drafts
-    if (activeDraftId) {
-      const updated = removeDraft(activeDraftId, REPORT_DRAFT_STORAGE_KEY);
-      setDrafts(updated);
-    }
-
     // Reset fields
     setTitle('');
     setSummary('');
     setDemands('');
     setRecommendations('');
     setOccurAddress('');
-    setActiveDraftId(null);
     onClose();
   };
 
@@ -357,25 +276,6 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
           </div>
 
           <div className="flex items-center space-x-2">
-            {/* Draft Box Button */}
-            <button
-              type="button"
-              onClick={() => setShowDraftBox(!showDraftBox)}
-              className={`px-3 py-1.5 text-xs rounded-lg border transition-all flex items-center space-x-1.5 font-medium cursor-pointer ${
-                showDraftBox
-                  ? 'bg-amber-400 text-blue-950 border-amber-300 shadow-sm font-bold'
-                  : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
-              }`}
-            >
-              <Clock className="w-3.5 h-3.5" />
-              <span>草稿箱</span>
-              {drafts.length > 0 && (
-                <span className="ml-1 bg-amber-400 text-blue-900 text-[10px] px-1.5 py-0.2 rounded-full font-extrabold">
-                  {drafts.length}
-                </span>
-              )}
-            </button>
-
             <button
               onClick={onClose}
               className="text-white/80 hover:text-white p-1.5 rounded-lg hover:bg-white/15 transition-colors cursor-pointer"
@@ -386,74 +286,20 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
         </div>
 
         {/* Reject Reason Banner (Edit Mode) */}
-        {isEditMode && editingReport?.rejectReason && (
+        {isEditMode && editingReport && (editingReport.auditStatus === '被驳回' || editingReport.auditStatus === '已驳回') && (
           <div className="shrink-0 px-6 py-3 bg-rose-50 border-b border-rose-200 text-xs text-rose-800">
             <p className="font-bold flex items-center space-x-1.5">
               <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
               <span>原审核驳回意见：</span>
             </p>
-            <p className="mt-1 text-rose-700 leading-relaxed">{editingReport.rejectReason}</p>
-          </div>
-        )}
-
-        {/* Draft List Panel Drawer */}
-        {showDraftBox && (
-          <div className="bg-blue-50/90 border-b border-blue-200 p-4 animate-in slide-in-from-top-2 shrink-0">
-            <div className="flex justify-between items-center mb-2">
-              <span className="font-bold text-xs text-blue-900 flex items-center space-x-1">
-                <FileText className="w-3.5 h-3.5 text-blue-700" />
-                <span>草稿箱列表 ({drafts.length})</span>
-              </span>
-              <span className="text-[11px] text-blue-600">点击任意草稿一键恢复编辑</span>
-            </div>
-
-            {drafts.length === 0 ? (
-              <div className="text-center py-4 bg-white rounded-lg border border-blue-100 text-xs text-gray-500">
-                草稿箱暂无内容。填写过程中可点击底部的“存为草稿”随时暂存。
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
-                {drafts.map((d) => (
-                  <div
-                    key={d.id}
-                    onClick={() => handleLoadDraft(d)}
-                    className={`p-2.5 bg-white hover:bg-blue-50/60 rounded-lg border transition-all cursor-pointer flex justify-between items-center shadow-2xs ${
-                      activeDraftId === d.id ? 'border-[#1E5ABB] ring-2 ring-blue-200' : 'border-blue-100'
-                    }`}
-                  >
-                    <div className="truncate mr-3">
-                      <p className="font-bold text-xs text-gray-800 truncate">{d.title}</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">
-                        保存时间: {d.saveTime} · {d.source} · {d.infoType}
-                      </p>
-                    </div>
-                    <div className="flex items-center space-x-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleLoadDraft(d)}
-                        className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-[#1E5ABB] text-[11px] font-bold rounded-md"
-                      >
-                        恢复
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => handleDeleteDraft(d.id, e)}
-                        className="p-1 hover:bg-rose-50 text-gray-400 hover:text-rose-600 rounded-md"
-                        title="删除草稿"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <p className="mt-1 text-rose-700 leading-relaxed">{getRejectReasonText(editingReport)}</p>
           </div>
         )}
 
         {/* Modal Scrollable Body */}
         <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5">
           {/* SECTION 1: 模板选择器 (Template Selection Header Bar) */}
+          {!isEditMode && (
           <div className="bg-gradient-to-br from-slate-50 to-blue-50/50 p-4 rounded-xl border border-blue-100/80 shadow-2xs" id="template-selection-card">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center space-x-2">
@@ -502,6 +348,7 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
             </div>
 
           </div>
+          )}
 
           {/* SECTION 2: 报送核心表单 (Main Form) */}
           <form onSubmit={handleSubmit} id="new-report-form" className="space-y-4 text-xs">
@@ -618,7 +465,9 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
                   <span>速报内容详情 / 事件经过</span>
                   <span className="text-rose-500 font-bold">*</span>
                 </label>
-                <span className="text-[10px] text-gray-400">支持直接根据模板编辑或粘贴</span>
+                <span className="text-[10px] text-gray-400">
+                  {isEditMode ? '已带入上次提交内容，可直接修改补充' : '支持直接根据模板编辑或粘贴'}
+                </span>
               </div>
               <textarea
                 rows={4}
@@ -751,17 +600,7 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
         </div>
 
         {/* Modal Sticky Footer */}
-        <div className="px-6 py-3.5 border-t border-gray-200 bg-gray-50/90 flex justify-between items-center shrink-0">
-          {/* Draft Action Button */}
-          <button
-            type="button"
-            onClick={handleSaveDraft}
-            className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg font-bold text-xs flex items-center space-x-1.5 transition-colors cursor-pointer shadow-2xs"
-          >
-            <Save className="w-3.5 h-3.5 text-amber-700" />
-            <span>存为草稿</span>
-          </button>
-
+        <div className="px-6 py-3.5 border-t border-gray-200 bg-gray-50/90 flex justify-end items-center shrink-0">
           <div className="flex space-x-3">
             <button
               type="button"

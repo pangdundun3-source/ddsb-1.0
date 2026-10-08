@@ -83,12 +83,13 @@ export interface AppNotification {
   content: string;
   time: string;
   isRead: boolean;
+  readAt?: string;
   relatedReportId?: string;
   publisher?: string;
   priority?: 'normal' | 'urgent' | 'important';
 }
 
-export type UserRole = '网格员' | '审核员' | '综合网格员';
+export type UserRole = '上报员' | '审核员';
 
 export interface UserProfile {
   id: string;

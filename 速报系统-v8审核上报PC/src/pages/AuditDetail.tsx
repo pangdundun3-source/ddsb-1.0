@@ -1145,7 +1145,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
             onClick={handleClose}
             className="text-gray-600 hover:text-[#1E5ABB] hover:underline font-medium flex items-center space-x-1 cursor-pointer transition-colors"
           >
-            <span>审核待办</span>
+            <span>我的审核</span>
           </button>
           <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
           <span className="text-gray-900 font-bold">审核详情</span>

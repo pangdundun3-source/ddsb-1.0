@@ -625,7 +625,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
               <div className="flex">
                 <span className="text-slate-400 w-16 shrink-0">功能介绍</span>
                 <span className="text-slate-800 leading-relaxed">
-                  台中市网信办“吹哨报到·点点速豹”移动端官方工作台。为全市综合网格员、基层瞭望员、审核员提供突发事件速报、网络谣言核实、民生诉求直报与流转审批服务。
+                  台中市网信办“吹哨报到·点点速豹”移动端官方工作台。为全市上报员、基层瞭望员、审核员提供突发事件速报、网络谣言核实、民生诉求直报与流转审批服务。
                 </span>
               </div>
               <div className="flex">
@@ -642,7 +642,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
               <button
                 onClick={() => {
                   setShowProfileModal(false);
-                  onEnterWorkbench('综合网格员');
+                  onEnterWorkbench('上报员');
                 }}
                 className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors shadow-xs flex items-center justify-center space-x-1.5"
               >
@@ -692,7 +692,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
               </div>
               <div className="flex items-center space-x-2 text-slate-700">
                 <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>解锁综合网格员 / 瞭望员协同工作台</span>
+                <span>解锁上报员 / 瞭望员协同工作台</span>
               </div>
             </div>
 

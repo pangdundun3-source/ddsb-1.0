@@ -37,7 +37,9 @@ export default function App() {
 
   const [user, setUser] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('wechat_v8_user');
-    return saved ? JSON.parse(saved) : INITIAL_USER;
+    if (!saved) return INITIAL_USER;
+    const parsed = JSON.parse(saved) as UserProfile;
+    return parsed.role === '审核员' ? parsed : { ...parsed, role: '上报员' };
   });
 
   const [reports, setReports] = useState<SpeedReport[]>(() => {
@@ -271,6 +273,7 @@ export default function App() {
       };
       setNotifications((prev) => [newNotif, ...prev]);
     }
+    resolvePendingNotifications([id]);
 
     showToast('已采纳通过，正式标识定标完成');
   };
@@ -302,6 +305,7 @@ export default function App() {
       };
       setNotifications((prev) => [newNotif, ...prev]);
     }
+    resolvePendingNotifications([id]);
 
     showToast('已驳回该速报请求');
   };
@@ -333,6 +337,7 @@ export default function App() {
       };
       setNotifications((prev) => [newNotif, ...prev]);
     }
+    resolvePendingNotifications([id]);
 
     showToast(`已成功转办至 ${dept}`);
   };
@@ -388,6 +393,7 @@ export default function App() {
       isRead: false,
     };
     setNotifications((prev) => [newNotif, ...prev]);
+    resolvePendingNotifications(idsToApprove);
 
     showToast(`已成功批量通过 ${idsToApprove.length} 条同地址速报！`);
   };
@@ -405,18 +411,37 @@ export default function App() {
           : r
       )
     );
+    resolvePendingNotifications(ids);
     showToast(`已成功批量驳回 ${ids.length} 条关联速报！`);
   };
 
-  const handleMarkAllNotificationsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-    showToast('所有通知消息已标记为已读');
+  const nowText = () => {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const handleMarkNotificationsRead = (ids: string[]) => {
+    const now = nowText();
+    setNotifications((prev) =>
+      prev.map((n) => (ids.includes(n.id) && !n.isRead ? { ...n, isRead: true, readAt: now } : n))
+    );
+  };
+
+  /** 速报审核完成后，对应的待审核提醒自动转为已读 */
+  const resolvePendingNotifications = (reportIds: string[]) => {
+    const now = nowText();
+    setNotifications((prev) =>
+      prev.map((n) =>
+        n.type === '待审核通知' && !n.isRead && n.relatedReportId && reportIds.includes(n.relatedReportId)
+          ? { ...n, isRead: true, readAt: now }
+          : n
+      )
+    );
   };
 
   const handleSelectNotification = (notif: AppNotification) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === notif.id ? { ...n, isRead: true } : n))
-    );
+    handleMarkNotificationsRead([notif.id]);
 
     if (notif.type === '平台公告') {
       setSelectedAnnouncement(notif);
@@ -730,7 +755,7 @@ export default function App() {
           <NotificationView
             notifications={notifications}
             reports={reports}
-            onMarkAllRead={handleMarkAllNotificationsRead}
+            onMarkRead={handleMarkNotificationsRead}
             onSelectNotification={handleSelectNotification}
           />
         ) : (
@@ -761,7 +786,7 @@ export default function App() {
               <NotificationView
                 notifications={notifications}
                 reports={reports}
-                onMarkAllRead={handleMarkAllNotificationsRead}
+                onMarkRead={handleMarkNotificationsRead}
                 onSelectNotification={handleSelectNotification}
               />
             )}

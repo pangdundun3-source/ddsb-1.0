@@ -3,6 +3,7 @@ import { useAppViewModel } from './viewmodels/useAppViewModel';
 
 import { Header } from './components/Header';
 import { Navbar } from './components/Navbar';
+import { SideSubNav, getSideNavGroup } from './components/SideSubNav';
 import { Footer } from './components/Footer';
 import { NewReportModal } from './components/NewReportModal';
 
@@ -18,6 +19,7 @@ import { NegativeInfoLibrary } from './pages/NegativeInfoLibrary';
 import { NegativeDetail } from './pages/NegativeDetail';
 import { Statistics } from './pages/Statistics';
 import { StatisticsReference } from './pages/StatisticsReference';
+import { AuditStatistics } from './pages/AuditStatistics';
 import { Evaluation } from './pages/Evaluation';
 import { EvaluationReference } from './pages/EvaluationReference';
 import { NoticeManagement } from './pages/NoticeManagement';
@@ -128,6 +130,8 @@ export default function App() {
     handleNavigate('portal');
   };
 
+  const sideNavGroup = getSideNavGroup(activePage);
+
   // Show 1:1 Login Homepage if user is not logged in or activePage is 'login'
   if (!isLoggedIn || activePage === 'login') {
     return (
@@ -200,7 +204,12 @@ export default function App() {
         onNavigate={handleNavigate}
       />
 
-      <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-5">
+      <main className="flex-1 lg:w-[90%] w-full mx-auto px-4 sm:px-6 lg:px-0 py-5">
+        <div className={sideNavGroup ? 'flex items-start gap-5' : ''}>
+        {sideNavGroup && (
+          <SideSubNav group={sideNavGroup} activePage={activePage} onNavigate={handleNavigate} />
+        )}
+        <div className={sideNavGroup ? 'flex-1 min-w-0' : ''}>
         {activePage === 'home' && (
           <Home
             reports={reports}
@@ -209,6 +218,7 @@ export default function App() {
             onSelectReport={setSelectedReport}
             onSelectAudit={setSelectedAudit}
             currentUser="张三"
+            currentOrg={currentOrg}
           />
         )}
 
@@ -339,6 +349,8 @@ export default function App() {
 
         {activePage === 'statistics' && <StatisticsReference onNavigate={handleNavigate} />}
 
+        {activePage === 'audit-statistics' && <AuditStatistics scope="audit" />}
+
         {activePage === 'evaluation' && <EvaluationReference onNavigate={handleNavigate} />}
 
         {activePage === 'notice-management' && (
@@ -395,6 +407,8 @@ export default function App() {
         {activePage === 'system-logs' && (
           <SystemLogs key={SYSTEM_LOGS_VIEW_VERSION} logs={logs} />
         )}
+        </div>
+        </div>
       </main>
 
       <NewReportModal

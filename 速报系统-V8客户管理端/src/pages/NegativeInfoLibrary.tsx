@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { ReportItem, PageId } from '../types';
-import { ChevronDown, Search, RotateCcw, X } from 'lucide-react';
+import { Search, RotateCcw, X } from 'lucide-react';
 import { PaginationBar } from '../components/PaginationBar';
 import { OrgPathDisplay, getOrganizationPathText } from '../components/OrgPathDisplay';
 import { IdentificationBadge } from '../components/IdentificationBadge';
 import { resolveIdentification } from '../services/identificationService';
+import { TransferDirectiveModal } from '../components/TransferDirectiveModal';
 
 interface NegativeInfoLibraryProps {
   negativeList: ReportItem[];
@@ -28,7 +29,6 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
   const [statusFilter, setStatusFilter] = useState('全部');
   const [identFilter, setIdentFilter] = useState<'全部' | '首发' | '重复'>('全部');
   const [transferTarget, setTransferTarget] = useState<ReportItem | null>(null);
-  const [transferOpinion, setTransferOpinion] = useState('');
 
   const getAuditNode = (item: ReportItem) =>
     [...(item.timeline || [])]
@@ -271,7 +271,7 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
             <thead>
               <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-600 font-semibold">
                 <th className="py-3 px-4 w-12 text-center">序号</th>
-                <th className="py-3 px-4 min-w-[260px]">事件标题</th>
+                <th className="py-3 px-4 min-w-[220px] w-full">事件标题 / 内容描述</th>
                 <th className="py-3 px-4 min-w-[160px]">上报人员 / 机构</th>
                 <th className="py-3 px-4">报送时间</th>
                 <th className="py-3 px-4 min-w-[160px]">审核人员 / 机构</th>
@@ -287,17 +287,21 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
                   <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
                     <td className="py-3 px-4 text-center text-gray-400 font-mono">{(safePage - 1) * pageSize + index + 1}</td>
                     <td className="py-3 px-4">
-                      <div className="flex items-center gap-1.5 flex-wrap">
+                      <div className="flex items-center gap-1.5 w-0 min-w-full">
                         <button
                           onClick={() => {
                             onSelectNegative(item);
                             onNavigate('negative-detail');
                           }}
-                          className="text-blue-600 hover:text-blue-800 hover:underline font-medium text-left cursor-pointer"
+                          className="text-blue-600 hover:text-blue-800 hover:underline font-medium text-left cursor-pointer truncate min-w-0"
+                          title={item.title}
                         >
                           {item.title}
                         </button>
-                        <IdentificationBadge status={ident.status} size="xs" showIcon />
+                        <IdentificationBadge status={ident.status} size="xs" showIcon className="shrink-0" />
+                      </div>
+                      <div className="text-gray-500 text-[11px] truncate leading-relaxed mt-1 w-0 min-w-full" title={item.detailContent?.summary || item.title}>
+                        {item.detailContent?.summary || '暂无内容描述'}
                       </div>
                     </td>
                     <td className="py-3 px-4">
@@ -337,7 +341,6 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
                           <button
                             onClick={() => {
                               setTransferTarget(item);
-                              setTransferOpinion('');
                             }}
                             className="text-[#1E5ABB] hover:underline font-medium cursor-pointer"
                           >
@@ -372,61 +375,15 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
 
       {/* Transfer Modal */}
       {transferTarget && (
-        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-gray-200">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <div className="flex items-center space-x-2 text-rose-600">
-                <ChevronDown className="w-4 h-4" />
-                <h3 className="text-sm font-bold text-gray-900">确认转办</h3>
-              </div>
-              <button
-                onClick={() => setTransferTarget(null)}
-                className="text-gray-400 hover:text-gray-600 cursor-pointer text-lg leading-none"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="p-3 bg-gray-50/80 rounded-lg border border-gray-200 text-xs text-gray-600">
-              <span className="font-bold text-gray-800">转办对象：</span>
-              <span>《{transferTarget.title}》</span>
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold text-gray-700">转办意见（选填）</label>
-              <textarea
-                rows={3}
-                value={transferOpinion}
-                onChange={(e) => setTransferOpinion(e.target.value)}
-                placeholder="请输入转办说明或建议处理单位..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-              />
-            </div>
-
-            <div className="flex justify-end space-x-3 pt-2 border-t border-gray-100">
-              <button
-                type="button"
-                onClick={() => setTransferTarget(null)}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-xs font-semibold cursor-pointer"
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (onTransferSubmit) {
-                    onTransferSubmit(transferTarget.id, transferOpinion);
-                  }
-                  setTransferTarget(null);
-                  setTransferOpinion('');
-                }}
-                className="px-4 py-2 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg text-xs font-bold shadow-sm cursor-pointer"
-              >
-                确认转办
-              </button>
-            </div>
-          </div>
-        </div>
+        <TransferDirectiveModal
+          key={transferTarget.id}
+          report={transferTarget}
+          onClose={() => setTransferTarget(null)}
+          onSubmit={(opinion) => {
+            onTransferSubmit?.(transferTarget.id, opinion);
+            setTransferTarget(null);
+          }}
+        />
       )}
     </div>
   );

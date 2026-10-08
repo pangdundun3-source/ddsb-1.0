@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { BrandLogo } from './components/BrandLogo';
 import {
   getTerminalUrl,
+  OPEN_TERMINAL_MESSAGE,
   STATIC_APPS_MANIFEST,
   type TerminalId,
   type TerminalMode,
@@ -142,10 +143,11 @@ export default function App() {
   const [recentTerminals, setRecentTerminals] = useState<Terminal[]>([]);
   const [announcementVisible, setAnnouncementVisible] = useState(true);
   const [iframeKey, setIframeKey] = useState<number>(0);
+  const [entryHash, setEntryHash] = useState<{ terminalId: TerminalId; hash: string } | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  const getUrl = (terminal: Terminal) =>
-    getTerminalUrl(terminal.id, terminalModes[terminal.id] ?? 'static');
+  const getUrl = (terminal: Terminal, hash?: string) =>
+    getTerminalUrl(terminal.id, terminalModes[terminal.id] ?? 'static', hash);
 
   // Sync initial terminal from hash if present (standard #/path format)
   useEffect(() => {
@@ -210,15 +212,31 @@ export default function App() {
     };
   }, []);
 
-  const openTerminal = (terminal: Terminal) => {
+  const openTerminal = (terminal: Terminal, hash?: string) => {
     setActiveTerminal(terminal);
+    setEntryHash(hash ? { terminalId: terminal.id, hash } : null);
     setIframeKey((prev) => prev + 1);
     setRecentTerminals((prev) => [terminal, ...prev.filter((t) => t.id !== terminal.id)].slice(0, 4));
     window.location.hash = `#/terminal/${terminal.id}`;
   };
 
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || data.type !== OPEN_TERMINAL_MESSAGE) return;
+      if (event.source !== iframeRef.current?.contentWindow) return;
+      const target = TERMINALS.find((t) => t.id === data.terminalId);
+      if (target) {
+        openTerminal(target, typeof data.hash === 'string' ? data.hash : undefined);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   const closeTerminal = () => {
     setActiveTerminal(null);
+    setEntryHash(null);
     window.location.hash = '#/';
   };
 
@@ -228,7 +246,10 @@ export default function App() {
 
   // If a terminal is active, render the embedded workbench view
   if (activeTerminal) {
-    const url = getUrl(activeTerminal);
+    const url = getUrl(
+      activeTerminal,
+      entryHash?.terminalId === activeTerminal.id ? entryHash.hash : undefined,
+    );
 
     return (
       <div className="h-screen w-screen flex flex-col bg-[#f0f4f8] text-slate-800 antialiased overflow-hidden">

@@ -416,10 +416,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       : 'conic-gradient(#e2e8f0 0% 100%)';
 
   const renderRoleBadges = () => {
-    const roles =
-      user.role === '综合网格员'
-        ? ['上报员', '审核员']
-        : [user.role === '网格员' ? '上报员' : '审核员'];
+    const roles = [user.role];
 
     return (
       <div className="flex items-center gap-1 shrink-0">

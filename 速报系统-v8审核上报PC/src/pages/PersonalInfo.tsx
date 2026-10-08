@@ -4,33 +4,15 @@ import { loadUserProfile, saveUserProfile } from '../services/userProfileStorage
 import {
   Building2,
   Smartphone,
-  User,
   Edit,
   ShieldCheck,
   CheckCircle2,
   Copy,
   Eye,
   EyeOff,
-  RefreshCw,
   Lock,
-  Calendar,
-  CreditCard,
-  Building,
-  KeyRound,
-  FileText,
-  CheckSquare,
-  Award,
-  ChevronRight,
-  Shield,
-  Activity,
-  Phone,
-  Mail,
-  MapPin,
-  Clock,
-  X,
-  Sparkles,
-  Laptop,
-  Check
+  IdCard,
+  X
 } from 'lucide-react';
 
 interface PersonalInfoProps {
@@ -38,11 +20,46 @@ interface PersonalInfoProps {
   currentUser?: string;
 }
 
-export const PersonalInfo: React.FC<PersonalInfoProps> = ({
-  onNavigate,
-  currentUser = '张三'
-}) => {
-  // State for user profile data (with localStorage persistence)
+const InfoRow: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <div className="flex items-center justify-between gap-4 px-5 py-3.5">
+    <dt className="text-xs text-slate-500 shrink-0">{label}</dt>
+    <dd className="text-[13px] font-medium text-slate-900 flex items-center gap-1.5 min-w-0">{children}</dd>
+  </div>
+);
+
+const SectionCard: React.FC<{
+  icon: React.ReactNode;
+  title: string;
+  extra?: React.ReactNode;
+  children: React.ReactNode;
+}> = ({ icon, title, extra, children }) => (
+  <section className="bg-white rounded-xl border border-slate-200 flex flex-col overflow-hidden">
+    <header className="flex items-center justify-between gap-3 px-5 h-12 border-b border-slate-100">
+      <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+        {icon}
+        {title}
+      </h3>
+      {extra}
+    </header>
+    {children}
+  </section>
+);
+
+const IconButton: React.FC<{ title: string; onClick: () => void; children: React.ReactNode }> = ({
+  title,
+  onClick,
+  children
+}) => (
+  <button
+    onClick={onClick}
+    title={title}
+    className="p-1 rounded text-slate-400 hover:text-[#1E5ABB] hover:bg-blue-50 transition-colors cursor-pointer"
+  >
+    {children}
+  </button>
+);
+
+export const PersonalInfo: React.FC<PersonalInfoProps> = () => {
   const [profile, setProfile] = useState<UserProfileData>(() => {
     return loadUserProfile({
       name: '张三',
@@ -68,22 +85,21 @@ export const PersonalInfo: React.FC<PersonalInfoProps> = ({
     });
   });
 
-  // UI States
   const [showIdMasked, setShowIdMasked] = useState(true);
   const [showBankMasked, setShowBankMasked] = useState(true);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPhoneModalOpen, setIsPhoneModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Edit form states
-  const [editForm, setEditForm] = useState({
+  const getEditForm = () => ({
     realName: profile.realName,
-    idCard: profile.rawIdCard || '420106199208151234',
-    bankCard: profile.rawBankCard || '6222021000123458912',
-    bankName: profile.bankName
+    idCard: profile.rawIdCard || '',
+    bankCard: profile.rawBankCard || '',
+    bankName: profile.bankName || ''
   });
 
-  // Phone form states
+  const [editForm, setEditForm] = useState(getEditForm);
+
   const [newPhone, setNewPhone] = useState('');
   const [smsCode, setSmsCode] = useState('');
   const [countdown, setCountdown] = useState(0);
@@ -98,6 +114,17 @@ export const PersonalInfo: React.FC<PersonalInfoProps> = ({
   const handleCopy = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     showToast(`已复制 ${label} 到剪贴板`);
+  };
+
+  const openEditModal = () => {
+    setEditForm(getEditForm());
+    setIsEditModalOpen(true);
+  };
+
+  const openPhoneModal = () => {
+    setNewPhone('');
+    setSmsCode('');
+    setIsPhoneModalOpen(true);
   };
 
   const handleSaveProfile = (e: React.FormEvent) => {
@@ -120,7 +147,7 @@ export const PersonalInfo: React.FC<PersonalInfoProps> = ({
     const maskedBank =
       rawBank.length >= 8
         ? `${rawBank.slice(0, 4)} **** **** *** ${rawBank.slice(-4)}`
-        : editForm.bankCard;
+        : rawBank;
 
     const now = new Date().toLocaleString('zh-CN', { hour12: false });
 
@@ -132,7 +159,7 @@ export const PersonalInfo: React.FC<PersonalInfoProps> = ({
       rawIdCard: editForm.idCard,
       bankCard: maskedBank,
       rawBankCard: rawBank,
-      bankName: editForm.bankName,
+      bankName: editForm.bankName.trim(),
       avatarText: editForm.realName.slice(0, 1) || '张',
       updateTime: now
     };
@@ -190,49 +217,10 @@ export const PersonalInfo: React.FC<PersonalInfoProps> = ({
     showToast('手机号码更换成功！');
   };
 
-  // Mock Security Login Logs
-  const securityLogs = [
-    {
-      id: 'log-1',
-      action: '账号登录成功',
-      ip: '119.130.24.89',
-      location: '台中市西坝区政务专网',
-      device: 'Chrome 128 / Windows 11 (PC工作站)',
-      time: '2026-08-20 09:12:30',
-      status: '正常'
-    },
-    {
-      id: 'log-2',
-      action: '实名身份核验比对',
-      ip: '10.22.108.4',
-      location: '台中市政务数据中心内网',
-      device: '省一体化政务服务系统接口',
-      time: '2026-08-13 09:15:00',
-      status: '认证通过'
-    },
-    {
-      id: 'log-3',
-      action: '多机构权限同步更新',
-      ip: '119.130.24.89',
-      location: '台中市西坝区政务专网',
-      device: 'Chrome 128 / Windows 11',
-      time: '2026-08-10 14:22:18',
-      status: '同步完成'
-    },
-    {
-      id: 'log-4',
-      action: '津贴结算卡账户绑定',
-      ip: '119.130.24.89',
-      location: '台中市西坝区政务专网',
-      device: '工行银企互联认证通道',
-      time: '2026-07-28 11:05:42',
-      status: '核验绑定'
-    }
-  ];
+  const isVerified = profile.verifiedStatus !== '未认证';
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200 pb-12" id="personal-center-pc-view">
-      {/* Toast Alert */}
       {toastMessage && (
         <div className="fixed top-5 right-5 z-50 bg-[#1E5ABB] text-white px-4 py-2.5 rounded-xl shadow-2xl text-xs font-bold flex items-center space-x-2 animate-in slide-in-from-top-2 border border-white/20">
           <CheckCircle2 className="w-4 h-4 text-emerald-300" />
@@ -240,223 +228,113 @@ export const PersonalInfo: React.FC<PersonalInfoProps> = ({
         </div>
       )}
 
-      {/* Main Grid: Left Overview (4/12) + Right Tabs & Details (8/12) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* ================= LEFT COLUMN: User Profile & Quick Actions ================= */}
-        <div className="lg:col-span-4 space-y-5">
-          {/* Card: User Identity & Roles */}
-          <div className="bg-white rounded-xl border border-gray-200/90 shadow-2xs overflow-hidden">
-            {/* Header Gradient */}
-            <div className="bg-gradient-to-r from-[#0284C7] via-[#1E5ABB] to-[#2563EB] p-6 text-white relative">
-              <div className="flex items-center space-x-4">
-                <div className="w-16 h-16 rounded-full bg-white text-[#1E5ABB] flex items-center justify-center font-bold text-2xl shadow-md shrink-0 border-2 border-white/80">
-                  {profile.avatarText || profile.realName.slice(0, 1) || '张'}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center space-x-2">
-                    <h2 className="text-xl font-bold text-white tracking-tight">{profile.realName}</h2>
-                    <span className="bg-emerald-500/90 text-white text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center space-x-1">
-                      <ShieldCheck className="w-3 h-3" />
-                      <span>已实名</span>
-                    </span>
-                  </div>
-                  <div className="text-blue-100 text-xs font-mono mt-1">
-                    账号ID: {profile.username}
-                  </div>
-                </div>
-              </div>
-
-              {/* Roles Badge List */}
-              <div className="flex items-center space-x-2 mt-4 pt-3 border-t border-white/15">
-                <span className="text-xs text-blue-100 font-medium">当前权限:</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {profile.roles.map((r, i) => (
-                    <span
-                      key={i}
-                      className="bg-white/20 hover:bg-white/25 text-white text-xs px-2.5 py-0.5 rounded-md font-medium backdrop-blur-xs border border-white/20"
-                    >
-                      {r}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Profile Fast Facts */}
-            <div className="p-5 space-y-3.5 text-xs">
-              <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                <span className="text-gray-500 flex items-center space-x-1.5">
-                  <Phone className="w-3.5 h-3.5 text-gray-400" />
-                  <span>绑定手机</span>
-                </span>
-                <div className="flex items-center space-x-2 font-mono font-bold text-gray-800">
-                  <span>{profile.phone}</span>
-                  <button
-                    onClick={() => {
-                      setNewPhone('');
-                      setSmsCode('');
-                      setIsPhoneModalOpen(true);
-                    }}
-                    className="text-[#1E5ABB] hover:underline text-[11px] font-medium"
-                  >
-                    更换
-                  </button>
-                </div>
-              </div>
-
-
-
-
-
-              {/* 关联机构 (文字展示) */}
-              <div className="pt-2 border-t border-gray-100 space-y-2">
-                <div className="flex items-center justify-between text-xs text-gray-600 font-medium">
-                  <span className="flex items-center space-x-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-[#1E5ABB]" />
-                    <span>关联机构 ({profile.associatedOrgs.length})</span>
-                  </span>
-                  <span className="text-[11px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded">
-                    权限生效中
-                  </span>
-                </div>
-                <div className="space-y-1.5 pt-1">
-                  {profile.associatedOrgs.map((org, i) => (
-                    <div
-                      key={i}
-                      className="flex items-start space-x-2 p-2 rounded-lg bg-gray-50/80 text-xs text-gray-700 hover:bg-blue-50/50 transition-colors"
-                    >
-                      <span className="w-4 h-4 rounded bg-gray-200 text-gray-600 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
-                        {i + 1}
-                      </span>
-                      <span className="leading-snug text-gray-800 flex-1 font-medium">{org}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
+      <section className="bg-white rounded-xl border border-slate-200 px-6 py-5 flex flex-wrap items-center gap-5">
+        <div className="w-16 h-16 rounded-full bg-[#1E5ABB] text-white flex items-center justify-center text-2xl font-bold shrink-0">
+          {profile.avatarText || profile.realName.slice(0, 1) || '张'}
         </div>
-
-        {/* ================= RIGHT COLUMN: All Information Sections Displayed Directly ================= */}
-        <div className="lg:col-span-8 space-y-5">
-          {/* ================= SECTION 1: 基础信息与档案 ================= */}
-          <div className="bg-white rounded-xl border border-gray-200/90 p-6 shadow-2xs space-y-5">
-            <div className="flex flex-wrap items-center justify-between border-b border-gray-100 pb-4 gap-3">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#1E5ABB] flex items-center justify-center font-bold">
-                  <User className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-gray-900 text-sm">个人基础信息详情</h3>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => {
-                    setEditForm({
-                      realName: profile.realName,
-                      idCard: profile.rawIdCard || '420106199208151234',
-                      bankCard: profile.rawBankCard || '6222021000123458912',
-                      bankName: profile.bankName
-                    });
-                    setIsEditModalOpen(true);
-                  }}
-                  className="flex items-center space-x-1.5 text-xs font-bold text-[#1E5ABB] hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
-                >
-                  <Edit className="w-3.5 h-3.5" />
-                  <span>编辑基础信息</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Grid of Key-Value data */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-              <div className="p-4 bg-gray-50/80 rounded-xl border border-gray-100 space-y-1">
-                <span className="text-gray-500 font-medium">真实姓名</span>
-                <p className="text-sm font-bold text-gray-900">{profile.realName}</p>
-              </div>
-
-              <div className="p-4 bg-gray-50/80 rounded-xl border border-gray-100 space-y-1">
-                <span className="text-gray-500 font-medium">身份证号 (二代居民身份证)</span>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-bold font-mono text-gray-900 tracking-wider">
-                    {showIdMasked ? profile.idCard : (profile.rawIdCard || '420106199208151234')}
-                  </p>
-                  <div className="flex items-center space-x-1">
-                    <button
-                      onClick={() => {
-                        setShowIdMasked(!showIdMasked);
-                        showToast(showIdMasked ? '已展示身份证明文' : '已隐藏身份证号');
-                      }}
-                      className="p-1 text-gray-400 hover:text-[#1E5ABB] hover:bg-blue-50 rounded cursor-pointer transition-colors"
-                      title={showIdMasked ? '显示明文' : '隐藏明文'}
-                    >
-                      {showIdMasked ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5 text-[#1E5ABB]" />}
-                    </button>
-                    <button
-                      onClick={() => handleCopy(profile.rawIdCard || profile.idCard, '身份证号')}
-                      className="p-1 text-gray-400 hover:text-[#1E5ABB] hover:bg-blue-50 rounded cursor-pointer transition-colors"
-                      title="复制身份证号"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 bg-gray-50/80 rounded-xl border border-gray-100 space-y-1">
-                <span className="text-gray-500 font-medium">性别 / 民族</span>
-                <p className="text-sm font-bold text-gray-900">男 / 汉族</p>
-              </div>
-
-              <div className="p-4 bg-gray-50/80 rounded-xl border border-gray-100 space-y-1">
-                <span className="text-gray-500 font-medium">政治面貌</span>
-                <p className="text-sm font-bold text-gray-900">中共党员</p>
-              </div>
-
-              <div className="p-4 bg-gray-50/80 rounded-xl border border-gray-100 space-y-1">
-                <span className="text-gray-500 font-medium">开户银行</span>
-                <p className="text-sm font-bold text-gray-900">{profile.bankName}</p>
-              </div>
-
-              <div className="p-4 bg-gray-50/80 rounded-xl border border-gray-100 space-y-1">
-                <span className="text-gray-500 font-medium">银行卡号 (报销与津贴)</span>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-bold font-mono text-gray-900 tracking-wider">
-                    {showBankMasked ? profile.bankCard : (profile.rawBankCard || '6222021000123458912')}
-                  </p>
-                  <div className="flex items-center space-x-1">
-                    <button
-                      onClick={() => {
-                        setShowBankMasked(!showBankMasked);
-                        showToast(showBankMasked ? '已展示银行卡明文' : '已隐藏银行卡号');
-                      }}
-                      className="p-1 text-gray-400 hover:text-[#1E5ABB] hover:bg-blue-50 rounded cursor-pointer transition-colors"
-                      title={showBankMasked ? '显示明文' : '隐藏明文'}
-                    >
-                      {showBankMasked ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5 text-[#1E5ABB]" />}
-                    </button>
-                    <button
-                      onClick={() => handleCopy(profile.rawBankCard || profile.bankCard, '银行卡号')}
-                      className="p-1 text-gray-400 hover:text-[#1E5ABB] hover:bg-blue-50 rounded cursor-pointer transition-colors"
-                      title="复制银行卡号"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-xl font-bold text-slate-900">{profile.realName}</h2>
+            {isVerified && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                <ShieldCheck className="w-3 h-3" />
+                已实名
+              </span>
+            )}
+            {profile.roles.map((role) => (
+              <span key={role} className="text-[11px] font-semibold text-[#1E5ABB] bg-blue-50 px-2 py-0.5 rounded-full">
+                {role}
+              </span>
+            ))}
           </div>
-
-
-
-          {/* End of Right Column */}
+          <p className="text-xs text-slate-500 flex flex-wrap gap-x-4 gap-y-1">
+            <span>
+              账号 <span className="font-mono text-slate-700">{profile.username}</span>
+            </span>
+            <span>
+              手机 <span className="font-mono text-slate-700">{profile.phone}</span>
+            </span>
+            <span>
+              关联机构 <span className="text-slate-700">{profile.associatedOrgs.length} 个</span>
+            </span>
+          </p>
         </div>
-      </div>
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          <button
+            onClick={openEditModal}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#1E5ABB] hover:bg-[#184996] text-white text-xs font-bold transition-colors cursor-pointer"
+          >
+            <Edit className="w-3.5 h-3.5" />
+            编辑资料
+          </button>
+          <span className="text-[11px] text-slate-400 tabular-nums">资料更新于 {profile.updateTime}</span>
+        </div>
+      </section>
 
-      {/* ================= MODAL: 编辑个人基础信息 (PC Desktop Dialog) ================= */}
+      <SectionCard icon={<IdCard className="w-4 h-4 text-[#1E5ABB]" />} title="基础信息">
+        <dl className="-mb-px grid grid-cols-1 md:grid-cols-2 [&>div]:border-b [&>div]:border-slate-100 md:[&>div:nth-child(odd)]:border-r">
+          <InfoRow label="真实姓名">{profile.realName}</InfoRow>
+          <InfoRow label="绑定手机">
+            <span className="font-mono">{profile.phone}</span>
+            <button onClick={openPhoneModal} className="ml-1 text-xs text-[#1E5ABB] hover:underline cursor-pointer">
+              更换
+            </button>
+          </InfoRow>
+          <InfoRow label="性别 / 民族">男 / 汉族</InfoRow>
+          <InfoRow label="政治面貌">中共党员</InfoRow>
+          {profile.idCard && (
+            <InfoRow label="身份证号">
+              <span className="font-mono whitespace-nowrap">
+                {showIdMasked ? profile.idCard : profile.rawIdCard || profile.idCard}
+              </span>
+              <IconButton title={showIdMasked ? '显示完整号码' : '隐藏号码'} onClick={() => setShowIdMasked(!showIdMasked)}>
+                {showIdMasked ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5 text-[#1E5ABB]" />}
+              </IconButton>
+              <IconButton title="复制身份证号" onClick={() => handleCopy(profile.rawIdCard || profile.idCard, '身份证号')}>
+                <Copy className="w-3.5 h-3.5" />
+              </IconButton>
+            </InfoRow>
+          )}
+          {profile.bankName && (
+            <InfoRow label="开户银行">
+              <span className="truncate">{profile.bankName}</span>
+            </InfoRow>
+          )}
+          {profile.bankCard && (
+            <InfoRow label="银行卡号">
+              <span className="font-mono whitespace-nowrap">
+                {showBankMasked ? profile.bankCard : profile.rawBankCard || profile.bankCard}
+              </span>
+              <IconButton title={showBankMasked ? '显示完整卡号' : '隐藏卡号'} onClick={() => setShowBankMasked(!showBankMasked)}>
+                {showBankMasked ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5 text-[#1E5ABB]" />}
+              </IconButton>
+              <IconButton title="复制银行卡号" onClick={() => handleCopy(profile.rawBankCard || profile.bankCard, '银行卡号')}>
+                <Copy className="w-3.5 h-3.5" />
+              </IconButton>
+            </InfoRow>
+          )}
+        </dl>
+      </SectionCard>
+
+      <SectionCard
+        icon={<Building2 className="w-4 h-4 text-[#1E5ABB]" />}
+        title={`关联机构（${profile.associatedOrgs.length}）`}
+        extra={
+          <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">权限生效中</span>
+        }
+      >
+        <ul className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 p-5">
+          {profile.associatedOrgs.map((org, i) => (
+            <li key={org} className="flex items-center gap-3 rounded-lg border border-slate-200 px-3.5 py-3">
+              <span className="w-7 h-7 rounded-md bg-blue-50 text-[#1E5ABB] text-xs font-bold flex items-center justify-center shrink-0">
+                {i + 1}
+              </span>
+              <span className="text-[13px] font-medium text-slate-800 leading-snug">{org}</span>
+            </li>
+          ))}
+        </ul>
+      </SectionCard>
+
       {isEditModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl w-full max-w-lg p-6 space-y-5 shadow-2xl border border-gray-200">
@@ -512,11 +390,10 @@ export const PersonalInfo: React.FC<PersonalInfoProps> = ({
 
               <div>
                 <label className="block font-bold text-gray-700 mb-1">
-                  开户银行支行全称 <span className="text-rose-500">*</span>
+                  开户银行支行全称 <span className="font-normal text-gray-400">（选填）</span>
                 </label>
                 <input
                   type="text"
-                  required
                   value={editForm.bankName}
                   onChange={(e) => setEditForm({ ...editForm, bankName: e.target.value })}
                   placeholder="例如：中国工商银行台中西坝支行"
@@ -526,11 +403,10 @@ export const PersonalInfo: React.FC<PersonalInfoProps> = ({
 
               <div>
                 <label className="block font-bold text-gray-700 mb-1">
-                  银行卡号 (津贴/报销发放) <span className="text-rose-500">*</span>
+                  银行卡号 (津贴/报销发放) <span className="font-normal text-gray-400">（选填）</span>
                 </label>
                 <input
                   type="text"
-                  required
                   value={editForm.bankCard}
                   onChange={(e) => setEditForm({ ...editForm, bankCard: e.target.value })}
                   placeholder="请输入银行借记卡卡号"
@@ -563,7 +439,6 @@ export const PersonalInfo: React.FC<PersonalInfoProps> = ({
         </div>
       )}
 
-      {/* ================= MODAL: 更换手机号 (PC Desktop Dialog) ================= */}
       {isPhoneModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl border border-gray-200">

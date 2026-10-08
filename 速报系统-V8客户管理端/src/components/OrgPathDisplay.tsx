@@ -76,15 +76,9 @@ export const OrgPathDisplay: React.FC<OrgPathDisplayProps> = ({
   }
 
   return (
-    <div className={`mt-0.5 max-w-full leading-snug ${className}`} title={fullPath}>
-      {parentPath && (
-        <div className="truncate text-[10px] text-gray-400">
-          {parentPath}
-        </div>
-      )}
-      <div className="truncate text-[11px] font-medium text-gray-500">
-        {leaf}
-      </div>
+    <div className={`mt-0.5 truncate leading-snug text-[11px] text-gray-400 ${className}`} title={fullPath}>
+      {parentPath && `${parentPath} / `}
+      <span className="font-medium text-gray-500">{leaf}</span>
     </div>
   );
 };

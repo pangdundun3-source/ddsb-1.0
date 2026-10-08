@@ -49,8 +49,6 @@ import {
   ChevronRight,
   ChevronLeft,
   Filter,
-  LayoutGrid,
-  List,
   Share2,
   Paperclip,
   BellRing,
@@ -95,7 +93,6 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
 
   // Attachment preview & deletion modal
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
@@ -707,8 +704,6 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
             </button>
             <div>
               <div className="flex items-center space-x-2 text-xs text-slate-400">
-                <span>系统管理</span>
-                <span>/</span>
                 <button
                   onClick={handleBackToList}
                   className="text-slate-600 hover:text-[#1E5ABB] transition-colors cursor-pointer"
@@ -1315,8 +1310,6 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
               <ArrowLeft className="w-4 h-4" />
             </button>
             <div className="flex items-center space-x-2 text-xs text-slate-400">
-              <span>系统管理</span>
-              <span>/</span>
               <button
                 onClick={handleBackToList}
                 className="text-slate-600 hover:text-[#1E5ABB] transition-colors cursor-pointer"
@@ -1607,30 +1600,6 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
               草稿箱 ({stats.drafts})
             </button>
           </div>
-
-          {/* View Mode Toggle */}
-          <div className="flex items-center space-x-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-            <button
-              onClick={() => setViewMode('table')}
-              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all flex items-center space-x-1 cursor-pointer ${
-                viewMode === 'table' ? 'bg-white text-[#1E5ABB] shadow-2xs' : 'text-slate-500 hover:text-slate-800'
-              }`}
-              title="公文列表视图"
-            >
-              <List className="w-3.5 h-3.5" />
-              <span>列表</span>
-            </button>
-            <button
-              onClick={() => setViewMode('cards')}
-              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all flex items-center space-x-1 cursor-pointer ${
-                viewMode === 'cards' ? 'bg-white text-[#1E5ABB] shadow-2xs' : 'text-slate-500 hover:text-slate-800'
-              }`}
-              title="卡片流视图"
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-              <span>卡片</span>
-            </button>
-          </div>
         </div>
 
         {/* Filter Controls: Merged in one row */}
@@ -1725,155 +1694,6 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
           >
             重置筛选条件
           </button>
-        </div>
-      ) : viewMode === 'cards' ? (
-        /* Card Grid View */
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredNotices.map((notice) => {
-            const readPercentage =
-              notice.totalTargetCount > 0
-                ? Math.min(100, Math.round((notice.readCount / notice.totalTargetCount) * 100))
-                : 0;
-
-            return (
-              <div
-                key={notice.id}
-                onClick={() => handleOpenDetail(notice)}
-                className="bg-white rounded-2xl p-5 border border-slate-200/90 hover:border-[#1E5ABB]/50 transition-all duration-200 hover:shadow-md cursor-pointer relative group flex flex-col justify-between"
-              >
-                <div>
-                  {/* Top Badges & Meta */}
-                  <div className="flex items-center justify-between gap-2 mb-2.5">
-                    <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                      {getCategoryBadge(notice.category)}
-                      {getPriorityBadge(notice.priority)}
-                      {notice.scope && (
-                        <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[11px] font-medium rounded-md border border-slate-200/80">
-                          {notice.scope} ({notice.totalTargetCount}人)
-                        </span>
-                      )}
-                      {notice.requireConfirm && (
-                        <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[11px] font-bold rounded-md border border-indigo-200 flex items-center space-x-1">
-                          <FileCheck className="w-3 h-3" />
-                          <span>需签收</span>
-                        </span>
-                      )}
-                      {notice.status === '草稿' && (
-                        <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[11px] font-bold rounded-md border border-slate-300">
-                          草稿
-                        </span>
-                      )}
-                      {notice.status === '已撤回' && (
-                        <span className="px-2 py-0.5 bg-rose-50 text-rose-600 text-[11px] font-bold rounded-md border border-rose-200">
-                          已撤回
-                        </span>
-                      )}
-                    </div>
-
-                    <span className="text-[11px] font-mono text-slate-400 shrink-0">
-                      {notice.id}
-                    </span>
-                  </div>
-
-                  {/* Title */}
-                  <h3 className="text-base font-bold text-slate-900 group-hover:text-[#1E5ABB] transition-colors line-clamp-2 leading-snug">
-                    {notice.title}
-                  </h3>
-
-                  {/* Summary */}
-                  <p className="text-xs text-slate-600 mt-2 line-clamp-2 leading-relaxed">
-                    {notice.summary || notice.content}
-                  </p>
-
-                  {/* Attachments preview pill if any */}
-                  {notice.attachments && notice.attachments.length > 0 && (
-                    <div className="mt-3 flex items-center space-x-1.5 text-[11px] text-slate-500 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/80 w-fit">
-                      <Paperclip className="w-3.5 h-3.5 text-slate-400" />
-                      <span>包含 {notice.attachments.length} 个公文附件 ({notice.attachments[0].name.slice(0, 20)}...)</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Card Footer */}
-                <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-col space-y-2.5">
-                  <div className="flex items-center justify-between text-xs text-slate-500">
-                    <div className="flex items-center space-x-2">
-                      <span className="font-medium text-slate-700">{notice.publishOrg}</span>
-                      <span className="text-slate-300">·</span>
-                      <span>{notice.publisher.split(' ')[0]}</span>
-                    </div>
-                    <div className="flex items-center space-x-1 text-slate-400 text-[11px]">
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>{notice.publishTime}</span>
-                    </div>
-                  </div>
-
-                  {/* Read Rate Bar & Quick Actions */}
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex-1 max-w-[200px]">
-                      <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
-                        <span>查阅进度</span>
-                        <span className="font-bold text-slate-700">
-                          {notice.readCount}/{notice.totalTargetCount} ({readPercentage}%)
-                        </span>
-                      </div>
-                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${
-                            readPercentage > 80
-                              ? 'bg-emerald-500'
-                              : readPercentage > 50
-                              ? 'bg-blue-500'
-                              : 'bg-amber-500'
-                          }`}
-                          style={{ width: `${readPercentage}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Quick Button Group */}
-                    <div className="flex items-center space-x-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                      {notice.status !== '已发布' && (
-                        <button
-                          onClick={() => handleStartEdit(notice, 'list')}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                          title="编辑公文详情"
-                        >
-                          <Edit className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-
-                      {notice.status === '已发布' && (
-                        <button
-                          onClick={(e) => handleRecall(notice.id, e)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
-                          title="撤回公告"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() => setDeleteConfirmNotice(notice)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                        title="删除公告"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        onClick={() => handleOpenDetail(notice)}
-                        className="px-2.5 py-1 bg-slate-100 hover:bg-[#1E5ABB] text-slate-700 hover:text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center space-x-1 ml-1"
-                      >
-                        <span>查看详情</span>
-                        <ChevronRight className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
         </div>
       ) : (
         /* Table View */

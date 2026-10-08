@@ -3,6 +3,7 @@ import { AuditRecordItem, PageId, ReportItem, OriginTypeLabel } from '../types';
 import { Search, RotateCcw, X, AlertCircle } from 'lucide-react';
 import { PaginationBar } from '../components/PaginationBar';
 import { OrgPathDisplay, getOrganizationPathText } from '../components/OrgPathDisplay';
+import { StackedDateTime } from '../components/StackedDateTime';
 import { ReportOriginBadge } from '../components/ReportOriginBadge';
 import { AuditRecordDetail } from './AuditRecordDetail';
 
@@ -121,7 +122,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
       {/* Filter Card - Aligned with ReportAudit.tsx */}
       <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-2xs space-y-4">
         {/* Filter items with inline label and input */}
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-4 text-xs">
+        <div className="flex flex-col lg:flex-row lg:flex-wrap items-stretch lg:items-center gap-4 text-xs">
           {/* 关键字搜索 */}
           <div className="flex-1 min-w-[240px]">
             <div className="relative flex-1">
@@ -227,14 +228,14 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-gray-50/90 border-b border-gray-200 text-gray-600 font-semibold">
-                <th className="py-3.5 px-4 w-12 text-center">序号</th>
-                <th className="py-3.5 px-4 min-w-[220px]">事件标题</th>
-                <th className="py-3.5 px-4 min-w-[160px]">上报人员 / 机构</th>
-                <th className="py-3.5 px-4">报送时间</th>
-                <th className="py-3.5 px-4 min-w-[160px]">审核人员 / 机构</th>
-                <th className="py-3.5 px-4 text-center">审核状态</th>
-                <th className="py-3.5 px-4">审核时间</th>
-                <th className="py-3.5 px-4 text-center">操作</th>
+                <th className="py-3.5 px-3 w-12 text-center">序号</th>
+                <th className="py-3.5 px-3 min-w-[200px] w-full">事件标题 / 内容描述</th>
+                <th className="py-3.5 px-3 whitespace-nowrap">上报人员 / 机构</th>
+                <th className="py-3.5 px-3 whitespace-nowrap">报送时间</th>
+                <th className="py-3.5 px-3 whitespace-nowrap">审核人员 / 机构</th>
+                <th className="py-3.5 px-3 text-center whitespace-nowrap">审核状态</th>
+                <th className="py-3.5 px-3 whitespace-nowrap">审核时间</th>
+                <th className="py-3.5 px-3 text-center whitespace-nowrap">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 text-gray-700">
@@ -258,12 +259,13 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
 
                 return (
                   <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
-                    <td className="py-3.5 px-4 text-center text-gray-400 font-mono">{(safePage - 1) * pageSize + index + 1}</td>
-                    <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-2">
+                    <td className="py-3.5 px-3 text-center text-gray-400 font-mono">{(safePage - 1) * pageSize + index + 1}</td>
+                    <td className="py-3.5 px-3">
+                      <div className="flex items-center gap-2 w-0 min-w-full">
                         <button
                           onClick={() => handleDetail(item)}
-                          className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer block leading-snug"
+                          className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer leading-snug truncate min-w-0"
+                          title={item.title}
                         >
                           {item.title}
                         </button>
@@ -273,19 +275,25 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
                           className="shrink-0"
                         />
                       </div>
+                      <div
+                        className="text-gray-500 text-[11px] truncate leading-relaxed mt-1 w-0 min-w-full"
+                        title={reportMatch?.detailContent?.summary || '暂无内容描述'}
+                      >
+                        {reportMatch?.detailContent?.summary || '暂无内容描述'}
+                      </div>
                     </td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-3">
                       <div className="font-semibold text-gray-900 leading-snug">{submitterName}</div>
-                      <OrgPathDisplay organization={item.organization} className="max-w-[220px]" />
+                      <OrgPathDisplay organization={item.organization} className="max-w-[170px]" />
                     </td>
-                    <td className="py-3.5 px-4 font-mono text-gray-500 whitespace-nowrap text-[11px]">
-                      {submitTimeStr}
+                    <td className="py-3.5 px-3 font-mono text-gray-500 whitespace-nowrap text-[11px]">
+                      <StackedDateTime value={submitTimeStr} />
                     </td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-3">
                       <div className="font-semibold text-gray-900 leading-snug">{auditorName}</div>
-                      <OrgPathDisplay organization={auditorOrgStr} className="max-w-[220px]" />
+                      <OrgPathDisplay organization={auditorOrgStr} className="max-w-[170px]" />
                     </td>
-                    <td className="py-3.5 px-4 text-center">
+                    <td className="py-3.5 px-3 text-center">
                       {item.auditResult === '已通过' ? (
                         <div className="inline-flex flex-col items-center gap-1">
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
@@ -332,15 +340,15 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
                         </div>
                       )}
                     </td>
-                    <td className="py-3.5 px-4 font-mono text-gray-500 whitespace-nowrap text-[11px]">
-                      {item.auditTime}
+                    <td className="py-3.5 px-3 font-mono text-gray-500 whitespace-nowrap text-[11px]">
+                      <StackedDateTime value={item.auditTime} />
                     </td>
-                    <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                    <td className="py-3.5 px-3 text-center whitespace-nowrap">
                       <button
                         onClick={() => handleDetail(item)}
-                        className="px-3 py-1 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                        className="text-[#1E5ABB] hover:text-[#134092] hover:underline text-xs font-bold cursor-pointer"
                       >
-                        查看详情
+                        详情
                       </button>
                     </td>
                   </tr>

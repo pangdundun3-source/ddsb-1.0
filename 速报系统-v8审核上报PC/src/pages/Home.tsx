@@ -1,34 +1,27 @@
 import React, { useState } from 'react';
-import { PageId, ReportItem, OrgItem, ReportTemplateDef, ReportTemplateInput } from '../types';
+import { PageId, ReportItem, OrgItem, ReportTemplateInput, NotificationItem } from '../types';
 import {
-  Sparkles,
   ChevronRight,
-  ShieldCheck,
+  ChevronLeft,
   Trash2,
-  ArrowRight,
   FileEdit,
   Inbox,
   CheckCircle2,
-  PlusCircle,
-  ChevronLeft,
   AlertCircle,
-  Zap,
-  FileText,
-  HelpCircle,
-  ShieldAlert,
-  BookOpen,
-  FileSpreadsheet,
-  Settings2,
-  Send,
-  SlidersHorizontal,
+  Plus,
   Flame,
   MessageSquare,
-  Radio
+  Radio,
+  FileText,
+  BarChart3,
+  ClipboardCheck,
+  PieChart,
+  RotateCw
 } from 'lucide-react';
-import { PRESET_REPORT_TEMPLATES as PRESET_TEMPLATES } from '../data/mockData';
 import { AuditStatusBadge } from '../components/AuditStatusBadge';
 import { ReportOriginBadge } from '../components/ReportOriginBadge';
 import { OrgPathDisplay } from '../components/OrgPathDisplay';
+import { HomeNotificationPanel } from '../components/HomeNotificationPanel';
 
 export type SystemRoleMode = 'all' | 'reporter' | 'auditor';
 
@@ -40,14 +33,20 @@ interface HomeProps {
   onSelectAudit?: (report: ReportItem) => void;
   currentUser?: string;
   currentRoleTitle?: string;
+  currentOrgName?: string;
   userRole?: SystemRoleMode;
   onOpenNewReport?: (templateData?: ReportTemplateInput) => void;
   onOpenEditReport?: (report: ReportItem) => void;
   onDeleteReport?: (id: number) => void;
+  notifications: NotificationItem[];
+  onMarkNotificationsRead: (ids: string[]) => void;
+  onOpenNotification: (item: NotificationItem) => void;
+  onOpenMessageCenter: (tab?: 'unread' | 'read') => void;
 }
 
-type TimeRange = '本周' | '本月' | '本季度' | '本年' | '自定义区间';
+type TodoTab = 'audit' | 'submit';
 
+const PAGE_SIZE = 6;
 
 const INITIAL_PENDING_AUDITS = [
   {
@@ -122,6 +121,121 @@ const INITIAL_PENDING_AUDITS = [
   }
 ];
 
+interface TemplateShortcut {
+  id: string;
+  name: string;
+  scope: string;
+  icon: React.ElementType;
+  tone: string;
+  build: () => ReportTemplateInput;
+}
+
+const TEMPLATE_SHORTCUTS: TemplateShortcut[] = [
+  {
+    id: 'emergency',
+    name: '突发事件速报',
+    scope: '现场秩序、安全事故、应急研判',
+    icon: Flame,
+    tone: 'bg-rose-50 text-rose-500',
+    build: () => ({
+      title: '【紧急】关于某路段突发管网故障抢修进展的快报',
+      source: '网格巡查',
+      region: '西屯区',
+      infoType: '突发事件',
+      summary: `【突发时间】：${new Date().toLocaleDateString('zh-CN')} ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}\n【事发精准地点】：西屯区XX路与XX街交叉口\n【事件简述】：现场因市政施工突发管网渗漏，造成路面局部积水并影响早高峰通行。\n【伤亡及损失情况】：现场无人员伤亡，周边已设立安全警戒线。\n【当前处置进展】：抢修工程车辆及应急处置组已进场作业，正在进行分流抢修。`,
+      demands: '周边居民及过往车主高度关注积水排除与恢复通行的预计时间。',
+      recommendations: '1. 联动交警支队实施临时交通分流与道路交通疏导。\n2. 属地融媒体中心通过微信公众号发布临时通行提示，回应群众关切。'
+    })
+  },
+  {
+    id: 'livelihood',
+    name: '民生诉求核查',
+    scope: '物业维修、水电气热、市政诉求',
+    icon: MessageSquare,
+    tone: 'bg-amber-50 text-amber-500',
+    build: () => ({
+      title: '关于某小区业主反映物业擅自调高公摊费用的诉求专报',
+      source: '热线12345',
+      region: '北屯区',
+      infoType: '民生诉求',
+      summary: `一、诉求来源与规模：\n12345热线近3日内累计收到相关工单12件，涉及业主超过50户。\n\n二、诉求核心事实：\n业主反映物业管理处未履行公示与表决程序，直接在月度物业费账单中增列地下车库公共能耗费用。\n\n三、初步调解情况：\n社区居委会已介入搭建沟通平台，督促物业做好账目核算。`,
+      demands: '业主普遍要求物业撤回不合理收费项目，退还已代扣款项，并公开年度公摊水电账目。',
+      recommendations: '1. 建议街道城管科联合房管局约谈物业负责人，限期3日内自查自纠并出具整改说明。\n2. 社区居委会指导业主委员会依法召开业主代表沟通会。'
+    })
+  },
+  {
+    id: 'rumor',
+    name: '网络谣言线索',
+    scope: '网络不实信息、虚假炒作辟谣',
+    icon: Radio,
+    tone: 'bg-emerald-50 text-emerald-500',
+    build: () => ({
+      title: '关于短视频平台流传“某小区突发不明气体泄漏”虚假信息的核查澄清报送',
+      source: '网络巡查',
+      region: '南屯区',
+      infoType: '网络谣言',
+      summary: `一、谣言源头与传播特征：\n抖音账号“XX市民热心事”于今晨发布15秒短视频，配文称“某小区疑似发生危化品气体泄漏”，截至目前点赞量达1.2万次，转发3500余次。\n\n二、官方部门实地核查：\n属地应急管理局与生态环境执法大队第一时间赶赴现场排查，实为周边市政自来水管道例行冲洗排放水雾，未检出任何有害气体。\n\n三、当前发酵态势：\n评论区存在个别恐慌情绪蔓延，急需权威声音辟谣。`,
+      demands: '网民关注官方权威调查结论与是否存在安全隐患。',
+      recommendations: '1. 建议网信办联合应急管理局在官方微博与抖音号发布权威辟谣通报。\n2. 对首发造谣账号予以限流并固定电子证据，移交公安部门进一步处理。'
+    })
+  }
+];
+
+const formatDateTime = (d: Date) => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 6) return '凌晨好';
+  if (hour < 12) return '上午好';
+  if (hour < 14) return '中午好';
+  if (hour < 18) return '下午好';
+  return '晚上好';
+};
+
+const resolveRoleMode = (roleTitle: string): SystemRoleMode => {
+  const isReporter = roleTitle.includes('上报') || roleTitle.includes('填报') || roleTitle.includes('速报');
+  const isAuditor = roleTitle.includes('审核');
+  if (roleTitle.includes('管理员') || roleTitle.includes('超级') || roleTitle.includes('全权')) return 'all';
+  if (isReporter && isAuditor) return 'all';
+  if (isAuditor) return 'auditor';
+  if (isReporter) return 'reporter';
+  return 'all';
+};
+
+const Pager: React.FC<{
+  page: number;
+  totalPages: number;
+  total: number;
+  onChange: (page: number) => void;
+}> = ({ page, totalPages, total, onChange }) => (
+  <div className="flex items-center gap-2 text-[11px] text-slate-500">
+    <span className="tabular-nums">
+      第 {page}/{totalPages} 页，共 {total} 条
+    </span>
+    <div className="flex items-center gap-1">
+      <button
+        onClick={() => onChange(Math.max(1, page - 1))}
+        disabled={page <= 1}
+        className="p-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+        title="上一页"
+      >
+        <ChevronLeft className="w-3.5 h-3.5 text-slate-600" />
+      </button>
+      <button
+        onClick={() => onChange(Math.min(totalPages, page + 1))}
+        disabled={page >= totalPages}
+        className="p-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+        title="下一页"
+      >
+        <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+      </button>
+    </div>
+  </div>
+);
+
 export const Home: React.FC<HomeProps> = ({
   reports,
   onNavigate,
@@ -132,799 +246,381 @@ export const Home: React.FC<HomeProps> = ({
   onDeleteReport,
   currentUser = '张三',
   currentRoleTitle = '超级管理员',
-  userRole
+  currentOrgName,
+  userRole,
+  notifications,
+  onMarkNotificationsRead,
+  onOpenNotification,
+  onOpenMessageCenter
 }) => {
-  const [timeRange, setTimeRange] = useState<TimeRange>('本周');
+  const roleMode = userRole ?? resolveRoleMode(currentRoleTitle);
+  const showReporter = roleMode === 'all' || roleMode === 'reporter';
+  const showAuditor = roleMode === 'all' || roleMode === 'auditor';
+
+  const [activeTab, setActiveTab] = useState<TodoTab>(showAuditor ? 'audit' : 'submit');
+  const [auditPage, setAuditPage] = useState(1);
+  const [submitPage, setSubmitPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<ReportItem | null>(null);
+  const [updatedAt, setUpdatedAt] = useState(() => new Date());
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Pagination states for fixed regions (3 items per page)
-  const [submitPageIndex, setSubmitPageIndex] = useState(1);
-  const [auditPageIndex, setAuditPageIndex] = useState(1);
-  const PAGE_SIZE = 3;
+  const handleRefresh = () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    window.setTimeout(() => {
+      setUpdatedAt(new Date());
+      setRefreshing(false);
+    }, 600);
+  };
 
-  // Automatically determine the active role mode matched by the system
-  const effectiveRoleMode: SystemRoleMode = (() => {
-    if (userRole) return userRole;
-    if (
-      (currentRoleTitle.includes('上报') || currentRoleTitle.includes('填报')) &&
-      currentRoleTitle.includes('审核')
-    ) {
-      return 'all';
-    }
-    if (currentRoleTitle.includes('管理员') || currentRoleTitle.includes('超级') || currentRoleTitle.includes('全权')) {
-      return 'all';
-    }
-    if (currentRoleTitle.includes('审核')) {
-      return 'auditor';
-    }
-    if (currentRoleTitle.includes('上报') || currentRoleTitle.includes('填报') || currentRoleTitle.includes('速报')) {
-      return 'reporter';
-    }
-    return 'all';
-  })();
-
-  const showReporter = effectiveRoleMode === 'all' || effectiveRoleMode === 'reporter';
-  const showAuditor = effectiveRoleMode === 'all' || effectiveRoleMode === 'auditor';
-
-  // 被驳回需修改速报列表：与“报送管理-报送待办”保持一致（草稿箱已移除）
   const rejectedReports = reports.filter(
     (r) => r.auditStatus === '被驳回' || r.auditStatus === '已驳回'
   );
-  const submitTodos: ReportItem[] = rejectedReports;
-  const rejectedCount = rejectedReports.length;
+  const realPendingAudits = reports.filter((r) => r.auditStatus === '待审核');
+  const pendingAudits =
+    realPendingAudits.length > 0 ? realPendingAudits : (INITIAL_PENDING_AUDITS as unknown as ReportItem[]);
+  const unreadCount = notifications.filter((n) => n.isUnread).length;
 
-  // Multi-range stats configuration
-  const statsConfig = {
-    本周: {
-      submitWait: submitTodos.length,
-      submitReject: rejectedCount,
-      submitTotal: 11,
-      submitFirst: 8,
-      submitRepeat: 3,
-      submitPassed: 1,
-      submitPending: 9,
-      submitPassRate: '9%',
-      submitDirectPass: 0,
-      submitRepairPass: 1,
-      submitOncePassRate: '0%',
+  const auditTotalPages = Math.ceil(pendingAudits.length / PAGE_SIZE) || 1;
+  const submitTotalPages = Math.ceil(rejectedReports.length / PAGE_SIZE) || 1;
+  const pagedAudits = pendingAudits.slice((auditPage - 1) * PAGE_SIZE, auditPage * PAGE_SIZE);
+  const pagedRejected = rejectedReports.slice((submitPage - 1) * PAGE_SIZE, submitPage * PAGE_SIZE);
 
-      auditWait: 5,
-      auditTotal: 2,
-      auditTotalPool: 7,
-      auditProcessRate: '29%',
-      auditAvgResponse: '1 h',
-      auditPassed: 1,
-      auditRejected: 1,
-      auditPending: 5
-    },
-    本月: {
-      submitWait: 7,
-      submitDraft: 4,
-      submitReject: 3,
-      submitTotal: 38,
-      submitFirst: 29,
-      submitRepeat: 9,
-      submitPassed: 19,
-      submitPending: 16,
-      submitPassRate: '50%',
-      submitDirectPass: 12,
-      submitRepairPass: 7,
-      submitOncePassRate: '31%',
+  const tabs: { id: TodoTab; label: string; count: number }[] = [
+    ...(showAuditor ? [{ id: 'audit' as const, label: '待我审核', count: pendingAudits.length }] : []),
+    ...(showReporter ? [{ id: 'submit' as const, label: '被驳回待修改', count: rejectedReports.length }] : [])
+  ];
+  const currentTab = tabs.some((t) => t.id === activeTab) ? activeTab : tabs[0]?.id;
 
-      auditWait: 12,
-      auditTotal: 24,
-      auditTotalPool: 36,
-      auditProcessRate: '67%',
-      auditAvgResponse: '45 min',
-      auditPassed: 19,
-      auditRejected: 5,
-      auditPending: 12
-    },
-    本季度: {
-      submitWait: 14,
-      submitDraft: 9,
-      submitReject: 5,
-      submitTotal: 112,
-      submitFirst: 85,
-      submitRepeat: 27,
-      submitPassed: 86,
-      submitPending: 21,
-      submitPassRate: '77%',
-      submitDirectPass: 68,
-      submitRepairPass: 18,
-      submitOncePassRate: '60%',
-
-      auditWait: 18,
-      auditTotal: 98,
-      auditTotalPool: 116,
-      auditProcessRate: '84%',
-      auditAvgResponse: '35 min',
-      auditPassed: 86,
-      auditRejected: 12,
-      auditPending: 18
-    },
-    本年: {
-      submitWait: 22,
-      submitDraft: 15,
-      submitReject: 7,
-      submitTotal: 345,
-      submitFirst: 268,
-      submitRepeat: 77,
-      submitPassed: 302,
-      submitPending: 36,
-      submitPassRate: '87%',
-      submitDirectPass: 254,
-      submitRepairPass: 48,
-      submitOncePassRate: '73%',
-
-      auditWait: 26,
-      auditTotal: 328,
-      auditTotalPool: 354,
-      auditProcessRate: '92%',
-      auditAvgResponse: '28 min',
-      auditPassed: 302,
-      auditRejected: 26,
-      auditPending: 26
-    },
-    自定义区间: {
-      submitWait: 5,
-      submitDraft: 3,
-      submitReject: 2,
-      submitTotal: 20,
-      submitFirst: 15,
-      submitRepeat: 5,
-      submitPassed: 8,
-      submitPending: 10,
-      submitPassRate: '40%',
-      submitDirectPass: 5,
-      submitRepairPass: 3,
-      submitOncePassRate: '25%',
-
-      auditWait: 8,
-      auditTotal: 12,
-      auditTotalPool: 20,
-      auditProcessRate: '60%',
-      auditAvgResponse: '50 min',
-      auditPassed: 8,
-      auditRejected: 4,
-      auditPending: 8
-    }
+  const focusTodo = (tab: TodoTab) => {
+    setActiveTab(tab);
+    document.getElementById('home-todo-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const currentStats = statsConfig[timeRange];
+  const openReportDetail = (item: ReportItem) => {
+    onSelectReport?.(item);
+    onNavigate('report-summary');
+  };
 
-  // Merge reports with status 待审核 or fallback
-  const realPendingAudits = reports.filter((r) => r.auditStatus === '待审核');
-  const allPendingAudits = realPendingAudits.length > 0 ? realPendingAudits : (INITIAL_PENDING_AUDITS as unknown as ReportItem[]);
+  const openAuditDetail = (item: ReportItem) => {
+    onSelectAudit?.(item);
+    onNavigate('audit-detail');
+  };
 
-  // Pagination slicing
-  const submitTotalPages = Math.ceil(submitTodos.length / PAGE_SIZE) || 1;
-  const currentSubmitTodos = submitTodos.slice(
-    (submitPageIndex - 1) * PAGE_SIZE,
-    submitPageIndex * PAGE_SIZE
-  );
+  const summaryCounts = [
+    ...(showAuditor
+      ? [{ key: 'audit', label: '待我审核', value: pendingAudits.length, tone: 'text-[#1E5ABB]', onClick: () => focusTodo('audit') }]
+      : []),
+    ...(showReporter
+      ? [{ key: 'submit', label: '被驳回待修改', value: rejectedReports.length, tone: 'text-rose-600', onClick: () => focusTodo('submit') }]
+      : []),
+    {
+      key: 'unread',
+      label: '未读消息',
+      value: unreadCount,
+      tone: 'text-amber-500',
+      onClick: () => onOpenMessageCenter('unread')
+    }
+  ];
 
-  const auditTotalPages = Math.ceil(allPendingAudits.length / PAGE_SIZE) || 1;
-  const currentPendingAudits = allPendingAudits.slice(
-    (auditPageIndex - 1) * PAGE_SIZE,
-    auditPageIndex * PAGE_SIZE
-  );
+  const shortcuts: { key: PageId; label: string; icon: React.ElementType; tone: string }[] = [
+    ...(showReporter
+      ? [
+          { key: 'report-records' as const, label: '报送记录', icon: FileText, tone: 'bg-blue-50 text-[#1E5ABB]' },
+          { key: 'report-statistics' as const, label: '报送统计', icon: BarChart3, tone: 'bg-indigo-50 text-indigo-500' }
+        ]
+      : []),
+    ...(showAuditor
+      ? [
+          { key: 'audit-records' as const, label: '审核记录', icon: ClipboardCheck, tone: 'bg-teal-50 text-teal-600' },
+          { key: 'audit-statistics' as const, label: '审核统计', icon: PieChart, tone: 'bg-violet-50 text-violet-500' }
+        ]
+      : [])
+  ];
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* ================= 1. 标准化上报模板专区（快捷上报入口） ================= */}
-      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/90 shadow-2xs space-y-4">
-        {/* Section Header */}
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-            <Sparkles className="w-4.5 h-4.5 text-blue-600" />
-          </div>
-          <div>
-            <h3 className="font-extrabold text-sm sm:text-base text-slate-900 tracking-tight">标准化上报模板专区</h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              选择适用业务场景预置模板，一键快速填报
-            </p>
-          </div>
+    <div className="space-y-5 pb-12">
+      {/* 顶部状态条 */}
+      <section className="bg-white rounded-xl border border-slate-200 px-5 py-4 flex flex-col md:flex-row md:items-center gap-4 md:gap-5">
+        <div className="min-w-0 md:max-w-[260px]">
+          <h2 className="text-lg font-bold text-slate-900 truncate">
+            {currentUser}，{getGreeting()}
+          </h2>
+          <p className="mt-1 text-xs text-slate-500 truncate" title={`${currentRoleTitle}${currentOrgName ? `，${currentOrgName}` : ''}`}>
+            {currentRoleTitle}
+            {currentOrgName ? `，${currentOrgName}` : ''}
+          </p>
         </div>
 
-        {/* 3 列标准化模板卡片网格 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-4">
-          {/* 卡片 1: 突发事件速报模板 */}
-          <div
-            onClick={() => {
-              onOpenNewReport?.({
-                title: '【紧急】关于某路段突发管网故障抢修进展的快报',
-                source: '网格巡查',
-                region: '西屯区',
-                infoType: '突发事件',
-                summary: `【突发时间】：${new Date().toLocaleDateString('zh-CN')} ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}\n【事发精准地点】：西屯区XX路与XX街交叉口\n【事件简述】：现场因市政施工突发管网渗漏，造成路面局部积水并影响早高峰通行。\n【伤亡及损失情况】：现场无人员伤亡，周边已设立安全警戒线。\n【当前处置进展】：抢修工程车辆及应急处置组已进场作业，正在进行分流抢修。`,
-                demands: '周边居民及过往车主高度关注积水排除与恢复通行的预计时间。',
-                recommendations: '1. 联动交警支队实施临时交通分流与道路交通疏导。\n2. 属地融媒体中心通过微信公众号发布临时通行提示，回应群众关切。'
-              });
-            }}
-            className="bg-white rounded-xl border border-slate-200/90 p-4 flex items-center justify-between hover:border-rose-300 hover:shadow-xs transition-all cursor-pointer group"
-          >
-            <div className="flex items-center space-x-3.5 min-w-0">
-              <div className="w-10 h-10 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-500 shrink-0 group-hover:scale-105 transition-transform">
-                <Flame className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <h4 className="font-bold text-sm text-slate-800 group-hover:text-rose-600 transition-colors truncate">
-                  突发事件速报模板
-                </h4>
-                <p className="text-[11px] text-slate-400 mt-0.5 truncate">
-                  现场秩序、安全事故、应急研判
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-rose-500 group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
+        <div className="flex-1 min-w-0 flex flex-wrap items-end justify-between gap-x-6 gap-y-2 md:border-l md:border-slate-100 md:pl-5">
+          <div className="flex items-stretch gap-x-8">
+            {summaryCounts.map((item) => (
+              <button
+                key={item.key}
+                onClick={item.onClick}
+                className="text-left cursor-pointer group"
+              >
+                <span
+                  className={`block text-2xl font-bold leading-none tabular-nums transition-colors ${
+                    item.value > 0 ? `${item.tone} group-hover:opacity-80` : 'text-slate-300'
+                  }`}
+                >
+                  {item.value}
+                </span>
+                <span className="block mt-1.5 text-xs text-slate-500 group-hover:text-slate-800 whitespace-nowrap">
+                  {item.label}
+                </span>
+              </button>
+            ))}
           </div>
-
-          {/* 卡片 2: 民生诉求核查模板 */}
-          <div
-            onClick={() => {
-              onOpenNewReport?.({
-                title: '关于某小区业主反映物业擅自调高公摊费用的诉求专报',
-                source: '热线12345',
-                region: '北屯区',
-                infoType: '民生诉求',
-                summary: `一、诉求来源与规模：\n12345热线近3日内累计收到相关工单12件，涉及业主超过50户。\n\n二、诉求核心事实：\n业主反映物业管理处未履行公示与表决程序，直接在月度物业费账单中增列地下车库公共能耗费用。\n\n三、初步调解情况：\n社区居委会已介入搭建沟通平台，督促物业做好账目核算。`,
-                demands: '业主普遍要求物业撤回不合理收费项目，退还已代扣款项，并公开年度公摊水电账目。',
-                recommendations: '1. 建议街道城管科联合房管局约谈物业负责人，限期3日内自查自纠并出具整改说明。\n2. 社区居委会指导业主委员会依法召开业主代表沟通会。'
-              });
-            }}
-            className="bg-white rounded-xl border border-slate-200/90 p-4 flex items-center justify-between hover:border-amber-300 hover:shadow-xs transition-all cursor-pointer group"
-          >
-            <div className="flex items-center space-x-3.5 min-w-0">
-              <div className="w-10 h-10 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-500 shrink-0 group-hover:scale-105 transition-transform">
-                <MessageSquare className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <h4 className="font-bold text-sm text-slate-800 group-hover:text-amber-600 transition-colors truncate">
-                  民生诉求核查模板
-                </h4>
-                <p className="text-[11px] text-slate-400 mt-0.5 truncate">
-                  物业维修、水电气热、市政诉求
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-amber-500 group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
-          </div>
-
-          {/* 卡片 3: 网络谣言线索模板 */}
-          <div
-            onClick={() => {
-              onOpenNewReport?.({
-                title: '关于短视频平台流传“某小区突发不明气体泄漏”虚假信息的核查澄清报送',
-                source: '网络巡查',
-                region: '南屯区',
-                infoType: '网络谣言',
-                summary: `一、谣言源头与传播特征：\n抖音账号“XX市民热心事”于今晨发布15秒短视频，配文称“某小区疑似发生危化品气体泄漏”，截至目前点赞量达1.2万次，转发3500余次。\n\n二、官方部门实地核查：\n属地应急管理局与生态环境执法大队第一时间赶赴现场排查，实为周边市政自来水管道例行冲洗排放水雾，未检出任何有害气体。\n\n三、当前发酵态势：\n评论区存在个别恐慌情绪蔓延，急需权威声音辟谣。`,
-                demands: '网民关注官方权威调查结论与是否存在安全隐患。',
-                recommendations: '1. 建议网信办联合应急管理局在官方微博与抖音号发布权威辟谣通报。\n2. 对首发造谣账号予以限流并固定电子证据，移交公安部门进一步处理。'
-              });
-            }}
-            className="bg-white rounded-xl border border-slate-200/90 p-4 flex items-center justify-between hover:border-emerald-300 hover:shadow-xs transition-all cursor-pointer group"
-          >
-            <div className="flex items-center space-x-3.5 min-w-0">
-              <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-500 shrink-0 group-hover:scale-105 transition-transform">
-                <Radio className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <h4 className="font-bold text-sm text-slate-800 group-hover:text-emerald-600 transition-colors truncate">
-                  网络谣言线索模板
-                </h4>
-                <p className="text-[11px] text-slate-400 mt-0.5 truncate">
-                  网络不实信息、虚假炒作辟谣
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-emerald-500 group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
-          </div>
+          <span className="inline-flex items-center gap-0.5 text-[11px] leading-4 text-slate-400 whitespace-nowrap">
+            <span className="tabular-nums">数据更新于 {formatDateTime(updatedAt)}</span>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              title="刷新数据"
+              aria-label="刷新数据"
+              className="p-0.5 rounded hover:bg-slate-100 hover:text-[#1E5ABB] disabled:pointer-events-none cursor-pointer"
+            >
+              <RotateCw className={`w-3 h-3 ${refreshing ? 'animate-spin text-[#1E5ABB]' : ''}`} />
+            </button>
+          </span>
         </div>
-      </div>
 
-      {/* ================= 2. 顶部双重视角指标概览卡片 (上报员 + 审核员 并存) ================= */}
-      <div
-        className={`grid gap-5 ${
-          showReporter && showAuditor ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'
-        }`}
-      >
-        {/* 1.1 上报员视角指标卡片 (蓝色系) */}
-        {showReporter && (
-          <div className="bg-gradient-to-br from-[#185adb] via-[#1e60dc] to-[#0ea5e9] rounded-2xl p-4.5 sm:p-5 text-white shadow-sm relative overflow-hidden flex flex-col justify-between border border-blue-400/30">
-            <div className="absolute right-0 bottom-0 w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none transform translate-x-8 translate-y-8"></div>
-            <div className="relative z-10 space-y-3.5">
-              {/* 待办提醒通告条（作为卡片头部） */}
-              <div className="bg-white/95 backdrop-blur-md rounded-xl p-3.5 border border-white/60 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-slate-900">
-                <div className="flex items-center space-x-3">
-                  <div className="w-9 h-9 rounded-lg bg-[#1E5ABB] text-white flex items-center justify-center shadow-xs shrink-0">
-                    <FileEdit className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <span className="font-extrabold text-xs sm:text-sm text-slate-900 tracking-tight">
-                        今日报送待办：共有 <strong className="text-blue-600 font-mono font-black text-sm sm:text-base">{submitTodos.length}</strong> 项待处理
-                      </span>
-                      <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                        上报员
-                      </span>
-                    </div>
-                    <div className="text-[11px] text-slate-600 mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 font-medium">
-                      <span className="flex items-center space-x-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block"></span>
-                        <span>驳回修改: <strong className="text-rose-600 font-bold font-mono">{rejectedCount}</strong></span>
-                      </span>
-                      <span className="flex items-center space-x-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
-                        <span>待审核: <strong className="text-amber-700 font-bold font-mono">{currentStats.submitPending || 7}</strong></span>
-                      </span>
-                      <span className="flex items-center space-x-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
-                        <span>首发: <strong className="text-emerald-700 font-bold font-mono">{currentStats.submitFirst}</strong></span>
-                      </span>
-                      <span className="flex items-center space-x-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block"></span>
-                        <span>重复: <strong className="text-blue-700 font-bold font-mono">{currentStats.submitRepeat}</strong></span>
-                      </span>
-                    </div>
-                  </div>
-                </div>
+        <nav
+          aria-label="常用功能"
+          className="shrink-0 flex items-center gap-0.5 md:border-l md:border-slate-100 md:pl-3"
+        >
+          {shortcuts.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.key}
+                onClick={() => onNavigate(item.key)}
+                className="w-16 py-1.5 rounded-lg flex flex-col items-center gap-1.5 hover:bg-slate-50 transition-colors cursor-pointer group"
+              >
+                <span className={`w-8 h-8 rounded-lg flex items-center justify-center ${item.tone}`}>
+                  <Icon className="w-4 h-4" />
+                </span>
+                <span className="text-[11px] text-slate-600 group-hover:text-[#1E5ABB] whitespace-nowrap">
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+      </section>
 
-                <div className="flex items-center space-x-2 shrink-0 self-end sm:self-center">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px] gap-5 items-stretch">
+        {/* 待办 */}
+        <section
+          id="home-todo-section"
+          className="bg-white rounded-xl border border-slate-200 flex flex-col scroll-mt-4"
+        >
+          <div className="flex items-center justify-between px-5 border-b border-slate-100">
+            <div className="flex items-center gap-6" role="tablist">
+              {tabs.map((tab) => {
+                const active = currentTab === tab.id;
+                return (
                   <button
-                    onClick={() => {
-                      const el = document.getElementById('reporter-todo-section');
-                      if (el) {
-                        el.scrollIntoView({ behavior: 'smooth' });
-                      } else {
-                        onNavigate('report-summary');
-                      }
-                    }}
-                    className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#1E5ABB] font-bold text-xs rounded-lg border border-blue-200 shadow-2xs hover:shadow-xs flex items-center space-x-1 transition-all cursor-pointer group"
+                    key={tab.id}
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`relative py-3.5 text-sm transition-colors cursor-pointer ${
+                      active ? 'font-bold text-slate-900' : 'font-medium text-slate-500 hover:text-slate-800'
+                    }`}
                   >
-                    <span>立即处理 ({submitTodos.length})</span>
-                    <ChevronRight className="w-3.5 h-3.5 text-[#1E5ABB] group-hover:translate-x-0.5 transition-transform" />
+                    {tab.label}
+                    <span
+                      className={`ml-1.5 text-xs tabular-nums ${
+                        active ? 'text-[#1E5ABB]' : 'text-slate-400'
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                    {active && (
+                      <span className="absolute left-0 right-0 -bottom-px h-0.5 bg-[#1E5ABB] rounded-full" />
+                    )}
                   </button>
-                </div>
-              </div>
-
-              {/* 核心指标 4 列网格 */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <div
-                  onClick={() => {
-                    const el = document.getElementById('reporter-todo-section');
-                    el?.scrollIntoView({ behavior: 'smooth' });
-                  }}
-                  className="bg-white/15 hover:bg-white/25 transition-all backdrop-blur-sm rounded-xl p-3 border border-white/25 cursor-pointer group shadow-2xs"
-                >
-                  <div className="text-xs text-white/90 font-medium mb-0.5">报送待办</div>
-                  <div className="text-2xl sm:text-3xl font-black text-white leading-tight group-hover:scale-105 transition-transform">
-                    {submitTodos.length}
-                  </div>
-                  <div className="text-[11px] text-white/80 mt-0.5 truncate">
-                    驳回待改 {rejectedCount} 项
-                  </div>
-                </div>
-
-                <div
-                  onClick={() => onNavigate('report-summary')}
-                  className="bg-white/15 hover:bg-white/25 transition-all backdrop-blur-sm rounded-xl p-3 border border-white/25 cursor-pointer group shadow-2xs"
-                >
-                  <div className="text-xs text-white/90 font-medium mb-0.5">总上报数</div>
-                  <div className="text-2xl sm:text-3xl font-black text-white leading-tight group-hover:scale-105 transition-transform">
-                    {currentStats.submitTotal}
-                  </div>
-                  <div className="text-[11px] text-white/90 mt-0.5 truncate flex items-center space-x-1.5 font-medium">
-                    <span className="text-emerald-300">首发:{currentStats.submitFirst}</span>
-                    <span>·</span>
-                    <span className="text-cyan-200">重复:{currentStats.submitRepeat}</span>
-                    <span>·</span>
-                    <span className="text-amber-300">待审:{currentStats.submitPending || 0}</span>
-                  </div>
-                </div>
-
-                <div className="bg-white/15 backdrop-blur-sm rounded-xl p-3 border border-white/25 shadow-2xs">
-                  <div className="text-xs text-white/80 font-medium mb-0.5">一次性通过率</div>
-                  <div className="text-2xl sm:text-3xl font-black text-[#5CFFC6] leading-tight">
-                    {currentStats.submitOncePassRate || (currentStats.submitTotal ? `${Math.round(((currentStats.submitDirectPass || 0) / currentStats.submitTotal) * 100)}%` : '0%')}
-                  </div>
-                  <div className="text-[11px] text-white/75 mt-0.5 truncate">
-                    {currentStats.submitDirectPass || 0}/{currentStats.submitTotal} 首审直通
-                  </div>
-                </div>
-
-                <div className="bg-white/15 backdrop-blur-sm rounded-xl p-3 border border-white/25 shadow-2xs">
-                  <div className="text-xs text-white/80 font-medium mb-0.5">整体通过率</div>
-                  <div className="text-2xl sm:text-3xl font-black text-white leading-tight">
-                    {currentStats.submitPassRate}
-                  </div>
-                  <div className="text-[11px] text-white/75 mt-0.5 truncate">
-                    {currentStats.submitPassed}/{currentStats.submitTotal} 终审已过
-                  </div>
-                </div>
-              </div>
+                );
+              })}
             </div>
+            <button
+              onClick={() => onNavigate(currentTab === 'audit' ? 'report-audit' : 'report-records')}
+              className="text-xs text-slate-500 hover:text-[#1E5ABB] inline-flex items-center gap-0.5 cursor-pointer"
+            >
+              查看全部
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
           </div>
-        )}
 
-        {/* 1.2 审核员视角指标卡片 (靛青/琥珀色系) */}
-        {showAuditor && (
-          <div className="bg-gradient-to-br from-[#1E293B] via-[#1E3A8A] to-[#2563EB] rounded-2xl p-4.5 sm:p-5 text-white shadow-sm relative overflow-hidden flex flex-col justify-between border border-blue-400/30">
-            <div className="absolute right-0 bottom-0 w-48 h-48 bg-amber-400/10 rounded-full blur-3xl pointer-events-none transform translate-x-8 translate-y-8"></div>
-            <div className="relative z-10 space-y-3.5">
-              {/* 审核提醒通告条（作为卡片头部） */}
-              <div className="bg-white/95 backdrop-blur-md rounded-xl p-3.5 border border-white/60 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-slate-900">
-                <div className="flex items-center space-x-3">
-                  <div className="w-9 h-9 rounded-lg bg-amber-500 text-white flex items-center justify-center shadow-xs shrink-0">
-                    <ShieldCheck className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <span className="font-extrabold text-xs sm:text-sm text-slate-900 tracking-tight">
-                        今日审核待办：共有 <strong className="text-amber-600 font-mono font-black text-sm sm:text-base">{allPendingAudits.length}</strong> 条线索待审批
-                      </span>
-                      <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                        审核员
-                      </span>
-                    </div>
-                    <div className="text-[11px] text-slate-600 mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 font-medium">
-                      <span className="flex items-center space-x-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
-                        <span>待审批: <strong className="text-amber-800 font-bold font-mono">{allPendingAudits.length}</strong> 条</span>
-                      </span>
-                      <span className="flex items-center space-x-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
-                        <span>已通过: <strong className="text-emerald-700 font-bold font-mono">{currentStats.auditPassed}</strong> 条</span>
-                      </span>
-                      <span className="flex items-center space-x-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block"></span>
-                        <span>已驳回: <strong className="text-rose-700 font-bold font-mono">{currentStats.auditRejected}</strong> 条</span>
-                      </span>
-                    </div>
-                  </div>
+          <div className="flex-1 min-h-[432px]">
+            {currentTab === 'audit' &&
+              (pendingAudits.length === 0 ? (
+                <div className="py-20 text-center text-slate-400 text-xs">
+                  <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500 opacity-60" />
+                  <p>审核任务已全部处理</p>
                 </div>
-
-                <div className="flex items-center space-x-2 shrink-0 self-end sm:self-center">
-                  <button
-                    onClick={() => {
-                      const el = document.getElementById('auditor-todo-section');
-                      if (el) {
-                        el.scrollIntoView({ behavior: 'smooth' });
-                      } else {
-                        onNavigate('report-audit');
-                      }
-                    }}
-                    className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs rounded-lg border border-amber-200 shadow-2xs hover:shadow-xs flex items-center space-x-1 transition-all cursor-pointer group"
-                  >
-                    <span>立即审批</span>
-                    <ChevronRight className="w-3.5 h-3.5 text-amber-900 group-hover:translate-x-0.5 transition-transform" />
-                  </button>
-                </div>
-              </div>
-
-              {/* 核心指标 4 列网格 */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                {/* 1. 审核待办 */}
-                <div
-                  onClick={() => {
-                    const el = document.getElementById('auditor-todo-section');
-                    el?.scrollIntoView({ behavior: 'smooth' });
-                  }}
-                  className="bg-white/15 hover:bg-white/25 transition-all backdrop-blur-sm rounded-xl p-3 border border-white/25 cursor-pointer group shadow-2xs"
-                >
-                  <div className="text-xs text-white/90 font-medium mb-0.5">审核待办</div>
-                  <div className="text-2xl sm:text-3xl font-black text-yellow-400 leading-tight group-hover:scale-105 transition-transform">
-                    {allPendingAudits.length || currentStats.auditWait || 5}
-                  </div>
-                  <div className="text-[11px] text-white/80 mt-0.5 truncate">
-                    待审核
-                  </div>
-                </div>
-
-                {/* 2. 累计审核 */}
-                <div
-                  onClick={() => onNavigate('audit-records')}
-                  className="bg-white/15 hover:bg-white/25 transition-all backdrop-blur-sm rounded-xl p-3 border border-white/25 cursor-pointer group shadow-2xs"
-                >
-                  <div className="text-xs text-white/90 font-medium mb-0.5">累计审核</div>
-                  <div className="text-2xl sm:text-3xl font-black text-white leading-tight group-hover:scale-105 transition-transform">
-                    {currentStats.auditTotal}
-                  </div>
-                  <div className="text-[11px] text-white/80 mt-0.5 truncate flex items-center space-x-1.5 font-medium">
-                    <span className="text-emerald-300">通过:{currentStats.auditPassed}</span>
-                    <span className="text-rose-300">驳回:{currentStats.auditRejected}</span>
-                  </div>
-                </div>
-
-                {/* 3. 审核处理率 */}
-                <div className="bg-white/15 backdrop-blur-sm rounded-xl p-3 border border-white/25 shadow-2xs">
-                  <div className="text-xs text-white/90 font-medium mb-0.5">审核处理率</div>
-                  <div className="text-2xl sm:text-3xl font-black text-white leading-tight">
-                    {currentStats.auditProcessRate}
-                  </div>
-                  <div className="text-[11px] text-white/80 mt-0.5 truncate">
-                    {currentStats.auditTotal}/{currentStats.auditTotalPool || 7}
-                  </div>
-                </div>
-
-                {/* 4. 平均响应 */}
-                <div className="bg-white/15 backdrop-blur-sm rounded-xl p-3 border border-white/25 shadow-2xs">
-                  <div className="text-xs text-white/90 font-medium mb-0.5">平均响应</div>
-                  <div className="text-2xl sm:text-3xl font-black text-cyan-300 leading-tight">
-                    {currentStats.auditAvgResponse}
-                  </div>
-                  <div className="text-[11px] text-white/80 mt-0.5 truncate">
-                    审核耗时
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ================= 3. 待办任务专区 (固定区域展示 · 支持翻页与滚动) ================= */}
-      <div
-        className={`grid gap-5 ${
-          showReporter && showAuditor ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'
-        }`}
-      >
-        {/* 3.1 【报送待办列表：草稿与已驳回】 */}
-        {showReporter && (
-          <div
-            id="reporter-todo-section"
-            className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs flex flex-col justify-between h-[510px]"
-          >
-            {/* Top: Header */}
-            <div>
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3.5">
-                <div className="flex items-center space-x-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-blue-50 text-[#1E5ABB] flex items-center justify-center">
-                    <FileEdit className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-sm text-slate-900">报送待办列表</h3>
-                    <span className="text-[11px] text-slate-400">已驳回待修改速报事项</span>
-                  </div>
-                  <span className="bg-blue-100 text-[#1E5ABB] text-xs font-bold px-2 py-0.5 rounded-full ml-1">
-                    {submitTodos.length}
-                  </span>
-                </div>
-              </div>
-
-              {/* Scrollable / Paged Item Container (Fixed Height) */}
-              <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
-                {submitTodos.length === 0 ? (
-                  <div className="py-16 text-center text-slate-400 text-xs">
-                    <Inbox className="w-9 h-9 mx-auto mb-2 opacity-40" />
-                    <p>暂无待修改事项</p>
-                  </div>
-                ) : (
-                  currentSubmitTodos.map((item) => {
-                    const isRejected = item.auditStatus === '被驳回' || item.auditStatus === '已驳回';
-                    const openDetail = () => {
-                      if (onSelectReport) onSelectReport(item);
-                      onNavigate('report-detail');
-                    };
-                    return (
-                      <div
-                        key={item.id}
-                        className="bg-slate-50/80 hover:bg-blue-50/40 border border-slate-200/80 hover:border-blue-300 rounded-xl p-3.5 transition-all duration-150 group space-y-2"
+              ) : (
+                <ul className="divide-y divide-slate-100">
+                  {pagedAudits.map((item) => (
+                    <li key={item.id}>
+                      <button
+                        onClick={() => openAuditDetail(item)}
+                        className="w-full text-left px-5 py-3.5 hover:bg-slate-50 transition-colors cursor-pointer group"
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <button
-                              onClick={openDetail}
-                              className="font-bold text-sm text-slate-800 group-hover:text-[#1E5ABB] transition-colors leading-snug truncate text-left cursor-pointer"
-                            >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-semibold text-sm text-slate-800 group-hover:text-[#1E5ABB] truncate">
                               {item.title}
-                            </button>
+                            </span>
                             <ReportOriginBadge report={item} size="sm" className="shrink-0" />
                           </div>
-                          <AuditStatusBadge status={item.auditStatus} className="shrink-0" />
+                          <span className="shrink-0 text-xs text-[#1E5ABB] font-semibold inline-flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            去审核
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </span>
                         </div>
-
-                        <p
-                          className="line-clamp-2 text-xs leading-relaxed text-slate-600"
-                          title={item.detailContent?.summary || item.occurAddress || '暂无详细描述'}
-                        >
-                          {item.detailContent?.summary || item.occurAddress || '暂无详细描述'}
-                        </p>
-
-                        {/* Rejection notice */}
-                        {isRejected && (
-                          <div className="p-2 bg-rose-50/90 border border-rose-200 rounded-lg text-xs text-rose-800 flex items-start space-x-1.5">
-                            <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
-                            <div className="leading-tight min-w-0">
-                              <span className="font-bold text-rose-900">驳回原因：</span>
-                              <span className="line-clamp-2">{item.rejectReason || '信息要素不完整，请补充相关佐证材料后重新提交。'}</span>
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="flex items-center justify-between pt-1 text-xs text-slate-400 border-t border-slate-100/80">
-                          <div className="flex items-center space-x-1.5 truncate min-w-0 text-[11px]">
-                            <span className="font-semibold text-slate-700 truncate">{item.author || '—'}</span>
-                            <span>·</span>
-                            <OrgPathDisplay organization={item.organization} compact className="max-w-[130px]" />
-                            <span>·</span>
-                            <span className="font-mono text-[11px] text-slate-400 whitespace-nowrap">{item.submitTime}</span>
-                          </div>
-
-                          <div className="flex items-center gap-2.5 shrink-0 text-xs">
-                            {isRejected && (
-                              <button
-                                onClick={() => onOpenEditReport && onOpenEditReport(item)}
-                                className="inline-flex items-center space-x-0.5 text-indigo-600 hover:text-indigo-800 hover:underline font-semibold cursor-pointer text-[11px]"
-                              >
-                                <FileEdit className="w-3 h-3" />
-                                <span>编辑</span>
-                              </button>
-                            )}
-                            {isRejected && onDeleteReport && (
-                              <button
-                                onClick={() => setDeleteTarget(item)}
-                                className="inline-flex items-center space-x-0.5 text-rose-600 hover:text-rose-800 hover:underline font-medium cursor-pointer text-[11px]"
-                                title="删除此记录"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                                <span>删除</span>
-                              </button>
-                            )}
-                            <button
-                              onClick={openDetail}
-                              className="text-[#1E5ABB] hover:underline font-semibold cursor-pointer text-[11px]"
-                            >
-                              详情
-                            </button>
-                          </div>
+                        <div className="mt-1.5 flex items-center gap-3 text-[11px] text-slate-400 min-w-0">
+                          <span className="shrink-0">
+                            提交人 <span className="text-slate-600 font-medium">{item.author}</span>
+                          </span>
+                          <OrgPathDisplay organization={item.organization} compact className="max-w-[220px]" />
+                          <span className="tabular-nums shrink-0 ml-auto">{item.submitTime}</span>
                         </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ))}
 
-            {/* Bottom: Pagination Controls & Hint */}
-            <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs text-slate-500 mt-2">
-              <span className="text-[11px] text-slate-400">默认显示近三个月数据</span>
-              <div className="flex items-center space-x-2">
-                <span className="text-[11px] text-slate-500 font-medium">
-                  第 {submitPageIndex}/{submitTotalPages} 页 (共{submitTodos.length}条)
-                </span>
-                <div className="flex items-center space-x-1">
-                  <button
-                    onClick={() => setSubmitPageIndex((p) => Math.max(1, p - 1))}
-                    disabled={submitPageIndex <= 1}
-                    className="p-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-                    title="上一页"
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5 text-slate-600" />
-                  </button>
-                  <button
-                    onClick={() => setSubmitPageIndex((p) => Math.min(submitTotalPages, p + 1))}
-                    disabled={submitPageIndex >= submitTotalPages}
-                    className="p-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-                    title="下一页"
-                  >
-                    <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
-                  </button>
+            {currentTab === 'submit' &&
+              (rejectedReports.length === 0 ? (
+                <div className="py-20 text-center text-slate-400 text-xs">
+                  <Inbox className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                  <p>没有需要修改的报送</p>
                 </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 3.2 【审核待审核数据列表】 */}
-        {showAuditor && (
-          <div
-            id="auditor-todo-section"
-            className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs flex flex-col justify-between h-[510px]"
-          >
-            {/* Top: Header */}
-            <div>
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3.5">
-                <div className="flex items-center space-x-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-                    <ShieldCheck className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-sm text-slate-900">审核待审核列表</h3>
-                    <span className="text-[11px] text-slate-400">待审批批复的速报线索</span>
-                  </div>
-                  <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded-full ml-1">
-                    {allPendingAudits.length}
-                  </span>
-                </div>
-              </div>
-
-              {/* Scrollable / Paged Item Container (Fixed Height) */}
-              <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
-                {allPendingAudits.length === 0 ? (
-                  <div className="py-16 text-center text-slate-400 text-xs">
-                    <CheckCircle2 className="w-9 h-9 mx-auto mb-2 text-emerald-500 opacity-60" />
-                    <p>暂无待审核任务</p>
-                  </div>
-                ) : (
-                  currentPendingAudits.map((item) => (
-                    <div
-                      key={item.id}
-                      onClick={() => {
-                        onSelectAudit?.(item);
-                        onNavigate('audit-detail');
-                      }}
-                      className="bg-slate-50/80 hover:bg-blue-50/40 border border-slate-200/80 hover:border-blue-300 rounded-xl p-3.5 transition-all duration-150 cursor-pointer group space-y-1.5"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <h4 className="font-bold text-sm text-slate-800 group-hover:text-[#1E5ABB] transition-colors leading-snug truncate">
+              ) : (
+                <ul className="divide-y divide-slate-100">
+                  {pagedRejected.map((item) => (
+                    <li key={item.id} className="px-5 py-3.5 hover:bg-slate-50 transition-colors group">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <button
+                            onClick={() => openReportDetail(item)}
+                            className="font-semibold text-sm text-slate-800 hover:text-[#1E5ABB] truncate text-left cursor-pointer"
+                          >
                             {item.title}
-                          </h4>
+                          </button>
                           <ReportOriginBadge report={item} size="sm" className="shrink-0" />
                         </div>
-                        <span className="bg-[#FFF7E6] text-[#D46B08] border border-[#FFD591] text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0">
-                          待审核
-                        </span>
+                        <AuditStatusBadge status={item.auditStatus} className="shrink-0" />
                       </div>
-
-                      <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">
-                        {item.detailContent?.summary || '该速报已提交，正等待审核员研判审核批复。'}
+                      <p className="mt-1.5 text-xs text-rose-700 flex items-start gap-1.5">
+                        <AlertCircle className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-px" />
+                        <span className="line-clamp-2">
+                          驳回原因：{item.rejectReason || '信息要素不完整，请补充相关佐证材料后重新提交。'}
+                        </span>
                       </p>
-
-                      <div className="flex items-center justify-between pt-1 text-xs text-slate-500 border-t border-slate-100/80">
-                        <div className="flex items-center space-x-1.5 truncate max-w-[280px] text-[11px]">
-                          <span className="font-medium text-slate-700">{item.organization}</span>
-                          <span>·</span>
-                          <span>{item.author}</span>
-                          <span>·</span>
-                          <span className="text-slate-400">{item.submitTime}</span>
+                      <div className="mt-1.5 flex items-center gap-3 text-[11px] text-slate-400 min-w-0">
+                        <span className="text-slate-600 font-medium shrink-0">{item.author || '—'}</span>
+                        <OrgPathDisplay organization={item.organization} compact className="max-w-[200px]" />
+                        <span className="tabular-nums shrink-0">{item.submitTime}</span>
+                        <div className="ml-auto flex items-center gap-3 shrink-0 text-xs">
+                          {onOpenEditReport && (
+                            <button
+                              onClick={() => onOpenEditReport(item)}
+                              className="inline-flex items-center gap-0.5 text-[#1E5ABB] hover:underline font-semibold cursor-pointer"
+                            >
+                              <FileEdit className="w-3 h-3" />
+                              编辑
+                            </button>
+                          )}
+                          {onDeleteReport && (
+                            <button
+                              onClick={() => setDeleteTarget(item)}
+                              className="inline-flex items-center gap-0.5 text-slate-500 hover:text-rose-600 cursor-pointer"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              删除
+                            </button>
+                          )}
+                          <button
+                            onClick={() => openReportDetail(item)}
+                            className="text-slate-500 hover:text-[#1E5ABB] cursor-pointer"
+                          >
+                            详情
+                          </button>
                         </div>
-
-                        <span className="text-[#1E5ABB] font-bold text-xs flex items-center space-x-0.5 group-hover:translate-x-0.5 transition-transform shrink-0">
-                          <span>详情</span>
-                          <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
-                        </span>
                       </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Bottom: Pagination Controls & Hint */}
-            <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs text-slate-500 mt-2">
-              <span className="text-[11px] text-slate-400">默认显示近三个月待审数据</span>
-              <div className="flex items-center space-x-2">
-                <span className="text-[11px] text-slate-500 font-medium">
-                  第 {auditPageIndex}/{auditTotalPages} 页 (共{allPendingAudits.length}条)
-                </span>
-                <div className="flex items-center space-x-1">
-                  <button
-                    onClick={() => setAuditPageIndex((p) => Math.max(1, p - 1))}
-                    disabled={auditPageIndex <= 1}
-                    className="p-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-                    title="上一页"
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5 text-slate-600" />
-                  </button>
-                  <button
-                    onClick={() => setAuditPageIndex((p) => Math.min(auditTotalPages, p + 1))}
-                    disabled={auditPageIndex >= auditTotalPages}
-                    className="p-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-                    title="下一页"
-                  >
-                    <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
-                  </button>
-                </div>
-              </div>
-            </div>
+                    </li>
+                  ))}
+                </ul>
+              ))}
           </div>
-        )}
+
+          <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100">
+            <span className="text-[11px] text-slate-400">显示近三个月数据</span>
+            {currentTab === 'audit' ? (
+              <Pager page={auditPage} totalPages={auditTotalPages} total={pendingAudits.length} onChange={setAuditPage} />
+            ) : (
+              <Pager page={submitPage} totalPages={submitTotalPages} total={rejectedReports.length} onChange={setSubmitPage} />
+            )}
+          </div>
+        </section>
+
+        {/* 右侧栏 */}
+        <div className="flex flex-col gap-5">
+          {showReporter && (
+            <section className="bg-white rounded-xl border border-slate-200 shrink-0">
+              <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-100">
+                <h3 className="font-bold text-sm text-slate-900 shrink-0">快速上报</h3>
+                <button
+                  onClick={() => onOpenNewReport?.()}
+                  className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 bg-[#1E5ABB] hover:bg-[#164A9E] text-white text-xs font-semibold rounded-md transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E5ABB]"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  新建报送
+                </button>
+              </div>
+              <ul className="divide-y divide-slate-100">
+                {TEMPLATE_SHORTCUTS.map((tpl) => {
+                  const Icon = tpl.icon;
+                  return (
+                    <li key={tpl.id}>
+                      <button
+                        onClick={() => onOpenNewReport?.(tpl.build())}
+                        className="w-full text-left px-4 py-2.5 flex items-center gap-3 hover:bg-slate-50 transition-colors cursor-pointer group"
+                      >
+                        <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${tpl.tone}`}>
+                          <Icon className="w-4 h-4" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-semibold text-slate-800 group-hover:text-[#1E5ABB]">
+                            {tpl.name}
+                          </span>
+                          <span className="block text-[11px] text-slate-400 truncate">{tpl.scope}</span>
+                        </span>
+                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-[#1E5ABB] shrink-0" />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
+
+          <HomeNotificationPanel
+            notifications={notifications}
+            onMarkRead={onMarkNotificationsRead}
+            onOpenTarget={onOpenNotification}
+            onViewAll={onOpenMessageCenter}
+            className="flex-1"
+          />
+        </div>
       </div>
 
-      {/* Delete Modal（与报送管理-报送待办保持一致） */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-gray-200">
@@ -944,9 +640,7 @@ export const Home: React.FC<HomeProps> = ({
               </button>
               <button
                 onClick={() => {
-                  if (onDeleteReport) {
-                    onDeleteReport(deleteTarget.id);
-                  }
+                  onDeleteReport?.(deleteTarget.id);
                   setDeleteTarget(null);
                 }}
                 className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold shadow-sm"

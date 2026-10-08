@@ -15,7 +15,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
 }) => {
   const [account, setAccount] = useState<string>('grid_zhangsan');
   const [captcha, setCaptcha] = useState<string>('582913');
-  const [role, setRole] = useState<UserRole>('综合网格员');
+  const [role, setRole] = useState<UserRole>('上报员');
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const generateNewCaptcha = () => {
@@ -97,7 +97,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 type="text"
                 value={account}
                 onChange={(e) => setAccount(e.target.value)}
-                placeholder="请输入网格员账号"
+                placeholder="请输入账号"
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all font-mono"
               />
             </div>
@@ -130,8 +130,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
               <label className="block text-xs font-medium text-slate-700 mb-1">
                 登录身份
               </label>
-              <div className="grid grid-cols-3 gap-2">
-                {(['网格员', '审核员', '综合网格员'] as UserRole[]).map((r) => (
+              <div className="grid grid-cols-2 gap-2">
+                {(['上报员', '审核员'] as UserRole[]).map((r) => (
                   <button
                     key={r}
                     type="button"

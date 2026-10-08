@@ -47,7 +47,6 @@ export const RolePermission: React.FC = () => {
     'report_record_view': true,
     'report_record_export': true,
     'stats_all': true,
-    'audit_all': true,
     'system_all': true
   });
 
@@ -547,27 +546,7 @@ export const RolePermission: React.FC = () => {
                 </div>
               </div>
 
-              {/* Group 4: 考核管理 */}
-              <div className="border border-gray-200/80 rounded-lg overflow-hidden">
-                <div
-                  onClick={() => toggleGroup('audit')}
-                  className="p-3 bg-gray-50/70 hover:bg-gray-100/70 flex items-center justify-between cursor-pointer font-bold text-gray-800"
-                >
-                  <label className="flex items-center space-x-2 cursor-pointer" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      disabled={selectedRole.isDefault}
-                      checked={!!checkedPerms['audit_all']}
-                      onChange={() => handleToggleCheck('audit_all')}
-                      className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
-                    />
-                    <span>考核管理</span>
-                  </label>
-                  {openGroups['audit'] ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-                </div>
-              </div>
-
-              {/* Group 5: 系统管理 */}
+              {/* Group 4: 系统管理 */}
               <div className="border border-gray-200/80 rounded-lg overflow-hidden">
                 <div
                   onClick={() => toggleGroup('system')}

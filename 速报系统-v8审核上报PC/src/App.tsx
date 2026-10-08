@@ -1,10 +1,11 @@
 import React from 'react';
 import { CheckCircle2, XCircle, Info } from 'lucide-react';
-import { initialEvaluations } from './data/mockData';
 import { useAppViewModel } from './viewmodels/useAppViewModel';
+import type { ReportItem } from './types';
 
 import { Header } from './components/Header';
 import { Navbar } from './components/Navbar';
+import { SideSubNav, getSideNavGroup } from './components/SideSubNav';
 import { Footer } from './components/Footer';
 import { NewReportModal } from './components/NewReportModal';
 import { H5MobilePortal } from './components/H5MobilePortal';
@@ -19,18 +20,19 @@ import { AuditRecords } from './pages/AuditRecords';
 import { NegativeInfoLibrary } from './pages/NegativeInfoLibrary';
 import { NegativeDetail } from './pages/NegativeDetail';
 import { Statistics } from './pages/Statistics';
-import { Evaluation } from './pages/Evaluation';
 import { PersonalInfo } from './pages/PersonalInfo';
 import { OrgManagement } from './pages/OrgManagement';
 import { RolePermission } from './pages/RolePermission';
 import { BusinessConfig } from './pages/BusinessConfig';
 import { SystemLogs } from './pages/SystemLogs';
 import { Login } from './pages/Login';
+import { MessageCenter } from './pages/MessageCenter';
 
 const SYSTEM_LOGS_VIEW_VERSION = 'system-logs-filter-risk-clean-20260814';
 
 export default function App() {
   const viewModel = useAppViewModel();
+  const [summaryFocusReport, setSummaryFocusReport] = React.useState<ReportItem | null>(null);
   const {
     activePage,
     currentOrg,
@@ -73,8 +75,17 @@ export default function App() {
     handleAddOrg,
     handleUpdateOrg,
     handleDeleteOrg,
-    setIsH5MobileOpen
+    setIsH5MobileOpen,
+    showToast,
+    notifications,
+    markNotificationsRead,
+    openNotificationTarget,
+    messageCenterTab,
+    setMessageCenterTab,
+    openMessageCenter
   } = viewModel;
+
+  const sideNavGroup = getSideNavGroup(activePage, reportDetailSourcePage);
 
   if (activePage === 'login') {
     return (
@@ -128,21 +139,37 @@ export default function App() {
         </div>
       )}
 
-      <Header
-        onNewReportClick={() => handleOpenNewReport(null)}
-        currentUser="张三"
-        currentOrg={currentOrg}
-        onSwitchOrg={handleSwitchOrg}
-        onNavigate={handleNavigate}
-      />
+      <div className="sticky top-0 z-40">
+        <Header
+          onNewReportClick={() => handleOpenNewReport(null)}
+          currentUser="张三"
+          currentOrg={currentOrg}
+          onSwitchOrg={handleSwitchOrg}
+          onNavigate={handleNavigate}
+          onOpenMessageCenter={() => openMessageCenter('unread')}
+          unreadCount={notifications.filter((n) => n.isUnread).length}
+        />
 
-      <Navbar
-        activePage={activePage}
-        reportDetailSourcePage={reportDetailSourcePage}
-        onNavigate={handleNavigate}
-      />
+        <Navbar
+          activePage={activePage}
+          reportDetailSourcePage={reportDetailSourcePage}
+          onNavigate={handleNavigate}
+        />
+      </div>
 
-      <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-5">
+      <main className="flex-1 lg:w-[90%] w-full mx-auto px-4 sm:px-6 lg:px-0 py-5">
+        <div className={sideNavGroup ? 'flex items-start gap-5' : ''}>
+        {sideNavGroup && (
+          <SideSubNav
+            group={sideNavGroup}
+            activePage={activePage}
+            reportDetailSourcePage={reportDetailSourcePage}
+            onNavigate={handleNavigate}
+            onNewReport={() => handleOpenNewReport(null)}
+            badges={{ messages: notifications.filter((n) => n.isUnread).length }}
+          />
+        )}
+        <div className={sideNavGroup ? 'flex-1 min-w-0' : ''}>
         {activePage === 'home' && (
           <Home
             reports={reports}
@@ -151,13 +178,30 @@ export default function App() {
             onSelectReport={(report) => {
               setSelectedReport(report);
               setReportDetailSourcePage('report-summary');
+              setSummaryFocusReport(report);
             }}
             onSelectAudit={setSelectedAudit}
             currentUser="张三"
             currentRoleTitle={currentOrg.role}
+            currentOrgName={currentOrg.name}
             onOpenNewReport={handleOpenNewReport}
             onOpenEditReport={openEditReportModal}
             onDeleteReport={handleDeleteReport}
+            notifications={notifications}
+            onMarkNotificationsRead={markNotificationsRead}
+            onOpenNotification={openNotificationTarget}
+            onOpenMessageCenter={openMessageCenter}
+          />
+        )}
+
+        {activePage === 'messages' && (
+          <MessageCenter
+            notifications={notifications}
+            tab={messageCenterTab}
+            onTabChange={setMessageCenterTab}
+            onMarkRead={markNotificationsRead}
+            onOpenTarget={openNotificationTarget}
+            onToast={showToast}
           />
         )}
 
@@ -173,6 +217,8 @@ export default function App() {
             onOpenEditReport={openEditReportModal}
             onOpenNewReport={handleOpenNewReport}
             onNavigate={handleNavigate}
+            focusReport={summaryFocusReport}
+            onFocusConsumed={() => setSummaryFocusReport(null)}
           />
         )}
 
@@ -249,11 +295,8 @@ export default function App() {
           />
         )}
 
-        {activePage === 'statistics' && <Statistics />}
-
-        {activePage === 'evaluation' && (
-          <Evaluation evaluationList={initialEvaluations} onNavigate={handleNavigate} />
-        )}
+        {activePage === 'report-statistics' && <Statistics key="submit" scope="submit" />}
+        {activePage === 'audit-statistics' && <Statistics key="audit" scope="audit" />}
 
         {activePage === 'personal-info' && (
           <PersonalInfo onNavigate={handleNavigate} currentUser="张三" />
@@ -276,6 +319,8 @@ export default function App() {
         {activePage === 'system-logs' && (
           <SystemLogs key={SYSTEM_LOGS_VIEW_VERSION} logs={logs} />
         )}
+        </div>
+        </div>
       </main>
 
       <NewReportModal

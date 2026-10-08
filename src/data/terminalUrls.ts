@@ -13,8 +13,12 @@ const TERMINAL_LINKS: Record<TerminalId, { port: number; hash: string }> = {
 
 export const STATIC_APPS_MANIFEST = './apps/manifest.json';
 
-export function getTerminalUrl(id: TerminalId, mode: TerminalMode = 'static'): string {
-  const { port, hash } = TERMINAL_LINKS[id];
+/** Message an embedded app posts to ask the portal to switch terminals */
+export const OPEN_TERMINAL_MESSAGE = 'suite:open-terminal';
+
+export function getTerminalUrl(id: TerminalId, mode: TerminalMode = 'static', hashOverride?: string): string {
+  const { port, hash: defaultHash } = TERMINAL_LINKS[id];
+  const hash = hashOverride ?? defaultHash;
   const isLocalhost =
     typeof window !== 'undefined' &&
     (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');

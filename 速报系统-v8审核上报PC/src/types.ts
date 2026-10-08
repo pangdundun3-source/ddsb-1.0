@@ -4,19 +4,35 @@ export type PageId =
   | 'report-summary'
   | 'report-records'
   | 'report-detail'
+  | 'report-statistics'
   | 'report-audit'
+  | 'audit-statistics'
   | 'audit-detail'
   | 'audit-records'
   | 'audit-record-detail'
   | 'negative-info'
   | 'negative-detail'
-  | 'statistics'
-  | 'evaluation'
   | 'personal-info'
   | 'org-management'
   | 'role-permission'
   | 'business-config'
-  | 'system-logs';
+  | 'system-logs'
+  | 'messages';
+
+export type NotificationType = 'platform_notice' | 'audit_pending' | 'audit_approved' | 'audit_rejected';
+
+export interface NotificationItem {
+  id: string;
+  type: NotificationType;
+  title: string;
+  content: string;
+  contentHighlight?: boolean;
+  time: string;
+  isUnread: boolean;
+  readAt?: string;
+  relatedReportId?: number;
+  announcementContent?: string;
+}
 
 export interface OrgAccount {
   id: string;
@@ -250,17 +266,6 @@ export interface LogItem {
   timestamp?: string;
   organization?: string;
   ipAddress?: string;
-}
-
-export interface EvaluationItem {
-  rank: number;
-  name: string;
-  totalReports: number;
-  passedReports: number;
-  passRate: string;
-  participants: number;
-  participationRate: string;
-  totalScore: number;
 }
 
 export interface ToastMessage {
