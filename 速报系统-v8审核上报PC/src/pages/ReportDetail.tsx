@@ -442,11 +442,6 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
                   <span className="font-bold text-slate-800 text-xs">
                     报送状态：{report.auditStatus}
                   </span>
-                  {finalScore !== undefined && (
-                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold border border-amber-200">
-                      终审评分：{finalScore} 分
-                    </span>
-                  )}
                 </div>
                 <p className="text-slate-400 text-[11px] mt-0.5 truncate">
                   报送人：{report.author} · {report.organization || '网格中心'} · {report.submitTime}
@@ -1070,7 +1065,7 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
                             待审核
                           </span>
                         ) : isRejected ? (
-                          <span className="text-[#E11D48] font-bold text-xs shrink-0">已驳回</span>
+                          <span className="text-[#E11D48] font-bold text-xs shrink-0">被驳回</span>
                         ) : (
                           <span className="text-[#059669] font-bold text-xs shrink-0">已通过</span>
                         )}

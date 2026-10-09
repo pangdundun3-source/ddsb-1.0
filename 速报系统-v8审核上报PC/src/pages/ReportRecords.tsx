@@ -346,142 +346,96 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
       ) : viewMode === 'table' ? (
         /* TABLE VIEW */
         <div className="bg-white rounded-xl border border-gray-200/90 shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-gray-50/90 border-b border-gray-200/90 text-gray-600 font-bold">
-                  <th className="py-3 px-3.5 w-12 text-center">序号</th>
-                  <th className="py-3 px-3.5 min-w-[220px] w-full">事件标题 / 内容描述</th>
-                  <th className="py-3 px-3 whitespace-nowrap">报送人员 / 机构</th>
-                  <th className="py-3 px-3 whitespace-nowrap">报送时间</th>
-                  <th className="py-3 px-3 text-center whitespace-nowrap">审核状态</th>
-                  <th className="py-3 px-3.5 text-center whitespace-nowrap sticky right-0 bg-gray-50/95 shadow-xs">操作</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {pagedReports.map((item, index) => {
-                  const isAdopted = ['已采纳', '已通过', '待转办', '已转办'].includes(item.auditStatus);
-                  const isPending = item.auditStatus === '待审核';
-                  const isRejected = item.auditStatus === '被驳回' || item.auditStatus === '已驳回';
-                  const isDraft = item.auditStatus === '草稿';
+          <div className="divide-y divide-gray-100">
+            {pagedReports.map((item, index) => {
+              const isAdopted = ['已采纳', '已通过', '待转办', '已转办'].includes(item.auditStatus);
+              const isPending = item.auditStatus === '待审核';
+              const isRejected = item.auditStatus === '被驳回' || item.auditStatus === '已驳回';
+              const isDraft = item.auditStatus === '草稿';
+              const openDetail = () => {
+                onSelectReport(item);
+                setDrawerReport(item);
+              };
+              const orgName = item.organization || currentOrg?.name || '';
 
-                  return (
-                    <tr
-                      key={item.id}
-                      className="hover:bg-blue-50/30 transition-colors group"
-                    >
-                      {/* Index */}
-                      <td className="py-3 px-3.5 text-center text-gray-400 font-mono text-[11px]">
-                        {(safePage - 1) * pageSize + index + 1}
-                      </td>
-
-                      {/* Title & Location */}
-                      <td className="py-3 px-3.5">
-                        <div className="flex items-center gap-2 w-0 min-w-full">
-                          <button
-                            onClick={() => {
-                              onSelectReport(item);
-                              setDrawerReport(item);
-                            }}
-                            className="font-bold text-gray-900 group-hover:text-[#1E5ABB] transition-colors text-left text-xs leading-snug truncate min-w-0 cursor-pointer hover:underline"
-                            title={item.title}
-                          >
-                            {item.title}
-                          </button>
-                          <ReportOriginBadge report={item} size="sm" className="shrink-0" />
-                        </div>
-                        <div
-                          className="text-gray-500 text-[11px] truncate leading-relaxed mt-1 w-0 min-w-full"
-                          title={item.detailContent?.summary || '暂无内容描述'}
+              return (
+                <div key={item.id} className="px-5 py-3.5 flex gap-3 transition-colors hover:bg-gray-50/70">
+                  <span className="w-6 shrink-0 text-center font-mono text-xs text-gray-400 mt-0.5">{(safePage - 1) * pageSize + index + 1}</span>
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <AuditStatusBadge status={item.auditStatus} audience="report" variant="chip" />
+                        <button
+                          type="button"
+                          onClick={openDetail}
+                          title={item.title}
+                          className="text-sm font-semibold text-gray-900 hover:text-[#1E5ABB] text-left truncate min-w-0 cursor-pointer"
                         >
-                          {item.detailContent?.summary || '暂无内容描述'}
-                        </div>
-                      </td>
-
-                      {/* Author & Org */}
-                      <td className="py-3 px-3">
-                        <div className="text-[11px] text-gray-800 font-medium">
-                          {item.author || currentUser}
-                        </div>
-                        <OrgPathDisplay organization={item.organization} fallback={currentOrg?.name} className="max-w-[190px]" />
-                      </td>
-
-                      {/* Submit Time */}
-                      <td className="py-3 px-3 text-gray-500 font-mono text-[11px] whitespace-nowrap">
-                        <StackedDateTime value={item.submitTime || '2026-08-13 10:00'} />
-                      </td>
-
-                      {/* Audit Status */}
-                      <td className="py-3 px-3 text-center whitespace-nowrap">
-                        <div className="inline-flex flex-col items-center gap-1">
-                        <AuditStatusBadge status={item.auditStatus} />
-                        {isRejected && (
-                          <span
-                            className="inline-flex items-center gap-1 max-w-[160px] px-1.5 py-0.5 rounded bg-rose-50/80 hover:bg-rose-100 text-rose-600 border border-rose-200/70 text-[11px] cursor-help transition-colors"
-                            title={`驳回原因：${item.rejectReason || '信息不完整'}`}
-                          >
-                            <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
-                            <span className="truncate">{item.rejectReason || '信息不完整'}</span>
-                          </span>
-                        )}
+                          {item.title}
+                        </button>
+                        <ReportOriginBadge report={item} size="sm" className="shrink-0" />
                         {isAdopted && (
-                          <span
-                            className="inline-flex items-center max-w-[160px] px-1.5 py-0.5 rounded bg-amber-50/90 text-amber-700 border border-amber-200/70 text-[11px] font-semibold cursor-default transition-colors"
-                            title={`本次审核评分：${item.score ?? '--'} 分`}
-                          >
-                            <span className="truncate">评分：{item.score ?? '--'} 分</span>
+                          <span className="shrink-0 px-1.5 py-px rounded bg-amber-50 text-amber-700 text-[11px] font-semibold" title={`本次审核评分：${item.score ?? '--'} 分`}>
+                            评分 {item.score ?? '--'} 分
                           </span>
                         )}
-                        </div>
-                      </td>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs shrink-0">
+                        {!isDraft && (
+                          <button type="button" onClick={openDetail} className="text-gray-500 hover:text-gray-800 hover:underline cursor-pointer" title="查看速报详情">
+                            详情
+                          </button>
+                        )}
+                        {(isDraft || isRejected) && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenEditReport && onOpenEditReport(item)}
+                            className="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold cursor-pointer inline-flex items-center gap-0.5"
+                            title="重新编辑并提交"
+                          >
+                            <FileEdit className="w-3 h-3" />
+                            编辑
+                          </button>
+                        )}
+                        {(isPending || isDraft || isRejected) && onDeleteReport && (
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget(item)}
+                            className="text-rose-600 hover:text-rose-800 hover:underline cursor-pointer inline-flex items-center gap-0.5"
+                            title="删除记录"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            删除
+                          </button>
+                        )}
+                      </div>
+                    </div>
 
-                      {/* Operations */}
-                      <td className="py-3 px-3.5 text-center sticky right-0 bg-white/95 group-hover:bg-blue-50/60 shadow-xs">
-                        <div className="flex items-center justify-center space-x-1.5">
-                          {/* View Detail */}
-                          {!isDraft && (
-                            <button
-                              onClick={() => {
-                                onSelectReport(item);
-                                setDrawerReport(item);
-                              }}
-                              className="px-2 py-1 text-[#1E5ABB] hover:bg-blue-100/70 rounded transition-colors font-semibold flex items-center space-x-0.5 cursor-pointer"
-                              title="查看速报详情"
-                            >
-                              <span>详情</span>
-                            </button>
-                          )}
+                    <p className="text-xs text-gray-500 truncate" title={item.detailContent?.summary || '暂无内容描述'}>
+                      {item.detailContent?.summary || '暂无内容描述'}
+                    </p>
 
-                          {/* If Draft or Rejected: Edit & Resubmit */}
-                          {(isDraft || isRejected) && (
-                            <button
-                              onClick={() => onOpenEditReport && onOpenEditReport(item)}
-                              className="px-2 py-1 text-blue-700 bg-blue-50 hover:bg-blue-100 rounded transition-colors text-[11px] font-semibold cursor-pointer flex items-center space-x-0.5"
-                              title="重新编辑并提交"
-                            >
-                              <FileEdit className="w-3 h-3" />
-                              <span>编辑</span>
-                            </button>
-                          )}
-
-                          {/* If Pending, Draft or Rejected: Delete */}
-                          {(isPending || isDraft || isRejected) && onDeleteReport && (
-                            <button
-                              onClick={() => setDeleteTarget(item)}
-                              className="px-2 py-1 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded transition-colors text-[11px] font-semibold cursor-pointer flex items-center space-x-0.5"
-                              title="删除记录"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span>删除</span>
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                    <div className="flex items-center gap-1.5 min-w-0 whitespace-nowrap text-[11px] text-gray-400">
+                      <span className="shrink-0 px-1 rounded bg-gray-100 text-gray-500">报送人</span>
+                      <span className="shrink-0 text-gray-600">{item.author || currentUser}</span>
+                      <span className="shrink-0 text-gray-300">·</span>
+                      <span title={getOrganizationPathText(item.organization, currentOrg?.name)} className="truncate">{orgName}</span>
+                      <span className="shrink-0 text-gray-300">·</span>
+                      <span className="shrink-0 font-mono">{item.submitTime || '2026-08-13 10:00'}</span>
+                      {isRejected && (
+                        <span
+                          className="ml-2 inline-flex items-center gap-1 min-w-0 text-rose-500 cursor-help"
+                          title={`驳回原因：${item.rejectReason || '信息不完整'}`}
+                        >
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          <span className="truncate">驳回原因：{item.rejectReason || '信息不完整'}</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           {/* Table Footer / Pagination */}
@@ -523,7 +477,7 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
 
                     {/* Status Badge & Sub Info */}
                     <div className="flex flex-col items-end gap-1 shrink-0">
-                    <AuditStatusBadge status={item.auditStatus} />
+                    <AuditStatusBadge status={item.auditStatus} audience="report" />
                     {isRejected && (
                       <span
                         className="inline-flex items-center gap-1 max-w-[160px] px-1.5 py-0.5 rounded bg-rose-50/80 hover:bg-rose-100 text-rose-600 border border-rose-200/70 text-[11px] cursor-help transition-colors"

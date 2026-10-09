@@ -113,6 +113,17 @@ const permissionGroups: PermissionGroup[] = [
           { key: 'transfer', label: '转办' },
         ],
       },
+      {
+        id: 'warehouse_manage',
+        label: '仓库管理',
+        actions: [
+          { key: 'view', label: '查看' },
+          { key: 'create', label: '新增分类' },
+          { key: 'edit', label: '编辑' },
+          { key: 'delete', label: '删除' },
+          { key: 'migrate', label: '迁移数据' },
+        ],
+      },
     ],
   },
   {
@@ -170,13 +181,12 @@ const permissionGroups: PermissionGroup[] = [
     ],
   },
   {
-    id: 'system',
-    label: '系统管理',
+    id: 'org_user',
+    label: '用户与组织管理',
     children: [
       {
         id: 'system_account',
         label: '系统账号管理',
-        section: '用户与组织管理',
         actions: [
           { key: 'view', label: '查看' },
           { key: 'add', label: '邀请用户' },
@@ -188,7 +198,6 @@ const permissionGroups: PermissionGroup[] = [
       {
         id: 'system_org',
         label: '组织机构设置',
-        section: '用户与组织管理',
         actions: [
           { key: 'view', label: '查看' },
           { key: 'add_org', label: '新增机构' },
@@ -204,7 +213,6 @@ const permissionGroups: PermissionGroup[] = [
       {
         id: 'system_role',
         label: '角色权限设置',
-        section: '用户与组织管理',
         actions: [
           { key: 'view', label: '查看' },
           { key: 'add', label: '新增角色' },
@@ -217,7 +225,6 @@ const permissionGroups: PermissionGroup[] = [
       {
         id: 'system_group',
         label: '人员分组管理',
-        section: '用户与组织管理',
         actions: [
           { key: 'view', label: '查看' },
           { key: 'add', label: '新建分组' },
@@ -227,6 +234,12 @@ const permissionGroups: PermissionGroup[] = [
           { key: 'remove_member', label: '移出成员' },
         ],
       },
+    ],
+  },
+  {
+    id: 'system',
+    label: '系统管理',
+    children: [
       {
         id: 'system_template',
         label: '模板配置',

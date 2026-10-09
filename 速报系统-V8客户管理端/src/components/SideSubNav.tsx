@@ -1,8 +1,8 @@
 import React from 'react';
-import { Clock, CheckCircle2, BarChart3, type LucideIcon } from 'lucide-react';
+import { Clock, CheckCircle2, BarChart3, ShieldAlert, Warehouse, type LucideIcon } from 'lucide-react';
 import type { PageId } from '../types';
 
-export type SideNavGroup = 'audit';
+export type SideNavGroup = 'audit' | 'negative';
 
 interface SideNavItem {
   page: PageId;
@@ -41,6 +41,26 @@ const GROUPS: Record<SideNavGroup, { items: SideNavItem[] }> = {
         activePages: ['audit-statistics']
       }
     ]
+  },
+  negative: {
+    items: [
+      {
+        page: 'negative-info',
+        label: '不良信息库',
+        desc: '按仓库查看已通过线索',
+        icon: ShieldAlert,
+        iconClass: 'text-rose-500',
+        activePages: ['negative-info', 'negative-detail']
+      },
+      {
+        page: 'warehouse-manage',
+        label: '仓库管理',
+        desc: '分类、可见范围与迁移',
+        icon: Warehouse,
+        iconClass: 'text-amber-500',
+        activePages: ['warehouse-manage']
+      }
+    ]
   }
 };
 
@@ -52,8 +72,13 @@ const AUDIT_PAGES: PageId[] = [
   'audit-statistics'
 ];
 
-export const getSideNavGroup = (activePage: PageId): SideNavGroup | null =>
-  AUDIT_PAGES.includes(activePage) ? 'audit' : null;
+const NEGATIVE_PAGES: PageId[] = ['negative-info', 'negative-detail', 'warehouse-manage'];
+
+export const getSideNavGroup = (activePage: PageId): SideNavGroup | null => {
+  if (AUDIT_PAGES.includes(activePage)) return 'audit';
+  if (NEGATIVE_PAGES.includes(activePage)) return 'negative';
+  return null;
+};
 
 interface SideSubNavProps {
   group: SideNavGroup;
@@ -74,7 +99,12 @@ export const SideSubNav: React.FC<SideSubNavProps> = ({ group, activePage, onNav
             return (
               <button
                 key={item.page}
-                onClick={() => onNavigate(item.page)}
+                onClick={() => {
+                  if (item.page === 'negative-info') {
+                    window.dispatchEvent(new Event('ddsb-negative-library-home'));
+                  }
+                  onNavigate(item.page);
+                }}
                 className={`relative w-full text-left px-2.5 py-2.5 rounded-xl flex items-start space-x-2.5 transition-all cursor-pointer ${
                   active
                     ? 'bg-blue-50 text-[#1E5ABB]'

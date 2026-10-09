@@ -19,7 +19,6 @@ import {
   Undo2,
   MapPin,
   Building2,
-  Calendar,
   Layers,
   Sparkles,
   User,
@@ -155,40 +154,33 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   return (
     <div className="space-y-5" id="report-summary-view">
       {/* 1. Header & KPI Cards Area (Harmonized Gradient Banner matching Audit Workbench) */}
-      <div className="bg-gradient-to-r from-blue-700 via-[#1E5ABB] to-blue-800 rounded-2xl p-6 text-white shadow-md relative overflow-hidden">
+      <div className="bg-gradient-to-r from-blue-700 via-[#1E5ABB] to-blue-800 rounded-xl px-5 py-4 text-white shadow-md relative overflow-hidden">
         {/* Background ambient accents */}
         <div className="absolute right-0 top-0 w-96 h-full bg-white/5 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -left-12 -bottom-12 w-64 h-64 bg-cyan-400/10 rounded-full blur-2xl pointer-events-none" />
 
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-white/15">
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
-              <h2 className="text-xl font-bold tracking-tight">报送管理工作台</h2>
-            </div>
-            <p className="text-xs text-blue-100/80 mt-1 flex items-center space-x-1.5">
-              <Calendar className="w-3.5 h-3.5" />
-              <span>集中处理待审核、审核中及被驳回修改舆情速报事项 · 我的报送</span>
-            </p>
-          </div>
+        <div className="relative z-10 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+          <h2 className="text-base font-bold tracking-tight">报送管理工作台</h2>
+          <span className="text-[11px] text-blue-100/70 ml-1 truncate">集中处理待审核、审核中及被驳回修改舆情速报事项 · 我的报送</span>
         </div>
 
         {/* 4 Large Translucent Metric Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 pt-5 relative z-10">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 relative z-10">
           {/* Card 1: 报送待办 */}
           <div
-            className="bg-white/10 border border-white/20 rounded-xl p-4 backdrop-blur-sm"
+            className="bg-white/10 border border-white/20 rounded-lg px-3.5 py-2.5 backdrop-blur-sm"
             id="kpi-todo-box"
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-blue-100">报送待办</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400/30 text-amber-200 font-bold border border-amber-400/40">
+              <span className="text-[10px] px-1.5 py-px rounded bg-amber-400/30 text-amber-200 font-bold border border-amber-400/40">
                 待办事项
               </span>
             </div>
-            <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-2xl font-bold font-mono text-white">{todoCount}</span>
-              <span className="text-xs text-blue-200">
+            <div className="mt-1 flex items-baseline justify-between">
+              <span className="text-xl font-bold font-mono text-white">{todoCount}</span>
+              <span className="text-[11px] text-blue-200">
                 待审 <strong className="text-amber-200">{pendingCount}</strong> · 驳回 <strong className="text-rose-300">{rejectedCount}</strong>
               </span>
             </div>
@@ -197,18 +189,18 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
           {/* Card 2: 总上报数 (含首发与重复指标) */}
           <div
             onClick={() => onNavigate('report-records')}
-            className="bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl p-4 transition-all cursor-pointer group backdrop-blur-sm"
+            className="bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg px-3.5 py-2.5 transition-all cursor-pointer group backdrop-blur-sm"
             id="kpi-total-box"
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-blue-100">总上报数</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/20 text-white font-bold border border-white/30">
+              <span className="text-[10px] px-1.5 py-px rounded bg-white/20 text-white font-bold border border-white/30">
                 全部
               </span>
             </div>
-            <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-2xl font-bold font-mono text-white">{totalCount}</span>
-              <span className="text-xs text-blue-200 flex items-center space-x-1.5 font-medium">
+            <div className="mt-1 flex items-baseline justify-between">
+              <span className="text-xl font-bold font-mono text-white">{totalCount}</span>
+              <span className="text-[11px] text-blue-200 flex items-center space-x-1.5 font-medium">
                 <span className="text-emerald-300">首发 <strong className="font-mono text-white font-bold">{firstCount}</strong></span>
                 <span>·</span>
                 <span className="text-cyan-200">重复 <strong className="font-mono text-white font-bold">{duplicateCount}</strong></span>
@@ -219,32 +211,32 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
           </div>
 
           {/* Card 3: 整体通过率 */}
-          <div className="bg-white/10 border border-white/20 rounded-xl p-4 backdrop-blur-sm">
+          <div className="bg-white/10 border border-white/20 rounded-lg px-3.5 py-2.5 backdrop-blur-sm">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-blue-100">整体通过率</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-400/30 text-emerald-200 font-bold border border-emerald-400/40">
+              <span className="text-[10px] px-1.5 py-px rounded bg-emerald-400/30 text-emerald-200 font-bold border border-emerald-400/40">
                 {adoptedCount}/{totalCount}
               </span>
             </div>
-            <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-2xl font-bold font-mono text-emerald-300">{passRate}%</span>
-              <span className="text-xs text-blue-200">
+            <div className="mt-1 flex items-baseline justify-between">
+              <span className="text-xl font-bold font-mono text-emerald-300">{passRate}%</span>
+              <span className="text-[11px] text-blue-200">
                 采纳得分领先全市平均
               </span>
             </div>
           </div>
 
           {/* Card 4: 一次性通过率 */}
-          <div className="bg-white/10 border border-white/20 rounded-xl p-4 backdrop-blur-sm">
+          <div className="bg-white/10 border border-white/20 rounded-lg px-3.5 py-2.5 backdrop-blur-sm">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-blue-100">一次性通过率</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-400/30 text-cyan-200 font-bold border border-cyan-400/40">
+              <span className="text-[10px] px-1.5 py-px rounded bg-cyan-400/30 text-cyan-200 font-bold border border-cyan-400/40">
                 {adoptedCount}/{totalCount}
               </span>
             </div>
-            <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-2xl font-bold font-mono text-cyan-300">{firstTimePassRate}%</span>
-              <span className="text-xs text-blue-200">
+            <div className="mt-1 flex items-baseline justify-between">
+              <span className="text-xl font-bold font-mono text-cyan-300">{firstTimePassRate}%</span>
+              <span className="text-[11px] text-blue-200">
                 无驳回重修
               </span>
             </div>
@@ -253,41 +245,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
       </div>
 
       {/* 2. Combined Status Segment Tabs & Filter Card */}
-      <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200/80 shadow-2xs space-y-4">
-        {/* Top Row: Status Segment Tabs & View Mode Toggle */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-3.5 border-b border-gray-100">
-          <div className="flex items-center space-x-1.5 overflow-x-auto">
-            {[
-              { id: '待审核', label: '待审核', count: pendingCount, color: 'text-amber-600 bg-amber-50' },
-              { id: '审核中', label: '审核中', count: inReviewCount, color: 'text-blue-600 bg-blue-50' },
-              { id: '已驳回', label: '被驳回', count: rejectedCount, color: 'text-rose-600 bg-rose-50' }
-            ].map((tab) => {
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
-                    isActive
-                      ? 'bg-[#1E5ABB] text-white shadow-2xs'
-                      : 'text-gray-600 hover:bg-gray-100/80 hover:text-gray-900'
-                  }`}
-                >
-                  <span>{tab.label}</span>
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
-                      isActive ? 'bg-white/20 text-white' : tab.color || 'bg-gray-200 text-gray-700'
-                    }`}
-                  >
-                    {tab.count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Bottom Row: Unified Search Inputs & Action Buttons */}
+      <div className="bg-white rounded-xl px-5 py-4 border border-gray-200/80 shadow-2xs">
         <div className="flex flex-col lg:flex-row lg:flex-wrap items-stretch lg:items-center gap-3">
           {/* 综合检索框: 类似截图的全字段模糊检索 */}
           <div className="flex-1 relative">
@@ -353,132 +311,121 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
 
       {/* 4. Main Content: Table View OR Card Grid View */}
         <div className="bg-white rounded-xl border border-gray-200/80 shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-gray-50/90 border-b border-gray-200 text-gray-600 font-semibold">
-                  <th className="py-3.5 px-3 w-12 text-center">序号</th>
-                  <th className="py-3.5 px-3 min-w-[220px] w-full">事件标题 / 内容描述</th>
-                  <th className="py-3.5 px-3">报送人员 / 机构</th>
-                  <th className="py-3.5 px-3 whitespace-nowrap">报送时间</th>
-                  <th className="py-3.5 px-3 text-center whitespace-nowrap">审核状态</th>
-                  <th className="py-3.5 px-3 text-center">操作</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 text-gray-700">
-                {filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-12 text-center text-gray-400">
-                      <FileText className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                      未查找到匹配的上报记录
-                    </td>
-                  </tr>
-                ) : (
-                  pagedReports.map((item, index) => {
-                    const isPending = item.auditStatus === '待审核';
-                    const isRejected = item.auditStatus === '被驳回' || item.auditStatus === '已驳回';
+          <div className="px-5 flex items-center gap-6 border-b border-gray-100 text-sm">
+            {[
+              { id: '待审核', label: '待审核', count: pendingCount },
+              { id: '审核中', label: '审核中', count: inReviewCount },
+              { id: '已驳回', label: '被驳回', count: rejectedCount }
+            ].map((tab) => {
+              const active = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`relative py-3 flex items-center gap-1.5 cursor-pointer transition-colors ${
+                    active ? 'text-[#1E5ABB] font-bold' : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                >
+                  {tab.label}
+                  <span
+                    className={`min-w-[20px] px-1.5 rounded-full text-[11px] font-mono leading-[18px] text-center ${
+                      active ? 'bg-[#1E5ABB] text-white' : 'bg-gray-100 text-gray-500'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                  {active && <span className="absolute left-0 right-0 -bottom-px h-0.5 rounded-full bg-[#1E5ABB]" />}
+                </button>
+              );
+            })}
+          </div>
+          <div className="divide-y divide-gray-100">
+            {filtered.length === 0 ? (
+              <div className="py-12 text-center text-xs text-gray-400">
+                <FileText className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                未查找到匹配的上报记录
+              </div>
+            ) : (
+              pagedReports.map((item, index) => {
+                const isPending = item.auditStatus === '待审核';
+                const isRejected = item.auditStatus === '被驳回' || item.auditStatus === '已驳回';
+                const openDetail = () => {
+                  onSelectReport(item);
+                  setDrawerReport(item);
+                };
 
-                    return (
-                      <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
-                        <td className="py-3.5 px-3 text-center text-gray-400 font-mono">{(safePage - 1) * pageSize + index + 1}</td>
-                        <td className="py-3.5 px-3">
-                          <div className="flex items-center gap-2 w-0 min-w-full">
-                            <button
-                              onClick={() => {
-                                onSelectReport(item);
-                                setDrawerReport(item);
-                              }}
-                              className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer leading-snug truncate min-w-0" title={item.title}
-                            >
-                              {item.title}
-                            </button>
-                            <ReportOriginBadge report={item} size="sm" className="shrink-0" />
-                          </div>
-                          <div
-                            className="text-gray-500 text-[11px] truncate leading-relaxed mt-1 w-0 min-w-full"
-                            title={item.detailContent?.summary || item.occurAddress || ''}
+                return (
+                  <div key={item.id} className="px-5 py-3.5 flex gap-3 transition-colors hover:bg-gray-50/70">
+                    <span className="w-6 shrink-0 text-center font-mono text-xs text-gray-400 mt-0.5">{(safePage - 1) * pageSize + index + 1}</span>
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <AuditStatusBadge status={item.auditStatus} audience="report" variant="chip" />
+                          <button
+                            type="button"
+                            onClick={openDetail}
+                            title={item.title}
+                            className="text-sm font-semibold text-gray-900 hover:text-[#1E5ABB] text-left truncate min-w-0 cursor-pointer"
                           >
-                            {item.detailContent?.summary || item.occurAddress || '暂无详细描述'}
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-3">
-                          <div className="min-w-0">
-                            <div className="text-xs font-semibold text-gray-800">{item.author || '—'}</div>
-                            <OrgPathDisplay organization={item.organization} className="max-w-[190px]" />
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-3 font-mono text-gray-500 whitespace-nowrap text-xs">
-                          <StackedDateTime value={item.submitTime} />
-                        </td>
-                        <td className="py-3.5 px-3 text-center whitespace-nowrap">
-                          {!isRejected && <AuditStatusBadge status={item.auditStatus} />}
+                            {item.title}
+                          </button>
+                          <ReportOriginBadge report={item} size="sm" className="shrink-0" />
+                        </div>
+                        <div className="flex items-center gap-3 text-xs shrink-0">
+                          <button type="button" onClick={openDetail} className="text-gray-500 hover:text-gray-800 hover:underline cursor-pointer">
+                            详情
+                          </button>
                           {isRejected && (
-                            <div className="inline-flex flex-col items-center gap-1 group relative">
-                              <AuditStatusBadge status={item.auditStatus} />
-                              <div
-                                className="inline-flex items-center gap-1 max-w-[130px] px-1.5 py-0.5 rounded bg-rose-50/80 hover:bg-rose-100 text-rose-600 border border-rose-200/70 text-[11px] cursor-help transition-colors"
-                                title={`驳回原因：${item.rejectReason || '信息不完整，请补充相关佐证材料'}`}
-                              >
-                                <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
-                                <span className="truncate">{item.rejectReason || '信息不完整'}</span>
-                              </div>
-                              {/* Hover Floating Tooltip */}
-                              <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block z-50 w-56 p-2.5 bg-slate-900 text-white text-xs rounded-lg shadow-xl border border-slate-800 text-left">
-                                <div className="flex items-center gap-1 text-rose-400 font-semibold mb-1 text-[11px]">
-                                  <AlertCircle className="w-3.5 h-3.5" />
-                                  <span>驳回具体原因</span>
-                                </div>
-                                <p className="text-[11px] text-slate-200 leading-relaxed break-words font-normal">
-                                  {item.rejectReason || '信息要素不完整，请补充政策依据与证明材料后重新提交。'}
-                                </p>
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900"></div>
-                              </div>
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-3.5 px-3 text-center whitespace-nowrap">
-                          <div className="flex items-center justify-center space-x-2">
-                            {/* View Detail */}
                             <button
-                              onClick={() => {
-                                onSelectReport(item);
-                                setDrawerReport(item);
-                              }}
-                              className="text-[#1E5ABB] hover:underline font-semibold cursor-pointer text-xs"
+                              type="button"
+                              onClick={() => onOpenEditReport && onOpenEditReport(item)}
+                              className="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold cursor-pointer inline-flex items-center gap-0.5"
                             >
-                              详情
+                              <FileEdit className="w-3 h-3" />
+                              编辑
                             </button>
+                          )}
+                          {(isPending || isRejected) && onDeleteReport && (
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget(item)}
+                              className="text-rose-600 hover:text-rose-800 hover:underline cursor-pointer inline-flex items-center gap-0.5"
+                              title="删除此记录"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              删除
+                            </button>
+                          )}
+                        </div>
+                      </div>
 
-                            {/* Edit / Resubmit (if Rejected) */}
-                            {isRejected && (
-                              <button
-                                onClick={() => onOpenEditReport && onOpenEditReport(item)}
-                                className="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold cursor-pointer flex items-center space-x-0.5 text-xs"
-                              >
-                                <FileEdit className="w-3 h-3" />
-                                <span>编辑</span>
-                              </button>
-                            )}
+                      <p className="text-xs text-gray-500 truncate" title={item.detailContent?.summary || item.occurAddress || ''}>
+                        {item.detailContent?.summary || item.occurAddress || '暂无详细描述'}
+                      </p>
 
-                            {/* Delete (if Pending or Rejected) */}
-                            {(isPending || isRejected) && onDeleteReport && (
-                              <button
-                                onClick={() => setDeleteTarget(item)}
-                                className="text-rose-600 hover:text-rose-800 hover:underline font-medium cursor-pointer flex items-center space-x-0.5 text-xs"
-                                title="删除此记录"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                <span>删除</span>
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+                      <div className="flex items-center gap-1.5 min-w-0 whitespace-nowrap text-[11px] text-gray-400">
+                        <span className="shrink-0 px-1 rounded bg-gray-100 text-gray-500">报送人</span>
+                        <span className="shrink-0 text-gray-600">{item.author || '—'}</span>
+                        <span className="shrink-0 text-gray-300">·</span>
+                        <span title={getOrganizationPathText(item.organization)} className="truncate">{item.organization}</span>
+                        <span className="shrink-0 text-gray-300">·</span>
+                        <span className="shrink-0 font-mono">{item.submitTime}</span>
+                        {isRejected && (
+                          <span
+                            className="ml-2 inline-flex items-center gap-1 min-w-0 text-rose-500 cursor-help"
+                            title={`驳回原因：${item.rejectReason || '信息要素不完整，请补充政策依据与证明材料后重新提交。'}`}
+                          >
+                            <AlertCircle className="w-3 h-3 shrink-0" />
+                            <span className="truncate">驳回原因：{item.rejectReason || '信息不完整'}</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
 
           {/* Table Footer / Pagination */}

@@ -620,11 +620,6 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
             >
               {record?.auditResult === '已通过' ? '已通过' : '已驳回'}
             </span>
-            {record?.auditResult === '已通过' && record?.score !== undefined && record?.score !== null && (
-              <span className="px-2.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 text-xs font-bold font-mono shrink-0">
-                评分：{record.score}分
-              </span>
-            )}
             {record?.auditResult !== '已通过' && (
               <span className="text-xs text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-md border border-rose-200 truncate max-w-[320px]">
                 驳回原因：{record?.rejectReason || '信息不完整'}

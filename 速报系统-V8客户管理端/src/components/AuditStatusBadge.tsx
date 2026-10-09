@@ -4,6 +4,7 @@ import { AuditStatus } from '../types';
 interface AuditStatusBadgeProps {
   status: AuditStatus;
   className?: string;
+  audience?: 'report' | 'audit';
 }
 
 const STATUS_STYLES: Record<AuditStatus, string> = {
@@ -28,13 +29,22 @@ const DOT_STYLES: Record<AuditStatus, string> = {
   已转办: 'bg-indigo-500'
 };
 
-export const getAuditStatusLabel = (status: AuditStatus) => (status === '被驳回' ? '已驳回' : status);
+export const getAuditStatusLabel = (status: AuditStatus, audience: 'report' | 'audit' = 'audit') => {
+  if (status === '被驳回' || status === '已驳回') {
+    return audience === 'report' ? '被驳回' : '已驳回';
+  }
+  return status;
+};
 
-export const AuditStatusBadge: React.FC<AuditStatusBadgeProps> = ({ status, className = '' }) => (
+export const AuditStatusBadge: React.FC<AuditStatusBadgeProps> = ({
+  status,
+  className = '',
+  audience = 'audit',
+}) => (
   <span
     className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold shadow-2xs whitespace-nowrap shrink-0 ${STATUS_STYLES[status]} ${className}`}
   >
     <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${DOT_STYLES[status]}`} />
-    <span className="whitespace-nowrap">{getAuditStatusLabel(status)}</span>
+    <span className="whitespace-nowrap">{getAuditStatusLabel(status, audience)}</span>
   </span>
 );

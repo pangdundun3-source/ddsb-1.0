@@ -8,6 +8,7 @@ import {
   Radio,
   Globe,
   ShieldAlert,
+  Database,
   Search,
   Home,
   ShieldCheck,
@@ -45,10 +46,9 @@ export const Navbar: React.FC<NavbarProps> = ({
     'audit-statistics'
   ].includes(activePage);
 
+  const isOrgUserActive = ['user-org-management', 'org-management', 'role-permission'].includes(activePage);
+
   const isSystemActive = [
-    'org-management',
-    'user-org-management',
-    'role-permission',
     'template-management',
     'audit-flow-config',
     'audit-score-config',
@@ -62,7 +62,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     <nav className="bg-[#1E5ABB] text-white shadow-md relative z-20 border-t border-white/10">
       <div className="lg:w-[90%] mx-auto px-4 sm:px-6 lg:px-0 flex items-center h-12 text-[15px] font-medium select-none">
         {/* Navigation Items Bar */}
-        <div className="flex items-center space-x-1.5 relative">
+        <div className="flex items-center space-x-1.5 relative whitespace-nowrap max-xl:[&>button>svg:first-child]:hidden">
           {/* App Grid Launcher Button (Left of 首页) */}
           <div className="relative">
             <button
@@ -229,30 +229,17 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>审核管理</span>
           </button>
 
-          {/* 不良信息库 */}
+          {/* 数据仓库 */}
           <button
-            onClick={() => onNavigate('negative-info')}
+            onClick={() => onNavigate('data-warehouse')}
             className={`px-3.5 py-1.5 transition-all duration-150 cursor-pointer rounded-lg flex items-center space-x-1.5 ${
-              activePage === 'negative-info' || activePage === 'negative-detail'
+              activePage === 'data-warehouse' || activePage === 'data-warehouse-detail' || activePage === 'data-warehouse-manage'
                 ? 'bg-blue-700/95 font-bold text-white shadow-xs'
                 : 'hover:bg-white/15 text-white/90'
             }`}
           >
-            <ShieldAlert className="w-4 h-4 stroke-[2.2]" />
-            <span>不良信息库</span>
-          </button>
-
-          {/* 公告管理 */}
-          <button
-            onClick={() => onNavigate('notice-management')}
-            className={`px-3.5 py-1.5 transition-all duration-150 cursor-pointer rounded-lg flex items-center space-x-1.5 ${
-              activePage === 'notice-management'
-                ? 'bg-blue-700/95 font-bold text-white shadow-xs'
-                : 'hover:bg-white/15 text-white/90'
-            }`}
-          >
-            <Megaphone className="w-4 h-4 stroke-[2.2]" />
-            <span>公告管理</span>
+            <Database className="w-4 h-4 stroke-[2.2]" />
+            <span>数据仓库</span>
           </button>
 
           {/* 统计管理 */}
@@ -281,6 +268,32 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>考核管理</span>
           </button>
 
+          {/* 公告管理 */}
+          <button
+            onClick={() => onNavigate('notice-management')}
+            className={`px-3.5 py-1.5 transition-all duration-150 cursor-pointer rounded-lg flex items-center space-x-1.5 ${
+              activePage === 'notice-management'
+                ? 'bg-blue-700/95 font-bold text-white shadow-xs'
+                : 'hover:bg-white/15 text-white/90'
+            }`}
+          >
+            <Megaphone className="w-4 h-4 stroke-[2.2]" />
+            <span>公告管理</span>
+          </button>
+
+          {/* 用户与组织管理 */}
+          <button
+            onClick={() => onNavigate('user-org-management', 'account')}
+            className={`px-3.5 py-1.5 transition-all duration-150 cursor-pointer rounded-lg flex items-center space-x-1.5 ${
+              isOrgUserActive
+                ? 'bg-blue-700/95 font-bold text-white shadow-xs'
+                : 'hover:bg-white/15 text-white/90'
+            }`}
+          >
+            <Users className="w-4 h-4 stroke-[2.2]" />
+            <span>用户与组织管理</span>
+          </button>
+
           {/* 系统管理 Dropdown */}
           <div
             className="relative"
@@ -288,7 +301,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             onMouseLeave={() => setSystemMenuOpen(false)}
           >
             <button
-              onClick={() => onNavigate('user-org-management', 'account')}
+              onClick={() => onNavigate('business-config')}
               className={`px-3.5 py-1.5 transition-all duration-150 cursor-pointer rounded-lg flex items-center space-x-1.5 ${
                 isSystemActive
                   ? 'bg-blue-700/95 font-bold text-white shadow-xs'
@@ -302,22 +315,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {systemMenuOpen && (
               <div className="absolute left-0 top-full mt-0.5 w-52 bg-white text-slate-800 rounded-xl shadow-2xl border border-slate-100 p-1.5 z-50 text-sm animate-in fade-in duration-150">
-                <button
-                  onClick={() => {
-                    onNavigate('user-org-management', 'account');
-                    setSystemMenuOpen(false);
-                  }}
-                  className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center space-x-2.5 cursor-pointer transition-colors ${
-                    ['user-org-management', 'org-management', 'role-permission'].includes(activePage)
-                      ? 'text-[#1E5ABB] font-bold bg-blue-50/80'
-                      : 'text-slate-700'
-                  }`}
-                >
-                  <Users className="w-4 h-4 text-blue-600" />
-                  <span>用户与组织管理</span>
-                </button>
-
-                {/* 增加二级子模块：其他业务配置 */}
                 <button
                   onClick={() => {
                     onNavigate('business-config');

@@ -4,13 +4,11 @@ import {
   CheckCircle2,
   BarChart3,
   Plus,
-  UserRound,
-  Bell,
   type LucideIcon
 } from 'lucide-react';
 import type { PageId } from '../types';
 
-export type SideNavGroup = 'report' | 'audit' | 'profile';
+export type SideNavGroup = 'report' | 'audit';
 
 interface SideNavItem {
   page: PageId;
@@ -77,26 +75,6 @@ const GROUPS: Record<SideNavGroup, { items: SideNavItem[] }> = {
         activePages: ['audit-statistics']
       }
     ]
-  },
-  profile: {
-    items: [
-      {
-        page: 'personal-info',
-        label: '个人资料',
-        desc: '基础信息与关联机构',
-        icon: UserRound,
-        iconClass: 'text-blue-500',
-        activePages: ['personal-info']
-      },
-      {
-        page: 'messages',
-        label: '消息中心',
-        desc: '公告与审核提醒',
-        icon: Bell,
-        iconClass: 'text-amber-500',
-        activePages: ['messages']
-      }
-    ]
   }
 };
 
@@ -108,8 +86,6 @@ const AUDIT_PAGES: PageId[] = [
   'audit-record-detail',
   'audit-statistics'
 ];
-const PROFILE_PAGES: PageId[] = ['personal-info', 'messages'];
-
 export const getSideNavGroup = (
   activePage: PageId,
   reportDetailSourcePage?: PageId
@@ -119,7 +95,6 @@ export const getSideNavGroup = (
   }
   if (REPORT_PAGES.includes(activePage)) return 'report';
   if (AUDIT_PAGES.includes(activePage)) return 'audit';
-  if (PROFILE_PAGES.includes(activePage)) return 'profile';
   return null;
 };
 

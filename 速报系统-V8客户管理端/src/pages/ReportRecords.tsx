@@ -442,7 +442,7 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
                       {/* Audit Status */}
                       <td className="py-3 px-3 text-center whitespace-nowrap">
                         <div className="inline-flex flex-col items-center gap-1">
-                        <AuditStatusBadge status={item.auditStatus} />
+                        <AuditStatusBadge status={item.auditStatus} audience="report" />
                         {isRejected && (
                           <span
                             className="inline-flex items-center gap-1 max-w-[160px] px-1.5 py-0.5 rounded bg-rose-50/80 hover:bg-rose-100 text-rose-600 border border-rose-200/70 text-[11px] cursor-help transition-colors"
@@ -548,7 +548,7 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
 
                     {/* Status Badge & Sub Info */}
                     <div className="flex flex-col items-end gap-1 shrink-0">
-                    <AuditStatusBadge status={item.auditStatus} />
+                    <AuditStatusBadge status={item.auditStatus} audience="report" />
                     {isRejected && (
                       <span
                         className="inline-flex items-center gap-1 max-w-[160px] px-1.5 py-0.5 rounded bg-rose-50/80 hover:bg-rose-100 text-rose-600 border border-rose-200/70 text-[11px] cursor-help transition-colors"

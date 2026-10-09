@@ -533,7 +533,8 @@ export default function App() {
     if (profileSubPage === 'notifications') return '消息列表';
     if (viewMode === 'notifications') return '消息中心';
     if (isFormMode || isCreatingNewReport || editingReport) {
-      return editingReport ? '编辑网格速报' : '一键网格速报';
+      if (editingReport) return editingReport.status === 'rejected' ? '修改补充并重新提交' : '编辑网格速报';
+      return '一键网格速报';
     }
     if (isProfileDetail) return '个人基础信息详情';
     if (isActivationDetail) return '激活上报信息';
@@ -803,6 +804,10 @@ export default function App() {
                     setSelectedReport(r);
                   }}
                   onToast={showToast}
+                  onEditReport={(r) => {
+                    setEditingReport(r);
+                    setIsCreatingNewReport(false);
+                  }}
                   initialEditReport={editingReport}
                   isCreatingNew={isCreatingNewReport}
                   initialTemplateId={pendingTemplateId ?? undefined}
@@ -886,6 +891,9 @@ export default function App() {
                 setSelectedReport(r);
               }}
               onToast={showToast}
+              rejectStatusLabel={
+                currentTab === 'audit' || selectedReportEntry === 'audit_pending' ? '已驳回' : '被驳回'
+              }
             />
           );
         })()}

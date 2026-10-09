@@ -1,26 +1,29 @@
 import React from 'react';
 import { PageId } from '../types';
-import { Home, FileText, ClipboardCheck, User, LayoutGrid, type LucideIcon } from 'lucide-react';
+import { Home, FileText, ClipboardCheck, Bell, User, LayoutGrid, type LucideIcon } from 'lucide-react';
 import { getSideNavGroup } from './SideSubNav';
 
 interface NavbarProps {
   activePage: PageId;
   reportDetailSourcePage?: PageId;
   onNavigate: (page: PageId, extra?: string) => void;
+  unreadCount?: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   activePage,
   reportDetailSourcePage = 'report-summary',
-  onNavigate
+  onNavigate,
+  unreadCount = 0
 }) => {
   const group = getSideNavGroup(activePage, reportDetailSourcePage);
 
-  const items: { page: PageId; label: string; icon: LucideIcon; active: boolean }[] = [
+  const items: { page: PageId; label: string; icon: LucideIcon; active: boolean; badge?: number }[] = [
     { page: 'home', label: '首页', icon: Home, active: activePage === 'home' },
     { page: 'report-summary', label: '报送管理', icon: FileText, active: group === 'report' },
     { page: 'report-audit', label: '审核管理', icon: ClipboardCheck, active: group === 'audit' },
-    { page: 'personal-info', label: '个人中心', icon: User, active: group === 'profile' }
+    { page: 'messages', label: '消息中心', icon: Bell, active: activePage === 'messages', badge: unreadCount },
+    { page: 'personal-info', label: '个人中心', icon: User, active: activePage === 'personal-info' }
   ];
 
   return (
@@ -37,7 +40,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <LayoutGrid className="w-4.5 h-4.5" />
           </button>
 
-          {items.map(({ page, label, icon: Icon, active }) => (
+          {items.map(({ page, label, icon: Icon, active, badge }) => (
             <button
               key={page}
               onClick={() => onNavigate(page)}
@@ -49,6 +52,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Icon className="w-4 h-4" />
               <span>{label}</span>
+              {!!badge && (
+                <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold leading-[18px] text-center tabular-nums">
+                  {badge > 99 ? '99+' : badge}
+                </span>
+              )}
             </button>
           ))}
         </div>

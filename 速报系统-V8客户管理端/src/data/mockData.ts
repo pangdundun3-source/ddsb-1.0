@@ -120,8 +120,8 @@ export const INITIAL_REPORTS: ReportItem[] = [
     author: '张三',
     organization: '台中市网信办',
     submitTime: '2023-10-24 14:30',
-    auditStatus: '被驳回',
-    score: '--',
+    auditStatus: '待转办',
+    score: 92,
     matchUrl: 'https://news.example.com/water-outage',
     detailContent: {
       summary: '今日（10月24日）上午8时许，多名网民在微博、微信群反映XX区XX街道辖区内多个大型居民小区突发停水。经初步核查，受影响范围包括阳光花园、明月居等5个小区，涉及居民约3万人。',
@@ -221,9 +221,9 @@ export const INITIAL_REPORTS: ReportItem[] = [
     author: '孙七',
     organization: '台中市网信办',
     submitTime: '2023-10-21 15:55',
-    auditStatus: '被驳回',
+    auditStatus: '已通过',
     identificationStatus: '首发',
-    score: '--',
+    score: 88,
     detailContent: {
       summary: '核查举报某带货主播夸大保健产品疗效的舆情线索。',
       coreDemands: '请求市场监管部门查处封停。',
@@ -234,6 +234,12 @@ export const INITIAL_REPORTS: ReportItem[] = [
   {
     id: 6,
     title: '全市双智协同系统运行情况月度分析报告',
+    detailContent: {
+      summary: '9月全市双智协同系统累计接入路口信号设备1260个、车路协同终端3800台，平台平均在线率98.6%，早晚高峰主干道通行效率提升约12%，但部分老城区路段仍存在数据回传延迟问题。',
+      coreDemands: '市民关注系统升级后路口等待时长变化，以及数据采集是否涉及个人隐私。',
+      publicOpinionTrend: '本地媒体报道以正面为主，社交平台讨论量平稳，少量网民质疑数据安全。',
+      recommendations: ['建议定期发布系统运行成效简报，回应市民关切。', '建议对老城区回传延迟路段开展专项排查。']
+    },
     source: '内部系统',
     region: '全市',
     infoType: '舆情动态',
@@ -246,6 +252,12 @@ export const INITIAL_REPORTS: ReportItem[] = [
   {
     id: 7,
     title: '关于北屯区某路段交通拥堵的社交媒体热议',
+    detailContent: {
+      summary: '北屯区崇德路与文心路交叉口连续一周晚高峰拥堵超过40分钟，多名网民在微博、抖音发布排队视频，相关话题本地热搜阅读量超过35万。',
+      coreDemands: '网民希望优化信号灯配时，增加高峰时段交警现场疏导。',
+      publicOpinionTrend: '讨论量持续上升，出现对交通管理部门的批评性言论。',
+      recommendations: ['建议交警部门核实拥堵成因并公布疏导措施。', '建议通过官方账号发布绕行提示。']
+    },
     source: '社交媒体',
     region: '北屯区',
     infoType: '突发事件',
@@ -259,6 +271,12 @@ export const INITIAL_REPORTS: ReportItem[] = [
   {
     id: 8,
     title: '全媒体传播环境下青少年网络安全教育调研',
+    detailContent: {
+      summary: '面向全市32所中小学开展问卷调研，回收有效问卷5600份，显示约41%的学生曾遭遇网络诈骗信息，仅23%的家长了解防沉迷设置方法。',
+      coreDemands: '家长和学校希望增加网络安全课程课时，并提供家庭防护指导材料。',
+      publicOpinionTrend: '教育类公众号转载较多，整体评价正面。',
+      recommendations: ['建议将网络安全教育纳入学期常规课程。', '建议联合社区开展家长网络素养培训。']
+    },
     source: '新闻网站',
     region: '全市',
     infoType: '舆情动态',
@@ -277,13 +295,19 @@ export const INITIAL_REPORTS: ReportItem[] = [
     author: '陈十一',
     organization: '台中市网信办',
     submitTime: '2023-10-19 14:40',
-    auditStatus: '被驳回',
+    auditStatus: '已通过',
     identificationStatus: '首发',
-    score: '--'
+    score: 87
   },
   {
     id: 10,
     title: '关于智慧交通系统升级的市民意见汇总',
+    detailContent: {
+      summary: '汇总12345热线、政务网站留言及社交平台意见共860条，市民主要关注电子警察抓拍标准、绿波带覆盖范围和公交优先信号的实际效果。',
+      coreDemands: '希望公开抓拍规则调整说明，并扩大绿波带覆盖路段。',
+      publicOpinionTrend: '意见以建议为主，负面情绪集中在抓拍罚款问题。',
+      recommendations: ['建议交通部门召开政策解读发布会。', '建议对高频投诉路段进行专项评估。']
+    },
     source: '群众举报',
     region: '全市',
     infoType: '政策解读',
@@ -297,6 +321,12 @@ export const INITIAL_REPORTS: ReportItem[] = [
   {
     id: 11,
     title: '市属高新区产业政策落地效果专项舆情报告',
+    detailContent: {
+      summary: '高新区人才公寓、研发补贴等新政实施三个月，已兑现补贴资金1.2亿元，惠及企业146家，但部分中小企业反映申报材料繁琐、审批周期较长。',
+      coreDemands: '企业希望简化申报流程，明确补贴发放时间节点。',
+      publicOpinionTrend: '财经媒体报道正面，企业论坛存在少量流程类抱怨。',
+      recommendations: ['建议推行补贴申报一网通办。', '建议设立中小企业政策咨询专窗。']
+    },
     source: '新闻网站',
     region: '高新区',
     infoType: '政策解读',
@@ -309,6 +339,12 @@ export const INITIAL_REPORTS: ReportItem[] = [
   {
     id: 12,
     title: '网民关于公共卫生应急体系建设的意见与建议',
+    detailContent: {
+      summary: '近两周网民围绕发热门诊布局、应急物资储备和基层医疗机构能力建设留言300余条，其中关于社区卫生服务中心夜间接诊不足的意见占比最高。',
+      coreDemands: '希望增加社区夜间门诊服务，公开应急物资储备情况。',
+      publicOpinionTrend: '讨论理性，以建言献策为主，未出现明显负面炒作。',
+      recommendations: ['建议卫健部门梳理意见并分类答复。', '建议试点社区卫生服务中心延时门诊。']
+    },
     source: '群众举报',
     region: '全市',
     infoType: '民生诉求',
@@ -322,6 +358,12 @@ export const INITIAL_REPORTS: ReportItem[] = [
   {
     id: 13,
     title: '某食品加工厂违规排放废气舆情快报',
+    detailContent: {
+      summary: '西屯区工业园内某食品加工厂夜间排放刺鼻废气，周边3个小区居民连续多日在业主群和短视频平台投诉，相关视频播放量超过8万次。',
+      coreDemands: '居民要求环保部门立即检测并责令企业整改，公开处理结果。',
+      publicOpinionTrend: '投诉持续发酵，部分居民计划集体到区政府反映。',
+      recommendations: ['建议环保部门立即开展夜间突击检测。', '建议属地街道主动对接居民代表，及时通报进展。']
+    },
     source: '社交媒体',
     region: '西屯区',
     infoType: '突发事件',
@@ -335,6 +377,12 @@ export const INITIAL_REPORTS: ReportItem[] = [
   {
     id: 14,
     title: '关于优化政务服务大厅窗口办事情况监测',
+    detailContent: {
+      summary: '市政务服务大厅本月平均排队时长18分钟，较上月缩短6分钟；不动产登记和社保窗口仍是投诉集中点，网上差评主要涉及材料反复补交。',
+      coreDemands: '群众希望推行材料一次性告知和更多线上预约时段。',
+      publicOpinionTrend: '整体评价有所改善，差评集中在少数窗口。',
+      recommendations: ['建议对高投诉窗口开展服务规范培训。', '建议扩大不动产登记线上办理范围。']
+    },
     source: '政府官网',
     region: '全市',
     infoType: '民生诉求',
@@ -348,6 +396,12 @@ export const INITIAL_REPORTS: ReportItem[] = [
   {
     id: 15,
     title: '网络直播带货虚假宣传防范警示舆情速报',
+    detailContent: {
+      summary: '北屯区多名消费者反映在某直播间购买的“原产地蜂蜜”经检测为糖浆勾兑产品，涉事主播粉丝量逾50万，相关投诉一周内达27件。',
+      coreDemands: '消费者要求退一赔三，并希望平台下架涉事商品。',
+      publicOpinionTrend: '维权话题在本地论坛热度上升，平台已暂停该直播间带货权限。',
+      recommendations: ['建议市场监管部门立案调查并发布消费警示。', '建议督促平台完善直播带货商品抽检机制。']
+    },
     source: '社交媒体',
     region: '北屯区',
     infoType: '舆情动态',
@@ -361,6 +415,12 @@ export const INITIAL_REPORTS: ReportItem[] = [
   {
     id: 16,
     title: '全市中小学后勤膳食安全专项监督舆情',
+    detailContent: {
+      summary: '南屯区某小学家长在家长群上传午餐照片，反映菜品分量不足、个别菜品疑似变质，引发多所学校家长转发讨论，教育部门已启动全市校园食堂专项检查。',
+      coreDemands: '家长要求公开食堂供应商资质和每日菜单，并开放家长陪餐。',
+      publicOpinionTrend: '家长群传播较快，本地媒体已跟进报道。',
+      recommendations: ['建议教育、市场监管部门联合通报检查结果。', '建议全面推行家长陪餐和食堂明厨亮灶。']
+    },
     source: '群众举报',
     region: '南屯区',
     infoType: '突发事件',
@@ -373,6 +433,12 @@ export const INITIAL_REPORTS: ReportItem[] = [
   {
     id: 17,
     title: '市文旅局关于中秋国庆假期文化活动总结速报',
+    detailContent: {
+      summary: '中秋国庆假期全市共举办文化活动186场，接待游客420万人次，同比增长15%；热门景区出现短时拥堵，网民对停车难和餐饮价格偏高有一定集中吐槽。',
+      coreDemands: '游客希望增加景区接驳车辆，加强节假日价格监管。',
+      publicOpinionTrend: '整体正面，负面声量集中在停车与价格问题。',
+      recommendations: ['建议总结假期活动经验并形成常态化方案。', '建议节假日前联合市场监管开展价格巡查。']
+    },
     source: '新闻网站',
     region: '全市',
     infoType: '舆情动态',
@@ -385,6 +451,12 @@ export const INITIAL_REPORTS: ReportItem[] = [
   {
     id: 18,
     title: '某公办幼儿园托育服务收费民意调查',
+    detailContent: {
+      summary: '西屯区某公办幼儿园新开设托育班，每月收费2800元，部分家长认为明显高于周边同类机构，在社区群发起问卷，参与家长132人，68%认为收费偏高。',
+      coreDemands: '家长要求公开收费核定依据，并希望纳入普惠托育补贴范围。',
+      publicOpinionTrend: '讨论集中在社区群和本地论坛，尚未外溢。',
+      recommendations: ['建议教育部门会同发改部门核查收费标准。', '建议幼儿园召开家长说明会公开成本构成。']
+    },
     source: '社交媒体',
     region: '西屯区',
     infoType: '民生诉求',
@@ -397,6 +469,12 @@ export const INITIAL_REPORTS: ReportItem[] = [
   {
     id: 19,
     title: '市交警大队关于智能交通信号灯优化反馈',
+    detailContent: {
+      summary: '全市首批85个路口完成智能信号灯改造，试运行一个月内平均停车次数下降21%，但部分路口行人过街绿灯时间缩短，老年人反映通行紧张。',
+      coreDemands: '市民希望延长学校、医院周边路口的行人绿灯时长。',
+      publicOpinionTrend: '总体评价正面，行人过街时长问题被多次转发。',
+      recommendations: ['建议对重点路口行人相位进行复核调整。', '建议在官方平台开通信号灯问题反馈入口。']
+    },
     source: '政府官网',
     region: '全市',
     infoType: '政策解读',
@@ -409,6 +487,12 @@ export const INITIAL_REPORTS: ReportItem[] = [
   {
     id: 20,
     title: '关于某地产项目延期交房引发业主维权舆情',
+    detailContent: {
+      summary: '北屯区某楼盘原定9月底交房，现开发商通知延期至明年6月，约600户业主在售楼处聚集并在微博发起维权话题，阅读量已超过20万。',
+      coreDemands: '业主要求开发商明确复工计划并按合同支付逾期违约金。',
+      publicOpinionTrend: '维权情绪较强，存在线下聚集风险。',
+      recommendations: ['建议住建部门约谈开发商并公开项目监管资金情况。', '建议属地政府建立业主沟通机制，防止矛盾升级。']
+    },
     source: '群众举报',
     region: '北屯区',
     infoType: '突发事件',
@@ -1228,6 +1312,12 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
   {
     id: 108,
     title: '全媒体传播环境下青少年网络安全教育调研',
+    detailContent: {
+      summary: '针对青少年网络安全教育开展补充调研，重点了解短视频沉迷、游戏充值和网络交友风险，覆盖初高中学生2100人，约37%的学生每日使用短视频超过2小时。',
+      coreDemands: '学校希望获得系统化的网络安全教学资源和专业讲师支持。',
+      publicOpinionTrend: '调研结果在家长群引发关注，评价以认同为主。',
+      recommendations: ['建议编制青少年网络安全教育读本。', '建议组建网络安全宣讲团进校园。']
+    },
     source: '新闻网站',
     region: '全市',
     infoType: '舆情动态',
@@ -1327,6 +1417,12 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
   {
     id: 114,
     title: '全市中小学后勤膳食安全专项监督紧急速报',
+    detailContent: {
+      summary: '南屯区某中学10余名学生午餐后出现腹痛、呕吐症状，已送医观察，暂无重症病例；校方已封存当日留样，市场监管和卫健部门已介入调查。',
+      coreDemands: '家长要求尽快公布调查结果，并追究供餐企业责任。',
+      publicOpinionTrend: '事件在家长群和本地论坛快速传播，关注度较高。',
+      recommendations: ['建议第一时间发布权威通报，避免谣言扩散。', '建议对全市学校供餐企业开展排查。']
+    },
     source: '群众举报',
     region: '南屯区',
     infoType: '突发事件',

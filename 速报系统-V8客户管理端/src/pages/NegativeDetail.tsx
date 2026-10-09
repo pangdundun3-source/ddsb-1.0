@@ -18,12 +18,14 @@ interface NegativeDetailProps {
   report: ReportItem | null;
   onTransferSubmit: (id: number, opinion: string) => void;
   onNavigate: (page: PageId) => void;
+  backPage?: PageId;
 }
 
 export const NegativeDetail: React.FC<NegativeDetailProps> = ({
   report,
   onTransferSubmit,
   onNavigate,
+  backPage = 'negative-info',
 }) => {
   const [activeTab, setActiveTab] = useState<'detail' | 'timeline'>('detail');
   const [transferModalOpen, setTransferModalOpen] = useState(false);
@@ -33,12 +35,12 @@ export const NegativeDetail: React.FC<NegativeDetailProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !transferModalOpen) {
-        onNavigate('negative-info');
+        onNavigate(backPage);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onNavigate, transferModalOpen]);
+  }, [onNavigate, backPage, transferModalOpen]);
 
   if (!report) {
     return (
@@ -46,7 +48,7 @@ export const NegativeDetail: React.FC<NegativeDetailProps> = ({
         <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-gray-500 shadow-2xl max-w-sm w-full mx-4 space-y-4">
           <p className="text-sm font-medium">未选择不良信息记录。</p>
           <button
-            onClick={() => onNavigate('negative-info')}
+            onClick={() => onNavigate(backPage)}
             className="rounded-lg bg-[#1E5ABB] hover:bg-[#134092] px-5 py-2 text-xs font-bold text-white shadow-sm transition-colors cursor-pointer"
           >
             返回不良信息库
@@ -92,7 +94,7 @@ export const NegativeDetail: React.FC<NegativeDetailProps> = ({
       {/* 1. Backdrop Overlay */}
       <div
         className="fixed inset-0 bg-black/40 backdrop-blur-[2px] transition-opacity animate-in fade-in duration-200"
-        onClick={() => onNavigate('negative-info')}
+        onClick={() => onNavigate(backPage)}
       />
 
       {/* 2. 50% Right-side Drawer */}
@@ -133,7 +135,7 @@ export const NegativeDetail: React.FC<NegativeDetailProps> = ({
           <div className="flex items-center space-x-2">
             <button
               type="button"
-              onClick={() => onNavigate('negative-info')}
+              onClick={() => onNavigate(backPage)}
               className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
               title="关闭抽屉 (Esc)"
             >
@@ -179,22 +181,20 @@ export const NegativeDetail: React.FC<NegativeDetailProps> = ({
           <div className="flex items-center space-x-2 shrink-0">
             <button
               type="button"
-              onClick={() => onNavigate('negative-info')}
+              onClick={() => onNavigate(backPage)}
               className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
             >
               关闭
             </button>
 
-            {!isTransferred && (
-              <button
-                type="button"
-                onClick={() => setTransferModalOpen(true)}
-                className="px-5 py-2 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg text-xs font-bold shadow-sm flex items-center space-x-1.5 transition-colors cursor-pointer"
-              >
-                <Send className="w-3.5 h-3.5" />
-                <span>确认转办</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setTransferModalOpen(true)}
+              className="px-5 py-2 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg text-xs font-bold shadow-sm flex items-center space-x-1.5 transition-colors cursor-pointer"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>{isTransferred ? '再次转办' : '确认转办'}</span>
+            </button>
           </div>
         </div>
       </div>

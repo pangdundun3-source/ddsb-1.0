@@ -452,10 +452,10 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                           {item.submitTime}
                         </td>
                         <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                          {!isRejected && <AuditStatusBadge status={item.auditStatus} />}
+                          {!isRejected && <AuditStatusBadge status={item.auditStatus} audience="report" />}
                           {isRejected && (
                             <div className="inline-flex flex-col items-center gap-1 group relative">
-                              <AuditStatusBadge status={item.auditStatus} />
+                              <AuditStatusBadge status={item.auditStatus} audience="report" />
                               <div
                                 className="inline-flex items-center gap-1 max-w-[130px] px-1.5 py-0.5 rounded bg-rose-50/80 hover:bg-rose-100 text-rose-600 border border-rose-200/70 text-[11px] cursor-help transition-colors"
                                 title={`驳回原因：${item.rejectReason || '信息不完整，请补充相关佐证材料'}`}

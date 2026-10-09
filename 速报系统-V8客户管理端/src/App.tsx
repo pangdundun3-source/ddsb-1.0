@@ -17,6 +17,9 @@ import { AuditRecords } from './pages/AuditRecords';
 import { AuditRecordDetail } from './pages/AuditRecordDetail';
 import { NegativeInfoLibrary } from './pages/NegativeInfoLibrary';
 import { NegativeDetail } from './pages/NegativeDetail';
+import { WarehouseManage } from './pages/WarehouseManage';
+import { DataWarehouseManage } from './pages/DataWarehouseManage';
+import { DataWarehouse } from './pages/DataWarehouse';
 import { Statistics } from './pages/Statistics';
 import { StatisticsReference } from './pages/StatisticsReference';
 import { AuditStatistics } from './pages/AuditStatistics';
@@ -320,6 +323,42 @@ export default function App() {
                 onWithdrawReport={handleWithdrawReport}
                 onResubmitReport={handleResubmitReport}
                 onDeleteReport={handleDeleteReport}
+              />
+            )}
+          </>
+        )}
+
+        {activePage === 'warehouse-manage' && <WarehouseManage />}
+
+        {activePage === 'data-warehouse-manage' && (
+          <DataWarehouseManage
+            negativeList={reports.filter((report) =>
+              report.auditStatus === '待转办' ||
+              report.auditStatus === '已转办' ||
+              report.auditStatus === '已通过'
+            )}
+            onNavigate={handleNavigate}
+          />
+        )}
+
+        {(activePage === 'data-warehouse' || activePage === 'data-warehouse-detail') && (
+          <>
+            <DataWarehouse
+              negativeList={reports.filter((report) =>
+                report.auditStatus === '待转办' ||
+                report.auditStatus === '已转办' ||
+                report.auditStatus === '已通过'
+              )}
+              onSelectNegative={setSelectedNegative}
+              onTransferSubmit={handleTransferSubmit}
+              onNavigate={handleNavigate}
+            />
+            {activePage === 'data-warehouse-detail' && (
+              <NegativeDetail
+                report={selectedNegative}
+                onTransferSubmit={handleTransferSubmit}
+                onNavigate={handleNavigate}
+                backPage="data-warehouse"
               />
             )}
           </>

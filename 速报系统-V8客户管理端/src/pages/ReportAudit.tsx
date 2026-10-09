@@ -19,7 +19,6 @@ import {
   ExternalLink,
   ChevronRight,
   MapPin,
-  Calendar,
   Sparkles,
   Zap,
   Copy,
@@ -219,107 +218,166 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
     setQuickAuditItem(null);
   };
 
+  const renderStatusChip = (item: ReportItem) => {
+    const isPending = item.auditStatus === '待审核';
+    const isRejected = item.auditStatus === '被驳回' || item.auditStatus === '已驳回';
+    const isAdopted = item.auditStatus === '已采纳' || item.auditStatus === '已通过';
+    const tone = isPending
+      ? 'bg-amber-50 text-amber-700'
+      : isRejected
+        ? 'bg-rose-50 text-rose-700'
+        : isAdopted
+          ? 'bg-emerald-50 text-emerald-700'
+          : 'bg-blue-50 text-blue-700';
+    return (
+      <span className={`shrink-0 px-1.5 py-px rounded text-[11px] font-medium ${tone}`}>
+        {isPending ? '待审核' : isRejected ? '已驳回' : item.auditStatus}
+      </span>
+    );
+  };
+
+  const renderAuditRow = (item: ReportItem, seq: number, matched = false) => {
+    const isPending = item.auditStatus === '待审核';
+    const isRejected = item.auditStatus === '被驳回' || item.auditStatus === '已驳回';
+    const openDetail = () => {
+      onSelectAudit(item);
+      onNavigate('audit-detail');
+    };
+    return (
+      <div key={`${matched ? 'cluster' : 'row'}-${item.id}`} className={`px-5 py-3.5 flex gap-3 transition-colors ${matched ? 'hover:bg-amber-50/40' : 'hover:bg-gray-50/70'}`}>
+        <span className={`w-6 shrink-0 text-center font-mono text-xs mt-0.5 ${matched ? 'text-amber-700/70' : 'text-gray-400'}`}>{seq}</span>
+        <div className="flex-1 min-w-0 space-y-1">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2 min-w-0">
+              {renderStatusChip(item)}
+              <button
+                type="button"
+                onClick={openDetail}
+                title={item.title}
+                className="text-sm font-semibold text-gray-900 hover:text-[#1E5ABB] text-left truncate min-w-0 cursor-pointer"
+              >
+                {item.title}
+              </button>
+              <IdentificationBadge
+                status={resolveIdentification(item, allReports.length > 0 ? allReports : auditPendingList).status}
+                size="xs"
+                className="shrink-0"
+              />
+            </div>
+            <div className="flex items-center gap-3 text-xs shrink-0">
+              {matched && <span className="text-[#F26522] font-semibold bg-amber-50 px-1.5 py-px rounded">已匹配</span>}
+              <button
+                type="button"
+                onClick={openDetail}
+                className={`hover:underline cursor-pointer ${isPending ? 'text-[#1E5ABB] font-semibold' : 'text-gray-500 hover:text-gray-800'}`}
+              >
+                {isPending ? '审核' : '详情'}
+              </button>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 truncate" title={item.detailContent?.summary || item.title}>
+            {item.detailContent?.summary || '暂无内容描述'}
+          </p>
+          <div className="flex items-center gap-1.5 min-w-0 whitespace-nowrap text-[11px] text-gray-400">
+            <span className="shrink-0 px-1 rounded bg-gray-100 text-gray-500">上报人</span>
+            <span className="shrink-0 text-gray-600">{item.author}</span>
+            <span className="shrink-0 text-gray-300">·</span>
+            <span title={getOrganizationPathText(item.organization)} className="truncate">{item.organization}</span>
+            <span className="shrink-0 text-gray-300">·</span>
+            <span className="shrink-0 font-mono">{item.submitTime}</span>
+            {isRejected && (
+              <span
+                className="ml-2 inline-flex items-center gap-1 min-w-0 text-rose-500 cursor-help"
+                title={`驳回原因：${item.rejectReason || '信息要素不全，请核实后补充提交。'}`}
+              >
+                <AlertCircle className="w-3 h-3 shrink-0" />
+                <span className="truncate">驳回原因：{item.rejectReason || '信息不完整'}</span>
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-5" id="report-audit-view">
       {/* 1. Header & KPI Cards Area (Harmonized with ReportSummary Workbench) */}
-      <div className="bg-gradient-to-r from-blue-700 via-[#1E5ABB] to-blue-800 rounded-2xl p-6 text-white shadow-md relative overflow-hidden">
-        {/* Background ambient accents */}
+      <div className="bg-gradient-to-r from-blue-700 via-[#1E5ABB] to-blue-800 rounded-xl px-5 py-4 text-white shadow-md relative overflow-hidden">
         <div className="absolute right-0 top-0 w-96 h-full bg-white/5 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -left-12 -bottom-12 w-64 h-64 bg-cyan-400/10 rounded-full blur-2xl pointer-events-none" />
 
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-white/15">
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
-              <h2 className="text-xl font-bold tracking-tight">【审核员】审核数据统计</h2>
-            </div>
-            <p className="text-xs text-blue-100/80 mt-1 flex items-center space-x-1.5">
-              <Calendar className="w-3.5 h-3.5" />
-              <span>集中处理审核待办、同源批量匹配及审核记录事项 · 我的审核</span>
-            </p>
-          </div>
-
+        <div className="relative z-10 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+          <h2 className="text-base font-bold tracking-tight">【审核员】审核数据统计</h2>
+          <span className="text-[11px] text-blue-100/70 ml-1 truncate">集中处理审核待办、同源批量匹配及审核记录事项</span>
         </div>
 
-        {/* 4 Large Translucent Metric Cards (Matching ReportSummary Exactly) */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 pt-5 relative z-10">
-          {/* Card 1: 审核待办 */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 relative z-10">
           <div
             onClick={() => setActiveTab('待审核')}
-            className="bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl p-4 transition-all cursor-pointer backdrop-blur-sm"
+            className="bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg px-3.5 py-2.5 transition-all cursor-pointer backdrop-blur-sm"
             id="kpi-audit-pending"
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-blue-100">审核待办</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400/30 text-amber-200 font-bold border border-amber-400/40">
-                待办事项
-              </span>
+              <span className="text-[10px] px-1.5 py-px rounded bg-amber-400/30 text-amber-200 font-bold border border-amber-400/40">待办事项</span>
             </div>
-            <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-2xl font-bold font-mono text-white">{pendingCount}</span>
-              <span className="text-xs text-blue-200">
+            <div className="mt-1 flex items-baseline justify-between">
+              <span className="text-xl font-bold font-mono text-white">{pendingCount}</span>
+              <span className="text-[11px] text-blue-200">
                 同源待合审 <strong className="text-amber-300">{matchedClusters.reduce((acc, c) => acc + c.items.length, 0)}</strong>
               </span>
             </div>
           </div>
 
-          {/* Card 2: 累计审核 */}
           <div
             onClick={() => setActiveTab('全部')}
-            className="bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl p-4 transition-all cursor-pointer group backdrop-blur-sm"
+            className="bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg px-3.5 py-2.5 transition-all cursor-pointer backdrop-blur-sm"
             id="kpi-audit-completed"
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-blue-100">累计审核</span>
             </div>
-            <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-2xl font-bold font-mono text-white">{passedCount + rejectedCount}</span>
-              <span className="text-xs text-blue-200">
+            <div className="mt-1 flex items-baseline justify-between">
+              <span className="text-xl font-bold font-mono text-white">{passedCount + rejectedCount}</span>
+              <span className="text-[11px] text-blue-200">
                 通过 <strong className="text-emerald-300">{passedCount}</strong> · 驳回 <strong className="text-rose-300">{rejectedCount}</strong>
               </span>
             </div>
           </div>
 
-          {/* Card 3: 审核处理率 */}
-          <div className="bg-white/10 border border-white/20 rounded-xl p-4 backdrop-blur-sm">
+          <div className="bg-white/10 border border-white/20 rounded-lg px-3.5 py-2.5 backdrop-blur-sm">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-blue-100">审核处理率</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-400/30 text-emerald-200 font-bold border border-emerald-400/40">
+              <span className="text-[10px] px-1.5 py-px rounded bg-emerald-400/30 text-emerald-200 font-bold border border-emerald-400/40">
                 {auditedCount + rejectedCount}/{totalAuditPool}
               </span>
             </div>
-            <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-2xl font-bold font-mono text-emerald-300">{processedRate}%</span>
-              <span className="text-xs text-blue-200">
-                审核流转高效敏捷
-              </span>
+            <div className="mt-1 flex items-baseline justify-between">
+              <span className="text-xl font-bold font-mono text-emerald-300">{processedRate}%</span>
+              <span className="text-[11px] text-blue-200">审核流转高效敏捷</span>
             </div>
           </div>
 
-          {/* Card 4: 平均响应时长 */}
-          <div className="bg-white/10 border border-white/20 rounded-xl p-4 backdrop-blur-sm">
+          <div className="bg-white/10 border border-white/20 rounded-lg px-3.5 py-2.5 backdrop-blur-sm">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-blue-100">平均响应</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-400/30 text-cyan-200 font-bold border border-cyan-400/40">
-                优于标准
-              </span>
+              <span className="text-[10px] px-1.5 py-px rounded bg-cyan-400/30 text-cyan-200 font-bold border border-cyan-400/40">优于标准</span>
             </div>
-            <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-2xl font-bold font-mono text-cyan-300">&lt; 1 小时</span>
-              <span className="text-xs text-blue-200">
-                满足突发响应指标
-              </span>
+            <div className="mt-1 flex items-baseline justify-between">
+              <span className="text-xl font-bold font-mono text-cyan-300 whitespace-nowrap">&lt; 1 小时</span>
+              <span className="text-[11px] text-blue-200 truncate ml-2">满足突发响应指标</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* 2. Unified Search & Filter Bar with Screenshot Style + Smart Matching */}
-      <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-2xs space-y-4">
-        {/* Filter items with inline label and input */}
-        <div className="flex flex-col lg:flex-row lg:flex-wrap items-stretch lg:items-center gap-4 text-xs">
+      <div className="bg-white rounded-xl px-5 py-4 border border-gray-200/80 shadow-2xs">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 text-xs">
           {/* 事件标题 */}
-          <div className="flex-1 min-w-[240px]">
+          <div className="flex-1 min-w-[160px]">
             <div className="relative flex-1">
               <input
                 type="text"
@@ -343,87 +401,49 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
           </div>
 
           {/* 报送时间 */}
-          <div className="flex items-center space-x-2 shrink-0">
-            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">报送时间</label>
-            <div className="flex items-center space-x-1.5">
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-32 px-2.5 py-2 border border-gray-300 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 shadow-2xs"
-              />
-              <span className="text-gray-400 font-bold">-</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-32 px-2.5 py-2 border border-gray-300 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 shadow-2xs"
-              />
-            </div>
+          <div className="flex items-center space-x-1.5 shrink-0" title="报送时间">
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              title="报送开始日期"
+              className="w-[118px] px-2 py-2 border border-gray-300 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 shadow-2xs"
+            />
+            <span className="text-gray-400 font-bold">-</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              title="报送结束日期"
+              className="w-[118px] px-2 py-2 border border-gray-300 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 shadow-2xs"
+            />
           </div>
 
           {/* 上报机构 */}
-          <div className="flex items-center space-x-2 min-w-0 lg:w-60">
-            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">上报机构</label>
-            <select
-              value={selectedOrg}
-              onChange={(e) => setSelectedOrg(e.target.value)}
-              title={selectedOrg}
-              className="flex-1 min-w-0 w-full truncate px-3 py-2 border border-gray-300 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 shadow-2xs cursor-pointer"
-            >
-              {orgOptions.map((org) => (
-                <option key={org} value={org}>
-                  {org}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+          <select
+            value={selectedOrg}
+            onChange={(e) => setSelectedOrg(e.target.value)}
+            title={selectedOrg === '全部' ? '上报机构' : selectedOrg}
+            className="lg:w-36 shrink-0 truncate px-2.5 py-2 border border-gray-300 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 shadow-2xs cursor-pointer"
+          >
+            {orgOptions.map((org) => (
+              <option key={org} value={org}>
+                {org === '全部' ? '全部上报机构' : org}
+              </option>
+            ))}
+          </select>
 
-        {/* Action Row */}
-        <div className="flex items-center justify-between pt-1 border-t border-gray-100">
-          {/* Batch Match Toggle Button */}
-          <div>
-            <button
-              onClick={() => setIsBatchMatchActive(!isBatchMatchActive)}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer shadow-2xs ${
-                isBatchMatchActive
-                  ? 'bg-[#F26522] hover:bg-[#D9531E] text-white border border-[#D9531E]/30'
-                  : 'bg-[#1E5ABB] hover:bg-[#134092] text-white border border-[#134092]/30'
-              }`}
-              title="智能识别并聚合来自相同链接/同地址的多条网格员速报"
-              id="btn-batch-match-toggle"
-            >
-              {isBatchMatchActive ? (
-                <>
-                  <X className="w-3.5 h-3.5" />
-                  <span>取消匹配</span>
-                </>
-              ) : (
-                <>
-                  <Zap className="w-3.5 h-3.5" />
-                  <span>批量匹配</span>
-                </>
-              )}
-              {isBatchMatchActive && matchedClusters.length > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-white/20 text-white text-[10px] font-mono ml-1">
-                  {matchedClusters.length}组
-                </span>
-              )}
-            </button>
-          </div>
-
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2 shrink-0 lg:ml-auto">
             <button
               onClick={() => {}}
-              className="px-5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer flex items-center space-x-1.5 active:scale-98"
+              className="px-3.5 py-2 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer flex items-center space-x-1.5 active:scale-98"
             >
               <Search className="w-3.5 h-3.5" />
               <span>查询</span>
             </button>
             <button
               onClick={handleReset}
-              className="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg border border-gray-200 transition-colors cursor-pointer flex items-center space-x-1.5 active:scale-98"
+              className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg border border-gray-200 transition-colors cursor-pointer flex items-center space-x-1.5 active:scale-98"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>重置</span>
@@ -434,34 +454,44 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
 
       {/* 3. Main Content: In-Table Clustered View or Cards */}
         <div className="bg-white rounded-xl border border-gray-200/80 shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-gray-50/90 border-b border-gray-200 text-gray-600 font-semibold">
-                  <th className="py-3.5 px-4 w-12 text-center">序号</th>
-                  <th className="py-3.5 px-4 min-w-[220px] w-full">事件标题 / 内容描述</th>
-                  <th className="py-3.5 px-4 min-w-[170px] whitespace-nowrap">上报人员 / 机构</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap">报送时间</th>
-                  <th className="py-3.5 px-4 text-center whitespace-nowrap">审核状态</th>
-                  <th className="py-3.5 px-4 text-center min-w-[140px] whitespace-nowrap">操作</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 text-gray-700">
+          <div className="px-5 py-2.5 flex flex-wrap items-center justify-between gap-2 bg-gray-50/70 border-b border-gray-100 text-xs">
+            <span className="text-gray-600">
+              共 <strong className="text-[#1E5ABB] font-mono">{filtered.length}</strong> 条报送
+              {isBatchMatchActive && (
+                <>
+                  <span className="mx-2 text-gray-300">|</span>
+                  已匹配 <strong className="text-[#F26522] font-mono">{matchedClusters.length}</strong> 组同源报送
+                </>
+              )}
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsBatchMatchActive(!isBatchMatchActive)}
+              title="智能识别并聚合来自相同链接/同地址的多条网格员速报"
+              id="btn-batch-match-toggle"
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md border font-semibold cursor-pointer transition-colors ${
+                isBatchMatchActive
+                  ? 'border-orange-200 bg-orange-50 text-[#F26522] hover:bg-orange-100'
+                  : 'border-blue-200 bg-blue-50 text-[#1E5ABB] hover:bg-blue-100'
+              }`}
+            >
+              {isBatchMatchActive ? <X className="w-3.5 h-3.5" /> : <Zap className="w-3.5 h-3.5" />}
+              {isBatchMatchActive ? '取消匹配' : '批量匹配'}
+            </button>
+          </div>
+          <div className="divide-y divide-gray-100">
                 {filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-12 text-center text-gray-400">
-                      <FileText className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                      当前筛选条件下暂无待审核记录
-                    </td>
-                  </tr>
+                  <div className="py-12 text-center text-xs text-gray-400">
+                    <FileText className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                    当前筛选条件下暂无待审核记录
+                  </div>
                 ) : isBatchMatchActive && matchedClusters.length > 0 ? (
                   <>
                     {/* Render Each Matched Cluster Group as In-Table Section */}
                     {matchedClusters.map((cluster, cIdx) => (
                       <React.Fragment key={`cluster-${cIdx}`}>
                         {/* Cluster Header Row */}
-                        <tr className="bg-amber-50/90 border-t border-b border-amber-200">
-                          <td colSpan={6} className="py-2.5 px-4">
+                        <div className="bg-amber-50/90 border-y border-amber-200 py-2.5 px-5 text-xs">
                             <div className="flex items-center justify-between gap-3">
                               <div className="flex items-center space-x-2.5 min-w-0">
                                 <div className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
@@ -494,332 +524,27 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                                 <span>批量审核</span>
                               </button>
                             </div>
-                          </td>
-                        </tr>
+                        </div>
 
-                        {/* Cluster Child Rows */}
-                        {cluster.items.map((item, itemIdx) => {
-                          const isPending = item.auditStatus === '待审核';
-                          const isRejected = item.auditStatus === '被驳回' || item.auditStatus === '已驳回';
-                          const isAdopted = item.auditStatus === '已采纳' || item.auditStatus === '已通过';
-
-                          return (
-                            <tr key={`cluster-item-${item.id}`} className="hover:bg-amber-50/30 transition-colors">
-                              <td className="py-3 px-4 text-center text-amber-800/70 font-mono text-xs">{itemIdx + 1}</td>
-                              <td className="py-3 px-4">
-                                <div className="flex items-center gap-1.5 w-0 min-w-full">
-                                  <button
-                                    onClick={() => {
-                                      onSelectAudit(item);
-                                      onNavigate('audit-detail');
-                                    }}
-                                    className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer leading-snug truncate min-w-0"
-                                    title={item.title}
-                                  >
-                                    {item.title}
-                                  </button>
-                                  <IdentificationBadge
-                                    status={resolveIdentification(item, allReports.length > 0 ? allReports : auditPendingList).status}
-                                    size="xs"
-                                    className="shrink-0"
-                                    showIcon
-                                  />
-                                </div>
-                                <div className="text-gray-500 text-[11px] truncate leading-relaxed mt-1 w-0 min-w-full" title={item.detailContent?.summary || item.title}>
-                                  {item.detailContent?.summary || '暂无内容描述'}
-                                </div>
-                              </td>
-                              <td className="py-3 px-4">
-                                <div className="font-semibold text-gray-900 leading-snug">{item.author}</div>
-                                <OrgPathDisplay organization={item.organization} className="max-w-[220px]" />
-                              </td>
-                              <td className="py-3 px-4 font-mono text-gray-500 whitespace-nowrap text-xs">
-                                {item.submitTime}
-                              </td>
-                              <td className="py-3 px-4 text-center">
-                                {isPending && (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                                    待审核
-                                  </span>
-                                )}
-                                {isRejected && (
-                                  <div className="inline-flex flex-col items-center gap-1 group relative">
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                                      已驳回
-                                    </span>
-                                    <div
-                                      className="inline-flex items-center gap-1 max-w-[130px] px-1.5 py-0.5 rounded bg-rose-50/80 hover:bg-rose-100 text-rose-600 border border-rose-200/70 text-[11px] cursor-help transition-colors"
-                                      title={`驳回原因：${item.rejectReason || '信息要素不全，请核实后补充提交。'}`}
-                                    >
-                                      <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
-                                      <span className="truncate">{item.rejectReason || '信息不完整'}</span>
-                                    </div>
-                                    {/* Hover Floating Tooltip */}
-                                    <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block z-50 w-56 p-2.5 bg-slate-900 text-white text-xs rounded-lg shadow-xl border border-slate-800 text-left">
-                                      <div className="flex items-center gap-1 text-rose-400 font-semibold mb-1 text-[11px]">
-                                        <AlertCircle className="w-3.5 h-3.5" />
-                                        <span>驳回具体原因</span>
-                                      </div>
-                                      <p className="text-[11px] text-slate-200 leading-relaxed break-words font-normal">
-                                        {item.rejectReason || '信息要素不全，请核实后补充提交。'}
-                                      </p>
-                                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900"></div>
-                                    </div>
-                                  </div>
-                                )}
-                                {isAdopted && (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                    {item.auditStatus}
-                                  </span>
-                                )}
-                                {!isPending && !isRejected && !isAdopted && (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                                    {item.auditStatus}
-                                  </span>
-                                )}
-                              </td>
-                              <td className="py-3 px-4 text-center whitespace-nowrap">
-                                <div className="flex items-center justify-center space-x-2">
-                                  <span className="text-[#F26522] font-semibold text-xs bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                                    已匹配
-                                  </span>
-                                  <button
-                                    onClick={() => {
-                                      onSelectAudit(item);
-                                      onNavigate('audit-detail');
-                                    }}
-                                    className="text-[#1E5ABB] hover:underline font-bold text-xs cursor-pointer"
-                                  >
-                                    {isPending ? '审核' : '详情'}
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
+                        {cluster.items.map((item, itemIdx) => renderAuditRow(item, itemIdx + 1, true))}
                       </React.Fragment>
                     ))}
 
                     {/* Section Header for Other Pending Items */}
                     {otherPendingItems.length > 0 && (
-                      <tr className="bg-gray-50/80 border-t-2 border-b border-gray-200">
-                        <td colSpan={6} className="py-2.5 px-4 font-bold text-gray-700 text-xs">
-                          <div className="flex items-center justify-between">
-                            <span>其他待审核报送 ({otherPendingItems.length} 条)</span>
-                            <span className="text-[11px] text-gray-400 font-normal">支持单独逐条进行详细审核或快捷处置</span>
-                          </div>
-                        </td>
-                      </tr>
+                      <div className="bg-gray-50/80 border-y border-gray-200 py-2.5 px-5 font-bold text-gray-700 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span>其他待审核报送 ({otherPendingItems.length} 条)</span>
+                          <span className="text-[11px] text-gray-400 font-normal">支持单独逐条进行详细审核或快捷处置</span>
+                        </div>
+                      </div>
                     )}
 
-                    {/* Render Other Items */}
-                    {otherPendingItems.map((item, itemIdx) => {
-                      const isPending = item.auditStatus === '待审核';
-                      const isRejected = item.auditStatus === '被驳回' || item.auditStatus === '已驳回';
-                      const isAdopted = item.auditStatus === '已采纳' || item.auditStatus === '已通过';
-
-                      return (
-                        <tr key={`other-item-${item.id}`} className="hover:bg-blue-50/20 transition-colors">
-                          <td className="py-3 px-4 text-center text-gray-400 font-mono text-xs">{itemIdx + 1}</td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-1.5 w-0 min-w-full">
-                              <button
-                                onClick={() => {
-                                  onSelectAudit(item);
-                                  onNavigate('audit-detail');
-                                }}
-                                className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer leading-snug truncate min-w-0"
-                                    title={item.title}
-                              >
-                                {item.title}
-                              </button>
-                              <IdentificationBadge
-                                status={resolveIdentification(item, allReports.length > 0 ? allReports : auditPendingList).status}
-                                size="xs"
-                                    className="shrink-0"
-                                showIcon
-                              />
-                            </div>
-                            <div className="text-gray-500 text-[11px] truncate leading-relaxed mt-1 w-0 min-w-full" title={item.detailContent?.summary || item.title}>
-                              {item.detailContent?.summary || '暂无内容描述'}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="font-semibold text-gray-900 leading-snug">{item.author}</div>
-                            <OrgPathDisplay organization={item.organization} className="max-w-[220px]" />
-                          </td>
-                          <td className="py-3 px-4 font-mono text-gray-500 whitespace-nowrap text-xs">
-                            {item.submitTime}
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            {isPending && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                                待审核
-                              </span>
-                            )}
-                            {isRejected && (
-                              <div className="inline-flex flex-col items-center gap-1 group relative">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                                  已驳回
-                                </span>
-                                <div
-                                  className="inline-flex items-center gap-1 max-w-[130px] px-1.5 py-0.5 rounded bg-rose-50/80 hover:bg-rose-100 text-rose-600 border border-rose-200/70 text-[11px] cursor-help transition-colors"
-                                  title={`驳回原因：${item.rejectReason || '信息要素不全，请核实后补充提交。'}`}
-                                >
-                                  <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
-                                  <span className="truncate">{item.rejectReason || '信息不完整'}</span>
-                                </div>
-                                {/* Hover Floating Tooltip */}
-                                <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block z-50 w-56 p-2.5 bg-slate-900 text-white text-xs rounded-lg shadow-xl border border-slate-800 text-left">
-                                  <div className="flex items-center gap-1 text-rose-400 font-semibold mb-1 text-[11px]">
-                                    <AlertCircle className="w-3.5 h-3.5" />
-                                    <span>驳回具体原因</span>
-                                  </div>
-                                  <p className="text-[11px] text-slate-200 leading-relaxed break-words font-normal">
-                                    {item.rejectReason || '信息要素不全，请核实后补充提交。'}
-                                  </p>
-                                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900"></div>
-                                </div>
-                              </div>
-                            )}
-                            {isAdopted && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                  {item.auditStatus}
-                              </span>
-                            )}
-                            {!isPending && !isRejected && !isAdopted && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                                {item.auditStatus}
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-center whitespace-nowrap">
-                            <div className="flex items-center justify-center space-x-2">
-                              <button
-                                onClick={() => {
-                                  onSelectAudit(item);
-                                  onNavigate('audit-detail');
-                                }}
-                                className="text-[#1E5ABB] hover:text-[#134092] hover:underline font-bold text-xs cursor-pointer"
-                              >
-                                {isPending ? '审核' : '详情'}
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {otherPendingItems.map((item, itemIdx) => renderAuditRow(item, itemIdx + 1))}
                   </>
                 ) : (
-                  /* Flat table when matching is disabled or no clusters */
-                  pagedReports.map((item, index) => {
-                    const isPending = item.auditStatus === '待审核';
-                    const isRejected = item.auditStatus === '被驳回' || item.auditStatus === '已驳回';
-                    const isAdopted = item.auditStatus === '已采纳' || item.auditStatus === '已通过';
-
-                    return (
-                      <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
-                        <td className="py-3 px-4 text-center text-gray-400 font-mono text-xs">{(safePage - 1) * pageSize + index + 1}</td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-1.5 w-0 min-w-full">
-                            <button
-                              onClick={() => {
-                                onSelectAudit(item);
-                                onNavigate('audit-detail');
-                              }}
-                              className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer leading-snug truncate min-w-0"
-                                    title={item.title}
-                            >
-                              {item.title}
-                            </button>
-                            <IdentificationBadge
-                              status={resolveIdentification(item, allReports.length > 0 ? allReports : auditPendingList).status}
-                              size="xs"
-                                    className="shrink-0"
-                              showIcon
-                            />
-                          </div>
-                          <div className="text-gray-500 text-[11px] truncate leading-relaxed mt-1 w-0 min-w-full" title={item.detailContent?.summary || item.title}>
-                            {item.detailContent?.summary || '暂无内容描述'}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="font-semibold text-gray-900 leading-snug">{item.author}</div>
-                          <OrgPathDisplay organization={item.organization} className="max-w-[220px]" />
-                        </td>
-                        <td className="py-3 px-4 font-mono text-gray-500 whitespace-nowrap text-xs">
-                          {item.submitTime}
-                        </td>
-                        <td className="py-3 px-4 text-center whitespace-nowrap">
-                          {isPending && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                              待审核
-                            </span>
-                          )}
-                          {isRejected && (
-                            <div className="inline-flex flex-col items-center gap-1 group relative">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
-                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                                已驳回
-                              </span>
-                              <div
-                                className="inline-flex items-center gap-1 max-w-[130px] px-1.5 py-0.5 rounded bg-rose-50/80 hover:bg-rose-100 text-rose-600 border border-rose-200/70 text-[11px] cursor-help transition-colors"
-                                title={`驳回原因：${item.rejectReason || '信息要素不全，请核实后补充提交。'}`}
-                              >
-                                <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
-                                <span className="truncate">{item.rejectReason || '信息不完整'}</span>
-                              </div>
-                              {/* Hover Floating Tooltip */}
-                              <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block z-50 w-56 p-2.5 bg-slate-900 text-white text-xs rounded-lg shadow-xl border border-slate-800 text-left">
-                                <div className="flex items-center gap-1 text-rose-400 font-semibold mb-1 text-[11px]">
-                                  <AlertCircle className="w-3.5 h-3.5" />
-                                  <span>驳回具体原因</span>
-                                </div>
-                                <p className="text-[11px] text-slate-200 leading-relaxed break-words font-normal">
-                                  {item.rejectReason || '信息要素不全，请核实后补充提交。'}
-                                </p>
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900"></div>
-                              </div>
-                            </div>
-                          )}
-                          {isAdopted && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                              {item.auditStatus}
-                            </span>
-                          )}
-                          {!isPending && !isRejected && !isAdopted && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                              {item.auditStatus}
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-center whitespace-nowrap">
-                          <div className="flex items-center justify-center space-x-2">
-                            <button
-                              onClick={() => {
-                                onSelectAudit(item);
-                                onNavigate('audit-detail');
-                              }}
-                              className="text-[#1E5ABB] hover:text-[#134092] hover:underline font-bold text-xs cursor-pointer"
-                            >
-                                {isPending ? '审核' : '详情'}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
+                  pagedReports.map((item, index) => renderAuditRow(item, (safePage - 1) * pageSize + index + 1))
                 )}
-              </tbody>
-            </table>
           </div>
 
           {/* Footer Pagination */}

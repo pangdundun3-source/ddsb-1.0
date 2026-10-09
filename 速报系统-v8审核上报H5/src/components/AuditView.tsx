@@ -206,7 +206,7 @@ export const AuditView: React.FC<AuditViewProps> = ({
       case 'approved':
         return (
           <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-            已采纳
+            已通过
           </span>
         );
       case 'rejected':
@@ -325,7 +325,7 @@ export const AuditView: React.FC<AuditViewProps> = ({
               : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
           }`}
         >
-          已采纳 ({completedReports.length})
+          已通过 ({completedReports.length})
         </button>
 
         <button

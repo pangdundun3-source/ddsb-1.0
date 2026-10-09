@@ -515,7 +515,7 @@ export const Home: React.FC<HomeProps> = ({
                           </button>
                           <ReportOriginBadge report={item} size="sm" className="shrink-0" />
                         </div>
-                        <AuditStatusBadge status={item.auditStatus} className="shrink-0" />
+                        <AuditStatusBadge status={item.auditStatus} audience="report" className="shrink-0" />
                       </div>
                       <p className="mt-1.5 text-xs text-rose-700 flex items-start gap-1.5">
                         <AlertCircle className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-px" />

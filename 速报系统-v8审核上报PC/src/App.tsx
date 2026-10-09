@@ -146,14 +146,13 @@ export default function App() {
           currentOrg={currentOrg}
           onSwitchOrg={handleSwitchOrg}
           onNavigate={handleNavigate}
-          onOpenMessageCenter={() => openMessageCenter('unread')}
-          unreadCount={notifications.filter((n) => n.isUnread).length}
         />
 
         <Navbar
           activePage={activePage}
           reportDetailSourcePage={reportDetailSourcePage}
           onNavigate={handleNavigate}
+          unreadCount={notifications.filter((n) => n.isUnread).length}
         />
       </div>
 

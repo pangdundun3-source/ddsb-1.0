@@ -41,6 +41,7 @@ interface DetailModalProps {
   onRecallReport?: (id: string) => void;
   onSelectRelatedReport?: (report: SpeedReport) => void;
   onToast: (msg: string) => void;
+  rejectStatusLabel?: '已驳回' | '被驳回';
 }
 
 export const DetailModal: React.FC<DetailModalProps> = ({
@@ -60,6 +61,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
   onRecallReport,
   onSelectRelatedReport,
   onToast,
+  rejectStatusLabel = '被驳回',
 }) => {
   const [showRejectInput, setShowRejectInput] = useState<boolean>(false);
   const [rejectReason, setRejectReason] = useState<string>('信息不完整。请补充政策原文链接和群众反馈截图后重新提交。');
@@ -229,7 +231,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
       case 'approved':
         return <span className="px-2.5 py-1 rounded-lg bg-emerald-500 text-white text-xs font-bold shadow-xs">已采纳</span>;
       case 'rejected':
-        return <span className="px-2.5 py-1 rounded-lg bg-red-500 text-white text-xs font-bold shadow-xs">已驳回</span>;
+        return <span className="px-2.5 py-1 rounded-lg bg-red-500 text-white text-xs font-bold shadow-xs">{rejectStatusLabel}</span>;
       case 'pending_transfer':
         return <span className="px-2.5 py-1 rounded-lg bg-amber-500 text-white text-xs font-bold shadow-xs">待转办</span>;
       case 'transferred':
@@ -263,6 +265,10 @@ export const DetailModal: React.FC<DetailModalProps> = ({
   const secondAuditHandled = report.status === 'approved';
   const thirdAuditHandled = report.status === 'approved';
   const finalReviewScore = report.score ?? (report.status === 'approved' ? 92 : undefined);
+  const showNodeConclusion =
+    allowAuditActions && report.status !== 'pending_audit' && report.status !== 'draft';
+  const nodeRejected = report.status === 'rejected';
+  const nodeAuditorText = '王主任 · 市委宣传部舆情科';
   const flowNodes: Array<{
     title: string;
     actor: string;
@@ -314,7 +320,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
         : report.status === 'pending_audit'
         ? '待审核'
         : report.status === 'rejected'
-        ? '已驳回'
+        ? rejectStatusLabel
         : '已通过',
       state:
         report.status === 'pending_audit'
@@ -330,7 +336,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
               label: '',
               actor: showHandledAuditor('王主任', '市委宣传部舆情科', true),
               time: firstRejectTime,
-              status: '已驳回',
+              status: rejectStatusLabel,
               state: 'rejected',
               reason: fallbackRejectReason,
             },
@@ -461,6 +467,41 @@ export const DetailModal: React.FC<DetailModalProps> = ({
                 </div>
               )}
             </div>
+
+            {showNodeConclusion && (
+              <div className="bg-white rounded-2xl p-3.5 border border-slate-200/90 shadow-2xs space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-800 flex items-center space-x-1">
+                    <UserCheck className="w-3.5 h-3.5 text-blue-600" />
+                    <span>本节点审核结论</span>
+                  </h3>
+                  <span className="rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-600">
+                    节点记录
+                  </span>
+                </div>
+
+                {nodeRejected ? (
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 p-2.5 space-y-1.5">
+                    <p className="flex items-center space-x-1 text-xs font-bold text-rose-900">
+                      <XCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                      <span>已驳回</span>
+                    </p>
+                    <p className="text-[11px] text-rose-700">审核人：{nodeAuditorText} · {report.updateTime}</p>
+                    <p className="rounded-lg border border-rose-200/80 bg-white/70 px-2.5 py-1.5 text-[11px] leading-relaxed text-rose-800">
+                      <strong>驳回原因：</strong>{fallbackRejectReason}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-2.5 space-y-1.5">
+                    <p className="flex items-center space-x-1 text-xs font-bold text-emerald-900">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>已通过</span>
+                    </p>
+                    <p className="text-[11px] text-emerald-700">审核人：{nodeAuditorText} · {report.updateTime}</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Detail Information */}
             <div className="bg-white rounded-2xl p-3.5 border border-slate-200/90 shadow-2xs space-y-3">
@@ -712,7 +753,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
                                 </span>
                               ) : item.status === 'rejected' ? (
                                 <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-50 text-red-700 border border-red-200">
-                                  已驳回
+                                  {rejectStatusLabel}
                                 </span>
                               ) : null}
 

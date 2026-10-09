@@ -223,7 +223,7 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
             ],
             todos: [
               { id: 't-1', title: '西坝区某主干道路灯突发故障排查', type: '草稿', reason: '等待交警部门补充现场车流影响说明', time: '10:30' },
-              { id: 't-2', title: '关于商户违规占道经营网格巡查记录', type: '已驳回', reason: '缺少现场清理整改前后的对比图片', time: '14:20' }
+              { id: 't-2', title: '关于商户违规占道经营网格巡查记录', type: '被驳回', reason: '缺少现场清理整改前后的对比图片', time: '14:20' }
             ]
           },
           // 审核员指标

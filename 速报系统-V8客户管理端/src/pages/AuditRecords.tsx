@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { AuditRecordItem, PageId, ReportItem } from '../types';
-import { Search, RotateCcw, X, AlertCircle } from 'lucide-react';
+import { Search, RotateCcw, X, AlertCircle, Database } from 'lucide-react';
+import { AddToWarehouseModal } from '../components/AddToWarehouseModal';
+import { loadWarehouses, saveWarehouses, warehouseNowText, type WarehouseItem } from '../data/warehouses';
+import { addRecordsToWarehouses, isInWarehouse, resolveLibraryAssignments } from '../data/warehouseAssignments';
 import { PaginationBar } from '../components/PaginationBar';
 import { OrgPathDisplay, getOrganizationPathText } from '../components/OrgPathDisplay';
 import { IdentificationBadge } from '../components/IdentificationBadge';
@@ -24,8 +27,33 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedOrg, setSelectedOrg] = useState('全部机构');
-  const [selectedResult, setSelectedResult] = useState('全部');
+  const [selectedResult, setSelectedResult] = useState('通过');
   const [selectedIdent, setSelectedIdent] = useState('全部');
+  const [warehouses, setWarehouses] = useState<WarehouseItem[]>(loadWarehouses);
+  const [assignmentVersion, setAssignmentVersion] = useState(0);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [joinTargets, setJoinTargets] = useState<AuditRecordItem[] | null>(null);
+  const [notice, setNotice] = useState('');
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(''), 2400);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
+  const warehouseReports = useMemo(
+    () => allReports.filter((r) => r.auditStatus === '待转办' || r.auditStatus === '已转办' || r.auditStatus === '已通过'),
+    [allReports]
+  );
+  const assignment = useMemo(
+    () => resolveLibraryAssignments(warehouseReports.map((r) => r.id), warehouses.map((w) => w.id)),
+    [warehouseReports, warehouses, assignmentVersion]
+  );
+  const countOf = (warehouseId: string) => warehouseReports.filter((r) => isInWarehouse(assignment, r.id, warehouseId)).length;
+
+  /** 已通过且报送在数据仓库范围内的记录才能加入，可重复加入。 */
+  const canJoin = (rec: AuditRecordItem) =>
+    rec.auditResult === '已通过' && warehouseReports.some((r) => r.id === rec.reportId);
 
   const orgOptions = [
     '全部机构',
@@ -38,7 +66,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
     '东城区网信办',
   ];
 
-  const filtered = records.filter((rec) => {
+  const baseFiltered = records.filter((rec) => {
     if (keyword.trim()) {
       const q = keyword.trim().toLowerCase();
       const matchTitle = rec.title?.toLowerCase().includes(q);
@@ -53,10 +81,6 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
     }
     if (selectedOrg !== '全部机构' && rec.organization !== selectedOrg) {
       return false;
-    }
-    if (selectedResult !== '全部') {
-      if (selectedResult === '通过' && rec.auditResult !== '已通过') return false;
-      if (selectedResult === '驳回' && rec.auditResult !== '被驳回') return false;
     }
     if (selectedIdent !== '全部') {
       const reportMatch = allReports.find((r) => r.id === rec.reportId);
@@ -74,12 +98,21 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
     return true;
   });
 
+  const resultTabs = [
+    { value: '通过', label: '已采纳', count: baseFiltered.filter((rec) => rec.auditResult === '已通过').length },
+    { value: '驳回', label: '已驳回', count: baseFiltered.filter((rec) => rec.auditResult === '被驳回').length }
+  ];
+  const rejectedTab = selectedResult === '驳回';
+  const filtered = baseFiltered.filter((rec) => {
+    return selectedResult === '驳回' ? rec.auditResult === '被驳回' : rec.auditResult === '已通过';
+  });
+
   const handleReset = () => {
     setKeyword('');
     setStartDate('');
     setEndDate('');
     setSelectedOrg('全部机构');
-    setSelectedResult('全部');
+    setSelectedResult('通过');
     setSelectedIdent('全部');
   };
 
@@ -98,6 +131,37 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
   const handleDetail = (record: AuditRecordItem) => {
     onSelectAuditRecord(record);
     onNavigate('audit-record-detail');
+  };
+
+  const selectablePageIds = pagedReports.filter(canJoin).map((rec) => rec.id);
+  const allPageSelected = selectablePageIds.length > 0 && selectablePageIds.every((id) => selectedIds.includes(id));
+  const toggleSelect = (id: number) =>
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+  const togglePage = () =>
+    setSelectedIds((prev) =>
+      allPageSelected ? prev.filter((id) => !selectablePageIds.includes(id)) : Array.from(new Set([...prev, ...selectablePageIds]))
+    );
+
+  const persistWarehouses = (next: WarehouseItem[]) => {
+    setWarehouses(next);
+    saveWarehouses(next);
+  };
+
+  const confirmJoin = (targets: WarehouseItem[]) => {
+    if (!joinTargets || targets.length === 0) return;
+    const targetIds = targets.map((w) => w.id);
+    addRecordsToWarehouses(joinTargets.map((rec) => rec.reportId), targetIds);
+    persistWarehouses(warehouses.map((w) => (targetIds.includes(w.id) ? { ...w, updatedAt: warehouseNowText() } : w)));
+    setAssignmentVersion((v) => v + 1);
+    const joinedIds = joinTargets.map((rec) => rec.id);
+    setSelectedIds((prev) => prev.filter((id) => !joinedIds.includes(id)));
+    setNotice(`已将 ${joinTargets.length} 条数据加入${targets.map((w) => `「${w.name}」`).join('、')}`);
+    setJoinTargets(null);
+  };
+
+  const openBatchJoin = () => {
+    const targets = records.filter((rec) => selectedIds.includes(rec.id) && canJoin(rec));
+    if (targets.length > 0) setJoinTargets(targets);
   };
 
   return (
@@ -177,20 +241,6 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
             </select>
           </div>
 
-          {/* 审核状态 */}
-          <div className="flex items-center space-x-2 min-w-0 lg:w-44">
-            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">审核状态</label>
-            <select
-              value={selectedResult}
-              onChange={(e) => setSelectedResult(e.target.value)}
-              className="flex-1 min-w-0 w-full px-3 py-2 border border-gray-300 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 shadow-2xs cursor-pointer"
-            >
-              <option value="全部">全部结论</option>
-              <option value="通过">已通过</option>
-              <option value="驳回">已驳回</option>
-            </select>
-          </div>
-
           {/* 打标类型 */}
           <div className="flex items-center space-x-2 min-w-0 lg:w-44">
             <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">研判打标</label>
@@ -204,24 +254,18 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
               <option value="重复">重复</option>
             </select>
           </div>
-        </div>
 
-        {/* Action Row */}
-        <div className="flex items-center justify-between pt-1 border-t border-gray-100">
-          <div className="text-xs text-gray-500 font-medium">
-            共查询到 <strong className="text-[#1E5ABB] font-mono">{filtered.length}</strong> 条审核历史记录
-          </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 lg:ml-auto">
             <button
               onClick={() => {}}
-              className="px-4 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-semibold rounded-lg shadow-2xs flex items-center space-x-1.5 cursor-pointer transition-colors"
+              className="px-4 py-2 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-semibold rounded-lg shadow-2xs flex items-center space-x-1.5 cursor-pointer transition-colors"
             >
               <Search className="w-3.5 h-3.5" />
               <span>查询</span>
             </button>
             <button
               onClick={handleReset}
-              className="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium rounded-lg border border-gray-200 flex items-center space-x-1.5 cursor-pointer transition-colors"
+              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium rounded-lg border border-gray-200 flex items-center space-x-1.5 cursor-pointer transition-colors"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>重置</span>
@@ -232,132 +276,180 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
 
       {/* Data Table */}
       <div className="bg-white rounded-xl border border-gray-200/80 shadow-2xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-gray-50/90 border-b border-gray-200 text-gray-600 font-semibold">
-                <th className="py-3.5 px-3 w-12 text-center">序号</th>
-                <th className="py-3.5 px-3 min-w-[180px] w-full">事件标题 / 内容描述</th>
-                <th className="py-3.5 px-3 whitespace-nowrap">上报人员 / 机构</th>
-                <th className="py-3.5 px-3 whitespace-nowrap">报送时间</th>
-                <th className="py-3.5 px-3 whitespace-nowrap">审核人员 / 机构</th>
-                <th className="py-3.5 px-3 text-center whitespace-nowrap">审核状态</th>
-                <th className="py-3.5 px-3 whitespace-nowrap">审核时间</th>
-                <th className="py-3.5 px-3 text-center whitespace-nowrap">操作</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 text-gray-700">
-              {pagedReports.map((item, index) => {
-                const reportMatch = allReports.find((r) => r.id === item.reportId);
-                const submitterName = item.submitter || reportMatch?.author || '网格员';
-                const submitTimeStr = item.submitTime || reportMatch?.submitTime || '--';
-                const auditorName = item.auditor || '王主任';
-                const auditorOrgStr = item.auditorOrg || '市委网信办';
-                // 评分只在该条审核记录本身是最后一轮（终审）时写入；中间环节不展示评分
-                const recordScore = item.score;
-                const rejectReasonText = item.rejectReason || reportMatch?.rejectReason || '信息不完整';
-                const rejectDetailText = item.rejectDetail || reportMatch?.rejectDetail;
+        <div className="px-5 flex items-center gap-6 border-b border-gray-100 text-sm">
+          {resultTabs.map((tab) => {
+            const active = selectedResult === tab.value;
+            return (
+              <button
+                key={tab.value}
+                type="button"
+                onClick={() => {
+                  setSelectedResult(tab.value);
+                  setSelectedIds([]);
+                }}
+                className={`relative py-3 flex items-center gap-1.5 cursor-pointer transition-colors ${
+                  active ? 'text-[#1E5ABB] font-bold' : 'text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                {tab.label}
+                <span
+                  className={`min-w-[20px] px-1.5 rounded-full text-[11px] font-mono leading-[18px] text-center ${
+                    active ? 'bg-[#1E5ABB] text-white' : 'bg-gray-100 text-gray-500'
+                  }`}
+                >
+                  {tab.count}
+                </span>
+                {active && <span className="absolute left-0 right-0 -bottom-px h-0.5 rounded-full bg-[#1E5ABB]" />}
+              </button>
+            );
+          })}
+        </div>
+        {!rejectedTab && (
+        <div className="px-5 py-2.5 flex flex-wrap items-center justify-between gap-2 bg-gray-50/70 border-b border-gray-100 text-xs">
+          <label className="inline-flex items-center gap-2 text-gray-600 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={allPageSelected}
+              disabled={selectablePageIds.length === 0}
+              onChange={togglePage}
+              aria-label="全选本页"
+              className="accent-[#1E5ABB] cursor-pointer disabled:cursor-not-allowed"
+            />
+            <span>
+              共 <strong className="text-[#1E5ABB] font-mono">{filtered.length}</strong> 条审核记录
+              <span className="mx-2 text-gray-300">|</span>
+              已选 <strong className="text-[#1E5ABB] font-mono">{selectedIds.length}</strong> 条
+              <span className="ml-2 text-gray-400">（仅已采纳的数据可加入仓库）</span>
+            </span>
+          </label>
+          <button
+            type="button"
+            onClick={openBatchJoin}
+            disabled={selectedIds.length === 0}
+            title={selectedIds.length === 0 ? '请先勾选已采纳的数据' : undefined}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border font-semibold cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+          >
+            <Database className="w-3.5 h-3.5" />
+            批量加入仓库
+          </button>
+        </div>
+        )}
+        <div className="divide-y divide-gray-100">
+          {pagedReports.length === 0 && <div className="py-12 text-center text-xs text-gray-400">暂无审核记录</div>}
+          {pagedReports.map((item, index) => {
+            const reportMatch = allReports.find((r) => r.id === item.reportId);
+            const submitterName = item.submitter || reportMatch?.author || '网格员';
+            const submitTimeStr = item.submitTime || reportMatch?.submitTime || '--';
+            const auditorName = item.auditor || '王主任';
+            const auditorOrgStr = item.auditorOrg || '市委网信办';
+            const rejectReasonText = item.rejectReason || reportMatch?.rejectReason || '信息不完整';
+            const rejectDetailText = item.rejectDetail || reportMatch?.rejectDetail;
+            const passed = item.auditResult === '已通过';
+            const metaParts = [
+              { label: '上报人', person: submitterName, org: item.organization, time: submitTimeStr, fallbackOrg: undefined },
+              { label: '审核人', person: auditorName, org: auditorOrgStr, time: item.auditTime, fallbackOrg: '市委网信办' }
+            ];
 
-                return (
-                  <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
-                    <td className="py-3.5 px-3 text-center text-gray-400 font-mono">{(safePage - 1) * pageSize + index + 1}</td>
-                    <td className="py-3.5 px-3">
-                      <div className="flex items-center gap-2 w-0 min-w-full">
-                        <button
-                          onClick={() => handleDetail(item)}
-                          className="text-blue-700 hover:text-blue-900 hover:underline font-bold text-left cursor-pointer leading-snug truncate min-w-0"
-                          title={item.title}
-                        >
-                          {item.title}
-                        </button>
-                        <IdentificationBadge
-                          status={item.identificationStatus || (reportMatch ? resolveIdentification(reportMatch, allReports).status : '首发')}
-                          size="xs"
-                          showIcon
-                          className="shrink-0"
-                        />
-                      </div>
-                      <div
-                        className="text-gray-500 text-[11px] truncate leading-relaxed mt-1 w-0 min-w-full"
-                        title={reportMatch?.detailContent?.summary || '暂无内容描述'}
+            const joinable = canJoin(item);
+            const checked = selectedIds.includes(item.id);
+            return (
+              <div key={item.id} className={`px-5 py-3.5 flex gap-3 transition-colors ${checked ? 'bg-blue-50/50' : 'hover:bg-gray-50/70'}`}>
+                {!rejectedTab && (
+                  <span className="w-[17px] shrink-0">
+                    {joinable && (
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleSelect(item.id)}
+                        aria-label={`选择${item.title}`}
+                        className="mt-1 accent-[#1E5ABB] cursor-pointer"
+                      />
+                    )}
+                  </span>
+                )}
+                <span className="w-6 shrink-0 text-center font-mono text-xs text-gray-400 mt-0.5">{(safePage - 1) * pageSize + index + 1}</span>
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className={`shrink-0 px-1.5 py-px rounded text-[11px] font-medium ${
+                          passed ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                        }`}
                       >
-                        {reportMatch?.detailContent?.summary || '暂无内容描述'}
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-3">
-                      <div className="font-semibold text-gray-900 leading-snug">{submitterName}</div>
-                      <OrgPathDisplay organization={item.organization} className="max-w-[170px]" />
-                    </td>
-                    <td className="py-3.5 px-3 font-mono text-gray-500 whitespace-nowrap text-[11px]">
-                      <StackedDateTime value={submitTimeStr} />
-                    </td>
-                    <td className="py-3.5 px-3">
-                      <div className="font-semibold text-gray-900 leading-snug">{auditorName}</div>
-                      <OrgPathDisplay organization={auditorOrgStr} className="max-w-[170px]" />
-                    </td>
-                    <td className="py-3.5 px-3 text-center">
-                      {item.auditResult === '已通过' ? (
-                        <div className="inline-flex flex-col items-center gap-1">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                            已通过
-                          </span>
-                          {recordScore !== undefined && recordScore !== null && (
-                            <span
-                              className="inline-flex items-center gap-1 max-w-[150px] px-1.5 py-0.5 rounded bg-amber-50/90 hover:bg-amber-100 text-amber-700 border border-amber-200/70 text-[11px] font-semibold cursor-default transition-colors"
-                              title={`本次审核评分：${recordScore} 分`}
-                            >
-                              <span className="truncate">评分：{recordScore} 分</span>
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="inline-flex flex-col items-center gap-1 group relative">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                            已驳回
-                          </span>
-                          {rejectReasonText && (
-                            <>
-                              <div
-                                className="inline-flex items-center gap-1 max-w-[130px] px-1.5 py-0.5 rounded bg-rose-50/80 hover:bg-rose-100 text-rose-600 border border-rose-200/70 text-[11px] cursor-help transition-colors"
-                                title={`驳回原因：${rejectReasonText}${rejectDetailText ? ` (${rejectDetailText})` : ''}`}
-                              >
-                                <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
-                                <span className="truncate">{rejectReasonText}</span>
-                              </div>
-                              {/* Hover Floating Tooltip */}
-                              <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block z-50 w-56 p-2.5 bg-slate-900 text-white text-xs rounded-lg shadow-xl border border-slate-800 text-left">
-                                <div className="flex items-center gap-1 text-rose-400 font-semibold mb-1 text-[11px]">
-                                  <AlertCircle className="w-3.5 h-3.5" />
-                                  <span>驳回具体原因</span>
-                                </div>
-                                <p className="text-[11px] text-slate-200 leading-relaxed break-words font-normal">
-                                  {rejectReasonText}{rejectDetailText ? ` - ${rejectDetailText}` : ''}
-                                </p>
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900"></div>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-3.5 px-3 font-mono text-gray-500 whitespace-nowrap text-[11px]">
-                      <StackedDateTime value={item.auditTime} />
-                    </td>
-                    <td className="py-3.5 px-3 text-center whitespace-nowrap">
+                        {passed ? '已采纳' : '已驳回'}
+                      </span>
                       <button
+                        type="button"
                         onClick={() => handleDetail(item)}
-                        className="text-[#1E5ABB] hover:text-[#134092] hover:underline text-xs font-bold cursor-pointer"
+                        title={item.title}
+                        className="text-sm font-semibold text-gray-900 hover:text-[#1E5ABB] text-left truncate min-w-0 cursor-pointer"
+                      >
+                        {item.title}
+                      </button>
+                      <IdentificationBadge
+                        status={item.identificationStatus || (reportMatch ? resolveIdentification(reportMatch, allReports).status : '首发')}
+                        size="xs"
+                        className="shrink-0"
+                      />
+                    </div>
+                    <div className="shrink-0 flex items-center gap-3 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => handleDetail(item)}
+                        className="text-gray-500 hover:text-gray-800 hover:underline cursor-pointer"
                       >
                         详情
                       </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      {joinable ? (
+                        <button
+                          type="button"
+                          onClick={() => setJoinTargets([item])}
+                          className="text-emerald-600 hover:text-emerald-800 font-semibold hover:underline cursor-pointer"
+                        >
+                          加入仓库
+                        </button>
+                      ) : (
+                        passed && (
+                          <span
+                            className="text-gray-300 cursor-not-allowed"
+                            title={`该报送当前状态为「${reportMatch?.auditStatus ?? '未知'}」，暂不能加入仓库`}
+                          >
+                            加入仓库
+                          </span>
+                        )
+                      )}
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-gray-500 truncate" title={reportMatch?.detailContent?.summary || '暂无内容描述'}>
+                    {reportMatch?.detailContent?.summary || '暂无内容描述'}
+                  </p>
+
+                  <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-[11px] text-gray-400">
+                    {metaParts.map((part, partIndex) => (
+                      <span key={part.label} className={`inline-flex items-center gap-1.5 min-w-0 whitespace-nowrap ${partIndex === 0 ? 'sm:w-[270px]' : ''}`}>
+                        <span className="shrink-0 px-1 rounded bg-gray-100 text-gray-500">{part.label}</span>
+                        <span className="shrink-0 text-gray-600">{part.person}</span>
+                        <span className="shrink-0 text-gray-300">·</span>
+                        <span title={getOrganizationPathText(part.org, part.fallbackOrg)} className="truncate">{part.org}</span>
+                        <span className="shrink-0 text-gray-300">·</span>
+                        <span className="shrink-0 font-mono">{part.time}</span>
+                      </span>
+                    ))}
+                    {!passed && rejectReasonText && (
+                      <span
+                        className="inline-flex items-center gap-1 min-w-0 text-rose-500 cursor-help"
+                        title={`驳回原因：${rejectReasonText}${rejectDetailText ? ` (${rejectDetailText})` : ''}`}
+                      >
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        <span className="truncate max-w-[260px]">驳回原因：{rejectReasonText}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Footer Pagination */}
@@ -374,6 +466,24 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
           />
         </div>
       </div>
+
+      {joinTargets && (
+        <AddToWarehouseModal
+          titles={joinTargets.map((rec) => rec.title)}
+          warehouses={warehouses}
+          countOf={countOf}
+          isJoined={(warehouseId) => joinTargets.every((rec) => isInWarehouse(assignment, rec.reportId, warehouseId))}
+          onWarehousesChange={persistWarehouses}
+          onClose={() => setJoinTargets(null)}
+          onConfirm={confirmJoin}
+        />
+      )}
+
+      {notice && (
+        <div className="fixed top-4 right-4 z-[60] bg-[#1E5ABB] text-white px-4 py-2.5 rounded-lg shadow-xl text-xs font-bold">
+          {notice}
+        </div>
+      )}
     </div>
   );
 };

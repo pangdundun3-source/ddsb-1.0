@@ -636,11 +636,6 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
                     <span className="text-sm font-bold text-gray-900">
                       报送状态：{titleStatusText}
                     </span>
-                    {(isAdopted || record.score !== undefined) && (
-                      <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300 text-xs font-semibold">
-                        终审评分：{finalScore ?? record.score ?? 94} 分
-                      </span>
-                    )}
                   </div>
                   <div className="text-xs text-gray-500 truncate mt-0.5 max-w-[480px]">
                     报送人：{record.author} · {getOrganizationPathText(record.organization)} · {record.submitTime || '2023-10-23 09:15'}

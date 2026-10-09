@@ -34,8 +34,12 @@ const VALID_PAGES: PageId[] = [
   'audit-records',
   'audit-record-detail',
   'audit-statistics',
+  'data-warehouse',
+  'data-warehouse-detail',
+  'data-warehouse-manage',
   'negative-info',
   'negative-detail',
+  'warehouse-manage',
   'statistics',
   'evaluation',
   'notice-management',
@@ -264,7 +268,7 @@ export const useAppViewModel = () => {
         if (foundReport) {
           if (route.page === 'report-detail') setSelectedReport(foundReport);
           if (route.page === 'audit-detail') setSelectedAudit(foundReport);
-          if (route.page === 'negative-detail') setSelectedNegative(foundReport);
+          if (route.page === 'negative-detail' || route.page === 'data-warehouse-detail') setSelectedNegative(foundReport);
         }
       }
     };
