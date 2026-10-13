@@ -52,7 +52,6 @@ const VALID_PAGES: PageId[] = [
   'value-added-services',
   'role-permission',
   'business-config',
-  'system-logs'
 ];
 
 interface HashRouteInfo {
@@ -68,7 +67,9 @@ const parseHashRoute = (hash: string): HashRouteInfo => {
     return { page: 'login' };
   }
   const [pathPart, queryPart] = clean.split('?');
-  const normalizedPage = pathPart.replace(/^\//, '').trim() as PageId;
+  const rawPage = pathPart.replace(/^\//, '').trim();
+  // 系统日志导航已下线，旧链接落到业务配置
+  const normalizedPage = (rawPage === 'system-logs' ? 'business-config' : rawPage) as PageId;
   const page = VALID_PAGES.includes(normalizedPage) ? normalizedPage : 'login';
 
   let extraModule: string | undefined;

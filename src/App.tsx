@@ -1,12 +1,16 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { BrandLogo } from './components/BrandLogo';
 import {
   getTerminalUrl,
+  FRAME_HASH_MESSAGE,
   OPEN_TERMINAL_MESSAGE,
   STATIC_APPS_MANIFEST,
   type TerminalId,
   type TerminalMode,
 } from './data/terminalUrls';
+import { docLabel, getTerminalDocs, isPortalDoc, useTerminalDocs } from './data/terminalDocs';
+import { TerminalDocsModal } from './components/TerminalDocsModal';
+import { TerminalDocViewer } from './components/TerminalDocViewer';
 import {
   Smartphone,
   Monitor,
@@ -19,6 +23,7 @@ import {
   ExternalLink,
   Layers,
   CheckCircle2,
+  FileText,
 } from 'lucide-react';
 
 type TerminalStatus = 'checking' | 'online' | 'offline' | 'not-started';
@@ -111,6 +116,12 @@ const TERMINALS: Terminal[] = [
   },
 ];
 
+const terminalHash = (terminalId: string, docName?: string | null) =>
+  docName ? `#/terminal/${terminalId}?doc=${encodeURIComponent(docName)}` : `#/terminal/${terminalId}`;
+
+const DOC_PANEL_WIDTH_KEY = 'portal_doc_panel_width';
+const DOC_PANEL_MIN_WIDTH = 360;
+
 const STATUS_META: Record<TerminalStatus, { label: string; dot: string; chip: string }> = {
   checking: {
     label: '检测中',
@@ -145,6 +156,20 @@ export default function App() {
   const [iframeKey, setIframeKey] = useState<number>(0);
   const [entryHash, setEntryHash] = useState<{ terminalId: TerminalId; hash: string } | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [docView, setDocView] = useState<{ terminalId: TerminalId; docName: string } | null>(null);
+  const docReturnHash = useRef('#/');
+  const docsBundle = useTerminalDocs();
+  const [panelDoc, setPanelDoc] = useState<string | null>(null);
+  const [frameHash, setFrameHash] = useState('');
+  const [panelWidth, setPanelWidth] = useState(() => {
+    const saved = Number(localStorage.getItem(DOC_PANEL_WIDTH_KEY));
+    return Number.isFinite(saved) && saved >= DOC_PANEL_MIN_WIDTH ? saved : 480;
+  });
+  const [isResizingPanel, setIsResizingPanel] = useState(false);
+  const panelDirtyRef = useRef(false);
+  const handlePanelDirtyChange = useCallback((dirty: boolean) => {
+    panelDirtyRef.current = dirty;
+  }, []);
 
   const getUrl = (terminal: Terminal, hash?: string) =>
     getTerminalUrl(terminal.id, terminalModes[terminal.id] ?? 'static', hash);
@@ -153,16 +178,29 @@ export default function App() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash || '';
+      const docMatch = hash.match(/^#\/docs\/([a-z0-9-]+)\/([^/?#]+)/);
+      const docTerminal = docMatch && TERMINALS.find((t) => t.id === docMatch[1]);
+      if (docMatch && docTerminal) {
+        const docName = decodeURIComponent(docMatch[2]);
+        if (isPortalDoc(docName)) {
+          setDocView({ terminalId: docTerminal.id, docName });
+          return;
+        }
+      }
+      setDocView(null);
       // Support standard #/terminal/:id, #/:id, and legacy #terminal=:id
       const match = hash.match(/^#\/?(?:terminal\/)?([a-z0-9-]+)/) || hash.match(/terminal=([a-z0-9-]+)/);
       if (match) {
         const found = TERMINALS.find((t) => t.id === match[1]);
         if (found) {
+          const docName = new URLSearchParams(hash.split('?')[1] ?? '').get('doc');
+          setPanelDoc(docName && isPortalDoc(docName) ? docName : null);
           setActiveTerminal(found);
           setRecentTerminals((prev) => [found, ...prev.filter((t) => t.id !== found.id)].slice(0, 4));
           return;
         }
       }
+      setPanelDoc(null);
       if (!hash || hash === '#' || hash === '#/') {
         setActiveTerminal(null);
       }
@@ -217,14 +255,20 @@ export default function App() {
     setEntryHash(hash ? { terminalId: terminal.id, hash } : null);
     setIframeKey((prev) => prev + 1);
     setRecentTerminals((prev) => [terminal, ...prev.filter((t) => t.id !== terminal.id)].slice(0, 4));
-    window.location.hash = `#/terminal/${terminal.id}`;
+    setFrameHash('');
+    const currentDoc = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('doc');
+    window.location.hash = terminalHash(terminal.id, currentDoc);
   };
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const data = event.data;
-      if (!data || data.type !== OPEN_TERMINAL_MESSAGE) return;
-      if (event.source !== iframeRef.current?.contentWindow) return;
+      if (!data || event.source !== iframeRef.current?.contentWindow) return;
+      if (data.type === FRAME_HASH_MESSAGE && typeof data.hash === 'string') {
+        setFrameHash(data.hash);
+        return;
+      }
+      if (data.type !== OPEN_TERMINAL_MESSAGE) return;
       const target = TERMINALS.find((t) => t.id === data.terminalId);
       if (target) {
         openTerminal(target, typeof data.hash === 'string' ? data.hash : undefined);
@@ -243,6 +287,91 @@ export default function App() {
   const refreshIframe = () => {
     setIframeKey((prev) => prev + 1);
   };
+
+  const confirmPanelDiscard = () =>
+    !panelDirtyRef.current || window.confirm('当前文档有未保存的修改，确定放弃吗？');
+
+  const openDocPanel = (docName: string) => {
+    if (!activeTerminal || docName === panelDoc) return;
+    if (!confirmPanelDiscard()) return;
+    window.location.hash = terminalHash(activeTerminal.id, docName);
+  };
+
+  const closeDocPanel = () => {
+    if (activeTerminal) window.location.hash = terminalHash(activeTerminal.id);
+  };
+
+  /** Same-origin builds expose the frame's location; dev servers on other ports report via FRAME_HASH_MESSAGE */
+  const handleFrameLoad = () => {
+    try {
+      const frameWindow = iframeRef.current?.contentWindow;
+      if (!frameWindow) return;
+      const update = () => setFrameHash(frameWindow.location.hash);
+      update();
+      frameWindow.addEventListener('hashchange', update);
+      (['pushState', 'replaceState'] as const).forEach((method) => {
+        const original = frameWindow.history[method];
+        frameWindow.history[method] = function (...args: Parameters<History['pushState']>) {
+          original.apply(this, args);
+          update();
+        };
+      });
+    } catch {
+      // cross-origin frame
+    }
+  };
+
+  const navigateFrame = (route: string) => {
+    const frameWindow = iframeRef.current?.contentWindow;
+    if (!frameWindow || !activeTerminal) return;
+    const hash = route.startsWith('#') ? route : `#${route}`;
+    frameWindow.location.href = new URL(getUrl(activeTerminal, hash), window.location.href).href;
+    setFrameHash(hash);
+  };
+
+  const startPanelResize = (event: React.PointerEvent) => {
+    event.preventDefault();
+    setIsResizingPanel(true);
+    let width = panelWidth;
+    const handleMove = (moveEvent: PointerEvent) => {
+      width = Math.min(Math.max(window.innerWidth - moveEvent.clientX, DOC_PANEL_MIN_WIDTH), window.innerWidth * 0.7);
+      setPanelWidth(width);
+    };
+    const handleUp = () => {
+      setIsResizingPanel(false);
+      localStorage.setItem(DOC_PANEL_WIDTH_KEY, String(Math.round(width)));
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+    };
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+  };
+
+  const docHash = (terminalId: string, docName: string) => `#/docs/${terminalId}/${encodeURIComponent(docName)}`;
+
+  const openDocs = (terminalId: TerminalId, docName = 'PRD') => {
+    const currentHash = window.location.hash || '#/';
+    if (!currentHash.startsWith('#/docs/')) {
+      docReturnHash.current = currentHash;
+    }
+    window.location.hash = docHash(terminalId, docName);
+  };
+
+  const closeDocs = () => {
+    window.location.hash = activeTerminal ? `#/terminal/${activeTerminal.id}` : docReturnHash.current;
+  };
+
+  const docsModal = docView ? (
+    <TerminalDocsModal
+      terminals={TERMINALS.map(({ id, name, accent }) => ({ id, name, accent }))}
+      terminalId={docView.terminalId}
+      docName={docView.docName}
+      onNavigate={(terminalId, docName) => {
+        window.location.hash = docHash(terminalId, docName);
+      }}
+      onClose={closeDocs}
+    />
+  ) : null;
 
   // If a terminal is active, render the embedded workbench view
   if (activeTerminal) {
@@ -301,6 +430,30 @@ export default function App() {
 
           {/* Right Action Tools */}
           <div className="flex items-center gap-2">
+            {getTerminalDocs(docsBundle, activeTerminal.id).map((doc) => {
+              const isOpen = panelDoc === doc.name;
+              return (
+                <button
+                  key={doc.name}
+                  onClick={() => {
+                    if (!isOpen) openDocPanel(doc.name);
+                    else if (confirmPanelDiscard()) closeDocPanel();
+                  }}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    isOpen
+                      ? 'bg-[#1d61d6]/10 text-[#1d61d6]'
+                      : 'text-slate-600 hover:text-[#1d61d6] hover:bg-slate-100'
+                  }`}
+                  title={isOpen ? `收起${docLabel(doc.name)}` : `在右侧对照查看${docLabel(doc.name)}`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>{docLabel(doc.name)}</span>
+                </button>
+              );
+            })}
+
+            <div className="h-5 w-px bg-slate-200" />
+
             <button
               onClick={refreshIframe}
               className="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
@@ -323,15 +476,62 @@ export default function App() {
         </header>
 
         {/* Embedded Application Frame */}
-        <main className="flex-1 w-full h-[calc(100vh-56px)] bg-[#f5f7fa] overflow-hidden relative">
-          <iframe
-            key={`${activeTerminal.id}-${iframeKey}`}
-            ref={iframeRef}
-            src={url}
-            title={activeTerminal.name}
-            className="w-full h-full border-0"
-          />
+        <main className="flex-1 min-h-0 w-full bg-[#f5f7fa] overflow-hidden flex">
+          <div className="flex-1 min-w-0 relative">
+            <iframe
+              key={`${activeTerminal.id}-${iframeKey}`}
+              ref={iframeRef}
+              src={url}
+              title={activeTerminal.name}
+              onLoad={handleFrameLoad}
+              className="w-full h-full border-0"
+            />
+            {isResizingPanel && <div className="absolute inset-0 cursor-col-resize" />}
+          </div>
+
+          {panelDoc && (
+            <>
+              <div
+                onPointerDown={startPanelResize}
+                title="拖动调整宽度"
+                className={`w-1.5 shrink-0 cursor-col-resize transition-colors ${
+                  isResizingPanel ? 'bg-[#1d61d6]/50' : 'bg-slate-200 hover:bg-[#1d61d6]/40'
+                }`}
+              />
+              <aside style={{ width: panelWidth }} className="shrink-0 min-w-0 flex">
+                <TerminalDocViewer
+                  variant="panel"
+                  terminalId={activeTerminal.id}
+                  terminalName={activeTerminal.name}
+                  accent={activeTerminal.accent}
+                  docName={panelDoc}
+                  shareHash={terminalHash(activeTerminal.id, panelDoc)}
+                  title={
+                    <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg shrink-0">
+                      {getTerminalDocs(docsBundle, activeTerminal.id).map((doc) => (
+                        <button
+                          key={doc.name}
+                          type="button"
+                          onClick={() => openDocPanel(doc.name)}
+                          className={`px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap transition-colors ${
+                            doc.name === panelDoc ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          {docLabel(doc.name)}
+                        </button>
+                      ))}
+                    </div>
+                  }
+                  onClose={closeDocPanel}
+                  onDirtyChange={handlePanelDirtyChange}
+                  onRouteClick={navigateFrame}
+                  frameHash={frameHash}
+                />
+              </aside>
+            </>
+          )}
         </main>
+        {docsModal}
       </div>
     );
   }
@@ -433,6 +633,32 @@ export default function App() {
                       </p>
                     </div>
 
+                    {/* 文档入口 */}
+                    <div className="flex items-center gap-1.5 flex-wrap empty:hidden">
+                      {getTerminalDocs(docsBundle, terminal.id).map((doc) => {
+                        const isEmpty = !doc.content.trim();
+                        return (
+                          <button
+                            key={doc.name}
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openDocs(terminal.id, doc.name);
+                            }}
+                            title={isEmpty ? `${docLabel(doc.name)}（待补充）` : `查看${docLabel(doc.name)}`}
+                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] font-semibold transition-colors ${
+                              isEmpty
+                                ? 'bg-white border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300'
+                                : 'bg-[#f0f4fa] border-[#e2ecf9] text-slate-600 hover:text-[#1d61d6] hover:border-[#1d61d6]/40'
+                            }`}
+                          >
+                            <FileText className="w-3 h-3" />
+                            {docLabel(doc.name)}
+                          </button>
+                        );
+                      })}
+                    </div>
+
                     {/* 动作区 */}
                     <div className="pt-4 border-t border-[#f0f4fa] flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 group-hover:text-[#1d61d6] transition-colors">
@@ -518,6 +744,7 @@ export default function App() {
           <div className="text-slate-400">统一管控 · 协同处置 · 移动现场</div>
         </div>
       </footer>
+      {docsModal}
     </div>
   );
 }

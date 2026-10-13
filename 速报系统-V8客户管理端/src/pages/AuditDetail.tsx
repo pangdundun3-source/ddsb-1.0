@@ -36,7 +36,10 @@ import {
   Columns3,
   Columns2,
   Zap,
+  Database,
 } from 'lucide-react';
+import { loadWarehouses, saveWarehouses, warehouseNowText, isWarehouseEnabled, type WarehouseItem } from '../data/warehouses';
+import { addRecordsToWarehouses } from '../data/warehouseAssignments';
 import { AttachmentPreviewModal } from '../components/AttachmentPreviewModal';
 import { MatchedReportDetailModal } from '../components/MatchedReportDetailModal';
 import { MatchByUrlCard } from '../components/MatchByUrlCard';
@@ -98,6 +101,21 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
   const [scoreMap, setScoreMap] = useState<Record<number, number>>({});
   const [identMap, setIdentMap] = useState<Record<number, '首发' | '重复'>>({});
   const [smartMatchNotice, setSmartMatchNotice] = useState<string | null>(null);
+
+  const [warehouses, setWarehouses] = useState<WarehouseItem[]>(loadWarehouses);
+  const [targetWarehouseIds, setTargetWarehouseIds] = useState<string[]>([]);
+  /** 本次批量通过中不加入仓库的数据，默认全部加入。 */
+  const [warehouseExcludedIds, setWarehouseExcludedIds] = useState<number[]>([]);
+  const [warehouseRecordListOpen, setWarehouseRecordListOpen] = useState(false);
+  const enabledWarehouses = useMemo(() => warehouses.filter(isWarehouseEnabled), [warehouses]);
+  const targetWarehouses = enabledWarehouses.filter((w) => targetWarehouseIds.includes(w.id));
+  const toggleTargetWarehouse = (id: string) => {
+    setTargetWarehouseIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+  const persistWarehouses = (next: WarehouseItem[]) => {
+    setWarehouses(next);
+    saveWarehouses(next);
+  };
 
   const ident = resolveIdentification(report, allReports);
   const defaultFormal: '首发' | '重复' = (ident.status === '重复' || ident.status === '疑似重复') ? '重复' : '首发';
@@ -374,6 +392,12 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
     if (auditMode === 'pass') {
       const isBatchMode = isUrlMatched && selectedBatchIds.length > 0;
       const allApproveIds = isBatchMode ? [report.id, ...selectedBatchIds] : [report.id];
+      const warehouseRecordIds = Array.from(new Set(allApproveIds)).filter((id) => !warehouseExcludedIds.includes(id));
+      if (targetWarehouses.length > 0 && warehouseRecordIds.length > 0) {
+        const targetIds = targetWarehouses.map((w) => w.id);
+        addRecordsToWarehouses(warehouseRecordIds, targetIds);
+        persistWarehouses(warehouses.map((w) => (targetIds.includes(w.id) ? { ...w, updatedAt: warehouseNowText() } : w)));
+      }
       onApprove(
         report.id,
         scoreMap[report.id] ?? selectedScore,
@@ -443,6 +467,17 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
     setCopySuccess(true);
     setTimeout(() => setCopySuccess(false), 2000);
   };
+
+  const approveIds = Array.from(
+    new Set(isUrlMatched && selectedBatchIds.length > 0 ? [report.id, ...selectedBatchIds] : [report.id])
+  );
+  const approveReports = approveIds.map((id) => allReports.find((r) => r.id === id) ?? (id === report.id ? report : null)  ).filter(
+    (r): r is ReportItem => r !== null
+  );
+  const warehouseReportsToJoin = approveReports.filter((r) => !warehouseExcludedIds.includes(r.id));
+  const toggleWarehouseRecord = (id: number) =>
+    setWarehouseExcludedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+  const allWarehouseRecordsIncluded = warehouseReportsToJoin.length === approveReports.length;
 
   const isPending = report.auditStatus === '待审核';
   const isInReview = report.auditStatus === '审核中';
@@ -561,6 +596,102 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
             handleSetScore={handleSetScore}
             handleBatchSetScore={handleBatchSetScore}
             onClose={() => onNavigate('report-audit')}
+            passExtra={
+              <div className="pt-2.5 border-t border-slate-200/80 space-y-2">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
+                  <span className="font-bold text-slate-700 shrink-0 inline-flex items-center gap-1">
+                    <Database className="w-3.5 h-3.5 text-[#1E5ABB]" />
+                    加入数据仓库：
+                  </span>
+                  {targetWarehouses.length > 0 && approveReports.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => setWarehouseRecordListOpen((open) => !open)}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md border font-semibold cursor-pointer ${
+                        warehouseReportsToJoin.length === 0
+                          ? 'border-amber-200 bg-amber-50 text-amber-700'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      加入数据 {warehouseReportsToJoin.length}/{approveReports.length} 条
+                      <ChevronRight className={`w-3 h-3 transition-transform ${warehouseRecordListOpen ? '-rotate-90' : 'rotate-90'}`} />
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-slate-400">
+                      {targetWarehouses.length > 0 ? '审核通过后自动加入所选仓库' : '可选，勾选后审核通过将自动加入'}
+                    </span>
+                  )}
+                </div>
+
+                {enabledWarehouses.length === 0 ? (
+                  <div className="text-[11px] text-slate-400 px-1">暂无可用数据仓库</div>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {enabledWarehouses.map((w) => {
+                      const checked = targetWarehouseIds.includes(w.id);
+                      return (
+                        <label
+                          key={w.id}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs cursor-pointer select-none transition-colors ${
+                            checked
+                              ? 'bg-blue-50 border-[#1E5ABB]/40 text-[#1E5ABB] font-semibold'
+                              : 'bg-white border-slate-200 text-slate-600 hover:border-blue-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleTargetWarehouse(w.id)}
+                            className="accent-[#1E5ABB] cursor-pointer shrink-0"
+                          />
+                          <span className="max-w-[12rem] truncate" title={w.name}>{w.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {targetWarehouses.length > 0 && approveReports.length > 1 && warehouseRecordListOpen && (
+                  <div className="rounded-lg border border-slate-200 bg-white text-xs">
+                    <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50/80 rounded-t-lg">
+                      <label className="inline-flex items-center gap-2 text-slate-600 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={allWarehouseRecordsIncluded}
+                          onChange={() =>
+                            setWarehouseExcludedIds(allWarehouseRecordsIncluded ? approveReports.map((r) => r.id) : [])
+                          }
+                          className="accent-[#1E5ABB] cursor-pointer"
+                        />
+                        选择本次批量审核中要加入仓库的数据
+                      </label>
+                      <span className="text-slate-400">
+                        已选 <strong className="text-[#1E5ABB] font-mono">{warehouseReportsToJoin.length}</strong> 条
+                      </span>
+                    </div>
+                    <div className="max-h-36 overflow-y-auto divide-y divide-slate-100">
+                      {approveReports.map((r) => (
+                        <label key={r.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!warehouseExcludedIds.includes(r.id)}
+                            onChange={() => toggleWarehouseRecord(r.id)}
+                            className="accent-[#1E5ABB] cursor-pointer shrink-0"
+                          />
+                          {r.id === report.id && (
+                            <span className="shrink-0 px-1 rounded bg-blue-50 text-[#1E5ABB] text-[10px] font-semibold">当前</span>
+                          )}
+                          <span className="truncate text-slate-800" title={r.title}>{r.title}</span>
+                          <span className="ml-auto shrink-0 text-[11px] text-slate-400">
+                            {r.organization} · {r.author}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            }
           />
         ) : (
           <div className="shrink-0 bg-white border-t border-gray-200 px-5 sm:px-6 py-3.5 shadow-[0_-4px_16px_rgba(0,0,0,0.04)] z-20 flex items-center justify-between gap-3">
@@ -665,6 +796,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
           }
         }}
       />
+
     </div>
   );
 };

@@ -21,6 +21,7 @@ interface AddToWarehouseModalProps {
   countOf: (warehouseId: string) => number;
   /** 所选数据是否都已在该仓库中；一条数据可以同时属于多个仓库。 */
   isJoined?: (warehouseId: string) => boolean;
+  initialSelectedIds?: string[];
   onWarehousesChange: (next: WarehouseItem[]) => void;
   onClose: () => void;
   onConfirm: (warehouses: WarehouseItem[]) => void;
@@ -31,13 +32,16 @@ export const AddToWarehouseModal: React.FC<AddToWarehouseModalProps> = ({
   warehouses,
   countOf,
   isJoined = (_warehouseId: string) => false,
+  initialSelectedIds = [],
   onWarehousesChange,
   onClose,
   onConfirm
 }) => {
   const enabled = warehouses.filter(isWarehouseEnabled);
-  const [category, setCategory] = useState<WarehouseCategory>('舆情类');
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [category, setCategory] = useState<WarehouseCategory>(
+    () => enabled.find((item) => initialSelectedIds.includes(item.id))?.category ?? '舆情类'
+  );
+  const [selectedIds, setSelectedIds] = useState<string[]>(initialSelectedIds);
   const [creating, setCreating] = useState(false);
 
   const list = enabled.filter((item) => item.category === category);

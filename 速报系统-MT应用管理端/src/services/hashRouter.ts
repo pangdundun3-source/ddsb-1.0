@@ -68,7 +68,7 @@ export const hashRouter = {
       };
     }
 
-    if (hash === 'home') {
+    if (hash === 'home' || hash === 'monitoring') {
       return {
         routeType: 'home',
         activeTab: 'home',
@@ -136,18 +136,6 @@ export const hashRouter = {
       return {
         routeType: 'config',
         activeTab: 'config',
-        isAuthenticated: true,
-        activeView: 'operation',
-        selectedInstitutionId: null,
-        isCreatingInstitution: false,
-        isEditingInstitution: false,
-      };
-    }
-
-    if (hash === 'monitoring') {
-      return {
-        routeType: 'monitoring',
-        activeTab: 'monitoring',
         isAuthenticated: true,
         activeView: 'operation',
         selectedInstitutionId: null,

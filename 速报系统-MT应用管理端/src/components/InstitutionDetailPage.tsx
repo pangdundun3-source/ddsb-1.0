@@ -11,6 +11,19 @@ import {
   useInstitutionDetailViewModel,
 } from '../viewmodels/useInstitutionDetailViewModel';
 
+/** Keep in sync with the client port in scripts/suite-apps.mjs */
+const CLIENT_DEV_PORT = '3001';
+const CLIENT_ENTRY_HASH = '#/portal?sso=admin';
+
+/** 开发时客户管理端单独占用 3001 端口；静态部署时与本端同在 apps/ 目录下 */
+const getClientAppUrl = () => {
+  const { protocol, hostname, port, href } = window.location;
+  if (port === '3004') {
+    return `${protocol}//${hostname}:${CLIENT_DEV_PORT}/${CLIENT_ENTRY_HASH}`;
+  }
+  return new URL(`../v8-client/app.html${CLIENT_ENTRY_HASH}`, href).href;
+};
+
 interface InstitutionDetailPageProps {
   institution?: Institution | null;
   isCreateMode?: boolean;
@@ -135,7 +148,18 @@ export const InstitutionDetailPage: React.FC<InstitutionDetailPageProps> = ({
         </div>
 
         {/* Action Buttons in Header */}
-        <div className="flex items-center gap-3"></div>
+        <div className="flex items-center gap-3">
+          {!isCreateMode && (
+            <button
+              type="button"
+              onClick={() => window.open(getClientAppUrl(), '_blank', 'noopener')}
+              className="flex items-center gap-1 text-sm font-semibold text-white bg-[#1890ff] hover:bg-[#1677d9] px-3.5 py-1.5 rounded shadow-2xs transition-colors cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+              访问机构前台
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Navigation Tabs Switcher (Only shown in Detail/Edit mode, hidden in Create mode) */}

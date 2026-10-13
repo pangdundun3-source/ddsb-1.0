@@ -1,5 +1,5 @@
 import { InstitutionBusinessRules } from '../types';
-import { initialGlobalBusinessRules } from '../data/globalBusinessRules';
+import { dropRetiredValueAddedServices, initialGlobalBusinessRules } from '../data/globalBusinessRules';
 
 const GLOBAL_RULES_STORAGE_KEY = 'platform_global_business_rules';
 
@@ -19,7 +19,9 @@ export const businessRuleStorage = {
         assessmentRules: parsed.assessmentRules || initialGlobalBusinessRules.assessmentRules,
         metricsFormula: parsed.metricsFormula || initialGlobalBusinessRules.metricsFormula,
         reviewNodes: parsed.reviewNodes || initialGlobalBusinessRules.reviewNodes,
-        valueAddedServices: parsed.valueAddedServices || initialGlobalBusinessRules.valueAddedServices,
+        valueAddedServices: parsed.valueAddedServices
+          ? dropRetiredValueAddedServices(parsed.valueAddedServices)
+          : initialGlobalBusinessRules.valueAddedServices,
         otherConfig: parsed.otherConfig || initialGlobalBusinessRules.otherConfig,
         loginAuth: parsed.loginAuth || initialGlobalBusinessRules.loginAuth,
       };

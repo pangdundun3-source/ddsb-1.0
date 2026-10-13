@@ -148,7 +148,8 @@ export const DataWarehouse: React.FC<DataWarehouseProps> = ({
 
         <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1">
           {GROUPS.map((group) => {
-            const items = warehouses.filter((item) => item.shareScope === group.key);
+            const scoped = warehouses.filter((item) => item.shareScope === group.key);
+            const items = [...scoped.filter(isWarehouseEnabled), ...scoped.filter((item) => !isWarehouseEnabled(item))];
             const open = !collapsed.includes(group.key);
             return (
               <div key={group.key}>

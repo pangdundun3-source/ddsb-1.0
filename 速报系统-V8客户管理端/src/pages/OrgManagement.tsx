@@ -28,7 +28,7 @@ import {
   ShieldAlert,
   Building,
   Folder,
-  GripVertical,
+  ArrowUpDown,
   KeyRound,
   Circle,
   IdCard,
@@ -40,15 +40,18 @@ import {
 } from 'lucide-react';
 import type { PageId } from '../types';
 import {
+  ACCOUNT_ROLE_OPTIONS,
   formatPersonOrgPaths,
   getDeepestOrgId,
   INITIAL_CATEGORIES,
   INITIAL_ORG_NODES,
   INITIAL_PERSONNEL,
+  syncFollowersAfterDelete,
   type UserOrgSharedState
 } from '../data/userOrgShared';
 import {
   getPersonAvatarUrl,
+  maskPhone,
   PersonAvatar,
   PersonGroupCell,
   PersonIdentityCell,
@@ -56,6 +59,8 @@ import {
   PersonRoleBadges,
   StatusSwitch
 } from '../components/PersonAccountDisplay';
+import { ExternalUserTable, FollowStatusBadges } from '../components/ExternalUserTable';
+import { OrgCascadeSelect } from '../components/OrgCascadeSelect';
 
 export interface CategoryItem {
   id: string;
@@ -76,6 +81,9 @@ export interface OrgNode {
   expireDate?: string;
   sortOrder: number;
   allowSubOrgCreation: boolean;
+  /** 外部组织管理 */
+  orgType?: string;
+  duty?: string;
 }
 
 export interface PersonnelItem {
@@ -84,6 +92,7 @@ export interface PersonnelItem {
   primaryOrgId?: string;
   username: string;
   realName: string;
+  gender?: '男' | '女';
   wechat: string;
   phone: string;
   roles: string[]; // Multiple roles supported per account
@@ -96,6 +105,17 @@ export interface PersonnelItem {
   jobTitle?: string;
   lastLogin?: string;
   avatarUrl?: string;
+  /** 外部用户数据：公众号侧身份 */
+  nickname?: string;
+  openId?: string;
+  followStatus?: '已关注' | '已取消关注';
+  /** 已解除与微信（公众号 openId）的绑定，需重新邀请激活后才能登录 */
+  wechatUnbound?: boolean;
+  /** 解绑后重新发送邀请的时间 */
+  reinvitedAt?: string;
+  locked?: boolean;
+  /** 加入当前所属组织的日期，缺省取 registerDate */
+  joinedOrgAt?: string;
   activationFields?: {
     idCardNo?: string;
     bankCardNo?: string;
@@ -147,8 +167,16 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
   const personnelList = shared?.personnelList ?? localPersonnelList;
   const setPersonnelList = shared?.setPersonnelList ?? setLocalPersonnelList;
   const groups = shared?.groups ?? [];
-
   const [selectedOrgId, setSelectedOrgId] = useState<string>('org-1');
+  const [moveOrgTarget, setMoveOrgTarget] = useState<PersonnelItem | null>(null);
+  const [moveOrgPath, setMoveOrgPath] = useState<string[]>([]);
+  const [renamingOrgId, setRenamingOrgId] = useState<string | null>(null);
+  const [renamingOrgName, setRenamingOrgName] = useState('');
+  const [isPickPersonOpen, setIsPickPersonOpen] = useState(false);
+  const [pickPersonSearch, setPickPersonSearch] = useState('');
+  const [pickPersonRole, setPickPersonRole] = useState('all');
+  const [pickOnlyUnassigned, setPickOnlyUnassigned] = useState(false);
+  const [pickPersonIds, setPickPersonIds] = useState<number[]>([]);
 
   // Expanded Categories & Org Nodes in Tree
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({
@@ -471,6 +499,71 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
           event.stopPropagation();
           cancelAddOrg();
         }}
+        className="p-1 rounded text-gray-400 hover:bg-gray-50 cursor-pointer"
+      >
+        <X className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+
+  const startRenameOrg = (node: OrgNode, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    cancelAddOrg();
+    setRenamingOrgId(node.id);
+    setRenamingOrgName(node.name);
+  };
+
+  const cancelRenameOrg = () => {
+    setRenamingOrgId(null);
+    setRenamingOrgName('');
+  };
+
+  const confirmRenameOrg = () => {
+    const name = renamingOrgName.trim();
+    const node = orgNodes.find((item) => item.id === renamingOrgId);
+    if (!node || !name || name === node.name) {
+      cancelRenameOrg();
+      return;
+    }
+    setOrgNodes((prev) => prev.map((item) => (item.id === node.id ? { ...item, name } : item)));
+    cancelRenameOrg();
+    triggerToast(`已将『${node.name}』重命名为『${name}』`);
+  };
+
+  const renderRenameOrgInput = () => (
+    <div className="flex items-center gap-1 flex-1 min-w-0" onClick={(event) => event.stopPropagation()}>
+      <input
+        autoFocus
+        value={renamingOrgName}
+        onChange={(event) => setRenamingOrgName(event.target.value)}
+        onFocus={(event) => event.target.select()}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            confirmRenameOrg();
+          }
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            cancelRenameOrg();
+          }
+        }}
+        placeholder="输入机构名称，回车保存"
+        className="flex-1 min-w-0 px-2 py-0.5 text-xs border border-[#1E5ABB] rounded bg-white text-gray-800 font-normal focus:outline-none"
+      />
+      <button
+        type="button"
+        title="保存"
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={confirmRenameOrg}
+        className="p-1 rounded text-[#1E5ABB] hover:bg-blue-50 cursor-pointer"
+      >
+        <Check className="w-3.5 h-3.5" />
+      </button>
+      <button
+        type="button"
+        title="取消"
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={cancelRenameOrg}
         className="p-1 rounded text-gray-400 hover:bg-gray-50 cursor-pointer"
       >
         <X className="w-3.5 h-3.5" />
@@ -848,8 +941,10 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
   };
 
   const handleDeletePersonnel = (id: number) => {
-    if (confirm('确定删除该人员账号吗？此操作不可恢复。')) {
+    if (confirm('确定删除该人员账号吗？仍关注公众号的用户将回到「已关注未激活」列表。')) {
+      const removed = personnelList.find((item) => item.id === id);
       setPersonnelList((prev) => prev.filter((item) => item.id !== id));
+      if (removed && shared) syncFollowersAfterDelete(removed, shared.setFollowers);
       if (viewingPersonnelId === id) {
         setViewingPersonnelId(null);
       }
@@ -1129,6 +1224,92 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
     triggerToast(editingPersonnel ? `已保存${pRealName}的信息` : `已新建人员${pRealName}`);
   };
 
+  const isInSelectedOrg = (orgId: string) => isRootSelected || getOrgAncestorIds(orgId).includes(selectedOrgId);
+
+  const reassignPersonOrg = (person: PersonnelItem, nextOrgId?: string) => {
+    setPersonnelList((prev) =>
+      prev.map((item) => {
+        if (item.id !== person.id) return item;
+        const kept = item.orgIds.filter((id) => !isInSelectedOrg(id));
+        const orgIds = nextOrgId ? Array.from(new Set([...kept, nextOrgId])) : kept;
+        const primaryOrgId =
+          nextOrgId || (item.primaryOrgId && orgIds.includes(item.primaryOrgId) ? item.primaryOrgId : orgIds[0]);
+        return { ...item, orgIds, primaryOrgId };
+      })
+    );
+  };
+
+  const handleRemoveFromOrg = (person: PersonnelItem) => {
+    const nodeName = isRootSelected ? '全部组织节点' : orgNodes.find((node) => node.id === selectedOrgId)?.name || '当前节点';
+    if (!confirm(`确定将【${person.realName}】移出「${nodeName}」吗？账号本身保留，可在外部用户数据中重新分配。`)) return;
+    reassignPersonOrg(person);
+    triggerToast(`已将【${person.realName}】移出「${nodeName}」`);
+  };
+
+  const openMoveOrg = (person: PersonnelItem) => {
+    const current = getDeepestOrgId(orgNodes, person.orgIds, person.primaryOrgId);
+    setMoveOrgTarget(person);
+    setMoveOrgPath(current ? getOrgAncestorIds(current) : []);
+  };
+
+  const handleMoveOrg = () => {
+    if (!moveOrgTarget) return;
+    const nextOrgId = moveOrgPath[moveOrgPath.length - 1];
+    if (!nextOrgId) {
+      triggerToast('请选择组织节点');
+      return;
+    }
+    reassignPersonOrg(moveOrgTarget, nextOrgId);
+    triggerToast(`已将【${moveOrgTarget.realName}】调整到「${getOrgPathText(nextOrgId)}」`);
+    setMoveOrgTarget(null);
+  };
+
+  const openPickPersonModal = () => {
+    if (isRootSelected) {
+      triggerToast('请先在左侧选择要加入的组织节点');
+      return;
+    }
+    setPickPersonSearch('');
+    setPickPersonRole('all');
+    setPickOnlyUnassigned(false);
+    setPickPersonIds([]);
+    setIsPickPersonOpen(true);
+  };
+
+  const pickPersonCandidates = personnelList.filter((person) => {
+    if (person.recycled) return false;
+    const personOrgId = getDeepestOrgId(orgNodes, person.orgIds, person.primaryOrgId);
+    if (personOrgId && getOrgAncestorIds(personOrgId).includes(selectedOrgId)) return false;
+    if (pickOnlyUnassigned && personOrgId) return false;
+    if (pickPersonRole !== 'all' && !(person.roles || []).includes(pickPersonRole)) return false;
+    const q = pickPersonSearch.trim().toLowerCase();
+    if (q && !person.realName.toLowerCase().includes(q) && !person.phone.includes(q)) return false;
+    return true;
+  });
+  const allPickCandidatesChecked =
+    pickPersonCandidates.length > 0 && pickPersonCandidates.every((person) => pickPersonIds.includes(person.id));
+
+  const togglePickPerson = (id: number) =>
+    setPickPersonIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+
+  const toggleAllPickCandidates = () => {
+    const ids = pickPersonCandidates.map((person) => person.id);
+    setPickPersonIds((prev) =>
+      allPickCandidatesChecked ? prev.filter((id) => !ids.includes(id)) : Array.from(new Set([...prev, ...ids]))
+    );
+  };
+
+  const confirmPickPersons = () => {
+    if (pickPersonIds.length === 0) return;
+    setPersonnelList((prev) =>
+      prev.map((person) =>
+        pickPersonIds.includes(person.id) ? { ...person, orgIds: [selectedOrgId], primaryOrgId: selectedOrgId } : person
+      )
+    );
+    triggerToast(`已将 ${pickPersonIds.length} 人加入「${currentOrg.name}」`);
+    setIsPickPersonOpen(false);
+  };
+
   // Personnel Filtered for Selected Org or Root Platform
   const filteredPersonnel = personnelList.filter((p) => {
     if (p.recycled) return false;
@@ -1181,6 +1362,16 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
     (currentOrgLeaderSelectorPage - 1) * orgLeaderSelectorPageSize,
     currentOrgLeaderSelectorPage * orgLeaderSelectorPageSize
   );
+
+  const orgHeadcount = personnelList.reduce<Record<string, number>>((acc, person) => {
+    if (person.recycled) return acc;
+    const personOrgId = getDeepestOrgId(orgNodes, person.orgIds, person.primaryOrgId);
+    if (!personOrgId) return acc;
+    [personOrgId, ...getOrgAncestorIds(personOrgId)].forEach((id) => {
+      acc[id] = (acc[id] || 0) + 1;
+    });
+    return acc;
+  }, {});
 
   // Helper function to render org tree recursively
   const renderOrgTreeNodes = (parentId: string | null = null, depth = 0) => {
@@ -1276,7 +1467,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                     onClick={(e) => e.stopPropagation()}
                     className="p-0.5 rounded text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing shrink-0"
                   >
-                    <GripVertical className="w-3 h-3" />
+                    <ArrowUpDown className="w-3 h-3" />
                   </button>
                   {hasChildren ? (
                     <button
@@ -1299,12 +1490,24 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                     }`}
                   />
 
-                  <span className="truncate text-xs" title={node.name}>{node.name}</span>
-
+                  {renamingOrgId === node.id ? (
+                    renderRenameOrgInput()
+                  ) : (
+                    <>
+                      <span className="truncate text-xs" title={node.name}>{node.name}</span>
+                      <span
+                        className={`shrink-0 inline-flex items-center gap-0.5 text-[10px] font-normal tabular-nums ${isSelected && !isRootSelected ? 'text-[#1E5ABB]/70' : 'text-gray-400'}`}
+                        title="本机构及下级机构人数"
+                      >
+                        <Users className="w-3 h-3" />
+                        {orgHeadcount[node.id] || 0}
+                      </span>
+                    </>
+                  )}
                 </div>
 
                 {/* Node Hover Actions */}
-                <div className={`${isSelected ? 'opacity-100' : 'opacity-0 group-hover/org:opacity-100'} flex items-center space-x-1 transition-opacity shrink-0`}>
+                <div className={`${renamingOrgId === node.id ? 'hidden' : isSelected ? 'opacity-100' : 'opacity-0 group-hover/org:opacity-100'} flex items-center space-x-1 transition-opacity shrink-0`}>
                   <button
                     type="button"
                     onClick={(e) => startAddOrg(node.id, node.categoryId, e)}
@@ -1314,8 +1517,8 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                     <Plus className="w-3 h-3" />
                   </button>
                   <button
-                    onClick={(e) => openEditOrgModal(node, e)}
-                    title="编辑此机构节点"
+                    onClick={(e) => startRenameOrg(node, e)}
+                    title="重命名此机构节点"
                     className="p-0.5 hover:bg-gray-200 text-gray-600 rounded cursor-pointer"
                   >
                     <Edit3 className="w-3 h-3" />
@@ -1423,6 +1626,13 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
               <span className="flex min-w-0 flex-1 items-center space-x-1.5">
                 <Building2 className={`w-3.5 h-3.5 ${isRootSelected ? 'text-[#1E5ABB]' : 'text-gray-500'}`} />
                 <span className="truncate">台中市网信办</span>
+                <span
+                  className={`shrink-0 inline-flex items-center gap-0.5 text-[10px] font-normal tabular-nums ${isRootSelected ? 'text-[#1E5ABB]/70' : 'text-gray-400'}`}
+                  title="平台总人数"
+                >
+                  <Users className="w-3 h-3" />
+                  {personnelList.filter((person) => !person.recycled).length}
+                </span>
               </span>
               <button
                 type="button"
@@ -1713,41 +1923,18 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
               <div className="flex items-center space-x-2 text-base font-bold text-gray-800 min-w-0 whitespace-nowrap">
                 <Building2 className="w-5 h-5 text-[#1E5ABB] shrink-0" />
                 <span className="truncate">{currentOrg.name}</span>
-                {currentOrg.parentId ? (
-                  <span className="text-[11px] font-normal text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 shrink-0">
-                    下级机构
-                  </span>
-                ) : (
-                  <span className="text-[11px] font-normal text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 shrink-0">
-                    一级机构
-                  </span>
-                )}
-                <span
-                  className={`text-[11px] font-medium px-2.5 py-0.5 rounded-full border shrink-0 flex items-center space-x-1 ${
-                    currentOrg.allowSubOrgCreation
-                      ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
-                      : 'text-gray-500 bg-gray-100 border-gray-200'
-                  }`}
-                >
-                  {currentOrg.allowSubOrgCreation ? (
-                    <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                  ) : (
-                    <Lock className="w-3 h-3 text-gray-400" />
-                  )}
-                  <span>{currentOrg.allowSubOrgCreation ? '下级可新增' : '禁止下级新增'}</span>
-                </span>
               </div>
 
               <div className="flex items-center space-x-2 shrink-0 whitespace-nowrap">
                 <button
                   onClick={() => {
-                    setIsQrGenerateConfirmOpen(true);
+                    startAddOrg(currentOrg.parentId || null, currentOrg.categoryId);
                   }}
-                  className="px-3 py-1.5 text-xs bg-[#1E5ABB] hover:bg-[#134092] text-white rounded font-bold flex items-center space-x-1.5 cursor-pointer transition-colors shadow-2xs shrink-0"
-                  title="下发当前机构的二维码"
+                  className="px-3 py-1.5 text-xs bg-white text-gray-700 border border-gray-300 rounded hover:border-[#1E5ABB] hover:text-[#1E5ABB] font-bold flex items-center space-x-1 cursor-pointer transition-colors"
+                  title="在当前机构的同一层级新增机构"
                 >
-                  <QrCode className="w-3.5 h-3.5 text-emerald-300" />
-                  <span>下发二维码</span>
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>新增同级机构</span>
                 </button>
                 <button
                   onClick={() => {
@@ -1759,78 +1946,6 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                   <Plus className="w-3.5 h-3.5" />
                   <span>新增子机构</span>
                 </button>
-                <button
-                  onClick={() => {
-                    openEditOrgModal(currentOrg);
-                  }}
-                  className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50 text-gray-700 flex items-center space-x-1 cursor-pointer transition-colors"
-                >
-                  <Edit3 className="w-3.5 h-3.5 text-gray-500" />
-                  <span>编辑机构</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Stat Cards Grid */}
-              <div className="grid grid-cols-2 gap-3.5 pt-1 min-w-0">
-
-              {/* Sub-node count */}
-              <div className="bg-gray-50/80 p-3 rounded-lg border border-gray-100 space-y-1 min-w-0">
-                <div className="text-xs text-gray-400">下级子机构</div>
-                <div className="flex items-baseline space-x-1">
-                  <span className="text-lg font-bold text-gray-800">{directSubCount}</span>
-                  <span className="text-xs text-gray-500">个直属</span>
-                  {allSubCount > directSubCount && (
-                    <span className="text-[11px] text-gray-400 ml-1">
-                      (共{allSubCount}个)
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Current Org Node QR Stat Card & Usage Progress */}
-              <div className="bg-gradient-to-br from-indigo-50/60 to-purple-50/30 p-3 rounded-lg border border-indigo-100/90 space-y-1.5 min-w-0">
-                <div className="text-xs text-gray-500 flex items-center justify-between">
-                  <div className="flex items-center space-x-1">
-                    <QrCode className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                    <span>二维码总数</span>
-                  </div>
-                  <span className="text-[10px] text-indigo-600 font-bold font-mono">
-                    {qrQuotaType === 'limit'
-                      ? `${((qrUsedCount / qrLimitCount) * 100).toFixed(1)}%`
-                      : '100%'}
-                  </span>
-                </div>
-
-                <div className="flex items-baseline space-x-1">
-                  <span className="text-xl font-bold text-indigo-950">
-                    {qrQuotaType === 'limit' ? qrLimitCount.toLocaleString() : '不限'}
-                  </span>
-                  {qrQuotaType === 'limit' && <span className="text-xs text-gray-500">个</span>}
-                </div>
-
-                <div className="space-y-1 pt-0.5">
-                  <div className="w-full bg-indigo-100 rounded-full h-1.5 overflow-hidden">
-                    <div
-                      className="bg-indigo-600 h-1.5 rounded-full transition-all duration-300"
-                      style={{
-                        width: `${
-                          qrQuotaType === 'limit'
-                            ? Math.min(100, Math.max(0.2, (qrUsedCount / qrLimitCount) * 100))
-                            : 100
-                        }%`,
-                      }}
-                    ></div>
-                  </div>
-                  <div className="text-[10px] text-indigo-600 font-medium font-mono flex justify-between">
-                    <span>已用 {qrUsedCount} 个</span>
-                    <span>
-                      {qrQuotaType === 'limit'
-                        ? `剩余 ${Math.max(0, qrLimitCount - qrUsedCount)} 个`
-                        : '剩余 不限'}
-                    </span>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
@@ -1868,137 +1983,36 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                     className="pl-8 pr-3 py-1 text-xs border border-gray-300 rounded w-48 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
                   />
                 </div>
-                <button
-                  onClick={openAddPersonnelModal}
-                  className="px-3.5 py-1 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center space-x-1 cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>新增人员</span>
-                </button>
               </div>
             </div>
 
             {/* Personnel Table */}
-            <div className="overflow-hidden">
-              <table className="w-full table-fixed text-left border-collapse text-xs">
-                <colgroup>
-                  <col className="w-11" />
-                  <col className="w-[22%]" />
-                  <col className="w-[20%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[13%]" />
-                  <col className="w-[11%]" />
-                  <col className="w-[80px]" />
-                  <col className="w-16" />
-                </colgroup>
-                <thead>
-                  <tr className="bg-gray-50/80 text-gray-500 border-y border-gray-200 font-medium">
-                    <th className="py-2 px-2 text-center">序号</th>
-                    <th className="py-2 px-2">姓名 / 手机号</th>
-                    <th className="py-2 px-2">
-                      <span className="inline-flex items-center gap-1"><Building2 className="w-3 h-3 shrink-0" />所属机构</span>
-                    </th>
-                    <th className="py-2 px-2">
-                      <span className="inline-flex items-center gap-1"><Circle className="w-3 h-3 shrink-0" />角色</span>
-                    </th>
-                    <th className="py-2 px-2">
-                      <span className="inline-flex items-center gap-1"><Users className="w-3 h-3 shrink-0" />分组</span>
-                    </th>
-                    <th className="py-2 px-2">标签</th>
-                    <th className="py-2 px-2">状态</th>
-                    <th className="py-2 px-1.5 text-center">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 text-gray-700">
-                  {filteredPersonnel.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-8 text-center text-gray-400">
-                        当前节点暂无所属人员，点击右上角“新增人员”添加或调整归属
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredPersonnel.map((item, index) => {
-                      const orgPathText = formatPersonOrgPaths(orgNodes, item.orgIds, undefined, item.primaryOrgId);
-                      const primaryGroupId = (item.groupIds || [])[0];
-                      const labels = getPersonnelDisplayLabels(item);
-                      return (
-                      <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
-                        <td className="py-2 px-2 text-center text-gray-400 font-mono">
-                          {index + 1}
-                        </td>
-                        <td className="py-2 px-2 overflow-hidden">
-                          <PersonIdentityCell
-                            item={item}
-                            revealed={revealedPhoneIds.includes(item.id)}
-                            onToggleReveal={() =>
-                              setRevealedPhoneIds((prev) =>
-                                prev.includes(item.id) ? prev.filter((id) => id !== item.id) : [...prev, item.id]
-                              )
-                            }
-                            onAvatarClick={() => openPersonnelDetail(item)}
-                          />
-                        </td>
-                        <td className="py-2 px-2 overflow-hidden">
-                          <PersonOrgPathCell path={orgPathText} />
-                        </td>
-                        <td className="py-2 px-2 overflow-hidden">
-                          <PersonRoleBadges roles={item.roles} />
-                        </td>
-                        <td className="py-2 px-2 overflow-hidden">
-                          <PersonGroupCell groupName={getGroupName(primaryGroupId)} />
-                        </td>
-                        <td className="py-2 px-2 overflow-hidden">
-                          {labels.length > 0 ? (
-                            <button
-                              type="button"
-                              onClick={(e) => openPersonnelLabelPicker(item, e.currentTarget)}
-                              className="max-w-full inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 cursor-pointer transition-colors"
-                              title={`点击修改标签：${labels.join('、')}`}
-                            >
-                              <span className="truncate">{labels[0]}{labels.length > 1 ? ` +${labels.length - 1}` : ''}</span>
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={(e) => openPersonnelLabelPicker(item, e.currentTarget)}
-                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-white text-[#1E5ABB] border border-blue-200 hover:bg-blue-50 cursor-pointer font-bold"
-                              title="新增标签"
-                            >
-                              <Plus className="w-3 h-3 shrink-0" />
-                              <span>标签</span>
-                            </button>
-                          )}
-                        </td>
-                        <td className="py-2 px-1.5 overflow-hidden">
-                          <StatusSwitch
-                            enabled={item.status === '启用'}
-                            onToggle={() => handleTogglePersonnelStatus(item.id)}
-                          />
-                        </td>
-                        <td className="py-2 px-1 overflow-hidden">
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              onClick={() => openEditPersonnelModal(item)}
-                              title="编辑所属机构及个人信息"
-                              className="w-6 h-6 rounded border border-gray-200 text-gray-500 hover:text-[#1E5ABB] hover:border-blue-200 hover:bg-blue-50 flex items-center justify-center cursor-pointer"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeletePersonnel(item.id)}
-                              title="删除账号"
-                              className="w-6 h-6 rounded border border-gray-200 text-gray-500 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 flex items-center justify-center cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+            <div className="overflow-x-auto">
+              <ExternalUserTable
+                items={filteredPersonnel}
+                orgNodes={orgNodes}
+                getGroupName={(id) => getGroupName(id) || id}
+                emptyText="当前节点暂无所属人员，点击右上角“新增人员”添加或调整归属"
+                onAvatarClick={openPersonnelDetail}
+                renderExtraActions={(item) => (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => openMoveOrg(item)}
+                      className="h-6 px-2 rounded border border-blue-100 text-[11px] font-bold text-[#1E5ABB] hover:bg-blue-50 cursor-pointer"
+                    >
+                      修改节点
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFromOrg(item)}
+                      className="h-6 px-2 rounded border border-rose-100 text-[11px] font-bold text-rose-600 hover:bg-rose-50 cursor-pointer"
+                    >
+                      移出
+                    </button>
+                  </>
+                )}
+              />
             </div>
 
             {/* Pagination Footer */}
@@ -2019,6 +2033,211 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
           )}
         </div>
       </div>
+
+      {isPickPersonOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setIsPickPersonOpen(false)}>
+          <div
+            className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col text-xs"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <div className="font-bold text-gray-800 text-sm">新增人员至【{currentOrg.name}】</div>
+                <div className="text-[11px] text-gray-400 mt-0.5">
+                  从外部用户数据中勾选人员加入本节点；每人仅归属一个机构节点，已在本节点及下级的人员不再展示
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPickPersonOpen(false)}
+                className="w-7 h-7 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="px-5 py-3 flex flex-wrap items-center gap-2 border-b border-gray-50">
+              <div className="relative w-[200px]">
+                <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2" />
+                <input
+                  value={pickPersonSearch}
+                  onChange={(event) => setPickPersonSearch(event.target.value)}
+                  placeholder="搜索姓名 / 手机号"
+                  className="w-full h-7 pl-8 pr-3 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                />
+              </div>
+              <select
+                value={pickPersonRole}
+                onChange={(event) => setPickPersonRole(event.target.value)}
+                className="h-7 px-2 border border-gray-200 rounded bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+              >
+                <option value="all">全部角色</option>
+                {ACCOUNT_ROLE_OPTIONS.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+              <label className="inline-flex items-center gap-1.5 text-gray-600 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={pickOnlyUnassigned}
+                  onChange={(event) => setPickOnlyUnassigned(event.target.checked)}
+                  className="rounded text-[#1E5ABB] w-3.5 h-3.5"
+                />
+                仅看未分配机构
+              </label>
+              <span className="ml-auto text-gray-400">共 {pickPersonCandidates.length} 位可选</span>
+            </div>
+            <div className="flex-1 min-h-[320px] overflow-auto px-5 py-2">
+              <table className="w-full text-left border-collapse">
+                <thead className="sticky top-0 bg-gray-50 text-gray-500">
+                  <tr>
+                    <th className="py-2 px-3 w-10">
+                      <input
+                        type="checkbox"
+                        checked={allPickCandidatesChecked}
+                        onChange={toggleAllPickCandidates}
+                        className="rounded text-[#1E5ABB] w-3.5 h-3.5 cursor-pointer"
+                      />
+                    </th>
+                    <th className="py-2 px-3 font-medium">姓名 / 手机号</th>
+                    <th className="py-2 px-3 font-medium">当前机构</th>
+                    <th className="py-2 px-3 font-medium">角色名称</th>
+                    <th className="py-2 px-3 font-medium">账号状态</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {pickPersonCandidates.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-12 text-center text-gray-400">
+                        暂无可加入的外部用户
+                      </td>
+                    </tr>
+                  ) : (
+                    pickPersonCandidates.map((person) => {
+                      const checked = pickPersonIds.includes(person.id);
+                      const orgPath = formatPersonOrgPaths(orgNodes, person.orgIds, undefined, person.primaryOrgId);
+                      return (
+                        <tr
+                          key={person.id}
+                          onClick={() => togglePickPerson(person.id)}
+                          className={`cursor-pointer ${checked ? 'bg-blue-50/60' : 'hover:bg-gray-50'}`}
+                        >
+                          <td className="py-2.5 px-3">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => togglePickPerson(person.id)}
+                              onClick={(event) => event.stopPropagation()}
+                              className="rounded text-[#1E5ABB] w-3.5 h-3.5 cursor-pointer"
+                            />
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="w-8 h-8 rounded-full overflow-hidden shrink-0 ring-1 ring-black/10">
+                                <PersonAvatar name={person.realName} src={getPersonAvatarUrl(person)} size="sm" />
+                              </span>
+                              <div className="min-w-0">
+                                <div className="font-bold text-gray-800">{person.realName}</div>
+                                <div className="font-mono text-[11px] text-gray-500">{maskPhone(person.phone)}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3 max-w-[240px]">
+                            {orgPath ? <PersonOrgPathCell path={orgPath} /> : <span className="text-gray-300">未分配</span>}
+                          </td>
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <PersonRoleBadges roles={[(person.roles || [])[0] || '未分配']} />
+                          </td>
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <FollowStatusBadges item={person} />
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
+              <div className="text-gray-500">
+                已选 <b className="text-[#1E5ABB]">{pickPersonIds.length}</b> 人
+                {pickPersonIds.length > 0 && (
+                  <button type="button" onClick={() => setPickPersonIds([])} className="ml-2 text-gray-400 hover:text-[#1E5ABB] cursor-pointer">
+                    清空
+                  </button>
+                )}
+                <span className="ml-3 text-[11px] text-gray-400">已归属其他机构的人员加入后将调整到本节点</span>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPickPersonOpen(false)}
+                  className="h-8 px-4 rounded border border-gray-200 text-gray-600 hover:bg-gray-50 cursor-pointer"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmPickPersons}
+                  disabled={pickPersonIds.length === 0}
+                  className="h-8 px-4 rounded bg-[#1E5ABB] text-white font-bold hover:bg-[#134092] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  确认加入（{pickPersonIds.length}）
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {moveOrgTarget && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setMoveOrgTarget(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md text-xs" onClick={(event) => event.stopPropagation()}>
+            <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100">
+              <div className="font-bold text-gray-800 text-sm">修改组织节点</div>
+              <button
+                type="button"
+                onClick={() => setMoveOrgTarget(null)}
+                className="w-7 h-7 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="text-gray-500">
+                当前：<b className="text-gray-800">{moveOrgTarget.realName}</b>
+                <span className="ml-2">
+                  {formatPersonOrgPaths(orgNodes, moveOrgTarget.orgIds, undefined, moveOrgTarget.primaryOrgId) || '未分配'}
+                </span>
+              </div>
+              <OrgCascadeSelect
+                orgNodes={orgNodes}
+                path={moveOrgPath}
+                onChange={(path) => setMoveOrgPath(path.filter(Boolean))}
+                label="调整到 *"
+                hideHint
+              />
+            </div>
+            <div className="px-4 py-3 border-t border-gray-100 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setMoveOrgTarget(null)}
+                className="h-8 px-4 rounded border border-gray-200 text-gray-600 hover:bg-gray-50 cursor-pointer"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleMoveOrg}
+                className="h-8 px-4 rounded bg-[#1E5ABB] text-white font-bold hover:bg-[#134092] cursor-pointer"
+              >
+                确认调整
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isPersonnelLabelPickerOpen && personnelLabelPickerPersonId !== null && typeof document !== 'undefined' && (() => {
         const pickerPerson = personnelList.find((person) => person.id === personnelLabelPickerPersonId);

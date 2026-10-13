@@ -413,6 +413,7 @@ export default function App() {
                 : parseUserOrgModule(userOrgInitialModule)
             }
             onNavigatePage={handleNavigate}
+            currentOrg={currentOrg}
             orgList={orgs}
             onAddOrg={handleAddOrg}
             onUpdateOrg={handleUpdateOrg}

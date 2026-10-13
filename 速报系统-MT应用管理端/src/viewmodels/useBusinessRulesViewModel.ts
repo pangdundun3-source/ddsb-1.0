@@ -17,12 +17,14 @@ import {
 import { formatDateTime } from '../shared/date';
 
 export type BusinessRuleNavKey =
+  | 'role_permission'
   | 'templates'
   | 'scoring'
   | 'dictionary'
   | 'workflow'
   | 'value_added'
   | 'qr_code'
+  | 'invite_fields'
   | 'other';
 
 interface MetricItem {
@@ -73,10 +75,12 @@ export const useBusinessRulesViewModel = ({
     if (initialNav) return initialNav;
     const saved = localStorage.getItem('admin_business_rule_active_subnav');
     const validKeys: BusinessRuleNavKey[] = [
+      'role_permission',
       'templates',
       'scoring',
       'workflow',
       'qr_code',
+      'invite_fields',
       'value_added',
       'dictionary',
       'other',

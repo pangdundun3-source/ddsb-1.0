@@ -5,15 +5,10 @@ export type UserOrgModule = 'account' | 'org' | 'role' | 'group';
 
 export const USER_ORG_MODULES: UserOrgModule[] = ['account', 'org', 'role', 'group'];
 
-export const ACCOUNT_ROLE_OPTIONS = [
-  '超级管理员',
-  '机构管理员',
-  '管理员',
-  '上报员',
-  '审核员',
-  '运营管理员',
-  '临时审核员'
-];
+/** 本机构最大可用用户数，由 MT 应用管理端授权 */
+export const ORG_MAX_USER_COUNT = 200;
+
+export const ACCOUNT_ROLE_OPTIONS = ['上报员', '审核员'];
 
 export interface PersonnelGroup {
   id: string;
@@ -22,7 +17,7 @@ export interface PersonnelGroup {
 }
 
 export type InviteCodeStatus = '未使用' | '已使用' | '已过期';
-export type InviteChannel = 'activation_code' | 'official_account';
+export type InviteChannel = 'activation_code' | 'official_account' | 'qrcode' | 'link';
 
 export interface InviteCode {
   id: string;
@@ -41,6 +36,9 @@ export interface InviteCode {
   sentToWechat?: string;
   sentToPhone?: string;
   sentToFollowerId?: string;
+  /** 二维码邀请：扫码上限人数与已扫码加入人数 */
+  qrLimit?: number;
+  scannedCount?: number;
 }
 
 export interface OfficialAccountFollower {
@@ -52,6 +50,9 @@ export interface OfficialAccountFollower {
   followTime: string;
   city?: string;
 }
+
+/** 外部用户所属应用及其关联的微信服务号 */
+export const EXTERNAL_APP = { name: '点点速豹', officialAccount: '点点速豹' };
 
 export const INITIAL_CATEGORIES: CategoryItem[] = [
   { id: 'cat-1', name: '市级党政机关' },
@@ -238,9 +239,13 @@ export const INITIAL_PERSONNEL: PersonnelItem[] = [
     orgIds: ['org-1'],
     username: 'admin_xcb',
     realName: '张建国',
+    gender: '男',
+    nickname: '风清扬',
+    openId: 'wx_openid_v8_10001',
+    followStatus: '已关注',
     wechat: 'zjg1980',
     phone: '13812340001',
-    roles: ['管理员', '审核员'],
+    roles: ['审核员'],
     labels: ['一级审核员'],
     registerDate: '2023-10-01',
     status: '启用',
@@ -263,6 +268,10 @@ export const INITIAL_PERSONNEL: PersonnelItem[] = [
     orgIds: ['org-1-2-1-1-1'],
     username: 'lihua_bs',
     realName: '李华',
+    gender: '女',
+    nickname: '山水清晖',
+    openId: 'wx_openid_v8_10002',
+    followStatus: '已关注',
     wechat: 'lihua_work',
     phone: '13912348822',
     roles: ['上报员'],
@@ -287,6 +296,10 @@ export const INITIAL_PERSONNEL: PersonnelItem[] = [
     orgIds: ['org-1-1'],
     username: 'wangwei_old',
     realName: '王伟',
+    gender: '男',
+    nickname: '晨曦微光',
+    openId: 'wx_openid_v8_10003',
+    followStatus: '已取消关注',
     wechat: 'ww_123',
     phone: '13512344455',
     roles: ['审核员'],
@@ -311,6 +324,10 @@ export const INITIAL_PERSONNEL: PersonnelItem[] = [
     orgIds: ['org-1'],
     username: 'zhao_q',
     realName: '赵强',
+    gender: '男',
+    nickname: '追风少年',
+    openId: 'wx_openid_v8_10004',
+    followStatus: '已关注',
     wechat: 'zq_work88',
     phone: '13712349911',
     roles: ['上报员'],
@@ -335,9 +352,13 @@ export const INITIAL_PERSONNEL: PersonnelItem[] = [
     orgIds: ['org-2'],
     username: 'chen_yuan',
     realName: '陈远',
+    gender: '男',
+    nickname: '静水流深',
+    openId: 'wx_openid_v8_10005',
+    followStatus: '已关注',
     wechat: 'cy_wxb',
     phone: '13812341133',
-    roles: ['机构管理员'],
+    roles: ['审核员'],
     labels: [],
     registerDate: '2024-01-12',
     status: '启用',
@@ -352,6 +373,10 @@ export const INITIAL_PERSONNEL: PersonnelItem[] = [
     orgIds: ['org-1-2'],
     username: 'tang_xin',
     realName: '唐欣',
+    gender: '女',
+    nickname: '云卷云舒',
+    openId: 'wx_openid_v8_10006',
+    followStatus: '已关注',
     wechat: 'tangxin_wx',
     phone: '13812346688',
     roles: ['审核员'],
@@ -369,6 +394,11 @@ export const INITIAL_PERSONNEL: PersonnelItem[] = [
     orgIds: ['org-3'],
     username: 'wu_cong',
     realName: '吴聪',
+    gender: '男',
+    nickname: '吴越春秋',
+    openId: 'wx_openid_v8_10007',
+    followStatus: '已关注',
+    locked: true,
     wechat: 'wuc_ssq',
     phone: '13912340033',
     roles: ['上报员'],
@@ -386,9 +416,13 @@ export const INITIAL_PERSONNEL: PersonnelItem[] = [
     orgIds: ['org-4'],
     username: 'liang_lin',
     realName: '梁琳',
+    gender: '女',
+    nickname: '日报梁编',
+    openId: 'wx_openid_v8_10008',
+    followStatus: '已关注',
     wechat: 'll_media',
     phone: '13912342244',
-    roles: ['运营管理员'],
+    roles: ['上报员'],
     labels: [],
     registerDate: '2024-04-02',
     status: '启用',
@@ -494,6 +528,20 @@ export const INITIAL_INVITE_CODES: InviteCode[] = [
     sentToName: '何岚',
     sentToWechat: 'helan_wx',
     sentToFollowerId: 'flw-1'
+  },
+  {
+    id: 'inv-qr-1',
+    code: 'QR-2026-T7K3M',
+    batchId: 'batch-qr-seed',
+    batchName: '二维码邀请-20261010',
+    orgIds: ['org-1-1'],
+    roles: ['上报员'],
+    expiresAt: '2026-12-31T23:59',
+    createdAt: '2026-10-10T09:30',
+    status: '未使用',
+    channel: 'qrcode',
+    qrLimit: 100,
+    scannedCount: 12
   }
 ];
 
@@ -616,7 +664,41 @@ export interface UserOrgSharedState {
   setGroups: Dispatch<SetStateAction<PersonnelGroup[]>>;
   inviteCodes: InviteCode[];
   setInviteCodes: Dispatch<SetStateAction<InviteCode[]>>;
+  followers: OfficialAccountFollower[];
+  setFollowers: Dispatch<SetStateAction<OfficialAccountFollower[]>>;
 }
+
+const isSameWechatUser = (follower: OfficialAccountFollower, person: PersonnelItem) =>
+  Boolean(
+    (follower.wechatAlias && person.wechat === follower.wechatAlias) ||
+      (follower.phone && person.phone === follower.phone)
+  );
+
+/** 账号删除后：仍关注公众号则回到「已关注未激活」，已取消关注则不再显示 */
+export const syncFollowersAfterDelete = (
+  person: PersonnelItem,
+  setFollowers: Dispatch<SetStateAction<OfficialAccountFollower[]>>
+) => {
+  const stillFollowing = (person.followStatus || '已关注') === '已关注';
+  setFollowers((prev) => {
+    const rest = prev.filter((follower) => !isSameWechatUser(follower, person));
+    if (!stillFollowing) return rest;
+    const existing = prev.find((follower) => isSameWechatUser(follower, person));
+    const now = new Date();
+    const pad = (value: number) => String(value).padStart(2, '0');
+    return [
+      existing || {
+        id: `flw-p${person.id}-${now.getTime()}`,
+        nickname: person.nickname || person.realName,
+        avatarUrl: person.avatarUrl || '',
+        wechatAlias: person.wechat,
+        phone: person.phone || undefined,
+        followTime: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`
+      },
+      ...rest
+    ];
+  });
+};
 
 export const useUserOrgSharedState = (): UserOrgSharedState => {
   const [categories, setCategories] = useState<CategoryItem[]>(INITIAL_CATEGORIES);
@@ -624,6 +706,7 @@ export const useUserOrgSharedState = (): UserOrgSharedState => {
   const [personnelList, setPersonnelList] = useState<PersonnelItem[]>(INITIAL_PERSONNEL);
   const [groups, setGroups] = useState<PersonnelGroup[]>(INITIAL_GROUPS);
   const [inviteCodes, setInviteCodes] = useState<InviteCode[]>(INITIAL_INVITE_CODES);
+  const [followers, setFollowers] = useState<OfficialAccountFollower[]>(INITIAL_FOLLOWERS);
 
   return {
     categories,
@@ -635,7 +718,9 @@ export const useUserOrgSharedState = (): UserOrgSharedState => {
     groups,
     setGroups,
     inviteCodes,
-    setInviteCodes
+    setInviteCodes,
+    followers,
+    setFollowers
   };
 };
 

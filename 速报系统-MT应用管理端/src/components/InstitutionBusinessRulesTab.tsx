@@ -28,6 +28,8 @@ import {
 import { QrQuotaSection } from './other-config/QrQuotaSection';
 import { GlobalQrDefaultsSection } from './other-config/GlobalQrDefaultsSection';
 import { GlobalOtherConfigDefaultsSection } from './other-config/GlobalOtherConfigDefaultsSection';
+import { InviteFieldsConfigSection } from './other-config/InviteFieldsConfigSection';
+import { InstitutionRolePermissionSection } from './other-config/InstitutionRolePermissionSection';
 import {
   mergeInstitutionRulesWithGlobal,
 } from '../data/globalBusinessRules';
@@ -42,15 +44,6 @@ export const defaultValueAddedServices: ValueAddedServiceItem[] = [
     isEnabled: true,
     tag: '增值扩展功能',
     description: '支持批量勾选多条报送线索与事项目录、快捷批量审核通过、批量驳回与一键签发转办，大幅提升处置效率',
-    icon: 'auto_awesome',
-  },
-  {
-    id: 'vas-screenshot-evidence',
-    name: '截图取证',
-    isPurchased: true,
-    isEnabled: false,
-    tag: '增值扩展功能',
-    description: '自动化对涉事网页及社交媒体内容进行全屏快照截屏存证，生成区块链与防篡改水文可信取证包',
     icon: 'auto_awesome',
   },
   {
@@ -960,12 +953,14 @@ export const STAT_METRICS_LIST: StatMetricItem[] = [
 
 // Business Rules Sub-Tabs Configuration
 export type BusinessRuleNavKey =
+  | 'role_permission'
   | 'templates'
   | 'scoring'
   | 'dictionary'
   | 'workflow'
   | 'value_added'
   | 'qr_code'
+  | 'invite_fields'
   | 'other';
 
 interface NavItem {
@@ -977,6 +972,13 @@ interface NavItem {
 }
 
 const RULE_NAV_ITEMS: NavItem[] = [
+  {
+    key: 'role_permission',
+    label: '平台角色权限配置',
+    icon: 'admin_panel_settings',
+    description: '机构内部角色及各角色的功能菜单与操作权限',
+    badge: '3个角色',
+  },
   {
     key: 'templates',
     label: '模板配置',
@@ -1000,17 +1002,24 @@ const RULE_NAV_ITEMS: NavItem[] = [
   },
   {
     key: 'qr_code',
-    label: '激活码配置',
+    label: '激活名额配置',
     icon: 'qr_code_2',
     description: '当前机构专属激活码名额额度管理、增发记录与绑定人员名单',
     badge: '名额',
   },
   {
+    key: 'invite_fields',
+    label: '专属邀请配置',
+    icon: 'how_to_reg',
+    description: '上报员/审核员邀请注册需填写的字段、必填项与校验规则',
+    badge: '字段',
+  },
+  {
     key: 'value_added',
     label: '增值业务',
     icon: 'auto_awesome',
-    description: '批量审核、截图取证、指令流转、系统公告与首发重复识别增值扩展',
-    badge: '5项',
+    description: '批量审核、指令流转、系统公告与首发重复识别增值扩展',
+    badge: '4项',
   },
   {
     key: 'dictionary',
@@ -1021,7 +1030,7 @@ const RULE_NAV_ITEMS: NavItem[] = [
   },
   {
     key: 'other',
-    label: '公众号换绑',
+    label: '公众号设置',
     icon: 'sync_alt',
     description: '微信公众号接入通道与采编人员一键换绑迁移',
     badge: '公众号',
@@ -1182,6 +1191,11 @@ export const InstitutionBusinessRulesTab: React.FC<Props> = ({
     setEditingScoringRuleGroup({ ...editingScoringRuleGroup, levels: currentLevels });
     setDraggingLevelIdx(null);
   };
+  const navItems = isGlobalScope ? RULE_NAV_ITEMS : RULE_NAV_ITEMS.filter((item) => item.key !== 'other');
+  React.useEffect(() => {
+    if (!navItems.some((item) => item.key === activeNav)) handleNavChange(navItems[0].key);
+  }, [activeNav, navItems, handleNavChange]);
+
   const v8StorageKey = isGlobalScope
     ? 'mt_global_v8_business_config'
     : `mt_inst_v8_business_config_${institution?.id ?? 'new'}`;
@@ -1240,7 +1254,7 @@ export const InstitutionBusinessRulesTab: React.FC<Props> = ({
         {!hideSubNav && (
           <div className="w-full lg:w-48 shrink-0 bg-white rounded-lg border border-gray-200/80 shadow-2xs overflow-hidden sticky top-4">
             <div className="p-1.5 space-y-1">
-              {RULE_NAV_ITEMS.map((item) => {
+              {navItems.map((item) => {
                 const isActive = activeNav === item.key;
                 return (
                   <button
@@ -1261,7 +1275,9 @@ export const InstitutionBusinessRulesTab: React.FC<Props> = ({
                       >
                         {item.icon}
                       </span>
-                      <span className="text-xs truncate font-medium">{item.label}</span>
+                      <span className="text-xs truncate font-medium">
+                        {item.key === 'role_permission' && !isGlobalScope ? '机构角色权限配置' : item.label}
+                      </span>
                     </div>
                   </button>
                 );
@@ -2367,6 +2383,26 @@ export const InstitutionBusinessRulesTab: React.FC<Props> = ({
                 showToast={showToast}
               />
             )
+          )}
+
+          {activeNav === 'role_permission' && (
+            <InstitutionRolePermissionSection
+              key={isGlobalScope ? 'global' : institution?.id ?? 'new'}
+              storageKey={isGlobalScope ? 'mt_global_role_permissions' : `mt_inst_role_permissions_${institution?.id ?? 'new'}`}
+              fallbackStorageKey={isGlobalScope ? undefined : 'mt_global_role_permissions'}
+              isGlobalScope={isGlobalScope}
+              showToast={showToast}
+            />
+          )}
+
+          {activeNav === 'invite_fields' && (
+            <InviteFieldsConfigSection
+              key={isGlobalScope ? 'global' : institution?.id ?? 'new'}
+              storageKey={isGlobalScope ? 'mt_global_invite_fields' : `mt_inst_invite_fields_${institution?.id ?? 'new'}`}
+              fallbackStorageKey={isGlobalScope ? undefined : 'mt_global_invite_fields'}
+              isGlobalScope={isGlobalScope}
+              showToast={showToast}
+            />
           )}
 
           {/* ========================================================= */}

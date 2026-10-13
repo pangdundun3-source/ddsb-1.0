@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { PageId } from '../types';
 import {
@@ -42,12 +42,15 @@ import {
   Smartphone,
   ArrowRight,
   Copy,
+  MoreHorizontal,
   RotateCcw,
   Sliders,
   SlidersHorizontal,
+  UserPlus,
   Workflow
 } from 'lucide-react';
 import { TemplateOtherConfigPanel } from '../components/TemplateOtherConfigPanel';
+import { InviteRegisterFieldsPanel } from '../components/InviteRegisterFieldsPanel';
 
 export type FieldType = 'text' | 'number' | 'date' | 'file' | 'link' | 'select' | 'phone' | 'gender' | 'id_card' | 'bank_card' | 'email' | 'address' | 'identity';
 
@@ -428,6 +431,14 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 }) => {
   // Currently active configuration module in the left column
   const [activeModule, setActiveModule] = useState<string>(initialModule || 'report_template');
+  const [templateMoreMenuId, setTemplateMoreMenuId] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!templateMoreMenuId) return;
+    const close = () => setTemplateMoreMenuId(null);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, [templateMoreMenuId]);
 
   React.useEffect(() => {
     if (initialModule) {
@@ -460,6 +471,12 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       label: '数据字典管理',
       icon: ListFilter,
       desc: '驳回原由/信息分类/来源渠道'
+    },
+    {
+      id: 'invite_fields',
+      label: '邀请注册字段',
+      icon: UserPlus,
+      desc: '上报员/审核员邀请注册填写项'
     },
     {
       id: 'value_added',
@@ -593,12 +610,12 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       { id: '304', name: '跨管辖范围报送', dictCategory: 'reject_reason', dictCategoryName: '拒绝理由', dictCode: 'REJECT_004', sortOrder: 4, isDefault: false, status: '启用', updateTime: '2023-11-02 11:10:00', description: '不属于本辖区或本部门职责处理范畴，需退回重拟' },
       { id: '305', name: '凭证图片模糊不符', dictCategory: 'reject_reason', dictCategoryName: '拒绝理由', dictCode: 'REJECT_005', sortOrder: 5, isDefault: false, status: '启用', updateTime: '2023-11-05 14:00:00', description: '上传的现场截图或说明文件无法有效佐证主张' },
 
-      { id: 'd201', name: '骨干上报员', dictCategory: 'info_category', dictCategoryName: '人员标签', dictCode: 'INFO_001', sortOrder: 1, personnelRoleGroup: '上报员', isDefault: true, status: '启用', updateTime: '2023-10-01 08:00:00', description: '上报员角色标签' },
-      { id: 'd202', name: '普通上报员', dictCategory: 'info_category', dictCategoryName: '人员标签', dictCode: 'INFO_002', sortOrder: 2, personnelRoleGroup: '上报员', isDefault: false, status: '启用', updateTime: '2023-10-01 08:00:00', description: '上报员角色标签' },
-      { id: 'd203', name: '核心上报员', dictCategory: 'info_category', dictCategoryName: '人员标签', dictCode: 'INFO_003', sortOrder: 3, personnelRoleGroup: '上报员', isDefault: false, status: '启用', updateTime: '2023-10-10 10:00:00', description: '上报员角色标签' },
-      { id: 'd204', name: '一级审核员', dictCategory: 'info_category', dictCategoryName: '人员标签', dictCode: 'INFO_004', sortOrder: 4, personnelRoleGroup: '审核员', isDefault: false, status: '启用', updateTime: '2023-10-12 09:00:00', description: '审核员角色标签' },
-      { id: 'd205', name: '二级审核员', dictCategory: 'info_category', dictCategoryName: '人员标签', dictCode: 'INFO_005', sortOrder: 5, personnelRoleGroup: '审核员', isDefault: false, status: '启用', updateTime: '2023-10-12 09:00:00', description: '审核员角色标签' },
-      { id: 'd206', name: '三级审核员', dictCategory: 'info_category', dictCategoryName: '人员标签', dictCode: 'INFO_006', sortOrder: 6, personnelRoleGroup: '审核员', isDefault: false, status: '启用', updateTime: '2023-10-12 09:00:00', description: '审核员角色标签' },
+      { id: 'd201', name: '工作提示', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_001', sortOrder: 1, isDefault: true, status: '启用', updateTime: '2023-10-01 08:00:00', description: '日常工作安排、注意事项等提示类公告' },
+      { id: 'd202', name: '紧急通知', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_002', sortOrder: 2, isDefault: true, status: '启用', updateTime: '2023-10-01 08:00:00', description: '需要立即知悉或处置的紧急事项通知' },
+      { id: 'd203', name: '业务通报', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_003', sortOrder: 3, isDefault: false, status: '启用', updateTime: '2023-10-10 10:00:00', description: '报送情况、典型案例等业务通报' },
+      { id: 'd204', name: '政策下达', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_004', sortOrder: 4, isDefault: false, status: '启用', updateTime: '2023-10-12 09:00:00', description: '上级政策文件、制度规范的转发与传达' },
+      { id: 'd205', name: '系统通知', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_005', sortOrder: 5, isDefault: false, status: '启用', updateTime: '2023-10-12 09:00:00', description: '系统升级、维护及功能变更通知' },
+      { id: 'd206', name: '考核公示', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_006', sortOrder: 6, isDefault: false, status: '启用', updateTime: '2023-10-12 09:00:00', description: '考核排名、积分结果等公示信息' },
 
       { id: 'd301', name: '网格员现场提报', dictCategory: 'source_channel', dictCategoryName: '来源渠道', dictCode: 'CHANNEL_001', sortOrder: 1, isDefault: true, status: '启用', updateTime: '2023-10-01 08:00:00', description: '基层网格人员实地巡查采集上报' },
       { id: 'd302', name: '全网自动化爬虫捕获', dictCategory: 'source_channel', dictCategoryName: '来源渠道', dictCode: 'CHANNEL_002', sortOrder: 2, isDefault: false, status: '启用', updateTime: '2023-10-05 11:30:00', description: '舆情监测系统自动预警推送' },
@@ -805,17 +822,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         isDefault: true
       },
       {
-        id: 'va_2',
-        name: '截图取证',
-        dictCategoryName: '增值业务',
-        dictCode: 'VA_SCREENSHOT_EVIDENCE',
-        status: '停用',
-        activatedStatus: '已开通',
-        updateTime: '2023-11-10 10:00:00',
-        description: '自动化对涉事网页及社交媒体内容进行全屏快照截屏存证，生成区块链与防篡改水文可信取证包',
-        isDefault: true
-      },
-      {
         id: 'va_3',
         name: '指令流转',
         dictCategoryName: '增值业务',
@@ -841,8 +847,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
   });
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [templateTypeFilter, setTemplateTypeFilter] = useState<'报送' | '激活'>('报送');
-  const [auditFlowModeFilter, setAuditFlowModeFilter] = useState<'all' | 'step_by_step' | 'direct_headquarters' | 'max_n_steps'>('all');
+  const [templateTypeFilter] = useState<'报送' | '激活'>('报送');  const [auditFlowModeFilter, setAuditFlowModeFilter] = useState<'all' | 'step_by_step' | 'direct_headquarters' | 'max_n_steps'>('all');
   const [auditScoreStatusFilter, setAuditScoreStatusFilter] = useState<'all' | 'active' | 'backup'>('all');
   const [metricNameInput, setMetricNameInput] = useState('');
   const [metricNameQuery, setMetricNameQuery] = useState('');
@@ -920,8 +925,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
   const [formDictCategoryName, setFormDictCategoryName] = useState<string>('拒绝理由');
   const [formDictCode, setFormDictCode] = useState<string>('');
   const [formSortOrder, setFormSortOrder] = useState<number>(1);
-  const [formPersonnelRoleGroup, setFormPersonnelRoleGroup] = useState<'上报员' | '审核员'>('上报员');
-
   // Stats metric module states
   const [metricModalOpen, setMetricModalOpen] = useState(false);
   const [metricEditingItem, setMetricEditingItem] = useState<ConfigModuleItem | null>(null);
@@ -1070,11 +1073,11 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     },
     {
       id: 'info_category',
-      label: '人员标签',
-      fullLabel: '人员标签',
-      codePrefix: 'INFO_',
+      label: '公告分类',
+      fullLabel: '公告分类',
+      codePrefix: 'NOTICE_',
       tone: 'purple',
-      description: '用于报送内容分类、统计分析和后续字段扩展。'
+      description: '发布公告时选择的分类，用于公告列表筛选与展示。'
     },
     {
       id: 'source_channel',
@@ -2386,14 +2389,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
   const getMetricCategoryLabel = (category?: MetricCategory) => metricCategoryOptions.find(item => item.id === category)?.label || '未分类';
   const getMetricPeriodLabel = (period?: ConfigModuleItem['period']) => metricPeriodOptions.find(item => item.id === period)?.label || '今日';
   const getDictCategoryMeta = (category?: string) => dictCategoryOptions.find(item => item.id === (category || 'reject_reason')) || dictCategoryOptions[0];
-  const getPersonnelRoleGroup = (item: Partial<ConfigModuleItem>): '上报员' | '审核员' => {
-    if (item.personnelRoleGroup === '上报员' || item.personnelRoleGroup === '审核员') return item.personnelRoleGroup;
-    const text = `${item.name} ${item.description || ''}`;
-    return text.includes('审核员') ? '审核员' : '上报员';
-  };
-  const getPersonnelRoleGroupLabel = (item: ConfigModuleItem) => {
-    return getPersonnelRoleGroup(item);
-  };
   const getDictCategoryBadge = (category?: string) => {
     const tone = getDictCategoryMeta(category).tone;
     if (tone === 'rose') return 'bg-rose-50 text-rose-700 border-rose-200';
@@ -2770,20 +2765,16 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       const targetCat = dictSubCategoryFilter !== 'all' ? dictSubCategoryFilter : 'reject_reason';
       const targetMeta = getDictCategoryMeta(targetCat);
       const count = (dataStore.data_dict || []).filter(i => (i.dictCategory || 'reject_reason') === targetCat).length + 1;
-      const nextPersonnelRoleGroup: '上报员' | '审核员' = '上报员';
       setFormName('');
       setFormDictCategory(targetCat);
       setFormDictCategoryName(targetMeta.label);
       setFormDictCode(buildDictCode(targetCat, count));
       setFormSortOrder(count);
       setFormScoreStatus('启用');
-      setFormPersonnelRoleGroup(nextPersonnelRoleGroup);
       setFormDesc(
         targetCat === 'reject_reason'
           ? '审核驳回时展示给审核员选择，并作为退回原因同步给上报人。'
-          : targetCat === 'info_category'
-            ? `${nextPersonnelRoleGroup}角色标签`
-            : targetMeta.description
+          : targetMeta.description
       );
     } else if (activeModule === 'audit_score') {
       setFormName('自定义百分制打分规则组');
@@ -2871,7 +2862,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       setFormDictCode(item.dictCode || `DICT_${item.id}`);
       setFormSortOrder(item.sortOrder || 1);
       setFormScoreStatus(item.status);
-      setFormPersonnelRoleGroup(getPersonnelRoleGroup(item));
     } else if (activeModule === 'value_added') {
       setFormDictCode(item.dictCode || `VA_${item.id}`);
     } else if (activeModule === 'report_template') {
@@ -2981,8 +2971,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     if (activeModule === 'data_dict' || activeModule === 'reject_reason') {
       const catMeta = getDictCategoryMeta(formDictCategory);
       const catName = catMeta.label || formDictCategoryName || '拒绝理由';
-      const personnelRoleGroup = formDictCategory === 'info_category' ? getPersonnelRoleGroup({ id: '', name: formName, description: formDesc, personnelRoleGroup: formPersonnelRoleGroup }) : undefined;
-
       const dictItem: ConfigModuleItem = {
         id: editingItem ? editingItem.id : String(Date.now()),
         name: formName.trim(),
@@ -2990,11 +2978,10 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         dictCategoryName: catName,
         dictCode: formDictCode.trim() || buildDictCode(formDictCategory, formSortOrder),
         sortOrder: formSortOrder,
-        personnelRoleGroup,
         isDefault: editingItem ? editingItem.isDefault : false,
         status: formScoreStatus,
         updateTime: nowStr,
-        description: formDesc.trim() || (personnelRoleGroup ? `${personnelRoleGroup}角色标签` : '自定义数据字典条目配置')
+        description: formDesc.trim() || '自定义数据字典条目配置'
       };
 
       setDataStore(prev => ({
@@ -3302,7 +3289,9 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 
   const currentModuleDesc =
     activeModule === 'report_template'
-      ? '管理各业务报送模版、验证激活模版与动态表单字段'
+      ? '管理各业务报送模版与动态表单字段'
+      : activeModule === 'invite_fields'
+      ? '预览上报员、审核员邀请注册时需填写的字段及是否必填、校验规则（仅供查看）'
       : activeModule === 'audit_flow'
       ? '可视化设计多级审核流程链路、审批节点、责任人缺失兜底与适用机构范围'
       : activeModule === 'audit_score'
@@ -3317,7 +3306,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     <div className="space-y-4">
       {/* Top Page Title - aligns with system-wide page layout */}
       <div>
-        <h2 className="text-xl font-bold text-gray-800 tracking-tight">其他业务配置</h2>
+        <h2 className="text-xl font-bold text-gray-800 tracking-tight">系统管理</h2>
         <p className="text-xs text-gray-400 mt-0.5">管理系统内的各类业务配置</p>
       </div>
 
@@ -3378,7 +3367,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                   )}
                 </h2>
                 <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-50 text-[#1E5ABB] font-medium border border-blue-100">
-                  其他业务配置
+                  业务配置
                 </span>
               </div>
               <p className="text-xs text-gray-500 mt-0.5">
@@ -3406,7 +3395,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                     : dictSubCategoryFilter === 'reject_reason'
                     ? '新增驳回理由'
                     : dictSubCategoryFilter === 'info_category'
-                    ? '新增人员标签'
+                    ? '新增公告分类'
                     : '新增字典项'}
                 </span>
               </button>
@@ -3418,58 +3407,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
           <div className="space-y-4">
             {/* Action Bar / Search & Add Toolbar for Modules (hidden when editing/viewing template detail page) */}
             {!isTemplateDetailPageOpen && (
-              activeModule === 'report_template' ? (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
-                  {/* Left: Template Type Switcher */}
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <div className="inline-flex items-center gap-1 p-1 bg-gray-100 border border-gray-200 rounded-lg">
-                      {([
-                        {
-                          id: '报送' as const,
-                          label: '报送模板',
-                          icon: FileText,
-                          count: (dataStore.report_template || []).filter(t => (t.templateType || '报送') === '报送').length
-                        },
-                        {
-                          id: '激活' as const,
-                          label: '激活模板',
-                          icon: Zap,
-                          count: (dataStore.report_template || []).filter(t => t.templateType === '激活').length
-                        }
-                      ]).map(tab => {
-                        const TabIcon = tab.icon;
-                        const isActive = templateTypeFilter === tab.id;
-                        return (
-                          <button
-                            key={tab.id}
-                            type="button"
-                            aria-pressed={isActive}
-                            onClick={() => setTemplateTypeFilter(tab.id)}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-colors cursor-pointer ${
-                              isActive
-                                ? 'bg-white text-[#1E5ABB] shadow-sm'
-                                : 'text-gray-500 hover:text-gray-700'
-                            }`}
-                          >
-                            <TabIcon className="w-3.5 h-3.5" />
-                            <span>{tab.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Right: Add Template Button */}
-                  <button
-                    type="button"
-                    onClick={openAddTemplatePage}
-                    className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center space-x-1.5 cursor-pointer whitespace-nowrap self-start sm:self-auto"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>{templateTypeFilter === '激活' ? '新增激活模板' : '新增报送模板'}</span>
-                  </button>
-                </div>
-              ) : activeModule === 'audit_flow' ? null : activeModule === 'audit_score' ? null : activeModule === 'data_dict' ? (
+              activeModule === 'report_template' || activeModule === 'invite_fields' ? null : activeModule === 'audit_flow' ? null : activeModule === 'audit_score' ? null : activeModule === 'data_dict' ? (
                 <div className="pb-1">
                   {/* Sub-category Tabs */}
                   <div className="inline-flex items-center gap-1 p-1 bg-gray-100 border border-gray-200 rounded-lg flex-wrap">
@@ -3531,7 +3469,9 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
             ))}
 
             {/* Content Display Area (Stats Metric Builder / Value Added Cards / Standard Table) */}
-            {activeModule === 'stats_metric' ? (
+            {activeModule === 'invite_fields' ? (
+              <InviteRegisterFieldsPanel />
+            ) : activeModule === 'stats_metric' ? (
               <div className="space-y-3">
                 <div className="border border-gray-100 rounded-lg bg-gray-50/50 px-4 py-3">
                   <div className="flex flex-wrap items-end gap-3">
@@ -3678,7 +3618,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
               <div className="space-y-3">
                 {(() => {
                   const isRejectReasonView = dictSubCategoryFilter === 'reject_reason';
-                  const isPersonnelRoleView = dictSubCategoryFilter === 'info_category';
                   const sortedDictList = [...filteredList].sort((a, b) => {
                     const aCat = a.dictCategory || 'reject_reason';
                     const bCat = b.dictCategory || 'reject_reason';
@@ -3700,7 +3639,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               <th className="py-2.5 px-4 font-medium whitespace-nowrap">所属分类</th>
                             )}
                             <th className="py-2.5 px-4 font-medium min-w-56">
-                              {isRejectReasonView ? '审核员提示说明' : isPersonnelRoleView ? '角色分类' : '业务说明'}
+                              {isRejectReasonView ? '审核员提示说明' : '业务说明'}
                             </th>
                             <th className="py-2.5 px-4 font-medium whitespace-nowrap text-center w-16">排序号</th>
                             <th className="py-2.5 px-4 font-medium whitespace-nowrap w-24">状态</th>
@@ -3726,7 +3665,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                   </td>
                                   <td className="py-3 px-4 align-middle">
                                     <div className="flex items-center gap-2 min-w-0">
-                                      <span className="font-bold text-gray-900 truncate" title={item.name}>{item.name}</span>
+                                      <span className="font-bold text-gray-900 whitespace-nowrap" title={item.name}>{item.name}</span>
                                       {item.isDefault ? (
                                         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 font-bold rounded border border-gray-200 shrink-0">
                                           <Lock className="w-2.5 h-2.5 text-gray-400" />
@@ -3752,9 +3691,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                   )}
                                   <td className="py-3 px-4 align-middle">
                                     <p className="text-[11px] text-gray-600 leading-relaxed line-clamp-2" title={item.description || ''}>
-                                      {isPersonnelRoleView && itemCategory === 'info_category'
-                                        ? getPersonnelRoleGroupLabel(item)
-                                        : item.description || (isRejectReasonView ? '审核员选择该理由后，将作为本次驳回说明同步给上报人。' : itemMeta.description)}
+                                      {item.description || (isRejectReasonView ? '审核员选择该理由后，将作为本次驳回说明同步给上报人。' : itemMeta.description)}
                                     </p>
                                   </td>
                                   <td className="py-3 px-4 align-middle text-center whitespace-nowrap font-mono text-gray-500">
@@ -4115,7 +4052,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                 className="px-2.5 py-1 text-xs font-bold text-[#1E5ABB] hover:text-white bg-blue-50 hover:bg-[#1E5ABB] border border-blue-200 hover:border-[#1E5ABB] rounded transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
                               >
                                 <Sparkles className="w-3.5 h-3.5" />
-                                <span>使用标准模板预设</span>
+                                <span>使用标准模板</span>
                               </button>
                             )}
                           </div>
@@ -4123,7 +4060,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                           {formFields.length === 0 ? (
                             <div className="p-8 text-center bg-gray-50 text-gray-400 space-y-3">
                               <Layers className="w-8 h-8 text-gray-300 mx-auto" />
-                              <p className="text-xs">暂未添加字段，请点击下方“添加字段”或右上角“使用标准模板预设”。</p>
+                              <p className="text-xs">暂未添加字段，请点击下方“添加字段”或右上角“使用标准模板”。</p>
                               {!editingItem?.isDefault && (
                                 <div className="pt-2 flex items-center justify-center">
                                   <button
@@ -4394,11 +4331,20 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                   {filteredList.length}
                                 </span>
                               </div>
-                              <span className="text-[10px] text-gray-400 shrink-0">切换预览</span>
+                              <button
+                                type="button"
+                                onClick={openAddTemplatePage}
+                                className="w-6 h-6 rounded-md flex items-center justify-center text-[#1E5ABB] hover:bg-blue-50 border border-transparent hover:border-blue-200 transition-colors cursor-pointer shrink-0"
+                                title={templateTypeFilter === '激活' ? '新增激活模板' : '新增报送模板'}
+                              >
+                                <Plus className="w-4 h-4" />
+                              </button>
                             </div>
 
                             <div className="p-3 space-y-2 bg-gray-50/20 flex-1 max-h-[750px] overflow-y-auto">
-                              {filteredList.map(item => {
+                              {[...filteredList]
+                                .sort((a, b) => Number(a.status !== '启用') - Number(b.status !== '启用'))
+                                .map(item => {
                                 const isSelected = activeSelectedTemplate?.id === item.id;
                                 const isEnabled = item.status === '启用';
 
@@ -4425,16 +4371,16 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                           e.stopPropagation();
                                           handleToggleStatus(item.id);
                                         }}
-                                        className={`shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-full border cursor-pointer transition-colors ${
+                                        className={`shrink-0 flex items-center gap-1.5 pl-2 pr-1 py-0.5 rounded-full border cursor-pointer whitespace-nowrap transition-colors ${
                                           isEnabled
                                             ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                                            : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-blue-50 hover:text-[#1E5ABB]'
+                                            : 'bg-gray-50 border-gray-200 text-gray-500'
                                         }`}
                                         title={isEnabled ? '点击停用' : '点击启用'}
                                       >
-                                        <span className="text-[10px] font-bold">{item.status}</span>
-                                        <div className={`w-5 h-2.5 flex items-center rounded-full p-0.5 transition-colors ${isEnabled ? 'bg-emerald-500 justify-end' : 'bg-gray-300 justify-start'}`}>
-                                          <div className="w-1.5 h-1.5 bg-white rounded-full shadow-2xs" />
+                                        <span className="text-[11px] font-bold">{item.status}</span>
+                                        <div className={`w-7 h-4 flex items-center rounded-full p-0.5 transition-colors ${isEnabled ? 'bg-emerald-500 justify-end' : 'bg-gray-300 justify-start'}`}>
+                                          <div className="w-3 h-3 bg-white rounded-full shadow-2xs" />
                                         </div>
                                       </button>
                                     </div>
@@ -4485,18 +4431,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                           type="button"
                                           onClick={e => {
                                             e.stopPropagation();
-                                            handleDuplicateTemplate(item);
-                                          }}
-                                          className="hover:text-[#1E5ABB] flex items-center gap-0.5 text-[11px] cursor-pointer"
-                                          title="复制并生成新模板"
-                                        >
-                                          <Copy className="w-3 h-3" />
-                                          <span>复制</span>
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={e => {
-                                            e.stopPropagation();
                                             openEditTemplatePage(item);
                                           }}
                                           className="hover:text-[#1E5ABB] flex items-center gap-0.5 text-[11px] cursor-pointer"
@@ -4505,19 +4439,50 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                           <Edit3 className="w-3.5 h-3.5" />
                                           <span>{item.isDefault ? '详情' : '编辑'}</span>
                                         </button>
-                                        {!item.isDefault && (
+                                        <div className="relative">
                                           <button
                                             type="button"
                                             onClick={e => {
                                               e.stopPropagation();
-                                              handleDelete(item);
+                                              setTemplateMoreMenuId(templateMoreMenuId === item.id ? null : item.id);
                                             }}
-                                            className="hover:text-rose-600 p-0.5 cursor-pointer"
-                                            title="删除模板"
+                                            className={`p-0.5 rounded hover:text-[#1E5ABB] hover:bg-blue-50 cursor-pointer ${templateMoreMenuId === item.id ? 'text-[#1E5ABB] bg-blue-50' : ''}`}
+                                            title="更多操作"
                                           >
-                                            <Trash2 className="w-3 h-3" />
+                                            <MoreHorizontal className="w-3.5 h-3.5" />
                                           </button>
-                                        )}
+                                          {templateMoreMenuId === item.id && (
+                                            <div
+                                              className="absolute right-0 top-full mt-1 z-20 w-32 py-1 bg-white rounded-lg border border-gray-200 shadow-lg text-[11px]"
+                                              onClick={e => e.stopPropagation()}
+                                            >
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setTemplateMoreMenuId(null);
+                                                  handleDuplicateTemplate(item);
+                                                }}
+                                                className="w-full flex items-center gap-1.5 px-3 py-1.5 text-gray-700 hover:bg-gray-50 cursor-pointer"
+                                              >
+                                                <Copy className="w-3 h-3" />
+                                                复制为新模板
+                                              </button>
+                                              {!item.isDefault && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    setTemplateMoreMenuId(null);
+                                                    handleDelete(item);
+                                                  }}
+                                                  className="w-full flex items-center gap-1.5 px-3 py-1.5 text-rose-600 hover:bg-rose-50 cursor-pointer"
+                                                >
+                                                  <Trash2 className="w-3 h-3" />
+                                                  删除
+                                                </button>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
@@ -6438,43 +6403,9 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                   {(() => {
                     const currentDictMeta = getDictCategoryMeta(formDictCategory);
                     const isRejectReasonForm = formDictCategory === 'reject_reason';
-                    const isPersonnelRoleForm = formDictCategory === 'info_category';
                     return (
                       <>
-                  <div className={isPersonnelRoleForm ? 'grid grid-cols-1 sm:grid-cols-3 gap-3' : 'grid grid-cols-1 sm:grid-cols-2 gap-3'}>
-                    {isPersonnelRoleForm && (
-                      <div>
-                        <label className="block text-gray-700 font-medium mb-1">角色分类 *</label>
-                        <div className="inline-flex w-full rounded border border-gray-300 bg-white p-1">
-                          {(['上报员', '审核员'] as const).map((role) => {
-                            const selected = formPersonnelRoleGroup === role;
-                            return (
-                              <button
-                                key={role}
-                                type="button"
-                                onClick={() => {
-                                  setFormPersonnelRoleGroup(role);
-                                  setFormDesc(prev => {
-                                    if (!prev.trim() || prev.includes('角色标签')) {
-                                      return `${role}角色标签`;
-                                    }
-                                    return prev;
-                                  });
-                                }}
-                                className={`flex-1 rounded px-3 py-1.5 text-xs font-bold cursor-pointer transition-colors ${
-                                  selected
-                                    ? 'bg-[#1E5ABB] text-white shadow-2xs'
-                                    : 'text-gray-600 hover:bg-gray-50'
-                                }`}
-                              >
-                                {role}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-gray-700 font-medium mb-1">
                         {isRejectReasonForm ? '驳回理由名称 *' : '字典项名称 *'}
@@ -6518,7 +6449,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                         required
                         value={formName}
                         onChange={e => setFormName(e.target.value)}
-                        placeholder="如: 批量审核 / 截图取证"
+                        placeholder="如: 批量审核 / 指令流转"
                         className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
                       />
                     </div>
@@ -7358,14 +7289,14 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               className="px-2.5 py-1 text-xs font-bold text-[#1E5ABB] hover:text-white bg-blue-50 hover:bg-[#1E5ABB] border border-blue-200 hover:border-[#1E5ABB] rounded transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
                             >
                               <Sparkles className="w-3.5 h-3.5" />
-                              <span>使用标准模板预设</span>
+                              <span>使用标准模板</span>
                             </button>
                           </div>
 
                           {formFields.length === 0 ? (
                             <div className="p-8 text-center bg-gray-50 text-gray-400 space-y-3">
                               <Layers className="w-8 h-8 text-gray-300 mx-auto" />
-                              <p className="text-xs">暂未添加字段，请点击下方“添加字段”或右上角“使用标准模板预设”。</p>
+                              <p className="text-xs">暂未添加字段，请点击下方“添加字段”或右上角“使用标准模板”。</p>
                               <div className="pt-2 flex items-center justify-center">
                                 <button
                                   type="button"

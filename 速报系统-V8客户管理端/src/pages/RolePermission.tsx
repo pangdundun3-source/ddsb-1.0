@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Edit3, Lock, ChevronDown, ChevronUp, Check, Trash2, Info, Search, X } from 'lucide-react';
+import { Edit3, Lock, ChevronDown, ChevronUp, Check, Trash2, Info, X } from 'lucide-react';
 
 interface RoleItem {
   id: number;
@@ -26,6 +26,7 @@ interface PermissionGroup {
   children: PermissionSubModule[];
 }
 
+/** 外部角色权限：对应审核上报 PC 端（H5 同步）的功能点 */
 const permissionGroups: PermissionGroup[] = [
   {
     id: 'home',
@@ -37,6 +38,7 @@ const permissionGroups: PermissionGroup[] = [
         actions: [
           { key: 'view', label: '查看工作台' },
           { key: 'todo', label: '查看待办' },
+          { key: 'notice', label: '查看公告通知' },
           { key: 'detail', label: '跳转详情' },
         ],
       },
@@ -47,15 +49,16 @@ const permissionGroups: PermissionGroup[] = [
     label: '报送管理',
     children: [
       {
-        id: 'report_todo',
-        label: '报送待办',
+        id: 'report_mine',
+        label: '我的报送',
         actions: [
           { key: 'view', label: '查看' },
           { key: 'detail', label: '查看详情' },
           { key: 'add', label: '新建速报' },
-          { key: 'edit', label: '编辑' },
-          { key: 'withdraw', label: '撤回' },
-          { key: 'delete', label: '删除' },
+          { key: 'draft', label: '编辑草稿' },
+          { key: 'resubmit', label: '修改补充并重新提交' },
+          { key: 'withdraw', label: '撤回报送' },
+          { key: 'delete', label: '删除报送' },
         ],
       },
       {
@@ -63,12 +66,19 @@ const permissionGroups: PermissionGroup[] = [
         label: '报送记录',
         actions: [
           { key: 'view', label: '查看' },
+          { key: 'filter', label: '查询筛选' },
           { key: 'detail', label: '查看详情' },
-          { key: 'add', label: '新建速报' },
           { key: 'edit', label: '编辑' },
-          { key: 'withdraw', label: '撤回' },
           { key: 'delete', label: '删除' },
           { key: 'export', label: '导出台账' },
+        ],
+      },
+      {
+        id: 'report_statistics',
+        label: '报送统计',
+        actions: [
+          { key: 'view', label: '查看' },
+          { key: 'export', label: '导出统计报表' },
         ],
       },
     ],
@@ -78,16 +88,16 @@ const permissionGroups: PermissionGroup[] = [
     label: '审核管理',
     children: [
       {
-        id: 'audit_todo',
+        id: 'audit_mine',
         label: '我的审核',
         actions: [
           { key: 'view', label: '查看' },
           { key: 'detail', label: '查看详情' },
           { key: 'approve', label: '审核通过' },
-          { key: 'reject', label: '审核退回' },
-          { key: 'transfer', label: '转办' },
+          { key: 'reject', label: '审核驳回' },
+          { key: 'score', label: '终审评分' },
           { key: 'batch', label: '批量审核' },
-          { key: 'match', label: '批量匹配' },
+          { key: 'flow', label: '查看流转记录' },
         ],
       },
       {
@@ -95,237 +105,74 @@ const permissionGroups: PermissionGroup[] = [
         label: '审核记录',
         actions: [
           { key: 'view', label: '查看' },
+          { key: 'filter', label: '查询筛选' },
           { key: 'detail', label: '查看详情' },
+          { key: 'flow', label: '查看流转记录' },
+        ],
+      },
+      {
+        id: 'audit_statistics',
+        label: '审核统计',
+        actions: [
+          { key: 'view', label: '查看' },
+          { key: 'export', label: '导出统计报表' },
         ],
       },
     ],
   },
   {
-    id: 'negative',
-    label: '不良信息库',
+    id: 'message',
+    label: '消息中心',
     children: [
       {
-        id: 'negative_info',
-        label: '不良信息库',
+        id: 'message_center',
+        label: '消息通知',
         actions: [
-          { key: 'view', label: '查看' },
-          { key: 'detail', label: '查看详情' },
-          { key: 'transfer', label: '转办' },
-        ],
-      },
-      {
-        id: 'warehouse_manage',
-        label: '仓库管理',
-        actions: [
-          { key: 'view', label: '查看' },
-          { key: 'create', label: '新增分类' },
-          { key: 'edit', label: '编辑' },
-          { key: 'delete', label: '删除' },
-          { key: 'migrate', label: '迁移数据' },
+          { key: 'view', label: '查看消息' },
+          { key: 'search', label: '搜索消息' },
+          { key: 'read', label: '标为已读' },
         ],
       },
     ],
   },
   {
-    id: 'stats',
-    label: '统计管理',
+    id: 'personal',
+    label: '个人中心',
     children: [
       {
-        id: 'stats_org',
-        label: '机构效能总览',
+        id: 'personal_info',
+        label: '个人信息',
         actions: [
-          { key: 'view', label: '查看' },
-          { key: 'filter', label: '筛选' },
-          { key: 'export', label: '导出全景报表' },
-          { key: 'print', label: '打印统计报告' },
-        ],
-      },
-      {
-        id: 'stats_reporter',
-        label: '上报员效能',
-        actions: [
-          { key: 'view', label: '查看' },
-          { key: 'filter', label: '筛选' },
-        ],
-      },
-      {
-        id: 'stats_auditor',
-        label: '审核员效能',
-        actions: [
-          { key: 'view', label: '查看' },
-          { key: 'filter', label: '筛选' },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'evaluation',
-    label: '考核管理',
-    children: [
-      {
-        id: 'evaluation_board',
-        label: '考核总榜',
-        actions: [
-          { key: 'view', label: '查看' },
-          { key: 'filter', label: '筛选' },
-          { key: 'export', label: '导出考评大表' },
-        ],
-      },
-      {
-        id: 'evaluation_rule',
-        label: '考核赋分规则',
-        actions: [
-          { key: 'view', label: '查看规则' },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'org_user',
-    label: '用户与组织管理',
-    children: [
-      {
-        id: 'system_account',
-        label: '系统账号管理',
-        actions: [
-          { key: 'view', label: '查看' },
-          { key: 'add', label: '邀请用户' },
-          { key: 'edit', label: '编辑账号' },
-          { key: 'disable', label: '启用/停用' },
-          { key: 'delete', label: '删除账号' },
-        ],
-      },
-      {
-        id: 'system_org',
-        label: '组织机构设置',
-        actions: [
-          { key: 'view', label: '查看' },
-          { key: 'add_org', label: '新增机构' },
-          { key: 'edit_org', label: '编辑机构' },
-          { key: 'delete_org', label: '删除机构' },
-          { key: 'add_user', label: '新增人员' },
-          { key: 'edit_user', label: '编辑人员' },
-          { key: 'delete_user', label: '删除人员' },
-          { key: 'reset_password', label: '重置密码' },
-          { key: 'qrcode', label: '下发二维码' },
-        ],
-      },
-      {
-        id: 'system_role',
-        label: '角色权限设置',
-        actions: [
-          { key: 'view', label: '查看' },
-          { key: 'add', label: '新增角色' },
-          { key: 'edit', label: '编辑角色' },
-          { key: 'delete', label: '删除角色' },
-          { key: 'config', label: '配置权限' },
-          { key: 'save', label: '保存配置' },
-        ],
-      },
-      {
-        id: 'system_group',
-        label: '人员分组管理',
-        actions: [
-          { key: 'view', label: '查看' },
-          { key: 'add', label: '新建分组' },
-          { key: 'edit', label: '编辑分组' },
-          { key: 'delete', label: '删除分组' },
-          { key: 'add_member', label: '添加成员' },
-          { key: 'remove_member', label: '移出成员' },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'system',
-    label: '系统管理',
-    children: [
-      {
-        id: 'system_template',
-        label: '模板配置',
-        section: '其他业务配置',
-        actions: [
-          { key: 'view', label: '查看模板' },
-          { key: 'add', label: '新建模板' },
-          { key: 'edit', label: '编辑模板' },
-          { key: 'delete', label: '删除模板' },
-          { key: 'status', label: '启用/停用' },
-          { key: 'preview', label: '预览' },
-        ],
-      },
-      {
-        id: 'system_audit_flow',
-        label: '审核流程配置',
-        section: '其他业务配置',
-        actions: [
-          { key: 'view', label: '查看流程' },
-          { key: 'add', label: '新建流程' },
-          { key: 'edit', label: '编辑层级节点' },
-          { key: 'delete', label: '删除流程' },
-          { key: 'status', label: '启用/停用' },
-          { key: 'fallback', label: '兜底策略配置' },
-        ],
-      },
-      {
-        id: 'system_audit_score',
-        label: '审核打分规则',
-        section: '其他业务配置',
-        actions: [
-          { key: 'view', label: '查看打分规则' },
-          { key: 'add', label: '新建打分组' },
-          { key: 'edit', label: '编辑分级标准' },
-          { key: 'delete', label: '删除规则' },
-          { key: 'status', label: '启用/停用' },
-          { key: 'timing', label: '时机与绩效关联' },
-        ],
-      },
-      {
-        id: 'system_dict',
-        label: '数据字典管理',
-        section: '其他业务配置',
-        actions: [
-          { key: 'view', label: '查看字典' },
-          { key: 'add', label: '新增字典项' },
-          { key: 'edit', label: '编辑字典项' },
-          { key: 'delete', label: '删除字典项' },
-          { key: 'sort', label: '排序调整' },
-        ],
-      },
-      {
-        id: 'system_value_added',
-        label: '增值业务申请',
-        section: '其他业务配置',
-        actions: [
-          { key: 'view', label: '查看功能' },
-          { key: 'apply', label: '提交申请' },
-          { key: 'record', label: '查看申请单' },
-          { key: 'config', label: '授权开通' },
-        ],
-      },
-      {
-        id: 'system_notice',
-        label: '公告管理',
-        actions: [
-          { key: 'view', label: '查看公告' },
-          { key: 'add', label: '起草发布' },
-          { key: 'edit', label: '编辑公告' },
-          { key: 'status', label: '撤回公告' },
-          { key: 'delete', label: '删除公告' },
-        ],
-      },
-      {
-        id: 'system_logs',
-        label: '系统日志',
-        actions: [
-          { key: 'view', label: '查看' },
-          { key: 'detail', label: '查看详情' },
-          { key: 'filter', label: '筛选' },
-          { key: 'export', label: '导出当前结果' },
+          { key: 'view', label: '查看资料' },
+          { key: 'phone', label: '更换绑定手机号' },
+          { key: 'logout', label: '退出登录' },
         ],
       },
     ],
   },
 ];
+
+/** 系统默认角色固定拥有的功能分组 */
+const DEFAULT_ROLE_GROUPS: Record<string, string[]> = {
+  上报员: ['home', 'report', 'message', 'personal'],
+  审核员: ['home', 'audit', 'message', 'personal'],
+};
+
+const createRolePresetPermissions = (roleName: string) => {
+  const groupIds = DEFAULT_ROLE_GROUPS[roleName] || [];
+  const perms: Record<string, boolean> = {};
+  permissionGroups.forEach((group) => {
+    const enabled = groupIds.includes(group.id);
+    perms[`${group.id}_all`] = enabled;
+    group.children.forEach((child) => {
+      perms[`${child.id}_all`] = enabled;
+      child.actions.forEach((action) => {
+        perms[`${child.id}_${action.key}`] = enabled;
+      });
+    });
+  });
+  return perms;
+};
 
 const getAllPermissionKeys = () =>
   permissionGroups.flatMap((group) => [
@@ -344,29 +191,24 @@ const createCheckedPermissions = (checked: boolean) =>
 
 export const RolePermission: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const [roles, setRoles] = useState<RoleItem[]>([
-    { id: 1, name: '超级管理员', isDefault: true, description: '拥有系统所有模块与数据的全量控制权限' },
-    { id: 2, name: '机构管理员', isDefault: true, description: '具备本机构及下属单位节点的全量管理权限' },
     { id: 3, name: '上报员', isDefault: true, description: '负责基础事件、信息与数据的填报与提交' },
-    { id: 4, name: '审核员', isDefault: true, description: '负责上报信息的核查、归档与退回评估' },
-    { id: 5, name: '运营管理员', isDefault: true, description: '负责业务数据运营分析与模板规则维护' },
-    { id: 6, name: '临时审核员', isDefault: false, description: '专项任务临时审核角色，支持灵活配置与修改' }
+    { id: 4, name: '审核员', isDefault: true, description: '负责上报信息的核查、归档与退回评估' }
   ]);
 
   const [selectedRole, setSelectedRole] = useState<RoleItem>(roles[0]);
 
   // Accordion open/close state
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-    home: false,
+    home: true,
     report: true,
-    audit: false,
-    negative: false,
-    stats: false,
-    evaluation: false,
-    system: false
+    audit: true,
+    message: false,
+    personal: false
   });
 
   // State of checked permissions
   const [checkedPerms, setCheckedPerms] = useState<Record<string, boolean>>(() => createCheckedPermissions(true));
+  const viewPerms = selectedRole.isDefault ? createRolePresetPermissions(selectedRole.name) : checkedPerms;
 
   const [selectAll, setSelectAll] = useState(true);
   const [showSavedToast, setShowSavedToast] = useState(false);
@@ -542,7 +384,7 @@ export const RolePermission: React.FC<{ embedded?: boolean }> = ({ embedded = fa
         <input
           type="checkbox"
           disabled={selectedRole.isDefault}
-          checked={!!checkedPerms[`${child.id}_all`]}
+          checked={!!viewPerms[`${child.id}_all`]}
           onChange={() => handleToggleCheck(`${child.id}_all`)}
           className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
         />
@@ -556,7 +398,7 @@ export const RolePermission: React.FC<{ embedded?: boolean }> = ({ embedded = fa
               <input
                 type="checkbox"
                 disabled={selectedRole.isDefault}
-                checked={!!checkedPerms[permKey]}
+                checked={!!viewPerms[permKey]}
                 onChange={() => handleToggleCheck(permKey)}
                 className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
               />
@@ -605,8 +447,8 @@ export const RolePermission: React.FC<{ embedded?: boolean }> = ({ embedded = fa
       )}
       {!embedded && (
         <div>
-          <h2 className="text-xl font-bold text-gray-800 tracking-tight">角色权限设置</h2>
-          <p className="text-xs text-gray-400 mt-0.5">管理系统内的角色以及权限分配，默认角色不可修改，自定义/临时角色支持编辑与配置</p>
+          <h2 className="text-xl font-bold text-gray-800 tracking-tight">外部角色管理</h2>
+          <p className="text-xs text-gray-400 mt-0.5">外部人员在审核上报 PC / H5 端的角色与功能权限，上报员、审核员为系统默认角色，不可修改</p>
         </div>
       )}
 
@@ -615,35 +457,12 @@ export const RolePermission: React.FC<{ embedded?: boolean }> = ({ embedded = fa
         <div className={embedded
           ? 'w-[260px] shrink-0 border-r border-slate-100 p-3 flex flex-col gap-3 min-h-0 bg-slate-50/30'
           : 'w-full lg:w-80 bg-white rounded-lg border border-gray-200/80 shadow-2xs p-4 flex flex-col space-y-3 shrink-0'}>
-          <div className="flex items-center gap-2 border-b border-gray-100 pb-2.5">
-            <div className="relative flex-1 min-w-0">
-              <input
-                value={newRoleName}
-                onChange={(e) => setNewRoleName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddRole();
-                  }
-                }}
-                placeholder="输入角色名称"
-                className="w-full pl-3 pr-8 py-1.5 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white"
-              />
-              <Search className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-2 pointer-events-none" />
+          <div className="border-b border-gray-100 pb-2.5">
+            <div className="text-xs font-bold text-gray-800">外部角色</div>
+            <div className="mt-1 text-[11px] text-gray-400 flex items-center space-x-1">
+              <Lock className="w-3 h-3 text-gray-400 shrink-0" />
+              <span>固定为系统默认角色，权限仅供查看</span>
             </div>
-            <button
-              type="button"
-              onClick={() => handleAddRole()}
-              title="新增角色"
-              className="w-8 h-8 shrink-0 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded flex items-center justify-center cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="text-[11px] text-gray-400 flex items-center space-x-1">
-            <Lock className="w-3 h-3 text-gray-400 shrink-0" />
-            <span>系统默认角色无编辑按钮，仅供查看</span>
           </div>
 
           {/* Role Item List */}
@@ -789,7 +608,7 @@ export const RolePermission: React.FC<{ embedded?: boolean }> = ({ embedded = fa
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs text-gray-600 flex items-center space-x-2">
                 <Info className="w-4 h-4 text-gray-400 shrink-0" />
                 <span>
-                  『<strong>{selectedRole.name}</strong>』为系统默认角色，权限配置已被固化保护，只供查看。如需个性化权限配置，请使用『临时审核员』或点击左侧『新增角色』。
+                  『<strong>{selectedRole.name}</strong>』为系统默认角色，以下为该角色在审核上报 PC 端的功能权限，已固化保护，只供查看。
                 </span>
               </div>
             ) : (
@@ -821,7 +640,7 @@ export const RolePermission: React.FC<{ embedded?: boolean }> = ({ embedded = fa
                       <input
                         type="checkbox"
                         disabled={selectedRole.isDefault}
-                        checked={!!checkedPerms[`${group.id}_all`]}
+                        checked={!!viewPerms[`${group.id}_all`]}
                         onChange={() => handleToggleCheck(`${group.id}_all`)}
                         className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 disabled:opacity-60"
                       />

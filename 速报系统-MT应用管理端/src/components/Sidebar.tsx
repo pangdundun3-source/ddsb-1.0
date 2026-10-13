@@ -33,7 +33,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'home', label: '首页', icon: 'home' },
     { id: 'institutions', label: '机构管理', icon: 'corporate_fare' },
     { id: 'config', label: '全局配置', icon: 'groups' },
-    { id: 'monitoring', label: '运营监控', icon: 'analytics' },
     {
       id: 'system',
       label: '系统管理',

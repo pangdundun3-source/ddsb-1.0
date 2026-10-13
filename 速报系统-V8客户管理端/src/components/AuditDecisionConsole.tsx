@@ -19,6 +19,8 @@ interface AuditDecisionConsoleProps {
   handleBatchSetScore?: (score: number) => void;
   onClose?: () => void;
   operatorName?: string;
+  /** 审核通过模式下显示在评分下方，例如加入数据仓库的选择。 */
+  passExtra?: React.ReactNode;
 }
 
 export const AuditDecisionConsole: React.FC<AuditDecisionConsoleProps> = ({
@@ -39,6 +41,7 @@ export const AuditDecisionConsole: React.FC<AuditDecisionConsoleProps> = ({
   handleBatchSetScore,
   onClose,
   operatorName = '张三',
+  passExtra,
 }) => {
   const clusterCount = allCluster && allCluster.length > 0 ? allCluster.length : (report ? 1 : 0);
   const selectedCount = selectedBatchIds ? selectedBatchIds.length : 0;
@@ -127,6 +130,8 @@ export const AuditDecisionConsole: React.FC<AuditDecisionConsoleProps> = ({
             </div>
           )}
         </div>
+
+        {auditMode === 'pass' && passExtra}
 
         {/* 驳回模式下的详细意见说明输入框 */}
         {auditMode === 'reject' && (

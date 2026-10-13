@@ -47,13 +47,13 @@ export const GlobalQrDefaultsSection: React.FC<GlobalQrDefaultsSectionProps> = (
           </div>
           <div>
             <div className="flex items-center gap-2.5">
-              <h3 className="text-base font-bold text-gray-900">全平台激活码配置通用项</h3>
+              <h3 className="text-base font-bold text-gray-900">全平台激活名额配置通用项</h3>
               <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-50 text-[#1890ff] border border-blue-200 font-semibold">
                 平台通用配置
               </span>
             </div>
             <p className="text-xs text-gray-500 mt-0.5">
-              此处配置所有机构通用的激活码参数，保存后各机构详情页的激活码配置初始化界面将统一调用该默认值
+              此处配置所有机构通用的激活码参数，保存后各机构详情页的激活名额配置初始化界面将统一调用该默认值
             </p>
           </div>
         </div>

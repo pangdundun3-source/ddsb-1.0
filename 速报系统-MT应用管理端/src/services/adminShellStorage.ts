@@ -10,7 +10,7 @@ const STORAGE_KEYS = {
   otherConfigSubTab: 'admin_other_config_sub_tab',
 } as const;
 
-const activeTabs: ActiveTab[] = ['home', 'institutions', 'config', 'monitoring', 'system'];
+const activeTabs: ActiveTab[] = ['home', 'institutions', 'config', 'system'];
 const systemSubTabs: SystemSubModule[] = ['accounts', 'logs'];
 
 const read = (key: string) => {

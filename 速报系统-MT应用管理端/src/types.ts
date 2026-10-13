@@ -350,6 +350,13 @@ export interface GlobalMpControlConfig {
   defaultPreferredMode: WechatMpMode; // 新建机构默认选用方式
   platformMpAppId?: string; // 平台统配「点点速报」母版 AppID
   platformOpenPlatformSubject?: string; // 微信开放平台主体名称
+  platformMpName?: string; // 平台自有公众号名称
+  platformMpOriginalId?: string; // 原始 ID（gh_ 开头）
+  platformMpAppSecret?: string;
+  platformMpServerUrl?: string; // 服务器地址 URL
+  platformMpToken?: string;
+  platformMpEncodingAESKey?: string;
+  platformMpEncryptMode?: 'plaintext' | 'compatible' | 'safe';
 
   // —— 阶段2：换绑生效条件 ——
   rebindConditions?: GlobalMpRebindConditions;

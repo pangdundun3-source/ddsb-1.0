@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { TemplateConfigBoard } from './TemplateConfigBoard';
+import { ControlNoticeTip } from './ControlNoticeTip';
 import {
   Search,
   Plus,
@@ -394,7 +395,9 @@ function loadPersistedDataStore(
   };
   // 增值业务：确保新增的默认增值业务项能够并入已持久化的数据，并同步最新系统文案
   if (Array.isArray(defaults?.value_added)) {
-    const existingList = Array.isArray(saved?.value_added) ? [...saved.value_added] : [...defaults.value_added];
+    const existingList = (Array.isArray(saved?.value_added) ? [...saved.value_added] : [...defaults.value_added]).filter(
+      i => i.name !== '截图取证'
+    );
     const existingNames = new Set(existingList.map(i => i.name));
     for (const defaultItem of defaults.value_added) {
       if (!existingNames.has(defaultItem.name)) {
@@ -410,6 +413,14 @@ function loadPersistedDataStore(
       }
     }
     merged.value_added = existingList;
+  }
+  // 「人员标签」已改为「公告分类」：旧数据带 personnelRoleGroup，整体替换为默认公告分类
+  if (Array.isArray(saved?.data_dict) && saved.data_dict.some((i) => i.dictCategory === 'info_category' && i.personnelRoleGroup)) {
+    const defaultNoticeItems = (defaults?.data_dict || []).filter((i) => i.dictCategory === 'info_category');
+    merged.data_dict = [
+      ...saved.data_dict.filter((i) => i.dictCategory !== 'info_category'),
+      ...defaultNoticeItems,
+    ];
   }
   // 增值业务状态兜底：未记录开通状态的一律视为“未开通”，且未开通不可处于启用态
   if (Array.isArray(merged.value_added)) {
@@ -615,12 +626,12 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       { id: '304', name: '跨管辖范围报送', dictCategory: 'reject_reason', dictCategoryName: '拒绝理由', dictCode: 'REJECT_004', sortOrder: 4, isDefault: false, status: '启用', updateTime: '2023-11-02 11:10:00', description: '不属于本辖区或本部门职责处理范畴，需退回重拟' },
       { id: '305', name: '凭证图片模糊不符', dictCategory: 'reject_reason', dictCategoryName: '拒绝理由', dictCode: 'REJECT_005', sortOrder: 5, isDefault: false, status: '启用', updateTime: '2023-11-05 14:00:00', description: '上传的现场截图或说明文件无法有效佐证主张' },
 
-      { id: 'd201', name: '骨干上报员', dictCategory: 'info_category', dictCategoryName: '人员标签', dictCode: 'INFO_001', sortOrder: 1, personnelRoleGroup: '上报员', isDefault: true, status: '启用', updateTime: '2023-10-01 08:00:00', description: '上报员角色标签' },
-      { id: 'd202', name: '普通上报员', dictCategory: 'info_category', dictCategoryName: '人员标签', dictCode: 'INFO_002', sortOrder: 2, personnelRoleGroup: '上报员', isDefault: false, status: '启用', updateTime: '2023-10-01 08:00:00', description: '上报员角色标签' },
-      { id: 'd203', name: '核心上报员', dictCategory: 'info_category', dictCategoryName: '人员标签', dictCode: 'INFO_003', sortOrder: 3, personnelRoleGroup: '上报员', isDefault: false, status: '启用', updateTime: '2023-10-10 10:00:00', description: '上报员角色标签' },
-      { id: 'd204', name: '一级审核员', dictCategory: 'info_category', dictCategoryName: '人员标签', dictCode: 'INFO_004', sortOrder: 4, personnelRoleGroup: '审核员', isDefault: false, status: '启用', updateTime: '2023-10-12 09:00:00', description: '审核员角色标签' },
-      { id: 'd205', name: '二级审核员', dictCategory: 'info_category', dictCategoryName: '人员标签', dictCode: 'INFO_005', sortOrder: 5, personnelRoleGroup: '审核员', isDefault: false, status: '启用', updateTime: '2023-10-12 09:00:00', description: '审核员角色标签' },
-      { id: 'd206', name: '三级审核员', dictCategory: 'info_category', dictCategoryName: '人员标签', dictCode: 'INFO_006', sortOrder: 6, personnelRoleGroup: '审核员', isDefault: false, status: '启用', updateTime: '2023-10-12 09:00:00', description: '审核员角色标签' },
+      { id: 'd201', name: '通知公告', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_001', sortOrder: 1, isDefault: true, status: '启用', updateTime: '2023-10-01 08:00:00', description: '工作安排、会议通知等日常通知类公告' },
+      { id: 'd202', name: '工作动态', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_002', sortOrder: 2, isDefault: false, status: '启用', updateTime: '2023-10-01 08:00:00', description: '机构工作进展与重要活动动态' },
+      { id: 'd203', name: '政策解读', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_003', sortOrder: 3, isDefault: false, status: '启用', updateTime: '2023-10-10 10:00:00', description: '上级政策文件发布与解读说明' },
+      { id: 'd204', name: '培训通知', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_004', sortOrder: 4, isDefault: false, status: '启用', updateTime: '2023-10-12 09:00:00', description: '上报员、审核员业务培训安排' },
+      { id: 'd205', name: '表彰通报', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_005', sortOrder: 5, isDefault: false, status: '启用', updateTime: '2023-10-12 09:00:00', description: '优秀报送表彰与考核结果通报' },
+      { id: 'd206', name: '系统公告', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_006', sortOrder: 6, isDefault: false, status: '启用', updateTime: '2023-10-12 09:00:00', description: '系统升级、维护停机等平台公告' },
 
       { id: 'd301', name: '网格员现场提报', dictCategory: 'source_channel', dictCategoryName: '来源渠道', dictCode: 'CHANNEL_001', sortOrder: 1, isDefault: true, status: '启用', updateTime: '2023-10-01 08:00:00', description: '基层网格人员实地巡查采集上报' },
       { id: 'd302', name: '全网自动化爬虫捕获', dictCategory: 'source_channel', dictCategoryName: '来源渠道', dictCode: 'CHANNEL_002', sortOrder: 2, isDefault: false, status: '启用', updateTime: '2023-10-05 11:30:00', description: '舆情监测系统自动预警推送' },
@@ -817,17 +828,6 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
         isDefault: true
       },
       {
-        id: 'va_2',
-        name: '截图取证',
-        dictCategoryName: '增值业务',
-        dictCode: 'VA_SCREENSHOT_EVIDENCE',
-        status: '停用',
-        activatedStatus: '已开通',
-        updateTime: '2023-11-10 10:00:00',
-        description: '自动化对涉事网页及社交媒体内容进行全屏快照截屏存证，生成区块链与防篡改水文可信取证包',
-        isDefault: true
-      },
-      {
         id: 'va_3',
         name: '指令流转',
         dictCategoryName: '增值业务',
@@ -881,9 +881,6 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
   };
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [showValueAddedBanner, setShowValueAddedBanner] = useState(true);
-  const [showAuditSyncNotice, setShowAuditSyncNotice] = useState(true);
-  const [showDictSyncNotice, setShowDictSyncNotice] = useState(true);
   const [templateTypeFilter, setTemplateTypeFilter] = useState<'all' | '报送' | '激活'>('报送');
   const [metricNameInput, setMetricNameInput] = useState('');
   const [metricNameQuery, setMetricNameQuery] = useState('');
@@ -1040,11 +1037,11 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
     },
     {
       id: 'info_category',
-      label: '人员标签',
-      fullLabel: '人员标签',
-      codePrefix: 'INFO_',
+      label: '公告分类',
+      fullLabel: '公告分类',
+      codePrefix: 'NOTICE_',
       tone: 'purple',
-      description: '用于报送内容分类、统计分析和后续字段扩展。'
+      description: '发布公告时选择所属分类，便于公告筛选与统计。'
     },
     {
       id: 'source_channel',
@@ -2254,9 +2251,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       setFormDesc(
         targetCat === 'reject_reason'
           ? '审核驳回时展示给审核员选择，并作为退回原因同步给上报人。'
-          : targetCat === 'info_category'
-            ? `${nextPersonnelRoleGroup}角色标签`
-            : targetMeta.description
+          : targetMeta.description
       );
     } else if (activeModule === 'audit_score') {
       setFormName(isGlobalScope ? '百分制打分规则组' : '自定义百分制打分规则组');
@@ -2474,8 +2469,6 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
     if (activeModule === 'data_dict' || activeModule === 'reject_reason') {
       const catMeta = getDictCategoryMeta(formDictCategory);
       const catName = catMeta.label || formDictCategoryName || '拒绝理由';
-      const personnelRoleGroup = formDictCategory === 'info_category' ? getPersonnelRoleGroup({ id: '', name: formName, description: formDesc, personnelRoleGroup: formPersonnelRoleGroup }) : undefined;
-
       const dictItem: ConfigModuleItem = {
         id: editingItem ? editingItem.id : String(Date.now()),
         name: formName.trim(),
@@ -2483,11 +2476,10 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
         dictCategoryName: catName,
         dictCode: formDictCode.trim() || buildDictCode(formDictCategory, formSortOrder),
         sortOrder: formSortOrder,
-        personnelRoleGroup,
         isDefault: editingItem ? editingItem.isDefault : false,
         status: formScoreStatus,
         updateTime: nowStr,
-        description: formDesc.trim() || (personnelRoleGroup ? `${personnelRoleGroup}角色标签` : '自定义数据字典条目配置')
+        description: formDesc.trim() || '自定义数据字典条目配置'
       };
 
       commitDataStore(prev => ({
@@ -2801,6 +2793,28 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-1.5 relative">
                   <h3 className="text-sm font-bold text-gray-800">{currentModuleLabel}</h3>
+                  {isGlobalScope && (activeModule === 'audit_score' || activeModule === 'audit_flow') && (
+                    <ControlNoticeTip
+                      title={`全平台内置${activeModule === 'audit_score' ? '打分规则' : '审核流程'}母版管控提示`}
+                      content={`此处配置并启用的${activeModule === 'audit_score' ? '审核打分规则' : '审核流程配置'}将作为系统内置规则直接同步至全平台所有机构的内置规则库中。受平台全局统一管控，各机构端仅可调用生效，不支持自行修改或删除。`}
+                    />
+                  )}
+                  {activeModule === 'value_added' && (
+                    <ControlNoticeTip
+                      title={isGlobalScope ? '全平台增值业务运营管控提示' : '增值业务运营管控说明'}
+                      content={
+                        isGlobalScope
+                          ? '本模块面向平台运营人员统一管控。在全局配置中启用增值业务后，机构在添加或编辑时才能进行管理与开通；如果在此处禁用该增值业务，机构端将不会出现对应业务选项。'
+                          : '本模块面向平台运营人员统一管控。在全局配置中开启增值业务后，机构在添加或编辑时才能进行管理与开通；如果在此处未开启该增值业务，机构端将不会出现对应业务选项。'
+                      }
+                    />
+                  )}
+                  {isGlobalScope && activeModule === 'data_dict' && (
+                    <ControlNoticeTip
+                      title="全平台内置数据字典母版管控提示"
+                      content="此处配置并启用的数据字典项（驳回原因、人员标签、预警类型等）将作为系统内置母版标准同步至全平台所有机构。受平台全局统一管控，各机构端仅可引用生效，不支持自行修改或删除系统内置字典项。"
+                    />
+                  )}
                 </div>
 
                 <div className="flex items-center space-x-3">
@@ -2834,105 +2848,6 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                     </button>
                   )}
                 </div>
-              </div>
-            )}
-
-            {/* Value Added Info Banner */}
-            {activeModule === 'value_added' && showValueAddedBanner && (
-              isGlobalScope ? (
-                <div className="bg-blue-50/70 border border-blue-200/80 rounded-xl p-3.5 flex items-start justify-between gap-2.5 text-xs shadow-2xs">
-                  <div className="flex items-start gap-2.5 min-w-0">
-                    <Info className="w-4 h-4 text-[#1890ff] shrink-0 mt-0.5" />
-                    <div className="space-y-0.5 min-w-0">
-                      <span className="font-bold text-blue-900 block">
-                        全平台增值业务运营管控提示
-                      </span>
-                      <p className="text-gray-700 text-[11px] leading-relaxed">
-                        本模块面向平台运营人员统一管控。在全局配置中启用增值业务后，机构在添加或编辑时才能进行管理与开通；如果在此处禁用该增值业务，机构端将不会出现对应业务选项。
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowValueAddedBanner(false)}
-                    className="p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-blue-100/70 transition-colors cursor-pointer shrink-0"
-                    title="关闭提示"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ) : (
-                <div className="bg-[#fffbe6] border border-[#ffe58f] rounded-lg p-3.5 flex items-start justify-between gap-3 text-xs shadow-2xs">
-                  <div className="flex items-start space-x-2.5 min-w-0">
-                    <Info className="w-4 h-4 text-[#faad14] shrink-0 mt-0.5" />
-                    <div className="space-y-0.5 min-w-0">
-                      <span className="font-bold text-[#d48806] block">
-                        增值业务运营管控说明
-                      </span>
-                      <p className="text-gray-700 text-[11px] leading-relaxed">
-                        本模块面向平台运营人员统一管控。在全局配置中开启增值业务后，机构在添加或编辑时才能进行管理与开通；如果在此处未开启该增值业务，机构端将不会出现对应业务选项。
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowValueAddedBanner(false)}
-                    className="p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-amber-100/70 transition-colors cursor-pointer shrink-0"
-                    title="关闭说明"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              )
-            )}
-
-            {/* Global Scope Sync Notice for Audit Score / Audit Flow */}
-            {isGlobalScope && showAuditSyncNotice && (activeModule === 'audit_score' || activeModule === 'audit_flow') && (
-              <div className="bg-blue-50/70 border border-blue-200/80 rounded-xl p-3.5 flex items-start justify-between gap-2.5 text-xs shadow-2xs">
-                <div className="flex items-start gap-2.5 min-w-0">
-                  <Info className="w-4 h-4 text-[#1890ff] shrink-0 mt-0.5" />
-                  <div className="space-y-0.5 min-w-0">
-                    <span className="font-bold text-blue-900 block">
-                      全平台内置{activeModule === 'audit_score' ? '打分规则' : '审核流程'}母版管控提示
-                    </span>
-                    <p className="text-gray-700 text-[11px] leading-relaxed">
-                      此处配置并启用的{activeModule === 'audit_score' ? '审核打分规则' : '审核流程配置'}将作为系统内置规则直接同步至全平台所有机构的内置规则库中。受平台全局统一管控，各机构端仅可调用生效，不支持自行修改或删除。
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowAuditSyncNotice(false)}
-                  className="p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-blue-100/70 transition-colors cursor-pointer shrink-0"
-                  title="关闭提示"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-
-            {/* Global Scope Sync Notice for Data Dict */}
-            {isGlobalScope && showDictSyncNotice && activeModule === 'data_dict' && (
-              <div className="bg-blue-50/70 border border-blue-200/80 rounded-xl p-3.5 flex items-start justify-between gap-2.5 text-xs shadow-2xs">
-                <div className="flex items-start gap-2.5 min-w-0">
-                  <Info className="w-4 h-4 text-[#1890ff] shrink-0 mt-0.5" />
-                  <div className="space-y-0.5 min-w-0">
-                    <span className="font-bold text-blue-900 block">
-                      全平台内置数据字典母版管控提示
-                    </span>
-                    <p className="text-gray-700 text-[11px] leading-relaxed">
-                      此处配置并启用的数据字典项（驳回原因、人员标签、预警类型等）将作为系统内置母版标准同步至全平台所有机构。受平台全局统一管控，各机构端仅可引用生效，不支持自行修改或删除系统内置字典项。
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowDictSyncNotice(false)}
-                  className="p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-blue-100/70 transition-colors cursor-pointer shrink-0"
-                  title="关闭提示"
-                >
-                  <X className="w-4 h-4" />
-                </button>
               </div>
             )}
 
@@ -2975,7 +2890,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                     {dictSubCategoryFilter === 'reject_reason'
                       ? '新增驳回理由'
                       : dictSubCategoryFilter === 'info_category'
-                      ? '新增人员标签'
+                      ? '新增公告分类'
                       : '新增字典项'}
                   </span>
                 </button>
@@ -3130,7 +3045,6 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
               <div className="space-y-3">
                 {(() => {
                   const isRejectReasonView = dictSubCategoryFilter === 'reject_reason';
-                  const isPersonnelRoleView = dictSubCategoryFilter === 'info_category';
                   const sortedDictList = [...filteredList].sort((a, b) => {
                     const aCat = a.dictCategory || 'reject_reason';
                     const bCat = b.dictCategory || 'reject_reason';
@@ -3152,7 +3066,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                 <th className="py-2.5 px-4 font-medium whitespace-nowrap">所属分类</th>
                               )}
                               <th className="py-2.5 px-4 font-medium">
-                                {isRejectReasonView ? '审核员提示说明' : isPersonnelRoleView ? '角色分类' : '业务说明'}
+                                {isRejectReasonView ? '审核员提示说明' : '业务说明'}
                               </th>
                               <th className="py-2.5 px-4 font-medium whitespace-nowrap">状态</th>
                               <th className="py-2.5 px-4 font-medium whitespace-nowrap">更新时间</th>
@@ -3204,9 +3118,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                     )}
                                     <td className="py-3 px-4 align-top min-w-64">
                                       <p className="text-[11px] text-gray-600 leading-relaxed line-clamp-2">
-                                        {isPersonnelRoleView && itemCategory === 'info_category'
-                                          ? getPersonnelRoleGroupLabel(item)
-                                          : item.description || (isRejectReasonView ? '审核员选择该理由后，将作为本次驳回说明同步给上报人。' : itemMeta.description)}
+                                        {item.description || (isRejectReasonView ? '审核员选择该理由后，将作为本次驳回说明同步给上报人。' : itemMeta.description)}
                                       </p>
                                     </td>
                                     <td className="py-3 px-4 align-top whitespace-nowrap">
@@ -3427,6 +3339,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
             ) : activeModule === 'report_template' ? (
               <TemplateConfigBoard
                 isGlobalScope={isGlobalScope}
+                institutionId={isGlobalScope ? undefined : storageKey}
                 onSaveNotice={(msg) => showConfigToast(msg)}
                 onNavigateToWorkflow={() => {
                   setActiveModule('audit_flow');
@@ -5532,42 +5445,9 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                   {(() => {
                     const currentDictMeta = getDictCategoryMeta(formDictCategory);
                     const isRejectReasonForm = formDictCategory === 'reject_reason';
-                    const isPersonnelRoleForm = formDictCategory === 'info_category';
                     return (
                       <>
-                  <div className={isPersonnelRoleForm ? 'grid grid-cols-1 sm:grid-cols-3 gap-3' : 'grid grid-cols-1 sm:grid-cols-2 gap-3'}>
-                    {isPersonnelRoleForm && (
-                      <div>
-                        <label className="block text-gray-700 font-medium mb-1">角色分类 *</label>
-                        <div className="inline-flex w-full rounded border border-gray-300 bg-white p-1">
-                          {(['上报员', '审核员'] as const).map((role) => {
-                            const selected = formPersonnelRoleGroup === role;
-                            return (
-                              <button
-                                key={role}
-                                type="button"
-                                onClick={() => {
-                                  setFormPersonnelRoleGroup(role);
-                                  setFormDesc(prev => {
-                                    if (!prev.trim() || prev.includes('角色标签')) {
-                                      return `${role}角色标签`;
-                                    }
-                                    return prev;
-                                  });
-                                }}
-                                className={`flex-1 rounded px-3 py-1.5 text-xs font-bold cursor-pointer transition-colors ${
-                                  selected
-                                    ? 'bg-[#1E5ABB] text-white shadow-2xs'
-                                    : 'text-gray-600 hover:bg-gray-50'
-                                }`}
-                              >
-                                {role}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 
                     <div>
                       <label className="block text-gray-700 font-medium mb-1">
@@ -5612,7 +5492,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                         required
                         value={formName}
                         onChange={e => setFormName(e.target.value)}
-                        placeholder="如: 批量审核 / 截图取证"
+                        placeholder="如: 批量审核 / 指令流转"
                         className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
                       />
                     </div>

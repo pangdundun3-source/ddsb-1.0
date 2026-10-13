@@ -16,6 +16,9 @@ export const STATIC_APPS_MANIFEST = './apps/manifest.json';
 /** Message an embedded app posts to ask the portal to switch terminals */
 export const OPEN_TERMINAL_MESSAGE = 'suite:open-terminal';
 
+/** Message an embedded app posts whenever its hash route changes (injected by scripts/suite-vite.config.mjs) */
+export const FRAME_HASH_MESSAGE = 'suite:hash-change';
+
 export function getTerminalUrl(id: TerminalId, mode: TerminalMode = 'static', hashOverride?: string): string {
   const { port, hash: defaultHash } = TERMINAL_LINKS[id];
   const hash = hashOverride ?? defaultHash;

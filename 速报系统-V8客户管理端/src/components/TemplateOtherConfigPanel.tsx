@@ -646,54 +646,17 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
                     <div className="pt-2 border-t border-amber-100 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-gray-600 text-[11px]">打分时机</span>
-                        <div className="inline-flex p-0.5 bg-white rounded border border-gray-200 text-[10px]">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setScoreTiming('first_audit');
-                              setIsDirty(true);
-                              setSavedSuccess(false);
-                            }}
-                            className={`px-2 py-0.5 rounded cursor-pointer transition-colors ${
-                              scoreTiming === 'first_audit'
-                                ? 'bg-amber-100 text-amber-900 font-bold'
-                                : 'text-gray-500 hover:text-gray-800'
-                            }`}
-                          >
-                            初审打分
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setScoreTiming('final_audit');
-                              setIsDirty(true);
-                              setSavedSuccess(false);
-                            }}
-                            className={`px-2 py-0.5 rounded cursor-pointer transition-colors ${
-                              scoreTiming === 'final_audit'
-                                ? 'bg-amber-100 text-amber-900 font-bold'
-                                : 'text-gray-500 hover:text-gray-800'
-                            }`}
-                          >
-                            终审打分
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-600 text-[11px]">计入考核绩效</span>
                         <button
                           type="button"
                           onClick={() => {
-                            setSyncToPerformance(!syncToPerformance);
+                            if (scoreTiming === 'final_audit') return;
+                            setScoreTiming('final_audit');
                             setIsDirty(true);
                             setSavedSuccess(false);
                           }}
-                          className={`w-7 h-4 flex items-center rounded-full p-0.5 cursor-pointer transition-colors ${
-                            syncToPerformance ? 'bg-amber-500 justify-end' : 'bg-gray-300 justify-start'
-                          }`}
+                          className="px-2 py-0.5 rounded border border-amber-200 bg-amber-100 text-amber-900 font-bold text-[10px] cursor-pointer"
                         >
-                          <div className="w-3 h-3 bg-white rounded-full shadow-xs" />
+                          终审打分
                         </button>
                       </div>
                     </div>
@@ -752,15 +715,15 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
                       {activeFlow.auditNodes?.map((node, idx) => (
                         <div
                           key={node.id}
-                          className="p-2 bg-white rounded border border-purple-100/90 text-xs flex items-center justify-between gap-2"
+                          className="p-2 bg-white rounded border border-purple-100/90 text-xs space-y-1"
                         >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-4 h-4 rounded-full bg-purple-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                          <div className="flex items-start gap-2 min-w-0">
+                            <span className="w-4 h-4 mt-px rounded-full bg-purple-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
                               {idx + 1}
                             </span>
-                            <span className="font-medium text-gray-800 truncate">{node.nodeName}</span>
+                            <span className="font-medium text-gray-800 leading-snug break-all">{node.nodeName}</span>
                           </div>
-                          <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="flex items-center gap-1.5 pl-6 flex-wrap">
                             <span className="px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded text-[10px] font-medium flex items-center gap-0.5">
                               <UserCheck className="w-2.5 h-2.5" />
                               {node.approverRole}

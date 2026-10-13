@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { PageId } from '../types';
 import {
-  ChevronDown,
   LayoutGrid,
   ArrowLeft,
   ChevronRight,
@@ -16,8 +15,6 @@ import {
   Award,
   Megaphone,
   Settings,
-  Clock,
-  SlidersHorizontal,
   Users,
   FileText,
   GitFork,
@@ -35,7 +32,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   activePage,
   onNavigate
 }) => {
-  const [systemMenuOpen, setSystemMenuOpen] = useState(false);
   const [appGridOpen, setAppGridOpen] = useState(false);
 
   const isAuditActive = [
@@ -55,7 +51,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     'dict-management',
     'value-added-services',
     'business-config',
-    'system-logs'
   ].includes(activePage);
 
   return (
@@ -281,7 +276,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>公告管理</span>
           </button>
 
-          {/* 用户与组织管理 */}
+          {/* 外部联系人 */}
           <button
             onClick={() => onNavigate('user-org-management', 'account')}
             className={`px-3.5 py-1.5 transition-all duration-150 cursor-pointer rounded-lg flex items-center space-x-1.5 ${
@@ -291,58 +286,21 @@ export const Navbar: React.FC<NavbarProps> = ({
             }`}
           >
             <Users className="w-4 h-4 stroke-[2.2]" />
-            <span>用户与组织管理</span>
+            <span>外部联系人</span>
           </button>
 
-          {/* 系统管理 Dropdown */}
-          <div
-            className="relative"
-            onMouseEnter={() => setSystemMenuOpen(true)}
-            onMouseLeave={() => setSystemMenuOpen(false)}
+          {/* 系统管理 */}
+          <button
+            onClick={() => onNavigate('business-config')}
+            className={`px-3.5 py-1.5 transition-all duration-150 cursor-pointer rounded-lg flex items-center space-x-1.5 ${
+              isSystemActive
+                ? 'bg-blue-700/95 font-bold text-white shadow-xs'
+                : 'hover:bg-white/15 text-white/90'
+            }`}
           >
-            <button
-              onClick={() => onNavigate('business-config')}
-              className={`px-3.5 py-1.5 transition-all duration-150 cursor-pointer rounded-lg flex items-center space-x-1.5 ${
-                isSystemActive
-                  ? 'bg-blue-700/95 font-bold text-white shadow-xs'
-                  : 'hover:bg-white/15 text-white/90'
-              }`}
-            >
-              <Settings className="w-4 h-4 stroke-[2.2]" />
-              <span>系统管理</span>
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 opacity-80 ${systemMenuOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {systemMenuOpen && (
-              <div className="absolute left-0 top-full mt-0.5 w-52 bg-white text-slate-800 rounded-xl shadow-2xl border border-slate-100 p-1.5 z-50 text-sm animate-in fade-in duration-150">
-                <button
-                  onClick={() => {
-                    onNavigate('business-config');
-                    setSystemMenuOpen(false);
-                  }}
-                  className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center space-x-2.5 cursor-pointer transition-colors ${
-                    activePage === 'business-config' || ['template-management', 'audit-flow-config', 'audit-score-config', 'dict-management', 'value-added-services'].includes(activePage) ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
-                  }`}
-                >
-                  <SlidersHorizontal className="w-4 h-4 text-indigo-600" />
-                  <span>其他业务配置</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    onNavigate('system-logs');
-                    setSystemMenuOpen(false);
-                  }}
-                  className={`w-full text-left px-3.5 py-2.5 rounded-lg hover:bg-blue-50 hover:text-[#1E5ABB] flex items-center space-x-2.5 cursor-pointer transition-colors ${
-                    activePage === 'system-logs' ? 'text-[#1E5ABB] font-bold bg-blue-50/80' : 'text-slate-700'
-                  }`}
-                >
-                  <Clock className="w-4 h-4 text-emerald-600" />
-                  <span>系统日志</span>
-                </button>
-              </div>
-            )}
-          </div>
+            <Settings className="w-4 h-4 stroke-[2.2]" />
+            <span>系统管理</span>
+          </button>
         </div>
       </div>
     </nav>

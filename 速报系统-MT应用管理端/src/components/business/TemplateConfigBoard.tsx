@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { ControlNoticeTip } from './ControlNoticeTip';
 import {
   FileText,
   Zap,
@@ -38,7 +39,8 @@ import {
   ChevronDown,
   Clock,
   X,
-  Layers
+  Layers,
+  MoreHorizontal
 } from 'lucide-react';
 
 export type TemplateType = '报送' | '激活';
@@ -71,6 +73,8 @@ export interface BusinessTemplateItem {
   name: string;
   templateType: TemplateType;
   isDefault: boolean;
+  /** 平台全局设为标准模板后，全局与机构新增模板时可直接调用 */
+  isPreset?: boolean;
   status: '启用' | '停用';
   updateTime: string;
   description: string;
@@ -311,6 +315,21 @@ const initialDefaultTemplates: BusinessTemplateItem[] = [
   }
 ];
 
+const GLOBAL_TEMPLATE_STORAGE_KEY = 'v8_template_board_data_global';
+
+const readGlobalTemplates = (): BusinessTemplateItem[] => {
+  try {
+    const saved = localStorage.getItem(GLOBAL_TEMPLATE_STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {
+    // ignore storage failures
+  }
+  return initialDefaultTemplates;
+};
+
 const COLUMN_WIDTH_STORAGE_KEY = 'v8_template_board_column_widths';
 const LEFT_COL_DEFAULT = 260;
 const RIGHT_COL_DEFAULT = 310;
@@ -357,7 +376,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     } catch (e) {
       console.error(e);
     }
-    return initialDefaultTemplates;
+    return isGlobalScope || storageKey === GLOBAL_TEMPLATE_STORAGE_KEY ? initialDefaultTemplates : readGlobalTemplates();
   });
 
   // Save to local storage
@@ -365,6 +384,20 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     setTemplates(newTemplates);
     localStorage.setItem(storageKey, JSON.stringify(newTemplates));
   };
+
+  useEffect(() => {
+    const syncFromOtherWindow = (event: StorageEvent) => {
+      if (event.key !== storageKey || !event.newValue) return;
+      try {
+        const parsed = JSON.parse(event.newValue);
+        if (Array.isArray(parsed)) setTemplates(parsed);
+      } catch {
+        // ignore malformed payloads
+      }
+    };
+    window.addEventListener('storage', syncFromOtherWindow);
+    return () => window.removeEventListener('storage', syncFromOtherWindow);
+  }, [storageKey]);
 
   // Desktop 3-column widths (mouse-draggable)
   const [leftColWidth, setLeftColWidth] = useState(() => readStoredColumnWidths().left);
@@ -437,8 +470,15 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   }, [resizingSide]);
 
   // Active top tab: 报送模板 vs 激活模板
-  const [topTab, setTopTab] = useState<TemplateType>('报送');
-  const [showSyncNotice, setShowSyncNotice] = useState(true);
+  const [topTab] = useState<TemplateType>('报送');
+  const [moreMenuId, setMoreMenuId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!moreMenuId) return;
+    const close = () => setMoreMenuId(null);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, [moreMenuId]);
 
   // Currently previewed template ID
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(() => {
@@ -584,6 +624,18 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     )
   );
 
+  const confirmDiscardPending = () =>
+    !isOtherConfigDirty || confirm('右侧「其他业务配置」有未保存的修改，切换后将丢失，确认继续吗？');
+
+  const handleSelectTemplate = (id: string) => {
+    if (id === activeTemplate?.id || !confirmDiscardPending()) return;
+    setSelectedTemplateId(id);
+  };
+
+  const templateSortRank = (t: BusinessTemplateItem) =>
+    t.status !== '启用' ? 2 : isGlobalScope && t.isPreset ? 0 : 1;
+  const visibleTemplates = [...currentCategoryTemplates].sort((a, b) => templateSortRank(a) - templateSortRank(b));
+
   // Auto ensure valid selectedTemplateId on topTab change
   useEffect(() => {
     const matched = templates.filter(t => t.templateType === topTab);
@@ -597,15 +649,21 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   // Toggle template enabled status
   const handleToggleTemplateStatus = (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    const updated = templates.map(t => {
-      if (t.id === id) {
-        const nextStatus: '启用' | '停用' = t.status === '启用' ? '停用' : '启用';
-        return { ...t, status: nextStatus };
-      }
-      return t;
-    });
+    const target = templates.find(t => t.id === id);
+    if (!target) return;
+    const nextStatus: '启用' | '停用' = target.status === '启用' ? '停用' : '启用';
+    const dropPreset = isGlobalScope && target.isPreset && nextStatus === '停用';
+    if (
+      dropPreset &&
+      !confirm(`「${target.name}」是当前的标准模板，停用后将同时取消标准模板，各机构新增模板时将无法再调用。确认停用吗？`)
+    ) {
+      return;
+    }
+    const updated = templates.map(t =>
+      t.id === id ? { ...t, status: nextStatus, ...(dropPreset ? { isPreset: false } : {}) } : t
+    );
     saveTemplates(updated);
-    showToast(`模板状态已更新`);
+    showToast(dropPreset ? `「${target.name}」已停用，并取消标准模板` : `模板已${nextStatus}`);
   };
 
   // Duplicate a template
@@ -617,6 +675,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
       id: newId,
       name: `${tpl.name} - 副本`,
       isDefault: false,
+      isPreset: false,
       updateTime: new Date().toISOString().replace('T', ' ').substring(0, 19),
       fields: tpl.fields.map(f => ({ ...f, id: `f_${Date.now()}_${Math.random().toString(36).substring(2, 6)}` }))
     };
@@ -634,7 +693,11 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
       alert('系统默认模板受平台全局统一管控，机构端不支持删除！');
       return;
     }
-    if (confirm(`确认删除模板「${target?.name}」吗？`)) {
+    const deleteMessage =
+      isGlobalScope && target?.isPreset
+        ? `「${target.name}」是当前的标准模板，删除后各机构新增模板时将无法再调用。确认删除吗？`
+        : `确认删除模板「${target?.name}」吗？`;
+    if (confirm(deleteMessage)) {
       const updated = templates.filter(t => t.id !== id);
       saveTemplates(updated);
       showToast('模板已删除');
@@ -665,6 +728,35 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
       setDesignerFields(tpl.fields.map(f => ({ ...f })));
     }
   };
+
+  // 标准模板：平台全局设置，全局与机构新增模板时可调用
+  const handleTogglePreset = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const target = templates.find(t => t.id === id);
+    if (!target) return;
+    const nextPreset = !target.isPreset;
+    if (nextPreset && target.status !== '启用') {
+      showToast('停用的模板不能设为标准模板，请先启用');
+      return;
+    }
+    const replaced = nextPreset
+      ? templates.find(t => t.id !== id && t.isPreset && t.templateType === target.templateType)
+      : undefined;
+    saveTemplates(
+      templates.map(t => {
+        if (t.id === id) return { ...t, isPreset: nextPreset };
+        if (nextPreset && t.templateType === target.templateType && t.isPreset) return { ...t, isPreset: false };
+        return t;
+      })
+    );
+    showToast(
+      nextPreset
+        ? `「${target.name}」已设为标准模板${replaced ? `，原标准模板「${replaced.name}」已取消` : ''}`
+        : `「${target.name}」已取消标准模板`
+    );
+  };
+
+  const presetSource = isGlobalScope ? templates : readGlobalTemplates();
 
   // Save in Designer
   const handleSaveDesigner = () => {
@@ -1255,13 +1347,22 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                 <button
                   type="button"
                   onClick={() => {
+                    const standard = presetSource.find(
+                      t => t.isPreset && t.status === '启用' && t.templateType === designerItem.template.templateType
+                    );
+                    if (standard) {
+                      const stamp = Date.now();
+                      setDesignerFields(standard.fields.map((f, index) => ({ ...f, id: `fld_${stamp}_${index}` })));
+                      showToast(`已调用标准模板「${standard.name}」的字段`);
+                      return;
+                    }
                     setDesignerFields(isActivation ? [...standardActivationFields] : [...standardReportFields]);
-                    showToast('已恢复为标准模板预设字段');
+                    showToast('平台暂未设置标准模板，已使用系统默认字段');
                   }}
                   className="flex items-center gap-1.5 text-xs text-[#1E5ABB] hover:text-blue-700 font-medium px-2.5 py-1 rounded-md bg-blue-50/80 border border-blue-200/80 transition-colors cursor-pointer"
                 >
                   <Wand2 className="w-3.5 h-3.5" />
-                  <span>使用标准模板预设</span>
+                  <span>使用标准模板</span>
                 </button>
               </div>
 
@@ -1521,74 +1622,16 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
         </div>
       )}
 
-      {/* Top Segmented Tabs, Action Button & Notice Block */}
-      <div className="bg-white p-2.5 rounded-xl border border-gray-200/80 shadow-2xs space-y-2.5">
-        {/* Navigation Tabs and Add Button Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          {/* Left Segmented Pill Tabs */}
-          <div className="inline-flex items-center gap-1 p-1 bg-gray-100/90 rounded-lg border border-gray-200/60">
-            <button
-              type="button"
-              onClick={() => setTopTab('报送')}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                topTab === '报送'
-                  ? 'bg-white text-[#1890ff] shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <FileText className={`w-3.5 h-3.5 ${topTab === '报送' ? 'text-[#1890ff]' : 'text-gray-500'}`} />
-              <span>报送模板</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setTopTab('激活')}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                topTab === '激活'
-                  ? 'bg-white text-[#1890ff] shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <Zap className={`w-3.5 h-3.5 ${topTab === '激活' ? 'text-[#1890ff]' : 'text-gray-500'}`} />
-              <span>激活模板</span>
-            </button>
-          </div>
-
-          {/* Right Action Button */}
-          <button
-            type="button"
-            onClick={() => handleOpenDesigner('add')}
-            className="flex items-center gap-1.5 px-4 py-2 bg-[#1890ff] hover:bg-blue-600 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors cursor-pointer shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>{isActivationMode ? '新增激活模板' : '新增报送模板'}</span>
-          </button>
+      <div className="bg-white px-5 py-4 rounded-lg border border-gray-200/80 shadow-2xs">
+        <div className="flex items-center gap-1.5">
+          <h3 className="text-sm font-bold text-gray-800">模板配置</h3>
+          {isGlobalScope && (
+            <ControlNoticeTip
+              title="全平台内置模板母版管控提示"
+              content={`此处新增、配置并启用的${topTab}模板将自动作为系统内置母版同步至全平台所有机构的内置模板库中。受平台全局统一管控，各机构端仅可调用与选用，不支持机构端自行修改或删除。`}
+            />
+          )}
         </div>
-
-        {/* Global Scope Sync Notice */}
-        {isGlobalScope && showSyncNotice && (
-          <div className="bg-blue-50/70 border border-blue-200/80 rounded-lg p-3 flex items-start justify-between gap-2.5 text-xs">
-            <div className="flex items-start gap-2.5 min-w-0">
-              <Info className="w-4 h-4 text-[#1890ff] shrink-0 mt-0.5" />
-              <div className="space-y-0.5 min-w-0">
-                <span className="font-bold text-blue-900 block text-xs">
-                  全平台内置模板母版管控提示
-                </span>
-                <p className="text-gray-700 text-[11px] leading-relaxed">
-                  此处新增、配置并启用的{topTab}模板将自动作为系统内置母版同步至全平台所有机构的内置模板库中。受平台全局统一管控，各机构端仅可调用与选用，不支持机构端自行修改或删除。
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowSyncNotice(false)}
-              className="p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-blue-100/70 transition-colors cursor-pointer shrink-0"
-              title="关闭提示"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
       </div>
 
       {/* ================================================================= */}
@@ -1620,19 +1663,32 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                 {currentCategoryTemplates.length}
               </span>
             </div>
-            <span className="text-[11px] text-gray-400">切换预览</span>
+            <button
+              type="button"
+              onClick={() => handleOpenDesigner('add')}
+              className="w-6 h-6 rounded-md flex items-center justify-center text-[#1890ff] hover:bg-blue-50 border border-transparent hover:border-blue-200 transition-colors cursor-pointer"
+              title={isActivationMode ? '新增激活模板' : '新增报送模板'}
+            >
+              <Plus className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Template Cards List */}
           <div className="p-2.5 space-y-2.5 flex-1 overflow-y-auto bg-white">
-            {currentCategoryTemplates.map(tpl => {
+            {visibleTemplates.length === 0 && (
+              <div className="py-10 text-center text-[11px] text-gray-400 border border-dashed border-gray-200 rounded-xl">
+                暂无{topTab}模板
+              </div>
+            )}
+            {visibleTemplates.map(tpl => {
               const isSelected = activeTemplate?.id === tpl.id;
               const isEnabled = tpl.status === '启用';
+              const canDelete = isGlobalScope || !tpl.isDefault;
 
               return (
                 <div
                   key={tpl.id}
-                  onClick={() => setSelectedTemplateId(tpl.id)}
+                  onClick={() => handleSelectTemplate(tpl.id)}
                   className={`rounded-xl border p-3 space-y-2 transition-all cursor-pointer ${
                     isSelected
                       ? 'border-[#1890ff] bg-blue-50/20 shadow-xs'
@@ -1641,7 +1697,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                 >
                   {/* Row 1: Title & Status Switch */}
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-bold text-gray-900 truncate" title={tpl.name}>
+                    <span className="min-w-0 text-xs font-bold text-gray-900 truncate" title={tpl.name}>
                       {tpl.name}
                     </span>
 
@@ -1649,10 +1705,12 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                     <button
                       type="button"
                       onClick={e => handleToggleTemplateStatus(tpl.id, e)}
-                      className="flex items-center gap-1 shrink-0 cursor-pointer whitespace-nowrap"
+                      className={`flex items-center gap-1.5 shrink-0 cursor-pointer whitespace-nowrap pl-2 pr-1 py-0.5 rounded-full border transition-colors ${
+                        isEnabled ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'
+                      }`}
                       title={isEnabled ? '点击停用' : '点击启用'}
                     >
-                      <span className={`text-[10px] font-bold ${isEnabled ? 'text-emerald-600' : 'text-gray-400'}`}>
+                      <span className={`text-[11px] font-bold ${isEnabled ? 'text-emerald-700' : 'text-gray-500'}`}>
                         {isEnabled ? '启用' : '停用'}
                       </span>
                       <div
@@ -1679,6 +1737,12 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                           自定义
                         </span>
                       )
+                    )}
+                    {isGlobalScope && tpl.isPreset && (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[10px] font-bold rounded border border-amber-200 shrink-0 whitespace-nowrap">
+                        <Award className="w-2.5 h-2.5 text-amber-500" />
+                        标准模板
+                      </span>
                     )}
                     <span className="text-[10px] text-gray-400 font-mono">
                       {tpl.updateTime}
@@ -1708,16 +1772,6 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                     <div className="flex items-center gap-2 text-gray-500">
                       <button
                         type="button"
-                        onClick={e => handleCopyTemplate(tpl, e)}
-                        className="hover:text-[#1890ff] flex items-center gap-0.5 text-[11px] cursor-pointer"
-                        title="复制为新模板"
-                      >
-                        <Copy className="w-3 h-3" />
-                        <span>复制</span>
-                      </button>
-
-                      <button
-                        type="button"
                         onClick={e => {
                           e.stopPropagation();
                           handleOpenDesigner('edit', tpl);
@@ -1729,16 +1783,63 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                         <span>{!isGlobalScope && tpl.isDefault ? '详情' : '编辑'}</span>
                       </button>
 
-                      {(isGlobalScope || !tpl.isDefault) && (
+                      <div className="relative">
                         <button
                           type="button"
-                          onClick={e => handleDeleteTemplate(tpl.id, e)}
-                          className="hover:text-rose-600 p-0.5 cursor-pointer"
-                          title="删除"
+                          onClick={e => {
+                            e.stopPropagation();
+                            setMoreMenuId(moreMenuId === tpl.id ? null : tpl.id);
+                          }}
+                          className={`p-0.5 rounded hover:text-[#1890ff] hover:bg-blue-50 cursor-pointer ${moreMenuId === tpl.id ? 'text-[#1890ff] bg-blue-50' : ''}`}
+                          title="更多操作"
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <MoreHorizontal className="w-3.5 h-3.5" />
                         </button>
-                      )}
+                        {moreMenuId === tpl.id && (
+                          <div
+                            className="absolute right-0 top-full mt-1 z-20 w-32 py-1 bg-white rounded-lg border border-gray-200 shadow-lg text-[11px]"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              onClick={e => {
+                                setMoreMenuId(null);
+                                handleCopyTemplate(tpl, e);
+                              }}
+                              className="w-full flex items-center gap-1.5 px-3 py-1.5 text-gray-700 hover:bg-gray-50 cursor-pointer"
+                            >
+                              <Copy className="w-3 h-3" />
+                              复制为新模板
+                            </button>
+                            {isGlobalScope && (
+                              <button
+                                type="button"
+                                onClick={e => {
+                                  setMoreMenuId(null);
+                                  handleTogglePreset(tpl.id, e);
+                                }}
+                                className="w-full flex items-center gap-1.5 px-3 py-1.5 text-gray-700 hover:bg-amber-50 hover:text-amber-700 cursor-pointer"
+                              >
+                                <Award className="w-3 h-3" />
+                                {tpl.isPreset ? '取消标准模板' : '设为标准模板'}
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button
+                                type="button"
+                                onClick={e => {
+                                  setMoreMenuId(null);
+                                  handleDeleteTemplate(tpl.id, e);
+                                }}
+                                className="w-full flex items-center gap-1.5 px-3 py-1.5 text-rose-600 hover:bg-rose-50 cursor-pointer"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                删除
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1775,7 +1876,13 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
               <span className="text-xs font-bold text-gray-800 truncate">
                 当前预览: {activeTemplate?.name}
               </span>
-              <span className="px-1.5 py-0.2 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded border border-emerald-200 shrink-0">
+              <span
+                className={`px-1.5 py-0.2 text-[10px] font-bold rounded border shrink-0 ${
+                  activeTemplate?.status === '启用'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : 'bg-gray-100 text-gray-500 border-gray-200'
+                }`}
+              >
                 {activeTemplate?.status}
               </span>
               {!isGlobalScope && activeTemplate?.isDefault && (
@@ -1784,6 +1891,27 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                 </span>
               )}
             </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+            {isGlobalScope && activeTemplate && (
+              <button
+                type="button"
+                onClick={() => handleTogglePreset(activeTemplate.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
+                  activeTemplate.isPreset
+                    ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100'
+                    : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300 hover:text-amber-700'
+                }`}
+                title={
+                  activeTemplate.isPreset
+                    ? '取消后，新增模板时不再提供复用'
+                    : `每类模板只能有一个标准模板，设置后将替换当前的${topTab}标准模板`
+                }
+              >
+                <Award className="w-3.5 h-3.5" />
+                <span>{activeTemplate.isPreset ? '已设为标准模板' : '设为标准模板'}</span>
+              </button>
+            )}
 
             {/* Edit Button */}
             <button
@@ -1795,6 +1923,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
               <Edit3 className="w-3.5 h-3.5" />
               <span>编辑</span>
             </button>
+            </div>
           </div>
 
           {/* Center Body: Preview Area */}
@@ -1857,10 +1986,10 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                 <button
                   type="button"
                   onClick={handleUndoOtherConfig}
-                  className="p-1.5 rounded-lg text-xs text-amber-600 hover:text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 cursor-pointer shadow-2xs transition-all flex items-center justify-center animate-in fade-in zoom-in-95 duration-150"
+                  className="p-1.5 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 cursor-pointer transition-colors flex items-center justify-center"
                   title="一键撤回未保存的更改"
                 >
-                  <Undo2 className="w-3.5 h-3.5" />
+                  <RotateCcw className="w-3.5 h-3.5" />
                 </button>
               )}
 
@@ -1977,42 +2106,14 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                         {/* 打分时机 */}
                         <div className="flex items-center justify-between pt-1">
                           <span className="text-xs text-gray-600 font-medium">打分时机</span>
-                          <div className="inline-flex rounded-md border border-gray-200 p-0.5 bg-white">
-                            <button
-                              type="button"
-                              onClick={() => handleSelectScoreTiming('初审打分')}
-                              className={`px-2.5 py-1 text-[11px] rounded transition-colors cursor-pointer ${
-                                currentScoreTiming === '初审打分'
-                                  ? 'bg-amber-50 text-amber-800 font-bold border border-amber-200'
-                                  : 'text-gray-600 hover:text-gray-900'
-                              }`}
-                            >
-                              初审打分
-                            </button>
+                          <div className="inline-flex">
                             <button
                               type="button"
                               onClick={() => handleSelectScoreTiming('终审打分')}
-                              className={`px-2.5 py-1 text-[11px] rounded transition-colors cursor-pointer ${
-                                currentScoreTiming === '终审打分'
-                                  ? 'bg-amber-50 text-amber-800 font-bold border border-amber-200'
-                                  : 'text-gray-600 hover:text-gray-900'
-                              }`}
+                              className="px-2.5 py-1 text-[11px] rounded transition-colors cursor-pointer bg-amber-50 text-amber-800 font-bold border border-amber-200"
                             >
                               终审打分
                             </button>
-                          </div>
-                        </div>
-
-                        {/* 计入考核绩效 */}
-                        <div className="flex items-center justify-between pt-1 border-t border-amber-200/60">
-                          <span className="text-xs text-gray-600 font-medium">计入考核绩效</span>
-                          <div
-                            onClick={handleToggleIncludeInEvaluation}
-                            className={`w-8 h-4.5 rounded-full p-0.5 flex items-center cursor-pointer transition-colors ${
-                              currentIncludeInEvaluation ? 'bg-amber-500 justify-end' : 'bg-gray-300 justify-start'
-                            }`}
-                          >
-                            <div className="w-3.5 h-3.5 bg-white rounded-full shadow-2xs" />
                           </div>
                         </div>
                       </div>
@@ -2067,20 +2168,18 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                           {selectedFlow.nodes.map((node) => (
                             <div
                               key={node.order}
-                              className="bg-white rounded-lg border border-[#efe7fa] px-2.5 py-1.5 flex items-center justify-between shadow-2xs gap-2"
+                              className="bg-white rounded-lg border border-[#efe7fa] px-2.5 py-2 shadow-2xs space-y-1"
                             >
-                              {/* Left: Number circle & node name */}
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <span className="w-4 h-4 rounded-full bg-[#873bf5] text-white font-bold text-[10px] flex items-center justify-center shrink-0">
+                              <div className="flex items-start gap-1.5 min-w-0">
+                                <span className="w-4 h-4 mt-px rounded-full bg-[#873bf5] text-white font-bold text-[10px] flex items-center justify-center shrink-0">
                                   {node.order}
                                 </span>
-                                <span className="font-semibold text-xs text-gray-800 truncate tracking-tight">
+                                <span className="font-semibold text-xs text-gray-800 leading-snug break-all">
                                   {node.name}
                                 </span>
                               </div>
 
-                              {/* Right: Role pill & duration */}
-                              <div className="flex items-center gap-1 shrink-0">
+                              <div className="flex items-center gap-1.5 pl-5.5 flex-wrap">
                                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-[#fbf7ff] text-[#873bf5] border border-[#f0e4ff] text-[10px] font-medium whitespace-nowrap">
                                   <User className="w-2.5 h-2.5 text-[#873bf5]" />
                                   <span>{node.role}</span>

@@ -13,6 +13,7 @@ import {
 interface UserOrgManagementProps {
   initialModule?: UserOrgModule | string;
   onNavigatePage?: (page: PageId, extraModule?: string) => void;
+  currentOrg?: string;
   orgList?: unknown;
   onAddOrg?: unknown;
   onUpdateOrg?: unknown;
@@ -22,18 +23,18 @@ interface UserOrgManagementProps {
 const moduleList: Array<{ id: UserOrgModule; label: string; desc: string }> = [
   {
     id: 'account',
-    label: '系统账号管理',
-    desc: '维护全量系统账号，绑定所属机构、角色与人员分组'
+    label: '外部用户数据',
+    desc: '管理通过服务号接入的外部用户，查看关注与锁定状态，配置所属机构与外部角色'
   },
   {
     id: 'org',
-    label: '组织机构设置',
-    desc: '支持多层级无限树节点架构，人员仅归属单一机构节点'
+    label: '外部组织管理',
+    desc: '维护外部协作组织的层级结构、负责人信息与组内成员，成员来自外部用户数据'
   },
   {
     id: 'role',
-    label: '角色权限设置',
-    desc: '管理系统内的角色以及权限分配，默认角色不可修改，自定义/临时角色支持编辑与配置'
+    label: '外部角色管理',
+    desc: '外部人员在审核上报 PC / H5 端的角色与功能权限，上报员、审核员为系统默认角色，不可修改'
   },
   {
     id: 'group',
@@ -45,6 +46,7 @@ const moduleList: Array<{ id: UserOrgModule; label: string; desc: string }> = [
 export const UserOrgManagement: React.FC<UserOrgManagementProps> = ({
   initialModule = 'account',
   onNavigatePage,
+  currentOrg,
   orgList,
   onAddOrg,
   onUpdateOrg,
@@ -69,7 +71,7 @@ export const UserOrgManagement: React.FC<UserOrgManagementProps> = ({
   return (
     <div className="space-y-3">
       <div>
-        <h2 className="text-xl font-bold text-gray-800 tracking-tight whitespace-nowrap">用户与组织管理</h2>
+        <h2 className="text-xl font-bold text-gray-800 tracking-tight whitespace-nowrap">外部联系人</h2>
         <p className="text-xs text-gray-400 mt-0.5 truncate" title={currentModule.desc}>
           {currentModule.desc}
         </p>
@@ -100,7 +102,7 @@ export const UserOrgManagement: React.FC<UserOrgManagementProps> = ({
         </aside>
 
         <div className="flex-1 min-w-0">
-          {activeModule === 'account' && <SystemAccountManagement shared={shared} />}
+          {activeModule === 'account' && <SystemAccountManagement shared={shared} currentOrg={currentOrg} />}
           {activeModule === 'org' && (
             <OrgManagement
               embedded

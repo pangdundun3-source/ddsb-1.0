@@ -4,10 +4,9 @@ import {
   UserPlus,
   Users,
   UserCheck,
+  UserRoundCheck,
   UserX,
-  Trash2,
   RotateCcw,
-  Edit3,
   X,
   RefreshCw,
   Copy,
@@ -15,12 +14,23 @@ import {
   Download,
   Send,
   Building2,
-  Circle,
   ChevronDown,
   ChevronRight,
   Check,
-  MessageCircle
+  MessageCircle,
+  MessageSquare,
+  History,
+  Link2,
+  QrCode,
+  ShieldCheck,
+  Clock3,
+  CircleCheckBig
 } from 'lucide-react';
+import { InviteRecordModal } from './InviteRecordModal';
+import { OrgCascadeSelect } from '../components/OrgCascadeSelect';
+import { ExternalUserTable, getFollowStatus } from '../components/ExternalUserTable';
+import { ReinviteModal } from '../components/ReinviteModal';
+import { ShareInvitePanel } from '../components/ShareInvitePanel';
 import type { OrgNode, PersonnelItem } from './OrgManagement';
 import {
   ACCOUNT_ROLE_OPTIONS,
@@ -29,8 +39,9 @@ import {
   generateActivationCode,
   getDeepestOrgId,
   getOrgChildrenOf,
-  getOrgFullPath,
-  INITIAL_FOLLOWERS,
+  EXTERNAL_APP,
+  ORG_MAX_USER_COUNT,
+  syncFollowersAfterDelete,
   type InviteCode,
   type OfficialAccountFollower,
   type UserOrgSharedState
@@ -38,16 +49,12 @@ import {
 import {
   getPersonAvatarUrl,
   maskPhone,
-  PersonAvatar,
-  PersonGroupCell,
-  PersonIdentityCell,
-  PersonOrgPathCell,
-  PersonRoleBadges,
-  StatusSwitch
+  PersonAvatar
 } from '../components/PersonAccountDisplay';
 
 interface SystemAccountManagementProps {
   shared: UserOrgSharedState;
+  currentOrg?: string;
 }
 
 const PAGE_SIZE = 8;
@@ -81,16 +88,26 @@ const formatDateTimeLabel = (value: string) => (value ? value.replace('T', ' ') 
 const INVITE_COUNT_OPTIONS = [1, 5, 10, 20, 50] as const;
 
 type InviteListFilter = 'all' | '未使用' | '已使用' | '已过期';
-type InviteMode = 'code' | 'active';
-type FollowerInviteStatus = 'joined' | 'invited' | 'available' | 'selected';
+type InviteMode = 'qrcode' | 'code' | 'link';
 
-interface ActiveInviteDraft {
-  followerId: string;
-  name: string;
-  wechat: string;
-  phone: string;
-  code: string;
-}
+const INVITE_MODE_TABS: Array<{ id: InviteMode; label: string; desc: string }> = [
+  { id: 'qrcode', label: '二维码邀请', desc: '线下面对面扫码 / 微信群公开加入' },
+  { id: 'code', label: '激活码邀请', desc: '批量发放专属激活码 / 一码一人' },
+  { id: 'link', label: '链接邀请', desc: '复制邀请链接 / 发送到微信群或私聊' }
+];
+
+const INVITE_MODE_STORAGE_KEY = 'v8_invite_mode';
+
+const readStoredInviteMode = (): InviteMode => {
+  const saved = localStorage.getItem(INVITE_MODE_STORAGE_KEY);
+  return saved === 'qrcode' || saved === 'link' ? saved : 'code';
+};
+
+type AccountTab = 'activated' | 'pending';
+const ACCOUNT_TAB_STORAGE_KEY = 'v8_account_tab';
+
+const readStoredAccountTab = (): AccountTab =>
+  localStorage.getItem(ACCOUNT_TAB_STORAGE_KEY) === 'pending' ? 'pending' : 'activated';
 
 const FOLLOWER_AVATAR_COLORS = [
   'bg-emerald-500',
@@ -128,12 +145,15 @@ const resolveInviteStatus = (item: InviteCode) => {
 };
 
 const STATUS_FILTER_OPTIONS = [
-  { id: '启用', label: '正常启用', dot: 'bg-emerald-500' },
-  { id: '禁用', label: '已停用', dot: 'bg-slate-400' }
+  { id: '已关注', label: '正常关注', dot: 'bg-emerald-500' },
+  { id: '已取消关注', label: '取消关注', dot: 'bg-amber-500' },
+  { id: '禁用', label: '禁用', dot: 'bg-rose-500' }
 ] as const;
 
-export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = ({ shared }) => {
-  const { orgNodes, personnelList, setPersonnelList, groups, inviteCodes, setInviteCodes } = shared;
+const getAccountStatus = (item: PersonnelItem) => (item.status === '禁用' ? '禁用' : getFollowStatus(item));
+
+export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = ({ shared, currentOrg }) => {
+  const { orgNodes, personnelList, setPersonnelList, groups, inviteCodes, setInviteCodes, followers, setFollowers } = shared;
   const [draftQuery, setDraftQuery] = useState(createEmptyAccountQuery);
   const [appliedQuery, setAppliedQuery] = useState(createEmptyAccountQuery);
   const [page, setPage] = useState(1);
@@ -141,7 +161,7 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editing, setEditing] = useState<PersonnelItem | null>(null);
   const [viewing, setViewing] = useState<PersonnelItem | null>(null);
-
+  const [isInviteRecordOpen, setIsInviteRecordOpen] = useState(false);
   const [pUsername, setPUsername] = useState('');
   const [pRealName, setPRealName] = useState('');
   const [pWechat, setPWechat] = useState('');
@@ -158,9 +178,9 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
   const [inviteListFilter, setInviteListFilter] = useState<InviteListFilter>('all');
   const [freshCodeIds, setFreshCodeIds] = useState<string[]>([]);
   const [inviteMode, setInviteMode] = useState<InviteMode>('code');
-  const [activeInviteDraft, setActiveInviteDraft] = useState<ActiveInviteDraft | null>(null);
-  const [followerSearch, setFollowerSearch] = useState('');
-  const [revealedPhoneIds, setRevealedPhoneIds] = useState<number[]>([]);
+  const [accountTab, setAccountTab] = useState<AccountTab>(readStoredAccountTab);
+  const [pendingSearch, setPendingSearch] = useState('');
+  const [invitingFollower, setInvitingFollower] = useState<OfficialAccountFollower | null>(null);
   const [openFilter, setOpenFilter] = useState<'org' | 'role' | 'group' | 'status' | null>(null);
 
   const triggerToast = (message: string) => {
@@ -179,8 +199,12 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
   const getGroupName = (id: string) => groups.find((group) => group.id === id)?.name || id;
 
   const inRoster = personnelList.filter((item) => !item.recycled);
-  const enabledCount = inRoster.filter((item) => item.status === '启用').length;
   const disabledCount = inRoster.filter((item) => item.status === '禁用').length;
+  const enabledCount = inRoster.length - disabledCount;
+  const pendingInvites = inviteCodes.filter(
+    (item) => item.channel !== 'qrcode' && item.channel !== 'link' && resolveInviteStatus(item) === '未使用'
+  );
+  const remainingSeats = Math.max(0, ORG_MAX_USER_COUNT - inRoster.length);
 
   const filteredList = useMemo(() => {
     return inRoster.filter((item) => {
@@ -210,7 +234,9 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
       ) {
         return false;
       }
-      if ((appliedQuery.statuses || []).length > 0 && !appliedQuery.statuses.includes(item.status)) return false;
+      if ((appliedQuery.statuses || []).length > 0 && !appliedQuery.statuses.includes(getAccountStatus(item))) {
+        return false;
+      }
       return true;
     });
   }, [inRoster, appliedQuery, orgNodes]);
@@ -290,11 +316,24 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
     setInviteExpiry(addHoursLocal(168));
     setInviteListFilter('all');
     setFreshCodeIds([]);
-    setInviteMode('code');
-    setActiveInviteDraft(null);
-    setFollowerSearch('');
+    setInviteMode(readStoredInviteMode());
     setIsModalOpen(true);
   };
+
+  const switchInviteMode = (mode: InviteMode) => {
+    setInviteMode(mode);
+    if (!pRoles.length) setPRoles(['上报员']);
+    localStorage.setItem(INVITE_MODE_STORAGE_KEY, mode);
+  };
+
+  useEffect(() => {
+    if (!isModalOpen || editing) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsModalOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isModalOpen, editing]);
 
   const openEditModal = (item: PersonnelItem) => {
     setEditing(item);
@@ -422,112 +461,37 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
           (follower.phone && person.phone === follower.phone))
     );
 
-  const getFollowerStatus = (follower: OfficialAccountFollower): FollowerInviteStatus => {
-    if (findRosterPerson(follower)) return 'joined';
-    if (isFollowerInvited(follower.id)) return 'invited';
-    if (activeInviteDraft?.followerId === follower.id) return 'selected';
-    return 'available';
-  };
+  const inactiveFollowers = followers.filter((follower) => !findRosterPerson(follower));
 
-  const getFollowerOrgLabel = (follower: OfficialAccountFollower) => {
-    const person = findRosterPerson(follower);
-    if (!person) return '';
-    const orgId = getDeepestOrgId(orgNodes, person.orgIds, person.primaryOrgId);
-    return orgNodes.find((node) => node.id === orgId)?.name || formatPersonOrgPaths(orgNodes, person.orgIds);
-  };
-
-  const filteredFollowers = useMemo(() => {
-    const q = followerSearch.trim().toLowerCase();
-    return INITIAL_FOLLOWERS.filter((follower) => {
+  const filteredInactiveFollowers = useMemo(() => {
+    const q = pendingSearch.trim().toLowerCase();
+    return inactiveFollowers.filter((follower) => {
       if (!q) return true;
       return (
         follower.nickname.toLowerCase().includes(q) ||
         follower.wechatAlias.toLowerCase().includes(q) ||
-        (follower.phone || '').includes(q) ||
-        (follower.city || '').toLowerCase().includes(q)
+        (follower.phone || '').includes(q)
       );
     });
-  }, [followerSearch]);
+  }, [inactiveFollowers, pendingSearch]);
 
-  const resetActiveInviteForm = () => {
-    setActiveInviteDraft(null);
+  const switchAccountTab = (tab: AccountTab) => {
+    setAccountTab(tab);
+    localStorage.setItem(ACCOUNT_TAB_STORAGE_KEY, tab);
   };
 
-  const startActiveInvite = (follower: OfficialAccountFollower) => {
-    const status = getFollowerStatus(follower);
-    if (status === 'joined' || status === 'invited') return;
-    if (activeInviteDraft?.followerId === follower.id) return;
-    const existing = new Set(inviteCodes.map((item) => item.code));
-    let code = generateActivationCode();
-    while (existing.has(code)) {
-      code = generateActivationCode();
+  const inviteFollowerFromList = (follower: OfficialAccountFollower) => {
+    if (remainingSeats <= 0) {
+      triggerToast('本机构可用名额已满，无法继续邀请');
+      return;
     }
-    setActiveInviteDraft({
-      followerId: follower.id,
-      name: follower.nickname,
-      wechat: follower.wechatAlias,
-      phone: follower.phone || '',
-      code
-    });
-    setInviteBatchName(`公众号主动邀请-${formatYmd(new Date())}`);
+    setInvitingFollower(follower);
   };
 
-  const updateActiveInviteDraft = (patch: Partial<ActiveInviteDraft>) => {
-    setActiveInviteDraft((prev) => (prev ? { ...prev, ...patch } : prev));
-  };
+  const codeInviteRecords = inviteCodes.filter((item) => item.channel !== 'qrcode' && item.channel !== 'link');
+  const unusedInviteCodes = codeInviteRecords.filter((item) => resolveInviteStatus(item) === '未使用');
 
-  const handleActiveInvite = () => {
-    if (!activeInviteDraft) {
-      triggerToast('请先选择要邀请的公众号关注用户');
-      return;
-    }
-    if (!activeInviteDraft.name.trim()) {
-      triggerToast('请填写真实姓名');
-      return;
-    }
-    if (!/^1\d{10}$/.test(activeInviteDraft.phone.trim())) {
-      triggerToast('请填写11位手机号码');
-      return;
-    }
-    if (orgPath.length === 0) {
-      triggerToast('请选择所属机构');
-      return;
-    }
-    if (pRoles.length === 0) {
-      triggerToast('请选择所属角色');
-      return;
-    }
-
-    const now = toLocalDateTimeValue(new Date());
-    const batchId = `oa-${Date.now()}`;
-    const batchName = inviteBatchName.trim() || `公众号主动邀请-${formatYmd(new Date())}`;
-    const created: InviteCode = {
-      id: `${batchId}-1`,
-      code: activeInviteDraft.code,
-      batchId,
-      batchName,
-      orgIds: selectedLeafOrgId ? [selectedLeafOrgId] : [],
-      roles: [...pRoles],
-      expiresAt: inviteExpiry || addHoursLocal(168),
-      createdAt: now,
-      status: '未使用',
-      channel: 'official_account',
-      sentToName: activeInviteDraft.name.trim(),
-      sentToWechat: activeInviteDraft.wechat,
-      sentToPhone: activeInviteDraft.phone.trim(),
-      sentToFollowerId: activeInviteDraft.followerId
-    };
-
-    setInviteCodes((prev) => [created, ...prev]);
-    setFreshCodeIds([created.id]);
-    setActiveInviteDraft(null);
-    setInviteListFilter('all');
-    triggerToast(`已向【${created.sentToName}】发送微信邀请`);
-  };
-
-  const unusedInviteCodes = inviteCodes.filter((item) => resolveInviteStatus(item) === '未使用');
-
-  const visibleInviteCodes = inviteCodes.filter((item) => {
+  const visibleInviteCodes = codeInviteRecords.filter((item) => {
     if (inviteListFilter === 'all') return true;
     return resolveInviteStatus(item) === inviteListFilter;
   });
@@ -581,9 +545,14 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
   };
 
   const handleDelete = (item: PersonnelItem) => {
-    if (!confirm(`确定删除账号【${item.realName}】吗？此操作不可恢复。`)) return;
+    const stillFollowing = getFollowStatus(item) === '已关注';
+    const tip = stillFollowing
+      ? '该用户仍关注公众号，删除后将回到「已关注未激活」列表。'
+      : '该用户已取消关注公众号，删除后将不再显示。';
+    if (!confirm(`确定删除账号【${item.realName}】吗？\n${tip}`)) return;
     setPersonnelList((prev) => prev.filter((row) => row.id !== item.id));
-    triggerToast(`已删除【${item.realName}】`);
+    syncFollowersAfterDelete(item, setFollowers);
+    triggerToast(stillFollowing ? `已删除【${item.realName}】，已移至已关注未激活` : `已删除【${item.realName}】`);
   };
 
   return (
@@ -592,23 +561,205 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
         <div className="mx-5 mt-4 px-3 py-2 rounded-lg bg-[#1E5ABB] text-white text-xs font-bold">{toast}</div>
       )}
 
-      <div className="px-5 pt-4 pb-3 grid grid-cols-3 gap-3">
-        <StatCard icon={<Users className="w-4 h-4" />} label="在册账号总数" value={inRoster.length} tone="blue" />
-        <StatCard icon={<UserCheck className="w-4 h-4" />} label="正常启用" value={enabledCount} tone="emerald" />
-        <StatCard icon={<UserX className="w-4 h-4" />} label="已停用账号" value={disabledCount} tone="slate" />
+      <div className="px-5 pt-4 pb-3 grid grid-cols-5 gap-3">
+        <StatCard
+          title="机构关联服务号"
+          icon={<MessageSquare className="w-4 h-4" />}
+          iconClass="text-teal-600"
+          value={EXTERNAL_APP.officialAccount}
+          valueClass="text-[#1E3A8A]"
+          compact
+          footer={
+            <span className="text-slate-500 truncate" title={currentOrg}>
+              专属机构：{currentOrg || '未设置'}
+            </span>
+          }
+        />
+        <StatCard
+          title="最大平台用户数"
+          icon={<ShieldCheck className="w-4 h-4" />}
+          value={ORG_MAX_USER_COUNT}
+          footer={<span className="text-slate-400">机构授权编制上限</span>}
+        />
+        <StatCard
+          title="已激活用户"
+          icon={<UserRoundCheck className="w-4 h-4" />}
+          value={inRoster.length}
+          badge="全部"
+          footer={
+            <>
+              <MetricItem dot="bg-emerald-500" label="启用" value={enabledCount} />
+              <MetricItem dot="bg-slate-300" label="停用" value={disabledCount} />
+            </>
+          }
+        />
+        <StatCard
+          title="待激活用户数"
+          icon={<Clock3 className="w-4 h-4" />}
+          iconClass="text-amber-500"
+          value={pendingInvites.length}
+          valueClass="text-amber-600"
+          footer={
+            <button
+              type="button"
+              onClick={() => setIsInviteRecordOpen(true)}
+              className="w-full h-8 rounded-md border border-[#1E5ABB]/40 bg-white hover:bg-blue-50 text-[#1E5ABB] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <History className="w-3.5 h-3.5" />
+              查看邀请记录
+            </button>
+          }
+        />
+        <StatCard
+          title="剩余可用激活数"
+          icon={<CircleCheckBig className="w-4 h-4" />}
+          iconClass="text-emerald-600"
+          value={remainingSeats}
+          valueClass="text-emerald-700"
+          tone="border-emerald-200 bg-emerald-50/60"
+          footer={
+            <button
+              type="button"
+              onClick={openCreateModal}
+              className="w-full h-8 rounded-md bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              邀请用户
+            </button>
+          }
+        />
       </div>
 
-      <div className="px-5 flex items-center justify-end gap-3 border-b border-slate-100 pb-3">
-        <button
-          type="button"
-          onClick={openCreateModal}
-          className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center space-x-1 cursor-pointer whitespace-nowrap"
-        >
-          <UserPlus className="w-3.5 h-3.5" />
-          <span>邀请用户</span>
-        </button>
+      <div className="mx-5 border-b border-slate-200 flex items-end gap-6">
+        {(
+          [
+            { id: 'activated', label: '已关注已激活', count: inRoster.length },
+            { id: 'pending', label: '已关注未激活', count: inactiveFollowers.length }
+          ] as const
+        ).map((tab) => {
+          const active = accountTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => switchAccountTab(tab.id)}
+              className={`relative -mb-px pb-2.5 pt-1 text-sm font-bold flex items-center gap-1.5 cursor-pointer border-b-2 transition-colors ${
+                active ? 'border-[#1E5ABB] text-[#1E5ABB]' : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              {tab.label}
+              <span
+                className={`min-w-[20px] px-1.5 py-px rounded-full text-[11px] font-bold text-center ${
+                  active ? 'bg-[#1E5ABB] text-white' : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                {tab.count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
+      {accountTab === 'pending' ? (
+        <div className="flex-1 min-h-0 flex flex-col min-w-0">
+          <div className="px-5 py-3 flex flex-wrap items-center gap-2">
+            <div className="relative w-[220px] shrink-0">
+              <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
+              <input
+                value={pendingSearch}
+                onChange={(event) => setPendingSearch(event.target.value)}
+                placeholder="搜索微信昵称 / 微信号 / 手机号"
+                className="w-full h-8 pl-8 pr-3 text-xs border border-gray-200 rounded-full focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-gray-50/50"
+              />
+            </div>
+            <div className="ml-auto text-xs text-gray-500">
+              关注公众号但尚未激活账号的用户，可直接发起邀请
+            </div>
+          </div>
+          <div className="flex-1 min-h-0 overflow-auto px-5 pb-4">
+            <table className="w-full text-xs border border-slate-100 rounded-lg overflow-hidden">
+              <thead className="bg-slate-50 text-slate-500">
+                <tr>
+                  <th className="px-3 py-2.5 text-left font-semibold w-14">序号</th>
+                  <th className="px-3 py-2.5 text-left font-semibold">微信昵称</th>
+                  <th className="px-3 py-2.5 text-left font-semibold">微信号</th>
+                  <th className="px-3 py-2.5 text-left font-semibold">手机号</th>
+                  <th className="px-3 py-2.5 text-left font-semibold">地区</th>
+                  <th className="px-3 py-2.5 text-left font-semibold">关注时间</th>
+                  <th className="px-3 py-2.5 text-left font-semibold">邀请状态</th>
+                  <th className="px-3 py-2.5 text-right font-semibold">操作</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredInactiveFollowers.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-14 text-center text-slate-400">
+                      暂无已关注未激活的用户
+                    </td>
+                  </tr>
+                ) : (
+                  filteredInactiveFollowers.map((follower, index) => {
+                    const invited = isFollowerInvited(follower.id);
+                    return (
+                      <tr key={follower.id} className="hover:bg-slate-50/60">
+                        <td className="px-3 py-2.5 text-slate-400">{index + 1}</td>
+                        <td className="px-3 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <FollowerLetterAvatar id={follower.id} name={follower.nickname} />
+                            <span className="font-bold text-slate-800">{follower.nickname}</span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-slate-600">{follower.wechatAlias || '—'}</td>
+                        <td className="px-3 py-2.5 text-slate-600">
+                          {follower.phone ? follower.phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2') : '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-slate-600">{follower.city || '—'}</td>
+                        <td className="px-3 py-2.5 text-slate-500">{follower.followTime}</td>
+                        <td className="px-3 py-2.5">
+                          {invited ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-semibold">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                              已邀请待激活
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-semibold">
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                              未邀请
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          {invited ? (
+                            <button
+                              type="button"
+                              onClick={() => setIsInviteRecordOpen(true)}
+                              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-slate-200 text-slate-600 hover:border-[#1E5ABB] hover:text-[#1E5ABB] font-semibold cursor-pointer"
+                            >
+                              <History className="w-3.5 h-3.5" />
+                              邀请记录
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => inviteFollowerFromList(follower)}
+                              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-[#1E5ABB] hover:bg-[#134092] text-white font-semibold cursor-pointer"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                              邀请激活
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+            <div className="text-[11px] text-gray-400 mt-3">共 {filteredInactiveFollowers.length} 条记录</div>
+          </div>
+        </div>
+      ) : (
+      <>
       <div className="px-5 py-3 space-y-2.5 min-w-0">
         <div className="flex flex-wrap items-center gap-2 min-w-0">
           <div className="relative w-[168px] shrink-0">
@@ -719,7 +870,7 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
               (draftQuery.statuses || []).length === 0
                 ? '账号状态：全部状态'
                 : draftQuery.statuses.length === 1
-                  ? `账号状态：${draftQuery.statuses[0] === '启用' ? '正常启用' : '已停用'}`
+                  ? `账号状态：${STATUS_FILTER_OPTIONS.find((option) => option.id === draftQuery.statuses[0])?.label || draftQuery.statuses[0]}`
                   : `账号状态：已选 ${draftQuery.statuses.length} 项`
             }
             active={(draftQuery.statuses || []).length > 0}
@@ -767,85 +918,17 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto px-5 pb-4">
-        <table className="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr className="bg-gray-50/80 text-gray-500 border-y border-gray-200 font-medium">
-              <th className="py-2.5 px-3 text-center w-12 whitespace-nowrap">序号</th>
-              <th className="py-2.5 px-3 whitespace-nowrap">姓名 / 手机号</th>
-              <th className="py-2.5 px-3 whitespace-nowrap w-[240px] max-w-[240px]">
-                <span className="inline-flex items-center gap-1"><Building2 className="w-3 h-3" />所属机构</span>
-              </th>
-              <th className="py-2.5 px-3 whitespace-nowrap">
-                <span className="inline-flex items-center gap-1"><Circle className="w-3 h-3" />角色名称</span>
-              </th>
-              <th className="py-2.5 px-3 whitespace-nowrap">
-                <span className="inline-flex items-center gap-1"><Users className="w-3 h-3" />人员分组</span>
-              </th>
-              <th className="py-2.5 px-3 whitespace-nowrap">账号状态</th>
-              <th className="py-2.5 px-3 text-center whitespace-nowrap">操作</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 text-gray-700">
-            {pagedList.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="py-10 text-center text-gray-400">
-                  暂无匹配的系统账号
-                </td>
-              </tr>
-            ) : (
-              pagedList.map((item, index) => {
-                const orgPathText = getPersonOrgPath(item);
-                const primaryRole = (item.roles || [])[0] || '未分配';
-                const primaryGroupId = (item.groupIds || [])[0];
-                const enabled = item.status === '启用';
-                return (
-                <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
-                  <td className="py-2.5 px-3 text-center text-gray-400 font-mono whitespace-nowrap">
-                    {(currentPage - 1) * PAGE_SIZE + index + 1}
-                  </td>
-                  <td className="py-2.5 px-3 min-w-[180px]">
-                    <PersonIdentityCell
-                      item={item}
-                      revealed={revealedPhoneIds.includes(item.id)}
-                      onToggleReveal={() =>
-                        setRevealedPhoneIds((prev) =>
-                          prev.includes(item.id) ? prev.filter((id) => id !== item.id) : [...prev, item.id]
-                        )
-                      }
-                      onAvatarClick={() => setViewing(item)}
-                    />
-                  </td>
-                  <td className="py-2.5 px-3 w-[240px] max-w-[240px] overflow-hidden">
-                    <PersonOrgPathCell path={orgPathText} />
-                  </td>
-                  <td className="py-2.5 px-3 whitespace-nowrap">
-                    <PersonRoleBadges roles={[primaryRole]} />
-                  </td>
-                  <td className="py-2.5 px-3 whitespace-nowrap">
-                    <PersonGroupCell groupName={primaryGroupId ? getGroupName(primaryGroupId) : undefined} />
-                  </td>
-                  <td className="py-2.5 px-3 whitespace-nowrap">
-                    <StatusSwitch
-                      enabled={enabled}
-                      onToggle={() => handleToggleStatus(item)}
-                    />
-                  </td>
-                  <td className="py-2.5 px-3">
-                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                      <IconBtn title="编辑" onClick={() => openEditModal(item)}>
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </IconBtn>
-                      <IconBtn title="删除" onClick={() => handleDelete(item)}>
-                        <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-                      </IconBtn>
-                    </div>
-                  </td>
-                </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+        <ExternalUserTable
+          items={pagedList}
+          orgNodes={orgNodes}
+          getGroupName={getGroupName}
+          startIndex={(currentPage - 1) * PAGE_SIZE}
+          emptyText="暂无匹配的系统账号"
+          onAvatarClick={setViewing}
+          onToggleStatus={handleToggleStatus}
+          onEdit={openEditModal}
+          onDelete={handleDelete}
+        />
         <div className="flex items-center justify-between text-[11px] text-gray-400 mt-3">
           <div>共 {filteredList.length} 条记录</div>
           <div className="flex items-center gap-1">
@@ -869,6 +952,8 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
           </div>
         </div>
       </div>
+      </>
+      )}
 
       {isModalOpen && editing && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -911,7 +996,7 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
                 />
               </div>
               <div>
-                <label className="block text-gray-700 font-medium mb-1.5">账号状态</label>
+                <label className="block text-gray-700 font-medium mb-1.5">启用状态</label>
                 <div className="flex items-center gap-4">
                   {(['启用', '禁用'] as const).map((status) => (
                     <label key={status} className="flex items-center gap-1.5 cursor-pointer text-gray-700">
@@ -948,59 +1033,55 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
 
       {isModalOpen && !editing && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] flex flex-col">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-[88vh] max-h-[780px] flex flex-col">
             <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center shrink-0 gap-3">
               <div className="min-w-0">
                 <h3 className="text-sm font-bold text-gray-800">邀请用户</h3>
                 <p className="text-[11px] text-gray-400 mt-0.5">
-                  {inviteMode === 'code'
-                    ? '按批次生成激活码，绑定所属机构、角色与有效时间'
-                    : '从关注公众号用户中选择未在编人员，补充资料后发送微信邀请'}
+                  选择邀请方式，邀请外部人员关注「{EXTERNAL_APP.officialAccount}」并加入本机构
                 </p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInviteMode('code');
-                    setActiveInviteDraft(null);
-                  }}
-                  className={`h-8 px-3 rounded-lg text-[11px] font-medium cursor-pointer ${
-                    inviteMode === 'code'
-                      ? 'bg-[#1E5ABB] text-white'
-                      : 'border border-gray-200 bg-white text-gray-500 hover:text-[#1E5ABB]'
-                  }`}
-                >
-                  激活码邀请
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInviteMode('active');
-                    setActiveInviteDraft(null);
-                    if (!pRoles.length) setPRoles(['上报员']);
-                  }}
-                  className={`h-8 px-3 rounded-lg text-[11px] font-medium cursor-pointer inline-flex items-center gap-1.5 ${
-                    inviteMode === 'active'
-                      ? 'border border-[#1E5ABB] bg-[#F4F8FE] text-[#1E5ABB]'
-                      : 'border border-gray-200 bg-white text-gray-500 hover:text-[#1E5ABB]'
-                  }`}
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  主动邀请
-                </button>
-                <button type="button" onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 cursor-pointer">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="w-7 h-7 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <div
-              className={`p-4 min-h-0 flex-1 text-xs overflow-hidden ${
-                inviteMode === 'code'
-                  ? 'grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-4'
-                  : 'grid grid-cols-1 lg:grid-cols-[minmax(300px,0.95fr)_minmax(340px,1.05fr)] gap-4'
-              }`}
-            >
+            <div className="px-4 pt-4 grid grid-cols-3 gap-3 shrink-0">
+              {INVITE_MODE_TABS.map((tab) => {
+                const active = inviteMode === tab.id;
+                const Icon = tab.id === 'qrcode' ? QrCode : tab.id === 'code' ? KeyRound : Link2;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => switchInviteMode(tab.id)}
+                    className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl border text-left cursor-pointer transition-all ${
+                      active
+                        ? 'border-[#1E5ABB] bg-[#F4F8FE] shadow-[0_0_0_3px_rgba(30,90,187,0.08)]'
+                        : 'border-gray-200 bg-white hover:border-[#1E5ABB]/40 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span
+                      className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                        active ? 'bg-[#1E5ABB] text-white' : 'bg-slate-100 text-slate-500'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className={`block text-[13px] font-bold ${active ? 'text-[#1E5ABB]' : 'text-gray-800'}`}>
+                        {tab.label}
+                      </span>
+                      <span className="block text-[11px] text-gray-400 truncate">{tab.desc}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="p-4 min-h-0 flex-1 text-xs overflow-hidden grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-4">
               {inviteMode === 'code' && (
               <div className="rounded-lg border border-blue-100 bg-[#F4F8FE] p-4 space-y-3 overflow-visible relative z-20">
                 <div className="flex items-center gap-1.5 text-[#1E5ABB] font-bold">
@@ -1151,7 +1232,7 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
                               <span className="font-mono font-bold text-gray-800 tracking-wide">{item.code}</span>
                               {unused ? (
                                 <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-[#1E5ABB]">
-                                  {item.sentToName ? `已发给 ${item.sentToName}` : '未使用'}
+                                  未使用
                                 </span>
                               ) : status === '已过期' ? (
                                 <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">已过期</span>
@@ -1188,184 +1269,36 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
                 </div>
               </div>
               ) : (
-              <>
-              <div className="rounded-xl border border-gray-200 bg-white flex flex-col min-h-[460px] min-w-0 overflow-hidden">
-                <div className="px-4 py-3 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 font-bold text-gray-800">
-                    <MessageCircle className="w-4 h-4 text-[#1E5ABB]" />
-                    关注公众号用户列表
-                  </div>
-                  <span className="text-[11px] text-gray-400">共 {filteredFollowers.length} 位关注粉丝</span>
-                </div>
-                <div className="px-4 pb-3">
-                  <div className="relative">
-                    <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
-                    <input
-                      value={followerSearch}
-                      onChange={(event) => setFollowerSearch(event.target.value)}
-                      placeholder="输入关注公众号用户的微信昵称搜索..."
-                      className="w-full h-8 pl-8 pr-3 border border-gray-200 rounded-lg bg-gray-50/70 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                    />
-                  </div>
-                </div>
-                <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-2">
-                  {filteredFollowers.length === 0 ? (
-                    <div className="h-full min-h-[200px] flex items-center justify-center text-gray-400">
-                      没有匹配的关注用户
-                    </div>
-                  ) : (
-                    filteredFollowers.map((follower) => {
-                      const status = getFollowerStatus(follower);
-                      const orgLabel = status === 'joined' ? getFollowerOrgLabel(follower) : '';
-                      return (
-                        <div
-                          key={follower.id}
-                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border ${
-                            status === 'selected'
-                              ? 'border-[#1E5ABB] bg-[#F4F8FE]'
-                              : 'border-gray-100 bg-white'
-                          }`}
-                        >
-                          <FollowerLetterAvatar id={follower.id} name={follower.nickname} />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="font-bold text-gray-800 truncate">{follower.nickname}</span>
-                              {status === 'selected' && (
-                                <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-[#1E5ABB] text-white">已选中</span>
-                              )}
-                            </div>
-                            <div className="mt-0.5 text-[10px] text-gray-400">关注于 {follower.followTime}</div>
-                          </div>
-                          {status === 'joined' ? (
-                            <div className="shrink-0 text-right">
-                              <div className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
-                                <UserCheck className="w-3 h-3" />
-                                已加入机构
-                              </div>
-                              <div className="mt-0.5 text-[10px] text-gray-400">{orgLabel}</div>
-                            </div>
-                          ) : status === 'invited' ? (
-                            <div className="shrink-0 text-right">
-                              <div className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
-                                已邀请
-                              </div>
-                              <div className="mt-0.5 text-[10px] text-gray-400">待激活</div>
-                            </div>
-                          ) : status === 'selected' ? (
-                            <button
-                              type="button"
-                              className="shrink-0 h-7 px-2.5 rounded-lg bg-[#1E5ABB] text-white text-[11px] font-bold inline-flex items-center gap-1 cursor-default"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                              填写资料
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => startActiveInvite(follower)}
-                              className="shrink-0 h-7 px-2.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-[11px] font-bold hover:bg-emerald-100 cursor-pointer inline-flex items-center gap-1"
-                            >
-                              <UserPlus className="w-3.5 h-3.5" />
-                              邀请入队
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-gray-200 bg-white flex flex-col min-h-[460px] min-w-0 overflow-visible">
-                <div className="px-4 py-3 flex items-center justify-between gap-2 border-b border-gray-50">
-                  <div className="flex items-center gap-1.5 font-bold text-gray-800">
-                    <Send className="w-4 h-4 text-[#1E5ABB]" />
-                    邀请资料补充表单
-                  </div>
-                  {activeInviteDraft && (
-                    <button
-                      type="button"
-                      onClick={resetActiveInviteForm}
-                      className="text-[11px] text-gray-400 hover:text-[#1E5ABB] cursor-pointer"
-                    >
-                      重新选择
-                    </button>
-                  )}
-                </div>
-                {activeInviteDraft ? (
-                  <div className="flex-1 overflow-visible p-4 space-y-3.5">
-                    <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 px-3 py-3 flex items-center gap-3">
-                      <FollowerLetterAvatar id={activeInviteDraft.followerId} name={activeInviteDraft.name || activeInviteDraft.wechat} />
-                      <div className="min-w-0">
-                        <div className="text-xs font-bold text-gray-800">
-                          微信昵称：{INITIAL_FOLLOWERS.find((item) => item.id === activeInviteDraft.followerId)?.nickname || activeInviteDraft.name}
-                        </div>
-                        <div className="mt-0.5 text-[11px] text-emerald-700">通过机构排查：未在编，允许邀请</div>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-gray-700 font-medium mb-1">真实姓名 *</label>
-                      <input
-                        value={activeInviteDraft.name}
-                        onChange={(event) => updateActiveInviteDraft({ name: event.target.value })}
-                        placeholder="请填写真实姓名"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-gray-700 font-medium mb-1">手机号码 *</label>
-                      <input
-                        value={activeInviteDraft.phone}
-                        onChange={(event) => updateActiveInviteDraft({ phone: event.target.value.replace(/\D/g, '').slice(0, 11) })}
-                        placeholder="请输入手机号（如：13812345678）"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <OrgCascadeSelect
-                        orgNodes={orgNodes}
-                        path={orgPath}
-                        onChange={syncOrgPath}
-                        label="所属机构 *"
-                        hideHint
-                      />
-                      <div>
-                        <label className="block text-gray-700 font-medium mb-1">所属角色 *</label>
-                        <select
-                          value={pRoles[0] || ''}
-                          onChange={(event) => setPRoles(event.target.value ? [event.target.value] : [])}
-                          className="w-full px-3 py-1.5 border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                        >
-                          <option value="">请选择角色</option>
-                          {ACCOUNT_ROLE_OPTIONS.map((role) => (
-                            <option key={role} value={role}>
-                              {role}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleActiveInvite}
-                      className="w-full h-10 rounded-lg bg-[#1E5ABB] text-white font-bold hover:bg-[#134092] cursor-pointer inline-flex items-center justify-center gap-1.5"
-                    >
-                      <Send className="w-4 h-4" />
-                      确认邀请
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-2 px-6 text-center">
-                    <UserPlus className="w-8 h-8 text-gray-300" />
-                    <div>请从左侧点击「邀请入队」</div>
-                    <div className="text-[11px]">补充姓名、手机号、所属机构与角色后发送微信邀请</div>
-                  </div>
-                )}
-              </div>
-              </>
+                <ShareInvitePanel
+                  key={inviteMode}
+                  mode={inviteMode}
+                  orgNodes={orgNodes}
+                  inviteCodes={inviteCodes}
+                  setInviteCodes={setInviteCodes}
+                  remainingSeats={remainingSeats}
+                  onToast={triggerToast}
+                  onCopy={copyText}
+                />
               )}
             </div>
-            <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2 shrink-0">
+            <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between gap-2 shrink-0 text-[11px]">
+              <div className="flex items-center gap-3 text-gray-500">
+                <span>
+                  本机构可用名额：已激活 <b className="text-gray-800">{inRoster.length}</b> / {ORG_MAX_USER_COUNT} 人，剩余{' '}
+                  <b className="text-[#1E5ABB]">{Math.max(0, ORG_MAX_USER_COUNT - inRoster.length)}</b> 人
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setIsInviteRecordOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1 text-[#1E5ABB] hover:underline cursor-pointer"
+                >
+                  <History className="w-3.5 h-3.5" />
+                  查看邀请记录
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
@@ -1376,6 +1309,27 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
             </div>
           </div>
         </div>
+      )}
+
+      {invitingFollower && (
+        <ReinviteModal
+          follower={invitingFollower}
+          orgNodes={orgNodes}
+          inviteCodes={inviteCodes}
+          setInviteCodes={setInviteCodes}
+          setPersonnelList={setPersonnelList}
+          onClose={() => setInvitingFollower(null)}
+          onSuccess={triggerToast}
+        />
+      )}
+
+      {isInviteRecordOpen && (
+        <InviteRecordModal
+          inviteCodes={inviteCodes}
+          orgNodes={orgNodes}
+          onClose={() => setIsInviteRecordOpen(false)}
+          onCopy={copyText}
+        />
       )}
 
       {viewing && (
@@ -1399,7 +1353,8 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
               <Detail label="联系电话" value={viewing.phone} />
               <Detail label="微信号" value={viewing.wechat} />
               <Detail label="角色名称" value={(viewing.roles || []).join('、')} />
-              <Detail label="账号状态" value={viewing.status === '启用' ? '正常启用' : '已停用'} />
+              <Detail label="账号状态" value={getFollowStatus(viewing) === '已关注' ? '正常关注' : '取消关注'} />
+              <Detail label="启用状态" value={viewing.status === '启用' ? '已启用' : '已停用'} />
               <div className="col-span-2">
                 <Detail label="所属机构" value={formatPersonOrgPaths(orgNodes, viewing.orgIds, undefined, viewing.primaryOrgId)} />
               </div>
@@ -1420,40 +1375,77 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
 };
 
 const StatCard: React.FC<{
+  title: string;
   icon: React.ReactNode;
-  label: string;
-  value: number;
-  tone: 'blue' | 'emerald' | 'slate';
-}> = ({ icon, label, value, tone }) => {
-  const tones = {
-    blue: 'bg-blue-50 text-[#1E5ABB] border-blue-100',
-    emerald: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-    slate: 'bg-slate-50 text-slate-600 border-slate-200'
-  };
+  iconClass?: string;
+  value: React.ReactNode;
+  valueClass?: string;
+  unit?: string;
+  badge?: string;
+  compact?: boolean;
+  tone?: string;
+  footer: React.ReactNode;
+  onClick?: () => void;
+}> = ({
+  title,
+  icon,
+  iconClass = 'text-slate-400',
+  value,
+  valueClass = 'text-slate-900',
+  unit = '人',
+  badge,
+  compact,
+  tone = 'border-slate-200 bg-white',
+  footer,
+  onClick
+}) => {
+  const clickable = Boolean(onClick);
   return (
-    <div className={`rounded-lg border px-3 py-2.5 flex items-center justify-between ${tones[tone]}`}>
-      <div>
-        <div className="text-[11px] opacity-80 whitespace-nowrap">{label}</div>
-        <div className="text-lg font-bold mt-0.5">{value}</div>
+    <div
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={(event) => {
+        if (clickable && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault();
+          onClick?.();
+        }
+      }}
+      className={`group rounded-lg border px-3.5 py-3 flex flex-col min-w-0 min-h-[104px] transition-colors ${tone} ${
+        clickable ? 'cursor-pointer hover:border-[#1E5ABB]/40 hover:shadow-sm' : ''
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="text-xs text-slate-600 font-semibold truncate">{title}</div>
+        <span className={`shrink-0 ${iconClass}`}>{icon}</span>
       </div>
-      <div className="w-8 h-8 rounded-lg bg-white/80 flex items-center justify-center">{icon}</div>
+      <div className="mt-1.5 flex items-baseline gap-1 min-w-0">
+        <span className={`font-black leading-tight truncate ${compact ? 'text-base py-1' : 'text-2xl'} ${valueClass}`}>
+          {value}
+        </span>
+        {!compact && <span className="text-xs text-slate-500 shrink-0">{unit}</span>}
+        {badge && (
+          <span className="ml-1 px-1.5 py-px rounded bg-slate-100 text-[10px] font-bold text-slate-500 shrink-0">
+            {badge}
+          </span>
+        )}
+      </div>
+      <div className="mt-auto pt-2 flex items-center gap-3 text-[11px] min-w-0">
+        <div className="flex-1 min-w-0 flex items-center gap-3">{footer}</div>
+        {clickable && (
+          <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-[#1E5ABB] shrink-0" />
+        )}
+      </div>
     </div>
   );
 };
 
-const IconBtn: React.FC<{ title: string; onClick: () => void; children: React.ReactNode }> = ({
-  title,
-  onClick,
-  children
-}) => (
-  <button
-    type="button"
-    title={title}
-    onClick={onClick}
-    className="w-6 h-6 rounded border border-gray-200 text-gray-500 hover:text-[#1E5ABB] hover:border-blue-200 hover:bg-blue-50 flex items-center justify-center cursor-pointer"
-  >
-    {children}
-  </button>
+const MetricItem: React.FC<{ dot: string; label: string; value: number }> = ({ dot, label, value }) => (
+  <span className="inline-flex items-center gap-1 text-slate-500 whitespace-nowrap">
+    <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+    {label}
+    <span className="font-bold text-slate-800">{value}</span>人
+  </span>
 );
 
 const Field: React.FC<{
@@ -1479,117 +1471,6 @@ const Detail: React.FC<{ label: string; value: string }> = ({ label, value }) =>
     <div className="font-medium text-gray-800">{value}</div>
   </div>
 );
-
-const OrgCascadeSelect: React.FC<{
-  orgNodes: OrgNode[];
-  path: string[];
-  onChange: (path: string[]) => void;
-  label?: string;
-  hideHint?: boolean;
-}> = ({ orgNodes, path, onChange, label = '所属机构 *', hideHint = false }) => {
-  const [open, setOpen] = useState(false);
-  const [drillPath, setDrillPath] = useState<string[]>(path);
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (open) setDrillPath(path);
-  }, [open, path]);
-
-  useEffect(() => {
-    const onDocClick = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
-  }, []);
-
-  const columns = useMemo(() => {
-    const next: Array<{ level: number; options: OrgNode[] }> = [
-      { level: 0, options: getOrgChildrenOf(orgNodes, null) }
-    ];
-    drillPath.forEach((id, index) => {
-      const children = getOrgChildrenOf(orgNodes, id);
-      if (children.length > 0) {
-        next.push({ level: index + 1, options: children });
-      }
-    });
-    return next;
-  }, [orgNodes, drillPath]);
-
-  const selectedPath = path.length ? getOrgFullPath(orgNodes, path[path.length - 1]) : '';
-  const previewPath = drillPath.length ? getOrgFullPath(orgNodes, drillPath[drillPath.length - 1]) : '';
-
-  const pickNode = (level: number, id: string) => {
-    const next = [...drillPath.slice(0, level), id];
-    setDrillPath(next);
-    onChange(next);
-    if (getOrgChildrenOf(orgNodes, id).length === 0) setOpen(false);
-  };
-
-  return (
-    <div ref={rootRef} className="relative">
-      <div className="flex items-center justify-between mb-1">
-        <label className="text-gray-700 font-medium">{label}</label>
-        {!hideHint && <span className="text-[10px] text-gray-400">点击后在弹出层中逐级下钻</span>}
-      </div>
-      <button
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        className="w-full px-3 py-1.5 border border-gray-300 rounded bg-white text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-      >
-        <span className={`truncate ${selectedPath ? 'text-gray-800' : 'text-gray-400'}`}>
-          {selectedPath || '请选择所属机构'}
-        </span>
-        <ChevronDown className={`w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div className="absolute z-40 mt-1 left-0 min-w-full max-w-[min(720px,calc(100vw-96px))] bg-white border border-gray-200 rounded-lg overflow-hidden shadow-xl">
-          <div className="flex max-h-56 overflow-x-auto overflow-y-hidden">
-            {columns.map((column) => (
-              <div
-                key={column.level}
-                className="w-44 shrink-0 border-r last:border-r-0 border-gray-200 overflow-y-auto max-h-56"
-              >
-                {column.options.map((org) => {
-                  const hasChildren = getOrgChildrenOf(orgNodes, org.id).length > 0;
-                  const isActive = drillPath[column.level] === org.id;
-                  return (
-                    <button
-                      key={org.id}
-                      type="button"
-                      onClick={() => pickNode(column.level, org.id)}
-                      className={`w-full h-8 px-2 flex items-center justify-between gap-2 text-left text-xs hover:bg-blue-50 cursor-pointer ${
-                        isActive ? 'bg-blue-50 text-[#1E5ABB] font-bold' : 'text-gray-700'
-                      }`}
-                    >
-                      <span className="flex items-center gap-1.5 min-w-0">
-                        {isActive && <Check className="w-3 h-3 shrink-0" />}
-                        <span className="truncate">{org.name}</span>
-                      </span>
-                      {hasChildren && <ChevronRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />}
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-          <div className="px-3 py-2 bg-gray-50 border-t border-gray-200 flex items-center justify-between gap-3">
-            <span className={`text-[11px] truncate ${previewPath ? 'text-[#1E5ABB] font-medium' : 'text-gray-400'}`}>
-              {previewPath || '请先选择一级机构，有下级继续向右展开'}
-            </span>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="px-2.5 py-1 rounded bg-[#1E5ABB] text-white text-[11px] font-bold hover:bg-[#134092] cursor-pointer shrink-0"
-            >
-              确定
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
 
 const MultiSelectDropdown: React.FC<{
   label: string;

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ReportItem, PageId } from '../types';
-import { ChevronRight, Database, Search, RotateCcw, X, Pencil, Trash2, Plus, Globe, Users, Lock, Inbox, Clock, ArrowRightLeft, LogOut, FileText, Send } from 'lucide-react';
+import { ChevronRight, Database, Search, RotateCcw, X, Pencil, Trash2, Plus, Globe, Users, Lock, Inbox, Clock, ArrowRightLeft, LogOut, FileText, Send, Download } from 'lucide-react';
 import {
   isWarehouseEnabled,
   loadWarehouses,
@@ -578,7 +578,42 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
       remove: 'text-rose-500 hover:text-rose-600'
     };
     const batchLink =
-      'inline-flex items-center gap-1 px-2.5 py-1 rounded-md border font-semibold cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
+      'inline-flex items-center gap-1 px-2.5 py-1 rounded-md border font-semibold cursor-pointer transition-colors disabled:cursor-not-allowed';
+    const batchDisabled = 'border-gray-200 bg-gray-100 text-gray-400';
+    const noneSelected = selectedRecordIds.length === 0;
+    const exportRecords = () => {
+      const rows = noneSelected ? filtered : filtered.filter((item) => selectedRecordIds.includes(item.id));
+      if (rows.length === 0) {
+        setWarehouseNotice('暂无可导出的数据');
+        return;
+      }
+      const escape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+      const header = ['事件标题', '内容摘要', '转办状态', '识别标识', '上报人', '报送机构', '报送时间'];
+      const lines = rows.map((item) =>
+        [
+          item.title,
+          item.detailContent?.summary || '',
+          getTransferStatus(item),
+          resolveIdentification(item, negativeList).status,
+          item.author,
+          item.organization,
+          item.submitTime
+        ]
+          .map(escape)
+          .join(',')
+      );
+      const csv = [header.map(escape).join(','), ...lines].join('\n');
+      const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${activeWarehouse.name}_数据导出_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setWarehouseNotice(`已导出 ${rows.length} 条数据`);
+    };
 
     return (
       <div className="space-y-4">
@@ -709,8 +744,13 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
             <button
               type="button"
               onClick={() => openMoveRecords(selectedRecordIds)}
-              disabled={moveTargets.length === 0}
-              className={`${batchLink} border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100`}
+              disabled={noneSelected || moveTargets.length === 0}
+              title={noneSelected ? '请先勾选数据' : undefined}
+              className={`${batchLink} ${
+                noneSelected || moveTargets.length === 0
+                  ? batchDisabled
+                  : 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
+              }`}
             >
               <ArrowRightLeft className="w-3.5 h-3.5" />
               批量迁移
@@ -718,10 +758,26 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
             <button
               type="button"
               onClick={() => openRemoveRecords(selectedRecordIds)}
-              className={`${batchLink} border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100`}
+              disabled={noneSelected}
+              title={noneSelected ? '请先勾选数据' : undefined}
+              className={`${batchLink} ${
+                noneSelected ? batchDisabled : 'border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100'
+              }`}
             >
               <LogOut className="w-3.5 h-3.5" />
               批量移出
+            </button>
+            <button
+              type="button"
+              onClick={exportRecords}
+              disabled={filtered.length === 0}
+              title={noneSelected ? '未勾选时导出当前筛选结果' : `导出已选 ${selectedRecordIds.length} 条`}
+              className={`${batchLink} ${
+                filtered.length === 0 ? batchDisabled : 'border-blue-200 bg-blue-50 text-[#1E5ABB] hover:bg-blue-100'
+              }`}
+            >
+              <Download className="w-3.5 h-3.5" />
+              {noneSelected ? '数据导出' : `导出已选(${selectedRecordIds.length})`}
             </button>
           </div>
         </div>

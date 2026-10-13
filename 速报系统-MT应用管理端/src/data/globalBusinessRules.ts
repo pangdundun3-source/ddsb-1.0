@@ -14,6 +14,11 @@ import {
 } from '../types';
 import { defaultGlobalMpControlConfig } from '../components/other-config/GlobalOtherConfigDefaultsSection';
 
+const RETIRED_VALUE_ADDED_SERVICE_IDS = new Set(['vas-screenshot-evidence']);
+
+export const dropRetiredValueAddedServices = (items: ValueAddedServiceItem[]) =>
+  items.filter((item) => !RETIRED_VALUE_ADDED_SERVICE_IDS.has(item.id));
+
 export const defaultValueAddedServices: ValueAddedServiceItem[] = [
   {
     id: 'vas-batch-review',
@@ -22,16 +27,6 @@ export const defaultValueAddedServices: ValueAddedServiceItem[] = [
     isEnabled: true,
     tag: '增值扩展功能',
     description: '支持批量勾选多条报送线索与事项目录、快捷批量审核通过、批量驳回与一键签发转办，大幅提升处置效率',
-    icon: 'auto_awesome',
-    isGlobal: true,
-  },
-  {
-    id: 'vas-screenshot-evidence',
-    name: '截图取证',
-    isPurchased: true,
-    isEnabled: false,
-    tag: '增值扩展功能',
-    description: '自动化对涉事网页及社交媒体内容进行全屏快照截屏存证，生成区块链与防篡改水文可信取证包',
     icon: 'auto_awesome',
     isGlobal: true,
   },
@@ -990,7 +985,7 @@ export const mergeInstitutionRulesWithGlobal = (
     }
   });
 
-  (instRules.valueAddedServices || []).forEach((v) => {
+  dropRetiredValueAddedServices(instRules.valueAddedServices || []).forEach((v) => {
     if (!globalVasIds.has(v.id)) {
       mergedVas.push({
         ...v,

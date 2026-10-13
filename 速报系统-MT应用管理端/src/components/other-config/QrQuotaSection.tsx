@@ -115,7 +115,7 @@ export const QrQuotaSection: React.FC<QrQuotaSectionProps> = ({
           <div>
             <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
               <span className="material-symbols-outlined text-[#1890ff] text-[22px]">key</span>
-              <span>激活码的名额与管理</span>
+              <span>激活名额配置</span>
             </h3>
           </div>
 
@@ -238,7 +238,7 @@ export const QrQuotaSection: React.FC<QrQuotaSectionProps> = ({
                 type="text"
                 value={personnelSearch}
                 onChange={(e) => setPersonnelSearch(e.target.value)}
-                placeholder="搜索姓名、部门、角色或手机号..."
+                placeholder="搜索姓名、机构、角色或手机号..."
                 className="pl-8 pr-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:outline-none focus:border-[#1890ff] w-60"
               />
             </div>
@@ -252,7 +252,7 @@ export const QrQuotaSection: React.FC<QrQuotaSectionProps> = ({
               <thead className="bg-gray-50/80 border-b border-gray-200 text-gray-600 font-semibold select-none">
                 <tr>
                   <th className="py-2.5 px-3.5">姓名</th>
-                  <th className="py-2.5 px-3.5">部门 / 科室</th>
+                  <th className="py-2.5 px-3.5">所属机构</th>
                   <th className="py-2.5 px-3.5">角色身份</th>
                   <th className="py-2.5 px-3.5">手机号码</th>
                   <th className="py-2.5 px-3.5">绑定时间</th>

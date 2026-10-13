@@ -1,23 +1,33 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Search, Plus, Users, UserPlus, Pencil, Trash2, X, Building2, Circle, GripVertical } from 'lucide-react';
+import { Search, Plus, Users, UserPlus, Pencil, Trash2, X, Building2, Circle, ArrowUpDown } from 'lucide-react';
 import type { PersonnelItem } from './OrgManagement';
-import { buildOrgIdPath, formatPersonOrgPaths, getOrgFullPath, type PersonnelGroup, type UserOrgSharedState } from '../data/userOrgShared';
+import {
+  ACCOUNT_ROLE_OPTIONS,
+  buildOrgIdPath,
+  formatPersonOrgPaths,
+  getOrgFullPath,
+  type PersonnelGroup,
+  type UserOrgSharedState
+} from '../data/userOrgShared';
 import {
   getPersonAvatarUrl,
   maskPhone,
   PersonAvatar,
-  PersonIdentityCell,
+  PersonGroupCell,
   PersonOrgPathCell,
-  PersonRoleBadges,
-  StatusSwitch
+  PersonRoleBadges
 } from '../components/PersonAccountDisplay';
+import { ExternalUserTable, FollowStatusBadges } from '../components/ExternalUserTable';
 
 interface PersonnelGroupManagementProps {
   shared: UserOrgSharedState;
 }
 
 export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> = ({ shared }) => {
-  const { orgNodes, personnelList, setPersonnelList, groups, setGroups } = shared;
+  const { orgNodes, personnelList, setPersonnelList, groups, setGroups, inviteCodes, setInviteCodes } = shared;
+  const [pickSearch, setPickSearch] = useState('');
+  const [pickRole, setPickRole] = useState('all');
+  const [onlyUngrouped, setOnlyUngrouped] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState(groups[0]?.id || '');
   const [groupSearch, setGroupSearch] = useState('');
   const [memberSearch, setMemberSearch] = useState('');
@@ -30,6 +40,8 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
   const [orgFilter, setOrgFilter] = useState('all');
   const [pickedIds, setPickedIds] = useState<number[]>([]);
   const [revealedPhoneIds, setRevealedPhoneIds] = useState<number[]>([]);
+  const [changeGroupTarget, setChangeGroupTarget] = useState<PersonnelItem | null>(null);
+  const [changeGroupTo, setChangeGroupTo] = useState('');
 
   const [gName, setGName] = useState('');
   const [gDesc, setGDesc] = useState('');
@@ -167,8 +179,13 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
   const openAddMembers = () => {
     setOrgFilter('all');
     setPickedIds([]);
+    setPickSearch('');
+    setPickRole('all');
+    setOnlyUngrouped(false);
     setIsAddMemberOpen(true);
   };
+
+  const getGroupName = (id: string) => groups.find((group) => group.id === id)?.name || id;
 
   const candidatePeople = activePeople.filter((item) => {
     if (!selectedGroup) return false;
@@ -179,8 +196,26 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
       );
       if (!belongsToOrg) return false;
     }
+    if (pickRole !== 'all' && !(item.roles || []).includes(pickRole)) return false;
+    if (onlyUngrouped && (item.groupIds || []).length > 0) return false;
+    const q = pickSearch.trim().toLowerCase();
+    if (q && !item.realName.toLowerCase().includes(q) && !item.phone.includes(q)) return false;
     return true;
   });
+
+  const allCandidatesPicked =
+    candidatePeople.length > 0 && candidatePeople.every((item) => pickedIds.includes(item.id));
+
+  const togglePicked = (id: number) => {
+    setPickedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+  };
+
+  const toggleAllCandidates = () => {
+    const ids = candidatePeople.map((item) => item.id);
+    setPickedIds((prev) =>
+      allCandidatesPicked ? prev.filter((id) => !ids.includes(id)) : Array.from(new Set([...prev, ...ids]))
+    );
+  };
 
   const handleConfirmAddMembers = () => {
     if (!selectedGroup || pickedIds.length === 0) return;
@@ -207,12 +242,32 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
     triggerToast(`已将【${person.realName}】移出分组`);
   };
 
-  const handleToggleMemberStatus = (id: number) => {
+  const openChangeGroup = (person: PersonnelItem) => {
+    setChangeGroupTarget(person);
+    setChangeGroupTo(selectedGroup?.id || '');
+  };
+
+  const handleChangeGroup = () => {
+    if (!changeGroupTarget || !selectedGroup) return;
+    if (!changeGroupTo || changeGroupTo === selectedGroup.id) {
+      setChangeGroupTarget(null);
+      return;
+    }
+    const targetName = getGroupName(changeGroupTo);
     setPersonnelList((prev) =>
       prev.map((item) =>
-        item.id === id ? { ...item, status: item.status === '启用' ? '禁用' : '启用' } : item
+        item.id === changeGroupTarget.id
+          ? {
+              ...item,
+              groupIds: Array.from(
+                new Set([...(item.groupIds || []).filter((groupId) => groupId !== selectedGroup.id), changeGroupTo])
+              )
+            }
+          : item
       )
     );
+    triggerToast(`已将【${changeGroupTarget.realName}】调整到「${targetName}」`);
+    setChangeGroupTarget(null);
   };
 
   return (
@@ -331,7 +386,7 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
                       isActive ? 'text-white/70 hover:text-white' : 'text-gray-300 hover:text-gray-500'
                     }`}
                   >
-                    <GripVertical className="w-3.5 h-3.5" />
+                    <ArrowUpDown className="w-3.5 h-3.5" />
                   </button>
                   <span className="min-w-0 flex-1 truncate text-xs font-medium">{group.name}</span>
                   {isActive && (
@@ -423,84 +478,104 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
               </div>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-5 pb-4">
-              <table className="w-full table-fixed text-left border-collapse text-xs">
-                <colgroup>
-                  <col className="w-11" />
-                  <col className="w-[26%]" />
-                  <col className="w-[30%]" />
-                  <col className="w-[20%]" />
-                  <col className="w-[80px]" />
-                  <col className="w-14" />
-                </colgroup>
-                <thead>
-                  <tr className="bg-gray-50/80 text-gray-500 border-y border-gray-200 font-medium">
-                    <th className="py-2 px-2 text-center">序号</th>
-                    <th className="py-2 px-2">姓名 / 手机号</th>
-                    <th className="py-2 px-2">
-                      <span className="inline-flex items-center gap-1"><Building2 className="w-3 h-3 shrink-0" />所属机构</span>
-                    </th>
-                    <th className="py-2 px-2">
-                      <span className="inline-flex items-center gap-1"><Circle className="w-3 h-3 shrink-0" />角色</span>
-                    </th>
-                    <th className="py-2 px-1.5">状态</th>
-                    <th className="py-2 px-1.5 text-center">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {members.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="py-10 text-center text-gray-400">
-                        当前分组暂无成员，点击右上角添加
-                      </td>
-                    </tr>
-                  ) : (
-                    members.map((item, index) => (
-                      <tr key={item.id} className="hover:bg-blue-50/20">
-                        <td className="py-2 px-2 text-center text-gray-400 font-mono">{index + 1}</td>
-                        <td className="py-2 px-2 overflow-hidden">
-                          <PersonIdentityCell
-                            item={item}
-                            revealed={revealedPhoneIds.includes(item.id)}
-                            onToggleReveal={() =>
-                              setRevealedPhoneIds((prev) =>
-                                prev.includes(item.id) ? prev.filter((id) => id !== item.id) : [...prev, item.id]
-                              )
-                            }
-                          />
-                        </td>
-                        <td className="py-2 px-2 overflow-hidden">
-                          <PersonOrgPathCell path={formatPersonOrgPaths(orgNodes, item.orgIds, undefined, item.primaryOrgId)} />
-                        </td>
-                        <td className="py-2 px-2 overflow-hidden">
-                          <PersonRoleBadges roles={item.roles} />
-                        </td>
-                        <td className="py-2 px-1.5 overflow-hidden">
-                          <StatusSwitch
-                            enabled={item.status === '启用'}
-                            onToggle={() => handleToggleMemberStatus(item.id)}
-                          />
-                        </td>
-                        <td className="py-2 px-1.5 text-center overflow-hidden">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveMember(item)}
-                            className="px-1.5 py-0.5 rounded text-[10px] font-bold text-rose-600 hover:bg-rose-50 cursor-pointer"
-                          >
-                            移出
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+            <div className="flex-1 min-h-0 overflow-auto px-5 pb-4">
+              <ExternalUserTable
+                items={members}
+                orgNodes={orgNodes}
+                getGroupName={getGroupName}
+                emptyText="当前分组暂无成员，点击右上角添加"
+                renderExtraActions={(item) => (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => openChangeGroup(item)}
+                      className="h-6 px-2 rounded border border-blue-100 text-[11px] font-bold text-[#1E5ABB] hover:bg-blue-50 cursor-pointer"
+                    >
+                      修改分组
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveMember(item)}
+                      className="h-6 px-2 rounded border border-rose-100 text-[11px] font-bold text-rose-600 hover:bg-rose-50 cursor-pointer"
+                    >
+                      移出
+                    </button>
+                  </>
+                )}
+              />
             </div>
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-sm text-gray-400">请先新建一个人员分组</div>
         )}
       </div>
+
+      {changeGroupTarget && selectedGroup && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setChangeGroupTarget(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md text-xs" onClick={(event) => event.stopPropagation()}>
+            <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100">
+              <div className="font-bold text-gray-800 text-sm">修改分组</div>
+              <button
+                type="button"
+                onClick={() => setChangeGroupTarget(null)}
+                className="w-7 h-7 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="text-gray-500">
+                将 <b className="text-gray-800">{changeGroupTarget.realName}</b> 从「{selectedGroup.name}」调整到：
+              </div>
+              <div className="max-h-[300px] overflow-y-auto space-y-1.5">
+                {groups.map((group) => {
+                  const checked = changeGroupTo === group.id;
+                  const isCurrent = group.id === selectedGroup.id;
+                  const alreadyIn = !isCurrent && (changeGroupTarget.groupIds || []).includes(group.id);
+                  return (
+                    <button
+                      key={group.id}
+                      type="button"
+                      onClick={() => setChangeGroupTo(group.id)}
+                      className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-left cursor-pointer ${
+                        checked ? 'border-[#1E5ABB] bg-[#F4F8FE]' : 'border-gray-100 hover:border-gray-200'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span
+                          className={`w-3.5 h-3.5 rounded-full border shrink-0 ${
+                            checked ? 'border-[#1E5ABB] bg-[#1E5ABB] shadow-[inset_0_0_0_2px_#fff]' : 'border-gray-300'
+                          }`}
+                        />
+                        <span className={`truncate ${checked ? 'font-bold text-[#1E5ABB]' : 'text-gray-700'}`}>{group.name}</span>
+                      </span>
+                      {isCurrent && <span className="shrink-0 text-[10px] text-gray-400">当前分组</span>}
+                      {alreadyIn && <span className="shrink-0 text-[10px] text-amber-600">已在该组</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="px-4 py-3 border-t border-gray-100 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setChangeGroupTarget(null)}
+                className="h-8 px-4 rounded border border-gray-200 text-gray-600 hover:bg-gray-50 cursor-pointer"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleChangeGroup}
+                disabled={!changeGroupTo || changeGroupTo === selectedGroup.id}
+                className="h-8 px-4 rounded bg-[#1E5ABB] text-white font-bold hover:bg-[#134092] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              >
+                确认调整
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isCreateOpen && editingGroup && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -555,91 +630,191 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
       )}
 
       {isAddMemberOpen && selectedGroup && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-xl overflow-hidden animate-in fade-in zoom-in-95 max-h-[86vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setIsAddMemberOpen(false)}>
+          <div
+            className="bg-white rounded-lg shadow-xl w-full max-w-4xl overflow-hidden h-[80vh] max-h-[720px] flex flex-col text-xs"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
               <div>
-                <h3 className="text-sm font-bold text-gray-800">选派人员加入【{selectedGroup.name}】</h3>
-                <p className="text-[11px] text-gray-400 mt-0.5">从在册账号中勾选后加入本组</p>
+                <h3 className="text-sm font-bold text-gray-800">添加成员至【{selectedGroup.name}】</h3>
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  从外部用户数据中勾选人员加入本组，已在本组的成员不再显示
+                </p>
               </div>
-              <button type="button" onClick={() => setIsAddMemberOpen(false)} className="text-gray-400 hover:text-gray-600 cursor-pointer">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="px-5 py-3 flex items-center justify-between gap-3 border-b border-gray-100">
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-gray-500 whitespace-nowrap">机构筛选</span>
-                <select
-                  value={orgFilter}
-                  onChange={(event) => setOrgFilter(event.target.value)}
-                  className="border border-gray-200 rounded px-2 py-1 bg-white"
-                >
-                  <option value="all">全部所属机构</option>
-                  {orgNodes.map((org) => (
-                    <option key={org.id} value={org.id}>
-                      {getOrgFullPath(orgNodes, org.id)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <span className="text-xs text-[#1E5ABB] font-bold">已选中：{pickedIds.length} 人</span>
-            </div>
-            <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
-              {candidatePeople.length === 0 ? (
-                <div className="py-10 text-center text-xs text-gray-400">没有可加入的在册账号</div>
-              ) : (
-                candidatePeople.map((person) => {
-                  const checked = pickedIds.includes(person.id);
-                  return (
-                    <label
-                      key={person.id}
-                      className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 cursor-pointer ${
-                        checked ? 'border-blue-200 bg-blue-50/70' : 'border-gray-100 hover:bg-slate-50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() =>
-                            setPickedIds((prev) =>
-                              checked ? prev.filter((id) => id !== person.id) : [...prev, person.id]
-                            )
-                          }
-                          className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5"
-                        />
-                        <span className="w-8 h-8 rounded-full overflow-hidden shrink-0 ring-1 ring-black/10">
-                          <PersonAvatar name={person.realName} src={getPersonAvatarUrl(person)} size="sm" />
-                        </span>
-                        <div className="min-w-0">
-                          <div className="text-xs font-bold text-gray-800">{person.realName}</div>
-                          <div className="font-mono text-[11px] text-gray-500">{maskPhone(person.phone)}</div>
-                          <div className="text-[11px] text-gray-400 truncate">
-                            {formatPersonOrgPaths(orgNodes, person.orgIds, undefined, person.primaryOrgId).replaceAll('/', ' / ')}
-                          </div>
-                        </div>
-                      </div>
-                    </label>
-                  );
-                })
-              )}
-            </div>
-            <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setIsAddMemberOpen(false)}
-                className="px-4 py-1.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50 cursor-pointer text-xs"
+                className="w-7 h-7 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 flex items-center justify-center cursor-pointer"
               >
-                取消
+                <X className="w-4 h-4" />
               </button>
-              <button
-                type="button"
-                onClick={handleConfirmAddMembers}
-                disabled={pickedIds.length === 0}
-                className="px-4 py-1.5 bg-[#1E5ABB] text-white rounded font-bold hover:bg-[#134092] cursor-pointer text-xs disabled:opacity-50"
+            </div>
+
+            <div className="px-5 py-3 flex flex-wrap items-center gap-2 border-b border-gray-100">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  value={pickSearch}
+                  onChange={(event) => setPickSearch(event.target.value)}
+                  placeholder="搜索姓名 / 手机号"
+                  className="h-8 w-52 pl-8 pr-2 border border-gray-200 rounded focus:outline-none focus:border-[#1E5ABB]"
+                />
+              </div>
+              <select
+                value={orgFilter}
+                onChange={(event) => setOrgFilter(event.target.value)}
+                className="h-8 max-w-[260px] border border-gray-200 rounded px-2 bg-white focus:outline-none focus:border-[#1E5ABB]"
               >
-                确认加入（{pickedIds.length}）
-              </button>
+                <option value="all">全部所属机构</option>
+                {orgNodes.map((org) => (
+                  <option key={org.id} value={org.id}>
+                    {getOrgFullPath(orgNodes, org.id)}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={pickRole}
+                onChange={(event) => setPickRole(event.target.value)}
+                className="h-8 border border-gray-200 rounded px-2 bg-white focus:outline-none focus:border-[#1E5ABB]"
+              >
+                <option value="all">全部角色</option>
+                {ACCOUNT_ROLE_OPTIONS.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+              <label className="inline-flex items-center gap-1.5 text-gray-600 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={onlyUngrouped}
+                  onChange={(event) => setOnlyUngrouped(event.target.checked)}
+                  className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5"
+                />
+                仅看未分组
+              </label>
+              <span className="ml-auto text-gray-400">
+                共 <b className="text-gray-700">{candidatePeople.length}</b> 位可选
+              </span>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-auto px-5 py-2">
+              <table className="w-full text-left border-collapse">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-gray-50 text-gray-500 border-y border-gray-200 font-medium">
+                    <th className="py-2.5 px-3 w-10">
+                      <input
+                        type="checkbox"
+                        checked={allCandidatesPicked}
+                        disabled={candidatePeople.length === 0}
+                        onChange={toggleAllCandidates}
+                        className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 cursor-pointer"
+                      />
+                    </th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">姓名 / 手机号</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1"><Building2 className="w-3 h-3" />所属机构</span>
+                    </th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1"><Circle className="w-3 h-3" />角色名称</span>
+                    </th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1"><Users className="w-3 h-3" />当前分组</span>
+                    </th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">账号状态</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 text-gray-700">
+                  {candidatePeople.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-gray-400">
+                        没有符合条件的外部用户
+                      </td>
+                    </tr>
+                  ) : (
+                    candidatePeople.map((person) => {
+                      const checked = pickedIds.includes(person.id);
+                      const enabled = person.status === '启用';
+                      const currentGroupId = (person.groupIds || [])[0];
+                      return (
+                        <tr
+                          key={person.id}
+                          onClick={() => togglePicked(person.id)}
+                          className={`cursor-pointer transition-colors ${
+                            checked ? 'bg-blue-50/70' : enabled ? 'hover:bg-slate-50' : 'bg-slate-50/80 hover:bg-slate-100/70'
+                          }`}
+                        >
+                          <td className="py-2.5 px-3">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => togglePicked(person.id)}
+                              onClick={(event) => event.stopPropagation()}
+                              className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5 cursor-pointer"
+                            />
+                          </td>
+                          <td className={`py-2.5 px-3 ${enabled ? '' : 'opacity-50 grayscale'}`}>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="w-8 h-8 rounded-full overflow-hidden shrink-0 ring-1 ring-black/10">
+                                <PersonAvatar name={person.realName} src={getPersonAvatarUrl(person)} size="sm" />
+                              </span>
+                              <div className="min-w-0">
+                                <div className="font-bold text-gray-800">{person.realName}</div>
+                                <div className="font-mono text-[11px] text-gray-500">{maskPhone(person.phone)}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3 max-w-[220px]">
+                            <PersonOrgPathCell path={formatPersonOrgPaths(orgNodes, person.orgIds, undefined, person.primaryOrgId)} />
+                          </td>
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <PersonRoleBadges roles={[(person.roles || [])[0] || '未分配']} />
+                          </td>
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <PersonGroupCell groupName={currentGroupId ? getGroupName(currentGroupId) : undefined} />
+                          </td>
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <FollowStatusBadges item={person} />
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between gap-2">
+              <div className="text-gray-500">
+                已选 <b className="text-[#1E5ABB]">{pickedIds.length}</b> 人
+                {pickedIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setPickedIds([])}
+                    className="ml-2 text-gray-400 hover:text-[#1E5ABB] cursor-pointer"
+                  >
+                    清空
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddMemberOpen(false)}
+                  className="px-4 py-1.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50 cursor-pointer"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmAddMembers}
+                  disabled={pickedIds.length === 0}
+                  className="px-4 py-1.5 bg-[#1E5ABB] text-white rounded font-bold hover:bg-[#134092] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  确认加入（{pickedIds.length}）
+                </button>
+              </div>
             </div>
           </div>
         </div>

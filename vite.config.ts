@@ -4,6 +4,7 @@ import http from 'node:http';
 import {fileURLToPath} from 'node:url';
 import path from 'path';
 import {defineConfig} from 'vite';
+import {terminalDocsPlugin} from './scripts/terminal-docs-plugin';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -60,6 +61,7 @@ export default defineConfig(() => {
     plugins: [
       react(),
       tailwindcss(),
+      terminalDocsPlugin(path.resolve(__dirname, 'docs/terminals')),
       {
         name: 'terminal-status-api',
         configureServer(server) {
