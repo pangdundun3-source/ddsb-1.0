@@ -140,7 +140,10 @@ export interface DetailTabItem {
 }
 
 export const INSTITUTION_DETAIL_TABS: DetailTabItem[] = [
-  { key: 'basic', label: '基础信息与服务', icon: 'corporate_fare' },
+  { key: 'org_structure', label: '组织机构查看', icon: 'account_tree' },
+  { key: 'basic', label: '机构用户管理', icon: 'group' },
+  { key: 'org_roles', label: '机构角色管理', icon: 'admin_panel_settings' },
+  { key: 'external_users', label: '外部用户体系配置', icon: 'diversity_3' },
   { key: 'business_rules', label: '其他业务配置', icon: 'tune' },
 ];
 

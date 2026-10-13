@@ -47,7 +47,9 @@ export const adminShellStorage = {
 
   readSystemSubTab: (): SystemSubModule => {
     const saved = read(STORAGE_KEYS.systemSubTab);
-    return systemSubTabs.includes(saved as SystemSubModule) ? (saved as SystemSubModule) : 'accounts';
+    if (saved === 'logs') return 'logs';
+    // 账号管理已下线
+    return 'logs';
   },
 
   saveSystemSubTab: (tab: SystemSubModule) => write(STORAGE_KEYS.systemSubTab, tab),
@@ -92,7 +94,10 @@ export const adminShellStorage = {
   readInstitutionDetailTab: (): DetailTab => {
     const saved = read(STORAGE_KEYS.institutionDetailTab);
     const validTabs: DetailTab[] = [
+      'org_structure',
       'basic',
+      'org_roles',
+      'external_users',
       'business_rules',
       'templates',
       'scoring',

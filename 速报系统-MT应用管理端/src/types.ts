@@ -447,6 +447,8 @@ export interface Institution {
   createdAt?: string;
   daysRemaining: number;
   unitName?: string;
+  fullName?: string;
+  creditCode?: string;
   businessRules?: InstitutionBusinessRules;
 }
 
@@ -511,7 +513,10 @@ export interface SystemAccountUser {
 export type SystemLogCategory = 'login' | 'audit' | 'security' | 'data_change' | 'system_runtime';
 
 export type DetailTab =
+  | 'org_structure'
   | 'basic'
+  | 'org_roles'
+  | 'external_users'
   | 'business_rules'
   | 'templates'
   | 'scoring'

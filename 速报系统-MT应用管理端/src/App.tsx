@@ -75,11 +75,11 @@ export default function App() {
     handleEditModeChange,
     openInstitutionDetail,
     handleCloseInstitutionDetail,
-    handleOpenAddInstitution,
     handleCloseAddInstitution,
     handleToggleStatus,
     handleProvisionInstitution,
     handleSaveInstitution,
+    handleAuthorizeInstitution,
     handleConfirmDelete,
     handleSelectExpiringInstitution,
     setDeletingInstitution,
@@ -156,15 +156,7 @@ export default function App() {
         {/* Right Content Body */}
         <main className="flex-1 bg-[#f5f7fa] overflow-y-auto overflow-x-auto min-h-[calc(100vh-74px)]">
           <Suspense fallback={<PageLoadingFallback />}>
-            {/* If create mode is open, show the full Add Institution Page */}
-            {isCreatingInstitution ? (
-              <InstitutionDetailPage
-                isCreateMode={true}
-                onBack={handleCloseAddInstitution}
-                onSave={handleSaveInstitution}
-                auditLogs={auditLogs}
-              />
-            ) : activeTab === 'institutions' && activeDetailInstitution ? (
+            {activeTab === 'institutions' && activeDetailInstitution ? (
               /* If secondary institution detail page is open */
               <InstitutionDetailPage
                 key={`inst-${activeDetailInstitution.id}-${isEditingInstitution ? 'edit' : 'detail'}`}
@@ -191,15 +183,12 @@ export default function App() {
                 {activeTab === 'institutions' && (
                   <InstitutionManagement
                     institutions={institutions}
-                    onAddClick={handleOpenAddInstitution}
-                    onEditClick={(inst) => {
-                      openInstitutionDetail(inst.id, true);
-                    }}
+                    autoOpenAuthorize={isCreatingInstitution}
+                    onAuthorizeClosed={handleCloseAddInstitution}
+                    onAuthorizeInstitution={handleAuthorizeInstitution}
                     onDetailClick={(inst) => {
                       openInstitutionDetail(inst.id, false);
                     }}
-                    onDeleteClick={(inst) => setDeletingInstitution(inst)}
-                    onToggleStatus={handleToggleStatus}
                     onProvisionInstitution={handleProvisionInstitution}
                   />
                 )}

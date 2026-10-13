@@ -24,7 +24,7 @@ interface NavItem {
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   setActiveTab,
-  systemSubTab = 'accounts',
+  systemSubTab = 'logs',
   setSystemSubTab,
 }) => {
   const [isSystemOpen, setIsSystemOpen] = useState(true);
@@ -38,7 +38,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: '系统管理',
       icon: 'dvr',
       subItems: [
-        { id: 'accounts', label: '账号管理', icon: 'manage_accounts' },
         { id: 'logs', label: '系统日志', icon: 'receipt_long' },
       ],
     },
@@ -115,13 +114,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <button
                         key={sub.id}
                         onClick={(e) => handleSubItemClick(item.id, sub.id, e)}
-                        className={`w-full flex items-center pl-12 pr-4 py-2 text-xs font-medium transition-colors cursor-pointer text-left ${
+                        className={`w-full flex items-center pl-12 pr-4 py-2 text-[13px] font-medium transition-colors cursor-pointer text-left ${
                           isSubActive
                             ? 'text-[#1890ff] font-bold bg-[#dbeafe]/80'
                             : 'text-[#666666] hover:text-[#1890ff] hover:bg-[#e6f4ff]'
                         }`}
                       >
-                        <span className="material-symbols-outlined text-[15px] mr-2">
+                        <span className="material-symbols-outlined text-[16px] mr-2">
                           {sub.icon}
                         </span>
                         <span>{sub.label}</span>

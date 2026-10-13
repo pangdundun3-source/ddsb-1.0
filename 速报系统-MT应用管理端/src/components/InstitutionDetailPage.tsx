@@ -2,6 +2,11 @@ import React from 'react';
 import { Institution, AuditLog } from '../types';
 import { BusinessRuleNavKey, InstitutionBusinessRulesTab } from './InstitutionBusinessRulesTab';
 import { OtherBusinessConfigTab } from './OtherBusinessConfigTab';
+import { InstitutionUserManagement } from './InstitutionUserManagement';
+import { InstitutionRoleManagement } from './InstitutionRoleManagement';
+import { InstitutionOrgStructure } from './InstitutionOrgStructure';
+import { ExternalUserSystemConfig } from './ExternalUserSystemConfig';
+import { CopyIconButton } from './common/CopyIconButton';
 import {
   AVAILABLE_ROLES,
   FORMAL_DURATION_PRESETS,
@@ -10,6 +15,8 @@ import {
   TRIAL_DURATION_PRESETS,
   useInstitutionDetailViewModel,
 } from '../viewmodels/useInstitutionDetailViewModel';
+import { getInstitutionProfile } from '../viewmodels/useInstitutionListViewModel';
+import { getTodayStr } from '../shared/date';
 
 /** Keep in sync with the client port in scripts/suite-apps.mjs */
 const CLIENT_DEV_PORT = '3001';
@@ -22,6 +29,95 @@ const getClientAppUrl = () => {
     return `${protocol}//${hostname}:${CLIENT_DEV_PORT}/${CLIENT_ENTRY_HASH}`;
   }
   return new URL(`../v8-client/app.html${CLIENT_ENTRY_HASH}`, href).href;
+};
+
+const daysUntil = (endDate: string) => {
+  const today = new Date(getTodayStr()).getTime();
+  return Math.ceil((new Date(endDate).getTime() - today) / (1000 * 60 * 60 * 24));
+};
+
+const InstitutionSummaryBar: React.FC<{
+  institution: Institution;
+  onCopy: (label: string, value: string) => void;
+  onOpenService: () => void;
+}> = ({ institution, onCopy, onOpenService }) => {
+  const profile = getInstitutionProfile(institution);
+  const running = institution.daysRemaining > 0;
+  const remaining = running ? institution.daysRemaining : Math.min(daysUntil(institution.endDate), 0);
+
+  return (
+    <div className="flex items-start justify-between gap-6 -mt-2 pb-4 border-b border-gray-100">
+      <div className="min-w-0 space-y-1.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h2 className="text-xl font-bold text-gray-900">{institution.name}</h2>
+          <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-gray-100 text-gray-500">
+            客户ID：<span className="font-mono text-gray-700">{profile.customerCode}</span>
+            <CopyIconButton onClick={() => onCopy('客户ID', profile.customerCode)} title="复制客户ID" />
+          </span>
+          <span
+            className={`text-[11px] px-2 py-0.5 rounded-full border font-medium ${
+              institution.status === '正式'
+                ? 'bg-violet-50 text-violet-600 border-violet-200'
+                : 'bg-amber-50 text-amber-700 border-amber-200'
+            }`}
+          >
+            {institution.status}版
+          </span>
+          {running ? (
+            <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-600 font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              已开通运行中
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-amber-200 bg-amber-50 text-amber-600 font-medium">
+              <span className="material-symbols-outlined text-[12px]">schedule</span>
+              已到期
+            </span>
+          )}
+        </div>
+        <div className="text-xs text-gray-600">{profile.fullName}</div>
+        <div className="flex items-center gap-3 text-xs text-gray-400 flex-wrap">
+          <span className="inline-flex items-center gap-1">
+            统一社会信用代码：<span className="font-mono font-medium text-gray-800">{profile.creditCode}</span>
+            <CopyIconButton onClick={() => onCopy('统一社会信用代码', profile.creditCode)} title="复制信用代码" />
+          </span>
+          <span className="text-gray-300">•</span>
+          <span>
+            统计单元：<span className="font-medium text-gray-800">{profile.unitName}</span>
+          </span>
+          <span className="text-gray-300">•</span>
+          <span>
+            负责销售：<span className="font-medium text-gray-800">{institution.salesName}</span>
+          </span>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onOpenService}
+        title="配置服务有效期"
+        className="shrink-0 flex items-center gap-4 border border-[#dbe4f0] bg-[#f7f9fc] rounded-md px-4 py-2.5 hover:border-[#c5d3e6] cursor-pointer transition-colors"
+      >
+        <div className="text-right">
+          <div className="text-xs text-gray-500 flex items-center justify-end gap-1">
+            综合服务有效期
+            <span className="relative group/tip inline-flex" onClick={(e) => e.stopPropagation()}>
+              <span className="material-symbols-outlined text-[15px] text-[#1890ff] cursor-help">help</span>
+              <span className="pointer-events-none absolute right-0 bottom-full mb-2 w-[400px] rounded-md bg-[#1c2536] px-4 py-3 text-left text-[13px] leading-6 text-white shadow-xl opacity-0 group-hover/tip:opacity-100 transition-opacity z-30">
+                系统依据机构下最后到期的应用，确定机构登录 V8 系统的最终时效；但不影响单应用登录权限，用户能否登录应用以该应用自身配置的到期时间为准。
+              </span>
+            </span>
+          </div>
+          <div className={`text-sm font-mono font-bold mt-1 ${running ? 'text-gray-800' : 'text-rose-600'}`}>
+            {institution.endDate}（{remaining}天）
+          </div>
+        </div>
+        <span className={`material-symbols-outlined text-[22px] ${running ? 'text-[#1890ff]' : 'text-rose-500'}`}>
+          calendar_month
+        </span>
+      </button>
+    </div>
+  );
 };
 
 interface InstitutionDetailPageProps {
@@ -162,6 +258,17 @@ export const InstitutionDetailPage: React.FC<InstitutionDetailPageProps> = ({
         </div>
       </div>
 
+      {!isCreateMode && institution && (
+        <InstitutionSummaryBar
+          institution={institution}
+          onCopy={(label, value) => {
+            navigator.clipboard?.writeText(value);
+            showToast(`已复制${label}：${value}`);
+          }}
+          onOpenService={handleOpenProvisionModal}
+        />
+      )}
+
       {/* Navigation Tabs Switcher (Only shown in Detail/Edit mode, hidden in Create mode) */}
       {!isCreateMode && (
         <div className="flex items-center gap-2 sm:gap-4 border-b border-gray-200 text-sm font-medium -mt-2 overflow-x-auto no-scrollbar">
@@ -190,787 +297,34 @@ export const InstitutionDetailPage: React.FC<InstitutionDetailPageProps> = ({
         </div>
       )}
 
-      {/* Tab 1: 基础信息与服务 (Basic Info, Service Config, Personnel) */}
+      {detailTab === 'org_structure' && (
+        <InstitutionOrgStructure institutionName={institution?.name || ''} />
+      )}
+
+      {/* Tab 1: 机构用户管理 */}
       {detailTab === 'basic' && (
         <>
-          {/* Section 1: 基本信息 (Basic Information) - Exactly matching user screenshot */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <span className="w-[3px] h-[16px] bg-[#1890ff] rounded-xs mr-2 inline-block"></span>
-                <h3 className="text-sm font-bold text-gray-900">基本信息</h3>
-              </div>
-
-              {/* Dedicated Edit Controls for Basic Information */}
-              {!isCreateMode && !isEditing && (
-                <div>
-                  {!isBasicInfoEditing ? (
-                    <button
-                      id="btn-edit-basic-info"
-                      type="button"
-                      onClick={() => setIsBasicInfoEditing(true)}
-                      className="text-xs text-[#1890ff] hover:text-blue-700 bg-blue-50/70 hover:bg-blue-100/80 border border-blue-200 px-2.5 py-1 rounded flex items-center gap-1 font-medium transition-colors cursor-pointer"
-                      title="单独编辑机构基本信息"
-                    >
-                      <span className="material-symbols-outlined text-[15px]">edit</span>
-                      <span>编辑</span>
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <button
-                        id="btn-cancel-basic-info"
-                        type="button"
-                        onClick={() => {
-                          if (institution) {
-                            setFormData((prev) => ({
-                              ...prev,
-                              name: institution.name || '',
-                              shortName: institution.name || '',
-                              category: institution.category || '一类',
-                              industry: institution.industry || '网信部门',
-                              location: institution.location || '湖北/随州市',
-                              salesName: institution.salesName || '廖伟',
-                              salesPhone: institution.salesPhone || '189****4954',
-                              systemName: institution.systemName || '融媒体速报系统',
-                            }));
-                          }
-                          setIsBasicInfoEditing(false);
-                        }}
-                        className="text-xs text-gray-600 bg-white border border-gray-300 hover:bg-gray-50 px-2.5 py-1 rounded transition-colors cursor-pointer"
-                      >
-                        取消
-                      </button>
-                      <button
-                        id="btn-save-basic-info"
-                        type="button"
-                        onClick={() => {
-                          if (!formData.name.trim()) {
-                            showToast('【基本信息】请输入或选择机构名称', 'warning');
-                            return;
-                          }
-                          if (!formData.location.trim()) {
-                            showToast('【基本信息】请选择所在地区', 'warning');
-                            return;
-                          }
-                          onSave({
-                            name: formData.name.trim(),
-                            category: formData.category,
-                            industry: formData.industry,
-                            location: formData.location,
-                            salesName: formData.salesName,
-                            salesPhone: formData.salesPhone,
-                            systemName: formData.systemName,
-                          });
-                          setIsBasicInfoEditing(false);
-                          showToast('机构基本信息已成功更新！');
-                        }}
-                        className="text-xs text-white bg-[#1890ff] hover:bg-blue-600 px-3 py-1 rounded font-medium flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
-                      >
-                        <span className="material-symbols-outlined text-[15px]">check</span>
-                        <span>保存</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {isEditing || isCreateMode || isBasicInfoEditing ? (
-          <div className="bg-white py-2">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-x-8 gap-y-5">
-              {/* Row 1, Col 1: * 机构名称 (Searchable / Selectable input) */}
-              <div className="flex items-center gap-3">
-                <label className="w-20 shrink-0 text-right text-gray-700 text-sm font-normal flex items-center justify-end">
-                  <span className="text-red-500 mr-1">*</span>机构名称
-                </label>
-                <div className="flex-1 relative" ref={searchInputRef}>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onFocus={() => setSearchDropdownOpen(true)}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setFormData({
-                        ...formData,
-                        name: val,
-                        shortName: formData.shortName ? formData.shortName : val,
-                      });
-                      setSearchDropdownOpen(true);
-                    }}
-                    placeholder="请选择机构，支持输入内容检索"
-                    className="w-full border border-gray-200 hover:border-[#1890ff] focus:border-[#1890ff] rounded px-3 py-1.5 text-sm bg-white text-gray-800 placeholder:text-gray-400 focus:outline-none transition-colors"
-                  />
-
-                  {/* Autocomplete / Selection Dropdown */}
-                  {searchDropdownOpen && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-30 max-h-56 overflow-y-auto divide-y divide-gray-100">
-                      <div className="px-3 py-1.5 bg-gray-50 text-[11px] text-gray-400 font-medium flex items-center justify-between">
-                        <span>可从MT系统同步的机构</span>
-                        <span>点击自动填充</span>
-                      </div>
-                      {filteredCandidates.length > 0 ? (
-                        filteredCandidates.map((cand, idx) => (
-                          <div
-                            key={idx}
-                            onClick={() => handleSelectMTCandidate(cand)}
-                            className="px-3 py-2 text-xs hover:bg-blue-50 cursor-pointer flex flex-col gap-0.5 transition-colors"
-                          >
-                            <div className="font-medium text-gray-800 flex items-center justify-between">
-                              <span>{cand.name}</span>
-                              <span className="text-[10px] text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.2 rounded">
-                                {cand.category}
-                              </span>
-                            </div>
-                            <div className="text-gray-400 text-[11px] flex items-center gap-3">
-                              <span>简称: {cand.shortName}</span>
-                              <span>地区: {cand.location}</span>
-                              <span>销售: {cand.salesName}</span>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="px-3 py-3 text-xs text-gray-400 text-center">
-                          未在MT系统找到匹配项，可直接作为新机构名称保存
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Row 1, Col 2: 机构简称 (从MT系统同步) */}
-              <div className="flex items-center gap-3">
-                <label className="w-20 shrink-0 text-right text-gray-700 text-sm font-normal">
-                  机构简称
-                </label>
-                <div className="flex-1">
-                  <input
-                    type="text"
-                    value={formData.shortName}
-                    onChange={(e) => setFormData({ ...formData, shortName: e.target.value })}
-                    placeholder="从MT系统同步"
-                    className="w-full border border-gray-200 rounded px-3 py-1.5 text-sm bg-[#f8f9fc] text-gray-700 placeholder:text-gray-400 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Row 1, Col 3: 机构类别 (从MT系统同步) */}
-              <div className="flex items-center gap-3">
-                <label className="w-20 shrink-0 text-right text-gray-700 text-sm font-normal">
-                  机构类别
-                </label>
-                <div className="flex-1">
-                  <input
-                    type="text"
-                    value={formData.category ? `${formData.category}${formData.industry ? ' / ' + formData.industry : ''}` : ''}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    placeholder="从MT系统同步"
-                    className="w-full border border-gray-200 rounded px-3 py-1.5 text-sm bg-[#f8f9fc] text-gray-700 placeholder:text-gray-400 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Row 2, Col 1: * 所在地区 (Dropdown) */}
-              <div className="flex items-center gap-3">
-                <label className="w-20 shrink-0 text-right text-gray-700 text-sm font-normal flex items-center justify-end">
-                  <span className="text-red-500 mr-1">*</span>所在地区
-                </label>
-                <div className="flex-1 relative">
-                  <select
-                    value={formData.location}
-                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                    className="w-full appearance-none border border-gray-200 hover:border-[#1890ff] focus:border-[#1890ff] rounded px-3 py-1.5 text-sm bg-white text-gray-800 focus:outline-none transition-colors cursor-pointer pr-8"
-                  >
-                    <option value="" disabled>
-                      请选择所在地区
-                    </option>
-                    {REGION_OPTIONS.map((reg) => (
-                      <option key={reg} value={reg}>
-                        {reg}
-                      </option>
-                    ))}
-                    {formData.location && !REGION_OPTIONS.includes(formData.location) && (
-                      <option value={formData.location}>{formData.location}</option>
-                    )}
-                  </select>
-                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 flex items-center">
-                    <span className="material-symbols-outlined text-[18px]">
-                      keyboard_arrow_down
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Row 2, Col 2: 销售人员 (从MT系统同步) */}
-              <div className="flex items-center gap-3">
-                <label className="w-20 shrink-0 text-right text-gray-700 text-sm font-normal">
-                  销售人员
-                </label>
-                <div className="flex-1">
-                  <input
-                    type="text"
-                    value={formData.salesName}
-                    onChange={(e) => setFormData({ ...formData, salesName: e.target.value })}
-                    placeholder="从MT系统同步"
-                    className="w-full border border-gray-200 rounded px-3 py-1.5 text-sm bg-[#f8f9fc] text-gray-700 placeholder:text-gray-400 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Row 2, Col 3: 销售电话 (从MT系统同步) */}
-              <div className="flex items-center gap-3">
-                <label className="w-20 shrink-0 text-right text-gray-700 text-sm font-normal">
-                  销售电话
-                </label>
-                <div className="flex-1">
-                  <input
-                    type="text"
-                    value={formData.salesPhone}
-                    onChange={(e) => setFormData({ ...formData, salesPhone: e.target.value })}
-                    placeholder="从MT系统同步"
-                    className="w-full border border-gray-200 rounded px-3 py-1.5 text-sm bg-[#f8f9fc] text-gray-700 placeholder:text-gray-400 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Row 3, Col 1: 系统名称 (with 0 / 50 character limit suffix) */}
-              <div className="flex items-center gap-3">
-                <label className="w-20 shrink-0 text-right text-gray-700 text-sm font-normal">
-                  系统名称
-                </label>
-                <div className="flex-1 relative">
-                  <input
-                    type="text"
-                    maxLength={50}
-                    value={formData.systemName}
-                    onChange={(e) => setFormData({ ...formData, systemName: e.target.value })}
-                    placeholder="客户端系统名称，不填默认为机构简称"
-                    className="w-full border border-gray-200 hover:border-[#1890ff] focus:border-[#1890ff] rounded pl-3 pr-14 py-1.5 text-sm bg-white text-gray-800 placeholder:text-gray-400 focus:outline-none transition-colors"
-                  />
-                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none select-none">
-                    {formData.systemName?.length || 0} / 50
-                  </div>
-                </div>
-              </div>
-
-              {/* Row 3, Col 2: Empty space for 3-column layout */}
-              <div className="hidden lg:block"></div>
-
-              {/* Row 3, Col 3: Empty space for 3-column layout */}
-              <div className="hidden lg:block"></div>
-            </div>
-          </div>
-        ) : (
-          /* View Mode (Readonly details) - Exactly matching user screenshot */
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-y-4 gap-x-8 lg:gap-x-16 text-sm text-gray-900 py-1">
-            {/* Row 1 */}
-            <div className="flex items-center gap-3.5">
-              <span className="text-gray-900 font-normal shrink-0">机构名称</span>
-              <span className="text-gray-800 font-normal">{formData.name || '-'}</span>
-            </div>
-            <div className="flex items-center gap-3.5">
-              <span className="text-gray-900 font-normal shrink-0">机构简称</span>
-              <span className="text-gray-800 font-normal">{formData.shortName || formData.name || '-'}</span>
-            </div>
-            <div className="flex items-center gap-3.5">
-              <span className="text-gray-900 font-normal shrink-0">机构类别</span>
-              <span className="text-gray-800 font-normal">
-                {formData.category
-                  ? `${formData.category}${formData.industry ? ': ' + formData.industry : ''}`
-                  : '-'}
-              </span>
-            </div>
-
-            {/* Row 2 */}
-            <div className="flex items-center gap-3.5">
-              <span className="text-gray-900 font-normal shrink-0">所在地区</span>
-              <span className="text-gray-800 font-normal">{formData.location || '-'}</span>
-            </div>
-            <div className="flex items-center gap-3.5">
-              <span className="text-gray-900 font-normal shrink-0">销售人员</span>
-              <span className="text-gray-800 font-normal">{formData.salesName || '-'}</span>
-            </div>
-            <div className="flex items-center gap-3.5">
-              <span className="text-gray-900 font-normal shrink-0">销售电话</span>
-              <span className="text-gray-800 font-normal">{formData.salesPhone || '-'}</span>
-            </div>
-
-            {/* Row 3 */}
-            <div className="flex items-center gap-3.5">
-              <span className="text-gray-900 font-normal shrink-0">系统名称</span>
-              <span className="text-gray-800 font-normal">{formData.systemName || '-'}</span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Section 2: 功能开通与服务配置 (Feature Provisioning & Service Configuration - Required) */}
-      <div className="space-y-4 pt-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <span className="w-[3px] h-[16px] bg-[#1890ff] rounded-xs mr-2 inline-block"></span>
-            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
-              <span>配置服务</span>
-              {(isEditing || isCreateMode) && (
-                <>
-                  <span className="text-red-500 font-bold text-xs">*</span>
-                  <span className="text-[11px] font-normal text-gray-400 ml-1">
-                    (必填项：须选定服务模式并设定有效服务周期)
-                  </span>
-                </>
-              )}
-            </h3>
-          </div>
-        </div>
-
-        {/* Provisioning Control Box */}
-        <div
-          className={`rounded-lg p-5 shadow-2xs space-y-4 transition-colors ${
-            isExpired && !isEditing && !isCreateMode
-              ? 'bg-[#fffafb]'
-              : 'bg-[#f8faff]'
-          }`}
-        >
-          <div
-            className={`flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4 ${
-              isExpired && !isEditing && !isCreateMode
-                ? 'border-red-100'
-                : 'border-blue-100'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div
-                className={`w-11 h-11 rounded-full flex items-center justify-center ${
-                  isExpired && !isEditing && !isCreateMode
-                    ? 'bg-red-100 text-red-600 border border-red-200'
-                    : formData.status === '正式'
-                    ? 'bg-blue-100 text-[#1890ff]'
-                    : 'bg-orange-100 text-[#d97724]'
-                }`}
-              >
-                <span className="material-symbols-outlined text-[26px]">
-                  {isExpired && !isEditing && !isCreateMode
-                    ? 'event_busy'
-                    : formData.status === '正式'
-                    ? 'verified'
-                    : 'hourglass_top'}
-                </span>
-              </div>
-
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h4 className="text-base font-bold text-gray-900">
-                    {isExpired && !isEditing && !isCreateMode
-                      ? `${formData.status}服务已到期`
-                      : formData.status === '正式'
-                      ? '正式服务开通中'
-                      : '试用服务开通中'}
-                  </h4>
-                  {isExpired && !isEditing && !isCreateMode && (
-                    <span className="text-xs text-[#d46b08] bg-[#fff7e6] border border-[#ffd591] px-2.5 py-0.5 rounded flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[14px] text-[#fa8c16]">
-                        warning
-                      </span>
-                      <span>已于 {formData.endDate} 到期，系统功能已暂停</span>
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Right Side: Service Mode Selector + 开通记录 Button */}
-            <div className="flex items-center gap-2.5 flex-wrap">
-              {/* Service Mode Selector in Create Mode / Edit Mode */}
-              {(isCreateMode || isEditing) && (
-                <div className="flex gap-2">
-                  <button
-                    id="btn-switch-service-trial"
-                    type="button"
-                    onClick={() => handleSwitchServiceMode('试用')}
-                    className={`px-3.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
-                      formData.status === '试用'
-                        ? 'border-[#d97724] bg-[#fffaf0] text-[#d97724] shadow-xs ring-2 ring-[#d97724]/20'
-                        : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-[16px]">
-                      hourglass_top
-                    </span>
-                    试用
-                  </button>
-
-                  <button
-                    id="btn-switch-service-formal"
-                    type="button"
-                    onClick={() => handleSwitchServiceMode('正式')}
-                    className={`px-3.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
-                      formData.status === '正式'
-                        ? 'border-[#1890ff] bg-blue-50 text-[#1890ff] shadow-xs ring-2 ring-[#1890ff]/20'
-                        : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-[16px]">
-                      verified
-                    </span>
-                    正式
-                  </button>
-                </div>
-              )}
-
-              {/* Right Side in View Mode: 开通记录 + 开通服务 Buttons */}
-              {!isCreateMode && !isEditing && (
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  {/* 开通记录 Button */}
-                  <button
-                    id="btn-box-activation-history"
-                    type="button"
-                    onClick={() => setShowHistoryModal(true)}
-                    className="px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border border-[#1890ff]/50 bg-white text-[#1890ff] hover:bg-blue-50 hover:border-[#1890ff] shadow-2xs"
-                    title="查看该机构的全部开通与变更记录"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">
-                      history
-                    </span>
-                    <span>开通记录</span>
-                    {provisionHistory.length > 0 && (
-                      <span className="bg-blue-100 text-[#1890ff] text-[10px] font-bold px-1.5 py-0.2 rounded-full font-mono">
-                        {provisionHistory.length}
-                      </span>
-                    )}
-                  </button>
-
-                  {/* 开通功能 Button */}
-                  <button
-                    id="btn-box-open-provision"
-                    type="button"
-                    onClick={handleOpenProvisionModal}
-                    className="px-3.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer bg-[#1890ff] text-white hover:bg-blue-600 shadow-xs border border-transparent active:scale-98"
-                    title="为该机构办理开通或续期授权"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">
-                      bolt
-                    </span>
-                    <span>开通服务</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Date Range & Durations */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-            {/* Start Date */}
-            <div className="bg-white p-3.5 rounded-md border border-gray-200 shadow-2xs">
-              <div className="text-gray-700 font-medium mb-1.5 flex items-center justify-between">
-                <span className="flex items-center gap-1">
-                  <span>服务生效日期</span>
-                  <span className="text-red-500 font-bold">*</span>
-                </span>
-                <span className="material-symbols-outlined text-[16px] text-gray-400">
-                  calendar_today
-                </span>
-              </div>
-              {isCreateMode || isEditing ? (
-                <input
-                  type="date"
-                  value={formData.startDate}
-                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                  className="w-full border border-gray-200 hover:border-[#1890ff] focus:border-[#1890ff] rounded px-3 py-1.5 text-sm font-mono text-gray-800 focus:outline-none transition-colors"
-                />
-              ) : (
-                <div className="text-gray-800 font-medium font-mono text-sm">
-                  {formData.startDate}
-                </div>
-              )}
-            </div>
-
-            {/* End Date */}
-            <div className="bg-white p-3.5 rounded-md border border-gray-200 shadow-2xs">
-              <div className="text-gray-700 font-medium mb-1.5 flex items-center justify-between">
-                <span className="flex items-center gap-1">
-                  <span>服务到期日期</span>
-                  <span className="text-red-500 font-bold">*</span>
-                </span>
-                <span className="material-symbols-outlined text-[16px] text-gray-400">
-                  event_busy
-                </span>
-              </div>
-              {isCreateMode || isEditing ? (
-                <input
-                  type="date"
-                  value={formData.endDate}
-                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                  className="w-full border border-gray-200 hover:border-[#1890ff] focus:border-[#1890ff] rounded px-3 py-1.5 text-sm font-mono text-gray-800 focus:outline-none transition-colors"
-                />
-              ) : (
-                <div className="text-gray-800 font-medium font-mono text-sm">
-                  {formData.endDate}
-                </div>
-              )}
-            </div>
-
-            {/* Days Total Display */}
-            <div className="bg-white p-3.5 rounded-md border border-gray-200 shadow-2xs flex flex-col justify-between">
-              <div className="text-gray-500 font-medium mb-1 flex items-center justify-between">
-                <span>服务有效时长</span>
-                <span className="text-xs text-gray-400">自动核算</span>
-              </div>
-              <div className="flex items-center justify-between mt-1">
-                <div className="flex items-baseline gap-1 text-gray-800">
-                  <span className="text-xs font-medium text-gray-600">剩</span>
-                  <span className={`text-xl font-bold font-mono ${daysRemaining <= 0 ? 'text-red-500' : daysRemaining <= 7 ? 'text-orange-500' : 'text-[#1890ff]'}`}>
-                    {daysRemaining}
-                  </span>
-                  <span className="text-xs font-medium text-gray-600">天</span>
-                  <span className="text-gray-300 mx-1">/</span>
-                  <span className="text-xs font-medium text-gray-500">共</span>
-                  <span className="text-sm font-bold font-mono text-gray-700">
-                    {daysTotal}
-                  </span>
-                  <span className="text-xs font-medium text-gray-500">天</span>
-                </div>
-                <span
-                  className={`text-xs px-2 py-0.5 rounded font-medium ${
-                    daysRemaining <= 0
-                      ? 'bg-red-50 text-red-600 border border-red-200'
-                      : daysRemaining <= 7
-                      ? 'bg-red-50 text-red-600 border border-red-200'
-                      : daysRemaining <= 30
-                      ? 'bg-orange-50 text-orange-600 border border-orange-200'
-                      : 'bg-green-50 text-green-600 border border-green-200'
-                  }`}
-                >
-                  {daysRemaining <= 0 ? '已到期' : daysRemaining <= 7 ? '即将到期' : '期限充足'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Preset Buttons (Shown in Edit & Create Modes) - Unified Styles & Mode Linked */}
-          {(isCreateMode || isEditing) && (
-            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-blue-100/60 mt-2">
-              <span className="text-xs text-gray-500 font-medium flex items-center">
-                <span className="material-symbols-outlined text-[15px] mr-1 text-[#1890ff]">
-                  bolt
-                </span>
-                快捷设置时长:
-              </span>
-
-              {/* Show unified buttons based on current active service mode (Trial vs Formal) */}
-              {(formData.status === '试用' ? TRIAL_DURATION_PRESETS : FORMAL_DURATION_PRESETS).map((preset) => {
-                const isSelected = daysTotal === preset.days;
-                return (
-                  <button
-                    key={preset.days}
-                    type="button"
-                    onClick={() => handleQuickDuration(preset.days, formData.status)}
-                    className={`text-xs px-3 py-1 rounded border transition-all cursor-pointer font-medium flex items-center gap-1 ${
-                      isSelected
-                        ? formData.status === '试用'
-                          ? 'border-[#d97724] bg-[#fffaf0] text-[#d97724] ring-1 ring-[#d97724]/20 shadow-2xs font-semibold'
-                          : 'border-[#1890ff] bg-blue-50 text-[#1890ff] ring-1 ring-[#1890ff]/20 shadow-2xs font-semibold'
-                        : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-900'
-                    }`}
-                  >
-                    {isSelected && (
-                      <span className="material-symbols-outlined text-[13px]">
-                        check
-                      </span>
-                    )}
-                    {preset.label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Section 3: 人员管理 (Personnel Management) - Exactly matched to user reference image */}
-      <div className="space-y-3 pt-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <span className="w-[3px] h-[16px] bg-[#1890ff] rounded-xs mr-2 inline-block"></span>
-            <h3 className="text-sm font-bold text-gray-900">人员管理</h3>
-          </div>
-
-          {/* Sync Button on Top-Right */}
-          <button
-            type="button"
-            onClick={handleSyncFromMT}
-            disabled={isSyncingPersonnel}
-            className="border border-[#1890ff] text-[#1890ff] hover:bg-blue-50 px-3.5 py-1.5 rounded text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-          >
-            <span className={`material-symbols-outlined text-[16px] ${isSyncingPersonnel ? 'animate-spin' : ''}`}>
-              sync
-            </span>
-            从MT同步人员
-          </button>
-        </div>
-
-        {/* Personnel Table or Clean Empty State */}
-        <div className="rounded-xs overflow-hidden bg-white">
-          <table className="w-full text-left text-xs border-collapse table-fixed">
-            <colgroup>
-              <col className="w-14" />
-              <col className="w-24" />
-              <col className="w-32" />
-              <col className="w-24" />
-              <col className="w-28" />
-              <col className="w-40" />
-              <col className="w-40" />
-              <col className="w-40" />
-              <col className="w-20" />
-              <col className="w-24" />
-            </colgroup>
-            <thead>
-              <tr className="bg-[#f2f6fc] text-gray-700 border-b border-gray-200 font-normal">
-                <th className="py-3 px-4 font-normal">序号</th>
-                <th className="py-3 px-4 font-normal">微信头像</th>
-                <th className="py-3 px-4 font-normal">微信昵称</th>
-                <th className="py-3 px-4 font-normal">姓名</th>
-                <th className="py-3 px-4 font-normal">角色</th>
-                <th className="py-3 px-4 font-normal">关注时间</th>
-                <th className="py-3 px-4 font-normal">配置时间</th>
-                <th className="py-3 px-4 font-normal">最后登录时间</th>
-                <th className="py-3 px-4 font-normal text-center">状态</th>
-                <th className="py-3 px-4 font-normal text-center">操作</th>
-              </tr>
-            </thead>
-            {personnelList.length > 0 ? (
-              <tbody className="text-gray-700 divide-y divide-gray-100">
-                {personnelList.map((person, index) => {
-                  const isConfigured = Boolean(person.role);
-                  return (
-                    <tr key={person.id} className="hover:bg-gray-50/80 transition-colors">
-                      <td className="py-3.5 px-4 text-gray-500">{index + 1}</td>
-                      <td className="py-3.5 px-4">
-                        {person.avatar ? (
-                          <img
-                            src={person.avatar}
-                            alt={person.nickname || '微信头像'}
-                            className="w-8 h-8 rounded object-cover border border-gray-200"
-                          />
-                        ) : (
-                          <div className="w-8 h-8 rounded bg-blue-50 text-[#1890ff] flex items-center justify-center font-bold text-xs">
-                            {person.name ? person.name.slice(0, 1) : '微'}
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-4 font-medium text-gray-800 truncate">{person.nickname || '-'}</td>
-                      <td className="py-3.5 px-4 text-gray-800">{person.name || ''}</td>
-                      <td className="py-3.5 px-4">
-                        {isConfigured ? (
-                          <span className="text-xs text-gray-800 font-medium">{person.role}</span>
-                        ) : (
-                          <span className="text-gray-300">-</span>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-4 text-gray-500 font-mono text-[11px]">{person.followTime || '-'}</td>
-                      <td className="py-3.5 px-4 text-gray-500 font-mono text-[11px]">{person.configTime || ''}</td>
-                      <td className="py-3.5 px-4 text-gray-500 font-mono text-[11px]">{person.lastLoginTime || ''}</td>
-                      <td className="py-3.5 px-4 text-center">
-                        {isConfigured ? (
-                          <span className="text-xs font-medium text-green-600">
-                            已配置
-                          </span>
-                        ) : (
-                          <span className="text-xs font-bold text-[#ff4d4f]">
-                            未配置
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenRoleModal(person)}
-                          className={`font-normal text-xs cursor-pointer transition-colors px-2.5 py-1 rounded inline-block ${
-                            isConfigured
-                              ? 'text-[#1890ff] hover:underline'
-                              : 'text-[#1890ff] border border-[#1890ff] hover:bg-blue-50 shadow-2xs font-medium'
-                          }`}
-                        >
-                          {isConfigured ? '修改配置' : '立即配置'}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            ) : null}
-          </table>
-
-          {/* Empty State exactly matching the uploaded screenshot */}
-          {personnelList.length === 0 && (
-            <div className="py-28 flex flex-col items-center justify-center text-center">
-              {/* Cute puppy document box illustration */}
-              <div className="w-24 h-24 mb-3 relative flex items-center justify-center">
-                <svg viewBox="0 0 120 120" className="w-20 h-20" fill="none">
-                  {/* Background folder box */}
-                  <rect x="25" y="45" width="70" height="55" rx="8" fill="#dce6f5" />
-                  <rect x="20" y="55" width="80" height="48" rx="8" fill="#e8effa" />
-                  <path d="M30 55L45 42H75L90 55" fill="#cddcf2" />
-                  {/* Paper sheets inside */}
-                  <rect x="32" y="25" width="56" height="40" rx="4" fill="#ffffff" stroke="#c0d4ed" strokeWidth="2" />
-                  {/* Cute puppy face in paper */}
-                  <circle cx="60" cy="40" r="14" fill="#ffffff" stroke="#cbd7ea" strokeWidth="1.5" />
-                  <ellipse cx="50" cy="33" rx="3.5" ry="5" fill="#333333" />
-                  <ellipse cx="70" cy="33" rx="3.5" ry="5" fill="#333333" />
-                  <circle cx="56" cy="38" r="1.8" fill="#333333" />
-                  <circle cx="64" cy="38" r="1.8" fill="#333333" />
-                  <ellipse cx="60" cy="43" rx="2.5" ry="1.8" fill="#1890ff" />
-                  {/* Box front flap with circle logo */}
-                  <rect x="20" y="60" width="80" height="42" rx="6" fill="#f0f4fb" />
-                  <circle cx="60" cy="80" r="8" fill="#ffffff" stroke="#d5e3f7" strokeWidth="2" />
-                  <circle cx="60" cy="80" r="3" fill="#1890ff" />
-                </svg>
-              </div>
-              <p className="text-xs text-gray-400 font-normal select-none">抱歉！暂无数据</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Bottom Sticky Action Footer in Create Mode or Edit Mode */}
-      {(isCreateMode || isEditing) && (
-        <div className="fixed bottom-0 right-0 left-52 bg-white/95 backdrop-blur-sm border-t border-gray-200 px-8 py-3.5 flex items-center justify-between z-40 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
-          <div className="text-xs text-gray-500 flex items-center gap-2">
-            <span className="material-symbols-outlined text-[18px] text-[#1890ff]">
-              corporate_fare
-            </span>
-            <span>
-              {isCreateMode
-                ? `正在创建机构：${formData.name || '未命名新机构'}`
-                : `正在编辑机构：${formData.name}`}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onBack}
-              className="border border-gray-300 text-gray-700 px-5 py-2 rounded text-sm hover:bg-gray-50 transition-colors cursor-pointer"
-            >
-              取消
-            </button>
-            <button
-              type="button"
-              onClick={handleSubmitForm}
-              className="bg-[#1890ff] text-white px-6 py-2 rounded text-sm font-medium hover:bg-blue-600 transition-colors shadow-sm cursor-pointer flex items-center gap-1.5"
-            >
-              <span className="material-symbols-outlined text-[18px]">
-                check
-              </span>
-              {isCreateMode ? '确认创建并开通服务' : '保存更新配置'}
-            </button>
-          </div>
-        </div>
-      )}
+          <InstitutionUserManagement institutionName={institution?.name || ''} showToast={showToast} />
         </>
       )}
 
-      {/* Tab 2: 其他业务配置 (Other Business Rules & Configurations) - Left Sub-Nav Layout */}
-      {detailTab !== 'basic' && (
+      {detailTab === 'org_roles' && (
+        <InstitutionRoleManagement institutionName={institution?.name || ''} showToast={showToast} />
+      )}
+
+      {/* Tab 3: 其他业务配置 (Other Business Rules & Configurations) - Left Sub-Nav Layout */}
+      {detailTab === 'external_users' && (
+        <ExternalUserSystemConfig
+          institutionId={institution?.id}
+          institutionName={institution?.name || ''}
+          showToast={showToast}
+        />
+      )}
+
+      {detailTab !== 'basic' &&
+        detailTab !== 'org_roles' &&
+        detailTab !== 'org_structure' &&
+        detailTab !== 'external_users' && (
         <InstitutionBusinessRulesTab
           key={institution?.id || 'rules'}
           institution={institution}

@@ -3,9 +3,10 @@ import { SystemSubModule } from '../types';
 import { adminShellStorage } from '../services/adminShellStorage';
 
 export const useSystemManagementViewModel = (initialSubTab?: SystemSubModule) => {
-  const [activeSubTab, setActiveSubTab] = useState<SystemSubModule>(
-    () => initialSubTab || adminShellStorage.readSystemSubTab()
-  );
+  const [activeSubTab, setActiveSubTab] = useState<SystemSubModule>(() => {
+    const tab = initialSubTab || adminShellStorage.readSystemSubTab();
+    return tab === 'accounts' ? 'logs' : tab;
+  });
 
   useEffect(() => {
     if (initialSubTab && initialSubTab !== activeSubTab) {

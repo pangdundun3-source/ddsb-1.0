@@ -1191,7 +1191,13 @@ export const InstitutionBusinessRulesTab: React.FC<Props> = ({
     setEditingScoringRuleGroup({ ...editingScoringRuleGroup, levels: currentLevels });
     setDraggingLevelIdx(null);
   };
-  const navItems = isGlobalScope ? RULE_NAV_ITEMS : RULE_NAV_ITEMS.filter((item) => item.key !== 'other');
+  const navItems = RULE_NAV_ITEMS.filter(
+    (item) =>
+      item.key !== 'other' &&
+      item.key !== 'qr_code' &&
+      item.key !== 'role_permission' &&
+      (isGlobalScope || item.key !== 'invite_fields'),
+  );
   React.useEffect(() => {
     if (!navItems.some((item) => item.key === activeNav)) handleNavChange(navItems[0].key);
   }, [activeNav, navItems, handleNavChange]);
@@ -1276,7 +1282,7 @@ export const InstitutionBusinessRulesTab: React.FC<Props> = ({
                         {item.icon}
                       </span>
                       <span className="text-xs truncate font-medium">
-                        {item.key === 'role_permission' && !isGlobalScope ? '机构角色权限配置' : item.label}
+                        {item.key === 'invite_fields' && isGlobalScope ? '平台专属邀请配置' : item.label}
                       </span>
                     </div>
                   </button>

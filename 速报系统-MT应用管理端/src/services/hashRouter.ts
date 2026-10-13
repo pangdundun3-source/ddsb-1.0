@@ -157,11 +157,12 @@ export const hashRouter = {
       };
     }
 
+    // 账号管理导航已下线，旧链接落到系统日志
     if (hash === 'system' || hash === 'system/accounts') {
       return {
-        routeType: 'system_accounts',
+        routeType: 'system_logs',
         activeTab: 'system',
-        systemSubTab: 'accounts',
+        systemSubTab: 'logs',
         isAuthenticated: true,
         activeView: 'operation',
         selectedInstitutionId: null,
@@ -215,7 +216,7 @@ export const hashRouter = {
     }
 
     if (state.activeTab === 'system') {
-      return state.systemSubTab === 'logs' ? '#/system/logs' : '#/system/accounts';
+      return '#/system/logs';
     }
 
     return '#/config';

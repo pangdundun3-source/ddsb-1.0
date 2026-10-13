@@ -7,6 +7,8 @@ import {
 import { adminShellStorage } from '../services/adminShellStorage';
 import { hashRouter } from '../services/hashRouter';
 import { ActiveTab, AuditLog, ExpiringInstitution, Institution, SystemSubModule } from '../types';
+import type { AuthorizeFormResult } from '../components/AuthorizeInstitutionModal';
+import { calculateRemainingDays, getTodayStr } from '../shared/date';
 
 interface InstitutionProvisionData {
   status: '正式' | '试用';
@@ -60,6 +62,9 @@ const createInstitutionFromFormData = (
   enabled: formData.enabled ?? true,
   startDate: formData.startDate || '2026-08-11',
   endDate: formData.endDate || '2026-09-11',
+  createdAt: formData.createdAt,
+  fullName: formData.fullName,
+  creditCode: formData.creditCode,
   daysRemaining: formData.daysRemaining || 30,
   unitName: formData.unitName || '新建统筹单元',
   businessRules: formData.businessRules,
@@ -89,7 +94,7 @@ const getInitialShellState = () => {
 
   return {
     activeTab,
-    systemSubTab: parsed.systemSubTab || savedSubTab,
+    systemSubTab: (parsed.systemSubTab || savedSubTab) === 'accounts' ? 'logs' : parsed.systemSubTab || savedSubTab,
     selectedInstitutionId:
       parsed.selectedInstitutionId !== undefined
         ? parsed.selectedInstitutionId
@@ -338,6 +343,32 @@ export const useAdminShellViewModel = () => {
     ]
   );
 
+  const handleAuthorizeInstitution = useCallback(
+    (data: AuthorizeFormResult) => {
+      const newInstitution = createInstitutionFromFormData({
+        name: data.name,
+        fullName: data.fullName,
+        creditCode: data.creditCode,
+        status: data.status,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        daysRemaining: calculateRemainingDays(data.endDate),
+        unitName: data.unitName,
+        salesName: data.salesName,
+        salesPhone: data.salesPhone,
+        location: data.location,
+        category: data.category,
+        industry: data.industry,
+        enabled: true,
+        createdAt: getTodayStr(),
+      });
+      setInstitutions((prev) => [newInstitution, ...prev]);
+      showToast(`已授权开通机构【${newInstitution.name}】（${data.status}版，至 ${data.endDate}）`);
+      addAuditLog('授权开通机构', `${newInstitution.name} (${data.status}版至 ${data.endDate})`);
+    },
+    [addAuditLog, showToast]
+  );
+
   const handleConfirmDelete = useCallback(() => {
     if (!deletingInstitution) return;
 
@@ -468,6 +499,7 @@ export const useAdminShellViewModel = () => {
       handleToggleStatus,
       handleProvisionInstitution,
       handleSaveInstitution,
+      handleAuthorizeInstitution,
       handleConfirmDelete,
       handleSelectExpiringInstitution,
       setDeletingInstitution,

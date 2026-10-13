@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ControlNoticeTip } from '../business/ControlNoticeTip';
 
 type InviteRole = 'reporter' | 'auditor';
 
@@ -131,18 +132,20 @@ export const InviteFieldsConfigSection: React.FC<Props> = ({
   const [fieldsByRole, setFieldsByRole] = useState<InviteFieldsByRole>(initialConfig.fields);
   const [methods, setMethods] = useState<InviteMethod[]>(initialConfig.methods);
   const [batchInvite, setBatchInvite] = useState(initialConfig.batchInvite);
-  const [role, setRole] = useState<InviteRole>('reporter');
   const [modalFieldId, setModalFieldId] = useState<string | null>(null);
   const [draft, setDraft] = useState<FieldDraft>(EMPTY_DRAFT);
   const [nameError, setNameError] = useState('');
   const [dirty, setDirty] = useState(false);
 
-  const fields = fieldsByRole[role];
+  const fields = fieldsByRole.reporter;
   const isCreating = modalFieldId === 'new';
   const regexInvalid = draft.regex.trim() !== '' && !isValidRegex(draft.regex.trim());
 
   const commit = (updater: (list: InviteField[]) => InviteField[]) => {
-    setFieldsByRole((prev) => ({ ...prev, [role]: updater(prev[role]) }));
+    setFieldsByRole((prev) => {
+      const next = updater(prev.reporter);
+      return ROLE_TABS.reduce((acc, tab) => ({ ...acc, [tab.id]: next }), {} as InviteFieldsByRole);
+    });
     setDirty(true);
   };
 
@@ -297,71 +300,65 @@ export const InviteFieldsConfigSection: React.FC<Props> = ({
   };
 
   return (
-    <div className="bg-white p-5 rounded-lg border border-gray-200/80 shadow-2xs space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-bold text-gray-800">专属邀请配置</h3>
-          <p className="text-xs text-gray-500 mt-1">配置机构可用的邀请方式、批量邀请能力及邀请注册时需填写的字段</p>
+    <div className="bg-white p-6 rounded-lg border border-gray-200/80 shadow-2xs space-y-5">
+      {isGlobalScope && (
+        <div className="flex items-center gap-1.5 pb-4 border-b border-gray-100">
+          <h3 className="text-sm font-bold text-gray-800">平台专属邀请配置</h3>
+          <ControlNoticeTip
+            title="全平台专属邀请母版管控提示"
+            content="此处配置的邀请方式、批量邀请能力与邀请注册字段将作为默认母版同步至全平台所有机构。机构开通后默认沿用本配置；如需差异化，可在机构详情「外部用户体系配置 → 专属邀请方式配置」中单独调整。此处取消的邀请方式，机构端将不再提供。"
+          />
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={handleReset}
-            className="px-3 py-1.5 text-xs font-bold text-gray-600 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer"
-          >
-            恢复默认
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!dirty}
-            className="px-3.5 py-1.5 text-xs font-bold text-white bg-[#1890ff] rounded hover:bg-[#1677d9] disabled:bg-gray-300 disabled:cursor-not-allowed cursor-pointer"
-          >
-            保存配置
-          </button>
-        </div>
-      </div>
-
-      <div className="pt-4 border-t border-gray-100 space-y-3">
+      )}
+      <div className="space-y-3">
         <div className="flex items-end justify-between gap-3">
           <div>
-            <h4 className="text-sm font-bold text-gray-800">专属邀请方式</h4>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <h4 className="text-base font-bold text-gray-900">专属邀请方式</h4>
+            <p className="text-xs text-gray-500 mt-1">
               {isGlobalScope
-                ? '控制全平台机构可使用的邀请途径，关闭后机构端不再提供该方式；至少开放一种'
-                : '控制本机构可使用的邀请途径，至少开放一种'}
+                ? '勾选全平台机构可用的邀请途径，取消后机构端不再提供该方式，至少保留一种'
+                : '勾选开通机构可用的邀请途径，至少保留一种'}
             </p>
           </div>
           <span className="text-xs text-gray-500 shrink-0">
-            已开放 <span className="font-bold text-gray-800">{methods.length} / {INVITE_METHODS.length}</span>
+            已启用 <span className="font-bold text-gray-800">{methods.length} / {INVITE_METHODS.length}</span>
           </span>
         </div>
-        <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {INVITE_METHODS.map((method) => {
             const checked = methods.includes(method.id);
             return (
-              <div key={method.id} className="flex items-center gap-3 px-4 py-3">
-                <span className={`w-9 h-9 shrink-0 flex items-center justify-center rounded ${checked ? method.iconClass : 'bg-gray-100 text-gray-400'}`}>
+              <button
+                key={method.id}
+                type="button"
+                role="checkbox"
+                aria-checked={checked}
+                onClick={() => toggleMethod(method.id)}
+                className={`relative flex items-center gap-3 pl-4 pr-10 py-4 text-left rounded-sm border border-l-4 transition-all cursor-pointer ${
+                  checked
+                    ? 'border-[#1E3A6B]/70 border-l-[#1E3A6B] bg-white'
+                    : 'border-gray-200 border-l-gray-200 bg-gray-50/60 hover:border-gray-300'
+                }`}
+              >
+                <span
+                  className={`w-9 h-9 shrink-0 flex items-center justify-center rounded ${
+                    checked ? method.iconClass : 'bg-gray-100 text-gray-400'
+                  }`}
+                >
                   <span className="material-symbols-outlined text-[20px]">{method.icon}</span>
                 </span>
-                <div className="min-w-0 flex-1">
-                  <div className={`text-sm font-bold ${checked ? 'text-gray-800' : 'text-gray-500'}`}>{method.label}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">{method.desc}</div>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={checked}
-                  aria-label={method.label}
-                  onClick={() => toggleMethod(method.id)}
-                  className="inline-flex items-center gap-2.5 cursor-pointer shrink-0"
+                <span className="min-w-0">
+                  <span className={`block text-[13px] font-bold ${checked ? 'text-gray-900' : 'text-gray-500'}`}>{method.label}</span>
+                  <span className="block text-xs text-gray-500 mt-0.5">{method.desc}</span>
+                </span>
+                <span
+                  className={`absolute top-3 right-3 w-[18px] h-[18px] rounded-sm flex items-center justify-center border ${
+                    checked ? 'bg-[#1E3A6B] border-[#1E3A6B]' : 'bg-white border-gray-300'
+                  }`}
                 >
-                  <span className={`text-xs font-bold ${checked ? 'text-gray-800' : 'text-gray-400'}`}>{checked ? '已开放' : '已关闭'}</span>
-                  <span className={`w-11 h-6 rounded-full p-0.5 flex transition-colors ${checked ? 'bg-[#1E3A6B] justify-end' : 'bg-gray-300 justify-start'}`}>
-                    <span className="w-5 h-5 rounded-full bg-white shadow" />
-                  </span>
-                </button>
-              </div>
+                  {checked && <span className="material-symbols-outlined text-[14px] text-white font-bold">check</span>}
+                </span>
+              </button>
             );
           })}
         </div>
@@ -369,7 +366,7 @@ export const InviteFieldsConfigSection: React.FC<Props> = ({
 
       <div className="py-4 border-y border-gray-100 flex items-center justify-between gap-4">
         <div>
-          <h4 className="text-sm font-bold text-gray-800">批量邀请</h4>
+          <h4 className="text-[13px] font-bold text-gray-900">批量邀请</h4>
           <p className="text-xs text-gray-500 mt-0.5">开启后，机构可批量生成邀请凭证，批量邀请用户激活账号</p>
         </div>
         <button
@@ -389,41 +386,19 @@ export const InviteFieldsConfigSection: React.FC<Props> = ({
         </button>
       </div>
 
-      <div>
-        <h4 className="text-sm font-bold text-gray-800">邀请注册字段</h4>
-        <p className="text-xs text-gray-500 mt-0.5">
-          配置邀请时注册需填写的内容；可控制是否填写、是否必填；手机支持验证码校验；自定义字段为文本并可配置正则
-        </p>
-      </div>
-
-      <div className="flex items-center justify-between gap-3">
-        <div className="inline-flex items-center gap-1 p-1 bg-gray-100/90 rounded-lg border border-gray-200/60">
-          {ROLE_TABS.map((tab) => {
-            const isActive = role === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                aria-pressed={isActive}
-                onClick={() => setRole(tab.id)}
-                className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                  isActive ? 'bg-white text-[#1890ff] shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                {tab.label}
-                <span className={`ml-1.5 text-[11px] ${isActive ? 'text-[#1890ff]' : 'text-gray-400'}`}>
-                  {fieldsByRole[tab.id].filter((field) => field.enabled).length}
-                </span>
-              </button>
-            );
-          })}
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <h4 className="text-base font-bold text-gray-900">邀请注册字段</h4>
+          <p className="text-xs text-gray-500 mt-1">
+            配置邀请时注册需填写的内容；可控制是否填写、是否必填；手机支持验证码校验；自定义字段为文本并可配置正则
+          </p>
         </div>
         <button
           type="button"
           onClick={openCreate}
-          className="inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-bold text-white bg-[#1E3A6B] rounded hover:bg-[#162c52] cursor-pointer"
+          className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-bold text-white bg-[#1E3A6B] rounded-sm hover:bg-[#162c52] cursor-pointer"
         >
-          <span className="material-symbols-outlined text-[16px]">add</span>
+          <span className="material-symbols-outlined text-[18px]">add</span>
           新增自定义字段
         </button>
       </div>
@@ -491,6 +466,25 @@ export const InviteFieldsConfigSection: React.FC<Props> = ({
             })}
           </tbody>
         </table>
+      </div>
+
+      <div className="flex items-center justify-end gap-2 pt-4 border-t border-gray-100">
+        {dirty && <span className="mr-auto text-xs text-amber-600">有未保存的修改</span>}
+        <button
+          type="button"
+          onClick={handleReset}
+          className="px-4 py-1.5 text-xs font-bold text-gray-600 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer"
+        >
+          恢复默认
+        </button>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={!dirty}
+          className="px-5 py-1.5 text-xs font-bold text-white bg-[#1E3A6B] rounded hover:bg-[#162c52] disabled:bg-gray-300 disabled:cursor-not-allowed cursor-pointer"
+        >
+          保存配置
+        </button>
       </div>
 
       {modalFieldId && (

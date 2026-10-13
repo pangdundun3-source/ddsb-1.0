@@ -15,6 +15,17 @@ body,
   height: 100%;
 }
 
+/* Tailwind 字号与间距均以 rem 计，统一下调根字号使全局等比收紧；大屏保持默认 16px */
+html {
+  font-size: 15px;
+}
+
+@media (min-width: 1920px) {
+  html {
+    font-size: 16px;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
