@@ -98,7 +98,8 @@ export const PersonIdentityCell: React.FC<{
   revealed: boolean;
   onToggleReveal: () => void;
   onAvatarClick?: () => void;
-}> = ({ item, revealed, onToggleReveal, onAvatarClick }) => {
+  nameBadge?: React.ReactNode;
+}> = ({ item, revealed, onToggleReveal, onAvatarClick, nameBadge }) => {
   const avatar = <PersonAvatar name={item.realName} src={getPersonAvatarUrl(item)} size="sm" />;
   return (
     <div className="flex items-center gap-1.5 min-w-0">
@@ -115,7 +116,10 @@ export const PersonIdentityCell: React.FC<{
         <span className="w-7 h-7 rounded-full overflow-hidden shrink-0 ring-1 ring-black/10">{avatar}</span>
       )}
       <div className="min-w-0 flex-1">
-        <div className="font-bold text-gray-900 leading-tight truncate" title={item.realName}>{item.realName}</div>
+        <div className="flex items-center gap-1 min-w-0">
+          <span className="font-bold text-gray-900 leading-tight truncate" title={item.realName}>{item.realName}</span>
+          {nameBadge}
+        </div>
         <div className="flex items-center gap-0.5 mt-0.5 min-w-0">
           <span className="font-mono text-[11px] text-gray-500 truncate">{revealed ? item.phone : maskPhone(item.phone)}</span>
           <button

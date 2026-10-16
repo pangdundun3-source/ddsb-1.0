@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { ControlNoticeTip } from '../business/ControlNoticeTip';
+import { confirmDialog } from '../common/ConfirmDialog';
 
-type InviteRole = 'reporter' | 'auditor';
+type InviteRole = 'common' | 'reporter' | 'auditor';
 
-const ROLE_TABS: { id: InviteRole; label: string }[] = [
-  { id: 'reporter', label: '上报员' },
-  { id: 'auditor', label: '审核员' },
+const ROLE_TABS: { id: InviteRole; label: string; code: string; builtIn: boolean }[] = [
+  { id: 'common', label: '通用默认', code: 'DEFAULT', builtIn: false },
+  { id: 'reporter', label: '上报员', code: 'ROLE_EXT_REPORTER', builtIn: true },
+  { id: 'auditor', label: '审核员', code: 'ROLE_EXT_AUDITOR', builtIn: true },
 ];
 
 interface InviteField {
@@ -63,6 +65,7 @@ const buildPresetFields = (role: InviteRole): InviteField[] => [
 
 const buildDefaults = (): InviteConfig => ({
   fields: {
+    common: buildPresetFields('common'),
     reporter: buildPresetFields('reporter'),
     auditor: buildPresetFields('auditor'),
   },
@@ -79,13 +82,15 @@ const readStored = (storageKey: string, fallbackKey?: string): InviteConfig => {
       if (!raw) continue;
       const parsed = JSON.parse(raw) as Partial<InviteConfig> & Partial<InviteFieldsByRole>;
       // 兼容早期仅保存字段（{ reporter, auditor }）的结构
-      const fields = parsed.fields || (parsed.reporter && parsed.auditor ? { reporter: parsed.reporter, auditor: parsed.auditor } : null);
+      const fields: Partial<InviteFieldsByRole> | null =
+        parsed.fields || (parsed.reporter && parsed.auditor ? { reporter: parsed.reporter, auditor: parsed.auditor } : null);
       if (!fields || !Array.isArray(fields.reporter) || !Array.isArray(fields.auditor)) continue;
+      if (!Array.isArray(fields.common)) fields.common = defaults.fields.common;
       const methods = Array.isArray(parsed.methods)
         ? parsed.methods.filter((id): id is InviteMethod => INVITE_METHODS.some((method) => method.id === id))
         : defaults.methods;
       return {
-        fields,
+        fields: fields as InviteFieldsByRole,
         methods: methods.length > 0 ? methods : defaults.methods,
         batchInvite: typeof parsed.batchInvite === 'boolean' ? parsed.batchInvite : defaults.batchInvite,
       };
@@ -119,6 +124,7 @@ interface Props {
   storageKey: string;
   fallbackStorageKey?: string;
   isGlobalScope?: boolean;
+  flat?: boolean;
   showToast: (msg: string, type?: 'success' | 'warning' | 'info') => void;
 }
 
@@ -126,6 +132,7 @@ export const InviteFieldsConfigSection: React.FC<Props> = ({
   storageKey,
   fallbackStorageKey,
   isGlobalScope = false,
+  flat = false,
   showToast,
 }) => {
   const [initialConfig] = useState<InviteConfig>(() => readStored(storageKey, fallbackStorageKey));
@@ -137,15 +144,14 @@ export const InviteFieldsConfigSection: React.FC<Props> = ({
   const [nameError, setNameError] = useState('');
   const [dirty, setDirty] = useState(false);
 
-  const fields = fieldsByRole.reporter;
+  const [activeRole, setActiveRole] = useState<InviteRole>('common');
+  const activeTab = ROLE_TABS.find((tab) => tab.id === activeRole) ?? ROLE_TABS[0];
+  const fields = fieldsByRole[activeRole];
   const isCreating = modalFieldId === 'new';
   const regexInvalid = draft.regex.trim() !== '' && !isValidRegex(draft.regex.trim());
 
   const commit = (updater: (list: InviteField[]) => InviteField[]) => {
-    setFieldsByRole((prev) => {
-      const next = updater(prev.reporter);
-      return ROLE_TABS.reduce((acc, tab) => ({ ...acc, [tab.id]: next }), {} as InviteFieldsByRole);
-    });
+    setFieldsByRole((prev) => ({ ...prev, [activeRole]: updater(prev[activeRole]) }));
     setDirty(true);
   };
 
@@ -204,8 +210,8 @@ export const InviteFieldsConfigSection: React.FC<Props> = ({
     closeModal();
   };
 
-  const removeField = (field: InviteField) => {
-    if (!window.confirm(`确定删除自定义字段「${field.name}」吗？`)) return;
+  const removeField = async (field: InviteField) => {
+    if (!(await confirmDialog(`确定删除自定义字段「${field.name}」吗？`, { title: '删除字段', okText: '确认删除', danger: true }))) return;
     commit((list) => list.filter((item) => item.id !== field.id));
   };
 
@@ -233,8 +239,14 @@ export const InviteFieldsConfigSection: React.FC<Props> = ({
     showToast(isGlobalScope ? '全平台专属邀请默认配置已保存' : '机构专属邀请配置已保存并实时生效', 'success');
   };
 
-  const handleReset = () => {
-    if (!window.confirm('确定恢复为默认专属邀请配置吗？邀请方式、批量邀请与自定义字段都将重置。')) return;
+  const handleReset = async () => {
+    if (
+      !(await confirmDialog('确定恢复为默认专属邀请配置吗？邀请方式、批量邀请与自定义字段都将重置。', {
+        title: '恢复默认',
+        okText: '确认恢复',
+      }))
+    )
+      return;
     const defaults = buildDefaults();
     setFieldsByRole(defaults.fields);
     setMethods(defaults.methods);
@@ -300,7 +312,7 @@ export const InviteFieldsConfigSection: React.FC<Props> = ({
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg border border-gray-200/80 shadow-2xs space-y-5">
+    <div className={flat ? 'space-y-5' : 'bg-white p-6 rounded-lg border border-gray-200/80 shadow-2xs space-y-5'}>
       {isGlobalScope && (
         <div className="flex items-center gap-1.5 pb-4 border-b border-gray-100">
           <h3 className="text-sm font-bold text-gray-800">平台专属邀请配置</h3>
@@ -401,6 +413,35 @@ export const InviteFieldsConfigSection: React.FC<Props> = ({
           <span className="material-symbols-outlined text-[18px]">add</span>
           新增自定义字段
         </button>
+      </div>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        {ROLE_TABS.map((tab) => {
+          const active = tab.id === activeRole;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveRole(tab.id)}
+              className={`inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-sm border cursor-pointer transition-colors ${
+                active
+                  ? 'bg-[#1E3A6B] border-[#1E3A6B] text-white'
+                  : 'bg-white border-gray-200 text-gray-700 hover:border-[#1E3A6B]/50'
+              }`}
+            >
+              {tab.label}
+              {tab.builtIn && (
+                <span
+                  className={`text-[11px] font-medium px-1.5 py-0.5 rounded-sm border ${
+                    active ? 'bg-white/15 border-white/20 text-white' : 'bg-blue-50 border-blue-100 text-[#1890ff]'
+                  }`}
+                >
+                  内置
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       <div className="overflow-x-auto border border-gray-100 rounded-lg">
@@ -509,6 +550,14 @@ export const InviteFieldsConfigSection: React.FC<Props> = ({
 
             <div className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
               <p className="text-xs text-gray-500">自定义字段固定为文本填写，可配置正则规则用于注册时校验</p>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-800 mb-1.5">所属角色</label>
+                <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded border border-gray-100 bg-slate-50">
+                  <span className="text-sm font-bold text-gray-800">{activeTab.label}</span>
+                  <span className="text-xs font-mono text-gray-400">{activeTab.code}</span>
+                </div>
+              </div>
 
               <div>
                 <label className="block text-sm font-bold text-gray-800 mb-1.5">

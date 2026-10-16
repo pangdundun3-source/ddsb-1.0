@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Info } from 'lucide-react';
 import { Institution } from '../types';
 import {
   AppStatusFilter,
@@ -93,6 +94,11 @@ export const InstitutionManagement: React.FC<InstitutionManagementProps> = ({
   } = actions;
   const { calculateDays } = derived;
   const [profilePopover, setProfilePopover] = useState<ProfilePopover | null>(null);
+  const hideProfileTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (hideProfileTimer.current) clearTimeout(hideProfileTimer.current);
+  }, []);
 
   useEffect(() => {
     if (autoOpenAuthorize) setAuthorizeOpen(true);
@@ -130,7 +136,20 @@ export const InstitutionManagement: React.FC<InstitutionManagementProps> = ({
     onDetailClick(row);
   };
 
+  const cancelHideProfile = () => {
+    if (hideProfileTimer.current) {
+      clearTimeout(hideProfileTimer.current);
+      hideProfileTimer.current = null;
+    }
+  };
+
+  const scheduleHideProfile = () => {
+    cancelHideProfile();
+    hideProfileTimer.current = setTimeout(() => setProfilePopover(null), 120);
+  };
+
   const showProfile = (row: Institution, target: HTMLElement) => {
+    cancelHideProfile();
     if (profilePopover?.institution.id === row.id) return;
     const rect = target.getBoundingClientRect();
     setProfilePopover({ institution: row, left: rect.left + rect.width / 2, top: rect.top - 10 });
@@ -339,13 +358,15 @@ export const InstitutionManagement: React.FC<InstitutionManagementProps> = ({
                           type="button"
                           data-profile-trigger
                           onMouseEnter={(e) => showProfile(row, e.currentTarget)}
-                          onClick={(e) => showProfile(row, e.currentTarget)}
-                          className={`material-symbols-outlined shrink-0 text-[17px] cursor-pointer transition-colors ${
+                          onMouseLeave={scheduleHideProfile}
+                          onFocus={(e) => showProfile(row, e.currentTarget)}
+                          onBlur={scheduleHideProfile}
+                          className={`inline-flex items-center justify-center shrink-0 cursor-pointer transition-colors ${
                             profilePopover?.institution.id === row.id ? 'text-amber-600' : 'text-amber-500 hover:text-amber-600'
                           }`}
-                          title="查看详情档案"
+                          aria-label="查看详情档案"
                         >
-                          info
+                          <Info className="w-3.5 h-3.5" strokeWidth={2} />
                         </button>
                       </div>
                       <div className="text-xs text-gray-400 mt-1 truncate max-w-[300px]">统计单元：{row.unitName || '—'}</div>
@@ -480,19 +501,14 @@ export const InstitutionManagement: React.FC<InstitutionManagementProps> = ({
             data-profile-popover
             className="fixed z-50 w-[280px] -translate-x-1/2 -translate-y-full rounded-lg bg-[#0f1a2e] text-white shadow-2xl border border-white/10"
             style={{ left: profilePopover.left, top: profilePopover.top }}
+            onMouseEnter={cancelHideProfile}
+            onMouseLeave={scheduleHideProfile}
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+            <div className="flex items-center px-4 py-3 border-b border-white/10">
               <div className="flex items-center gap-1.5 text-sm font-bold min-w-0">
                 <span className="material-symbols-outlined text-[16px] text-sky-400">apartment</span>
                 <span className="truncate">{profilePopover.institution.name} · 详情档案</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setProfilePopover(null)}
-                className="text-white/50 hover:text-white cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[18px]">close</span>
-              </button>
             </div>
             <dl className="px-4 py-3 space-y-2.5 text-xs">
               {[
@@ -511,15 +527,6 @@ export const InstitutionManagement: React.FC<InstitutionManagementProps> = ({
                 </div>
               ))}
             </dl>
-            <div className="flex justify-end px-4 py-2.5 border-t border-white/10">
-              <button
-                type="button"
-                onClick={() => setProfilePopover(null)}
-                className="text-xs px-3 py-1 rounded border border-white/20 text-white/80 hover:bg-white/10 cursor-pointer"
-              >
-                关闭
-              </button>
-            </div>
             <span className="absolute left-1/2 -bottom-1.5 -translate-x-1/2 w-3 h-3 rotate-45 bg-[#0f1a2e] border-r border-b border-white/10" />
           </div>
         </>

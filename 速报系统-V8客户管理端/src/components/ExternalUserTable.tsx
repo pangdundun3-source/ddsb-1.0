@@ -60,6 +60,8 @@ interface ExternalUserTableProps {
   onDelete?: (item: PersonnelItem) => void;
   /** 追加在操作列末尾的按钮，如分组「移出」 */
   renderExtraActions?: (item: PersonnelItem) => React.ReactNode;
+  /** 姓名后的标识，如节点负责人 */
+  renderNameBadge?: (item: PersonnelItem) => React.ReactNode;
 }
 
 /** 外部用户数据 / 外部组织管理 / 人员分组管理共用的人员列表 */
@@ -73,7 +75,8 @@ export const ExternalUserTable: React.FC<ExternalUserTableProps> = ({
   onToggleStatus,
   onEdit,
   onDelete,
-  renderExtraActions
+  renderExtraActions,
+  renderNameBadge
 }) => {
   const [revealedPhoneIds, setRevealedPhoneIds] = useState<number[]>([]);
 
@@ -84,7 +87,7 @@ export const ExternalUserTable: React.FC<ExternalUserTableProps> = ({
           <th className="py-2.5 px-3 text-center w-12 whitespace-nowrap">序号</th>
           <th className="py-2.5 px-3 whitespace-nowrap">姓名 / 手机号</th>
           <th className="py-2.5 px-3 whitespace-nowrap w-[240px] max-w-[240px]">
-            <span className="inline-flex items-center gap-1"><Building2 className="w-3 h-3" />所属机构</span>
+            <span className="inline-flex items-center gap-1"><Building2 className="w-3 h-3" />组织节点</span>
           </th>
           <th className="py-2.5 px-3 whitespace-nowrap">
             <span className="inline-flex items-center gap-1"><Circle className="w-3 h-3" />角色名称</span>
@@ -129,6 +132,7 @@ export const ExternalUserTable: React.FC<ExternalUserTableProps> = ({
                       )
                     }
                     onAvatarClick={onAvatarClick ? () => onAvatarClick(item) : undefined}
+                    nameBadge={renderNameBadge?.(item)}
                   />
                 </td>
                 <td className={`py-2.5 px-3 w-[240px] max-w-[240px] overflow-hidden ${muted}`}>

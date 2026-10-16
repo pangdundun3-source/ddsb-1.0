@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { alertDialog, confirmDialog } from '../common/ConfirmDialog';
 import { ControlNoticeTip } from './ControlNoticeTip';
 import {
   FileText,
@@ -12,6 +13,7 @@ import {
   ChevronRight,
   ArrowRight,
   Smartphone,
+  Monitor,
   Check,
   Calendar as CalendarIcon,
   Paperclip,
@@ -23,11 +25,12 @@ import {
   User,
   Eye,
   RotateCcw,
+  MoveHorizontal,
   Undo2,
   Save,
   CheckCircle2,
   XCircle,
-  GripVertical,
+  ArrowLeft,
   Shield,
   CreditCard,
   Phone,
@@ -37,10 +40,20 @@ import {
   Wand2,
   ExternalLink,
   ChevronDown,
+  ArrowUpDown,
   Clock,
   X,
   Layers,
-  MoreHorizontal
+  MoreHorizontal,
+  Loader2,
+  Camera,
+  RefreshCw,
+  AlertCircle,
+  AlignLeft,
+  CircleDot,
+  CheckSquare,
+  ListChecks,
+  Square
 } from 'lucide-react';
 
 export type TemplateType = '报送' | '激活';
@@ -51,6 +64,10 @@ export type FieldType =
   | 'file'
   | 'link'
   | 'select'
+  | 'multi_select'
+  | 'radio'
+  | 'checkbox'
+  | 'static_text'
   | 'identity'
   | 'phone'
   | 'gender'
@@ -66,7 +83,47 @@ export interface TemplateFieldItem {
   required: boolean;
   placeholder?: string;
   options?: string[];
+  /** 来自全局固定字段规则：true 锁定不可改，false 默认带入可改；未设置时按旧版固定字段判断 */
+  locked?: boolean;
+  /** 文本字段以多行输入框展示 */
+  multiline?: boolean;
+  /** 单行 / 多行文本的字数上限，未设置表示不限制 */
+  maxLength?: number;
+  /** PC 端手动指定的宽度，未设置时按字段类型自动排布；H5 端不受影响 */
+  pcWidth?: PcFieldWidth;
 }
+
+export type PcFieldWidth = 'full' | 'half';
+
+export const isAutoWideOnPc = (field: TemplateFieldItem) =>
+  isLockedField(field) ||
+  !!field.multiline ||
+  ['file', 'identity', 'address', 'link', 'radio', 'checkbox', 'multi_select', 'static_text'].includes(field.type) ||
+  (field.type === 'text' && /内容|摘要|简述|说明|情况|描述|详情/.test(field.name));
+
+export const TEXT_MAX_LENGTH_DEFAULT = 20;
+export const TEXTAREA_MAX_LENGTH_DEFAULT = 500;
+export const TEXT_MAX_LENGTH_LIMIT = 5000;
+
+export const defaultMaxLengthOf = (multiline?: boolean) =>
+  multiline ? TEXTAREA_MAX_LENGTH_DEFAULT : TEXT_MAX_LENGTH_DEFAULT;
+
+/** 单行 / 多行互切时，仍为原默认值的上限随之切换到新默认值，自定义值保留 */
+export const switchMaxLength = (current: number | undefined, fromMultiline: boolean, toMultiline: boolean) =>
+  current === defaultMaxLengthOf(fromMultiline) ? defaultMaxLengthOf(toMultiline) : current;
+
+export const isValidMaxLength = (value?: number) =>
+  value === undefined || (Number.isInteger(value) && value >= 1 && value <= TEXT_MAX_LENGTH_LIMIT);
+
+export const parseMaxLengthInput = (raw: string): number | undefined => (raw.trim() === '' ? undefined : Number(raw));
+
+/** 设计器中的字段控件：多行文本以 text + multiline 存储，兼容固定字段规则的「输入方式」 */
+export type FieldControl = FieldType | 'textarea';
+
+export const OPTION_FIELD_TYPES: FieldType[] = ['radio', 'checkbox', 'select', 'multi_select'];
+
+export const fieldControlOf = (field: TemplateFieldItem): FieldControl =>
+  field.type === 'text' && field.multiline ? 'textarea' : field.type;
 
 export interface BusinessTemplateItem {
   id: string;
@@ -99,6 +156,8 @@ interface TemplateConfigBoardProps {
   onSaveNotice?: (msg: string) => void;
   onNavigateToWorkflow?: () => void;
   onNavigateToScoring?: () => void;
+  titleMode?: 'card' | 'plain' | 'hidden';
+  titleExtra?: React.ReactNode;
 }
 
 export interface ScoringRuleOptionItem {
@@ -211,9 +270,225 @@ export const AUDIT_FLOW_PRESET_OPTIONS: AuditFlowOptionItem[] = [
   }
 ];
 
+// 报送模板固定字段：第 1 行锁定单行文本（必填不可改）、第 2 行锁定多行文本（必填可改）；名称 / 提示 / 字数可改，不可删除或排序
+export const TITLE_FIELD_ID = 'fixed_event_title';
+export const DETAIL_FIELD_ID = 'fixed_event_detail';
+
+export const fixedReportFields: TemplateFieldItem[] = [
+  {
+    id: TITLE_FIELD_ID,
+    name: '上报标题',
+    type: 'text',
+    required: true,
+    placeholder: '请输入上报标题',
+    maxLength: TEXT_MAX_LENGTH_DEFAULT,
+    locked: true,
+  },
+  {
+    id: DETAIL_FIELD_ID,
+    name: '上报内容描述',
+    type: 'text',
+    required: true,
+    placeholder: '请输入上报内容描述',
+    maxLength: TEXTAREA_MAX_LENGTH_DEFAULT,
+    multiline: true,
+    locked: true,
+  },
+];
+
+export const isFixedReportField = (id?: string) => fixedReportFields.some(f => f.id === id);
+
+export const withFixedReportFields = (fields: TemplateFieldItem[]): TemplateFieldItem[] => [
+  ...fixedReportFields.map(f => ({ ...f })),
+  ...fields.filter(f => !isFixedReportField(f.id) && !/事件标题|事件详情|上报标题|上报内容描述/.test(f.name))
+];
+
+export const isLockedField = (field?: TemplateFieldItem) =>
+  !!field && (field.locked ?? isFixedReportField(field.id));
+
+/** 上报标题必填开关锁定；上报内容描述必填可改 */
+export const isRequiredLockedField = (field?: TemplateFieldItem) => !!field && field.id === TITLE_FIELD_ID;
+
+/** 固定字段结构约束：第 1 行单行文本且必填，第 2 行多行文本；旧默认字数 50 迁移为 20 */
+export const normalizeFixedFieldConstraints = (fields: TemplateFieldItem[]): TemplateFieldItem[] =>
+  fields.map(f => {
+    if (f.id === TITLE_FIELD_ID) {
+      const maxLength =
+        f.maxLength === undefined || f.maxLength === 50 ? TEXT_MAX_LENGTH_DEFAULT : f.maxLength;
+      return {
+        ...f,
+        type: 'text' as const,
+        multiline: false,
+        required: true,
+        locked: true,
+        maxLength,
+      };
+    }
+    if (f.id === DETAIL_FIELD_ID) {
+      return {
+        ...f,
+        type: 'text' as const,
+        multiline: true,
+        locked: true,
+        required: f.required ?? true,
+        maxLength: f.maxLength === undefined ? TEXTAREA_MAX_LENGTH_DEFAULT : f.maxLength,
+      };
+    }
+    return f;
+  });
+
+const usesFixedFieldRule = (fields: TemplateFieldItem[] = []) => fields.some(f => f.locked !== undefined);
+
+const normalizeTemplateFields = (list: BusinessTemplateItem[]): BusinessTemplateItem[] =>
+  list.map(t => {
+    if (t.templateType !== '报送') return t;
+    const fields = usesFixedFieldRule(t.fields)
+      ? normalizeFixedFieldConstraints(t.fields || [])
+      : withFixedReportFields(t.fields || []);
+    return { ...t, fields };
+  });
+
+// 全局固定字段规则：控制全平台（含全局与各机构）之后新建报送模板时带入的前置字段，已创建的模板不受影响
+export const FIXED_FIELD_RULE_STORAGE_KEY = 'mt_global_fixed_report_field_rule';
+export const FIXED_FIELD_RULE_MAX = 5;
+
+export const defaultFixedFieldRule: TemplateFieldItem[] = fixedReportFields.map(f => ({ ...f }));
+
+/** 存储中 maxLength 为 null 表示不限制；旧规则没有该字段时按输入方式补默认上限 */
+type StoredRuleField = Omit<TemplateFieldItem, 'maxLength'> & { maxLength?: number | null };
+
+const fromStoredRule = (list: StoredRuleField[]): TemplateFieldItem[] =>
+  normalizeFixedFieldConstraints(
+    list.map(f => ({
+      ...f,
+      locked: true,
+      // 规则侧多行固定字段统一默认必填（模板内仍可改为选填）
+      required: f.id === DETAIL_FIELD_ID ? true : f.required,
+      maxLength: f.maxLength === undefined ? defaultMaxLengthOf(f.multiline) : f.maxLength ?? undefined,
+    }))
+  );
+
+const toStoredRule = (rule: TemplateFieldItem[]): StoredRuleField[] =>
+  rule.map(f => ({ ...f, maxLength: f.maxLength ?? null }));
+
+export const readFixedFieldRule = (): TemplateFieldItem[] => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(FIXED_FIELD_RULE_STORAGE_KEY) || 'null');
+    if (Array.isArray(parsed) && parsed.some((f: TemplateFieldItem) => f.id === TITLE_FIELD_ID)) {
+      return fromStoredRule(parsed);
+    }
+  } catch {
+    // ignore malformed rule
+  }
+  return defaultFixedFieldRule.map(f => ({ ...f }));
+};
+
+export const writeFixedFieldRule = (rule: TemplateFieldItem[]) => {
+  localStorage.setItem(FIXED_FIELD_RULE_STORAGE_KEY, JSON.stringify(toStoredRule(rule)));
+};
+
+const institutionFixedFieldRuleKey = (institutionId: string | number) => `mt_inst_fixed_field_rule_${institutionId}`;
+
+/** 机构自行维护的固定字段规则；未设置时沿用全局规则 */
+export const readInstitutionFixedFieldRule = (institutionId?: string | number): TemplateFieldItem[] | null => {
+  if (institutionId === undefined || institutionId === '') return null;
+  try {
+    const parsed = JSON.parse(localStorage.getItem(institutionFixedFieldRuleKey(institutionId)) || 'null');
+    if (Array.isArray(parsed) && parsed.some((f: TemplateFieldItem) => f.id === TITLE_FIELD_ID)) {
+      return fromStoredRule(parsed);
+    }
+  } catch {
+    // ignore malformed rule
+  }
+  return null;
+};
+
+export const writeInstitutionFixedFieldRule = (institutionId: string | number, rule: TemplateFieldItem[]) => {
+  localStorage.setItem(institutionFixedFieldRuleKey(institutionId), JSON.stringify(toStoredRule(rule)));
+};
+
+export const readEffectiveFixedFieldRule = (institutionId?: string | number): TemplateFieldItem[] =>
+  readInstitutionFixedFieldRule(institutionId) ?? readFixedFieldRule();
+
+/** 固定字段按规则重建时，保留模板中该字段已设置的 PC 宽度 */
+const withPcWidthFrom = (fields: TemplateFieldItem[], ruleField: TemplateFieldItem): TemplateFieldItem => {
+  const pcWidth = fields.find(f => f.id === ruleField.id)?.pcWidth;
+  return pcWidth ? { ...ruleField, pcWidth } : ruleField;
+};
+
+/** 新建报送模板时按规则重排前置固定字段，其余字段保留为自定义字段 */
+export const applyFixedFieldRule = (fields: TemplateFieldItem[], institutionId?: string | number): TemplateFieldItem[] => {
+  const rule = readEffectiveFixedFieldRule(institutionId);
+  const ruleIds = new Set(rule.map(f => f.id));
+  const ruleNames = new Set([...rule, ...readFixedFieldRule()].map(f => f.name));
+  return normalizeFixedFieldConstraints([
+    ...rule.map(f => withPcWidthFrom(fields, { ...f, locked: true })),
+    ...fields.filter(
+      f =>
+        !ruleIds.has(f.id) &&
+        !isFixedReportField(f.id) &&
+        !isLockedField(f) &&
+        !ruleNames.has(f.name) &&
+        !/事件标题|事件详情|上报标题|上报内容描述/.test(f.name)
+    ),
+  ]);
+};
+
+/** 已创建模板按规则替换前置固定字段；不再属于规则的原固定字段转为普通字段保留 */
+export const rebaseOnFixedFieldRule = (fields: TemplateFieldItem[], rule: TemplateFieldItem[]): TemplateFieldItem[] => {
+  const ruleIds = new Set(rule.map(f => f.id));
+  const ruleNames = new Set(rule.map(f => f.name));
+  return [
+    ...rule.map(f => withPcWidthFrom(fields, { ...f, locked: true })),
+    ...fields
+      .filter(f => !ruleIds.has(f.id) && !ruleNames.has(f.name))
+      .map(f => (isLockedField(f) ? { ...f, locked: false } : f)),
+  ];
+};
+
+const readGlobalTemplateStore = (): BusinessTemplateItem[] => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(GLOBAL_TEMPLATE_STORAGE_KEY) || 'null');
+    if (Array.isArray(parsed) && parsed.length > 0) return normalizeTemplateFields(parsed);
+  } catch {
+    // ignore malformed store
+  }
+  return initialDefaultTemplates;
+};
+
+export const countGlobalReportTemplates = () => readGlobalTemplateStore().filter(t => t.templateType === '报送').length;
+
+/** 全局规则保存后同步全局系统默认模板，以及各机构沿用的系统默认模板；机构自定义模板不受影响 */
+export const applyFixedFieldRuleToGlobalTemplates = (): number => {
+  const rule = readFixedFieldRule();
+  let count = 0;
+  const next = readGlobalTemplateStore().map(t => {
+    if (t.templateType !== '报送') return t;
+    count++;
+    return { ...t, fields: rebaseOnFixedFieldRule(t.fields || [], rule) };
+  });
+  localStorage.setItem(GLOBAL_TEMPLATE_STORAGE_KEY, JSON.stringify(next));
+
+  Object.keys(localStorage)
+    .filter(key => key.startsWith('v8_template_board_data_') && key !== GLOBAL_TEMPLATE_STORAGE_KEY)
+    .forEach(key => {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key) || 'null');
+        if (!Array.isArray(parsed)) return;
+        const synced = normalizeTemplateFields(parsed).map(t =>
+          t.templateType === '报送' && t.isDefault ? { ...t, fields: rebaseOnFixedFieldRule(t.fields || [], rule) } : t
+        );
+        localStorage.setItem(key, JSON.stringify(synced));
+      } catch {
+        // ignore malformed stores
+      }
+    });
+  return count;
+};
+
 // System standard preset fields for 报送模板
 export const standardReportFields: TemplateFieldItem[] = [
-  { id: 'rf_1', name: '报送主题/事件标题', type: 'text', required: true, placeholder: '请输入具体报送的主题或事件全称' },
+  ...fixedReportFields,
   { id: 'rf_2', name: '事件发生/发现时间', type: 'date', required: true, placeholder: '请选择事件发生或传播时间' },
   { id: 'rf_3', name: '涉事热度/影响数据', type: 'number', required: false, placeholder: '请输入传播量/阅读量等数据' },
   { id: 'rf_4', name: '来源网址/文章出处', type: 'link', required: false, placeholder: 'https://...' },
@@ -264,7 +539,7 @@ const initialDefaultTemplates: BusinessTemplateItem[] = [
     updateTime: '2023-11-02 14:30:22',
     description: '精简版快速通道，优先确保应急态势快速流转',
     fields: [
-      { id: 'qf_1', name: '报送主题/事件标题', type: 'text', required: true, placeholder: '请输入具体报送的主题或事件全称' },
+      ...fixedReportFields,
       { id: 'qf_2', name: '事件发生/发现时间', type: 'date', required: true, placeholder: '请选择事件发生或传播时间' },
       { id: 'qf_3', name: '现场图片/证据附件', type: 'file', required: true, placeholder: '支持图片、视频、PDF证明文档' },
       { id: 'qf_4', name: '事件分类', type: 'select', required: true, placeholder: '请选择事件分类', options: ['突发敏感事件', '网络舆情动态', '民生诉求建议'] }
@@ -322,7 +597,7 @@ const readGlobalTemplates = (): BusinessTemplateItem[] => {
     const saved = localStorage.getItem(GLOBAL_TEMPLATE_STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) return normalizeTemplateFields(parsed);
     }
   } catch {
     // ignore storage failures
@@ -361,7 +636,9 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   isGlobalScope = false,
   onSaveNotice,
   onNavigateToWorkflow,
-  onNavigateToScoring
+  onNavigateToScoring,
+  titleMode = 'card',
+  titleExtra,
 }) => {
   const storageKey = `v8_template_board_data_${institutionId ?? 'global'}`;
 
@@ -371,7 +648,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return normalizeTemplateFields(parsed);
       }
     } catch (e) {
       console.error(e);
@@ -390,7 +667,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
       if (event.key !== storageKey || !event.newValue) return;
       try {
         const parsed = JSON.parse(event.newValue);
-        if (Array.isArray(parsed)) setTemplates(parsed);
+        if (Array.isArray(parsed)) setTemplates(normalizeTemplateFields(parsed));
       } catch {
         // ignore malformed payloads
       }
@@ -496,6 +773,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   const [designerName, setDesignerName] = useState('');
   const [designerDesc, setDesignerDesc] = useState('');
   const [designerFields, setDesignerFields] = useState<TemplateFieldItem[]>([]);
+  const [designerBaseline, setDesignerBaseline] = useState('');
   const [draggingFieldIndex, setDraggingFieldIndex] = useState<number | null>(null);
 
   // Drag and drop sorting for template designer fields
@@ -505,6 +783,9 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
       return;
     }
     setDesignerFields(prev => {
+      if (isLockedField(prev[draggingFieldIndex]) || isLockedField(prev[targetIndex])) {
+        return prev;
+      }
       const next = [...prev];
       const [moved] = next.splice(draggingFieldIndex, 1);
       next.splice(targetIndex, 0, moved);
@@ -512,7 +793,6 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     });
     setDraggingFieldIndex(null);
   };
-
   // Right column sub-tab for 报送模板: 'score' | 'flow' (Default to 'flow' per user audit flow optimization)
   const [rightSubTab, setRightSubTab] = useState<'score' | 'flow'>('flow');
 
@@ -538,8 +818,100 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
 
   // Interactive phone preview input states
   const [phoneFormValues, setPhoneFormValues] = useState<Record<string, any>>({});
+  const [previewDevice, setPreviewDevice] = useState<'h5' | 'pc'>(() => {
+    try {
+      return localStorage.getItem('mt_template_preview_device') === 'pc' ? 'pc' : 'h5';
+    } catch {
+      return 'h5';
+    }
+  });
   const [submittedSimulate, setSubmittedSimulate] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [linkShots, setLinkShots] = useState<
+    Record<
+      string,
+      { status: 'loading' | 'done' | 'error' | 'empty' | 'invalid'; url: string; shotAt?: string; reason?: string }
+    >
+  >({});
+  const [linkShotViewer, setLinkShotViewer] = useState<{ url: string; shotAt?: string } | null>(null);
+
+  const isValidLinkUrl = (value: string) => {
+    try {
+      const parsed = new URL(value.trim());
+      return /^https?:$/.test(parsed.protocol) && /\.[a-z]{2,}$/i.test(parsed.hostname);
+    } catch {
+      return false;
+    }
+  };
+
+  // 原型内模拟访问结果：域名含 404 / error / unreachable 或以 .invalid 结尾时视为无法访问，并返回网站的访问反馈
+  const simulateUnreachableReason = (value: string): string | null => {
+    try {
+      const host = new URL(value.trim()).hostname;
+      if (/404/.test(host)) return '页面不存在（404）';
+      if (/error/i.test(host)) return '网站服务器错误（500）';
+      if (/unreachable/i.test(host) || host.endsWith('.invalid')) return '无法连接到该网站，请求超时';
+      return null;
+    } catch {
+      return '网址无法解析';
+    }
+  };
+
+  const captureLinkShot = (fieldId: string, url: string) => {
+    setLinkShots(prev => ({ ...prev, [fieldId]: { status: 'loading', url } }));
+    window.setTimeout(() => {
+      setLinkShots(prev => {
+        if (prev[fieldId]?.url !== url) return prev;
+        const reason = simulateUnreachableReason(url);
+        if (reason) {
+          return { ...prev, [fieldId]: { status: 'error', url, reason } };
+        }
+        const now = new Date();
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const shotAt = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+        return { ...prev, [fieldId]: { status: 'done', url, shotAt } };
+      });
+    }, 1200);
+  };
+
+  const removeLinkShot = (fieldId: string) => {
+    setLinkShots(prev => {
+      const next = { ...prev };
+      delete next[fieldId];
+      return next;
+    });
+  };
+
+  const renderLinkShotMock = (url: string, large = false) => {
+    let host = url;
+    try {
+      host = new URL(url).hostname;
+    } catch {}
+    return (
+      <div className="w-full h-full bg-white flex flex-col overflow-hidden">
+        <div className={`flex items-center gap-1 bg-slate-100 border-b border-slate-200 ${large ? 'px-3 py-2' : 'px-1.5 py-1'}`}>
+          <span className={`${large ? 'w-2 h-2' : 'w-1 h-1'} rounded-full bg-rose-300`} />
+          <span className={`${large ? 'w-2 h-2' : 'w-1 h-1'} rounded-full bg-amber-300`} />
+          <span className={`${large ? 'w-2 h-2' : 'w-1 h-1'} rounded-full bg-emerald-300`} />
+          <span className={`ml-1 flex-1 truncate bg-white rounded text-slate-400 ${large ? 'text-xs px-2 py-0.5' : 'text-[7px] px-1'}`}>
+            {host}
+          </span>
+        </div>
+        <div className={`flex-1 flex flex-col ${large ? 'p-6 gap-3' : 'p-2 gap-1'}`}>
+          <div className={`bg-slate-700 rounded-sm ${large ? 'h-4 w-3/4' : 'h-1.5 w-3/4'}`} />
+          <div className={`bg-slate-300 rounded-sm ${large ? 'h-2.5 w-1/3' : 'h-1 w-1/3'}`} />
+          <div className={`bg-blue-100 rounded-sm ${large ? 'h-40 mt-2' : 'h-6 mt-0.5'}`} />
+          {[0, 1, 2, 3].map(i => (
+            <div
+              key={i}
+              className={`bg-slate-200 rounded-sm ${large ? 'h-2.5' : 'h-1'}`}
+              style={{ width: `${[96, 88, 92, 60][i]}%` }}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   // Trigger Toast
   const showToast = (msg: string) => {
@@ -561,7 +933,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   const currentScoreRuleId =
     pendingOtherConfig?.templateId === activeTemplate?.id && pendingOtherConfig.scoreRuleId !== undefined
       ? pendingOtherConfig.scoreRuleId
-      : activeTemplate?.scoreRuleId || 'sr_100_standard';
+      : activeTemplate?.scoreRuleId || '';
 
   // Active scoreTiming with pending state fallback
   const currentScoreTiming =
@@ -579,7 +951,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   const currentAuditFlowId =
     pendingOtherConfig?.templateId === activeTemplate?.id && pendingOtherConfig.auditFlowId !== undefined
       ? pendingOtherConfig.auditFlowId
-      : activeTemplate?.auditFlowId || 'flow_adaptive_tree_3';
+      : activeTemplate?.auditFlowId || '';
 
   // Default verification options fallback
   const defaultVerificationOptions = {
@@ -608,10 +980,10 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     pendingOtherConfig &&
     pendingOtherConfig.templateId === activeTemplate?.id &&
     (
-      (pendingOtherConfig.scoreRuleId !== undefined && pendingOtherConfig.scoreRuleId !== (activeTemplate?.scoreRuleId || 'sr_100_standard')) ||
+      (pendingOtherConfig.scoreRuleId !== undefined && pendingOtherConfig.scoreRuleId !== activeTemplate?.scoreRuleId) ||
       (pendingOtherConfig.scoreTiming !== undefined && pendingOtherConfig.scoreTiming !== (activeTemplate?.scoreTiming || '终审打分')) ||
       (pendingOtherConfig.includeInEvaluation !== undefined && pendingOtherConfig.includeInEvaluation !== (activeTemplate?.includeInEvaluation ?? true)) ||
-      (pendingOtherConfig.auditFlowId !== undefined && pendingOtherConfig.auditFlowId !== (activeTemplate?.auditFlowId || 'flow_adaptive_tree_3')) ||
+      (pendingOtherConfig.auditFlowId !== undefined && pendingOtherConfig.auditFlowId !== activeTemplate?.auditFlowId) ||
       (pendingOtherConfig.verificationOptions !== undefined && (
         pendingOtherConfig.verificationOptions.phoneVerify !== (activeTemplate?.verificationOptions?.phoneVerify ?? defaultVerificationOptions.phoneVerify) ||
         pendingOtherConfig.verificationOptions.idCardVerify !== (activeTemplate?.verificationOptions?.idCardVerify ?? defaultVerificationOptions.idCardVerify) ||
@@ -624,17 +996,21 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     )
   );
 
-  const confirmDiscardPending = () =>
-    !isOtherConfigDirty || confirm('右侧「其他业务配置」有未保存的修改，切换后将丢失，确认继续吗？');
+  const confirmDiscardPending = async () =>
+    !isOtherConfigDirty ||
+    (await confirmDialog('右侧「其他业务配置」有未保存的修改，切换后将丢失，确认继续吗？', { okText: '继续切换' }));
 
-  const handleSelectTemplate = (id: string) => {
-    if (id === activeTemplate?.id || !confirmDiscardPending()) return;
+  const handleSelectTemplate = async (id: string) => {
+    if (id === activeTemplate?.id || !(await confirmDiscardPending())) return;
     setSelectedTemplateId(id);
   };
 
   const templateSortRank = (t: BusinessTemplateItem) =>
     t.status !== '启用' ? 2 : isGlobalScope && t.isPreset ? 0 : 1;
   const visibleTemplates = [...currentCategoryTemplates].sort((a, b) => templateSortRank(a) - templateSortRank(b));
+  const [presetTipClosed, setPresetTipClosed] = useState(false);
+  const showPresetTip =
+    isGlobalScope && !presetTipClosed && !currentCategoryTemplates.some(t => t.isPreset && t.status === '启用');
 
   // Auto ensure valid selectedTemplateId on topTab change
   useEffect(() => {
@@ -647,15 +1023,28 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   }, [topTab, templates]);
 
   // Toggle template enabled status
-  const handleToggleTemplateStatus = (id: string, e?: React.MouseEvent) => {
+  const handleToggleTemplateStatus = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     const target = templates.find(t => t.id === id);
     if (!target) return;
     const nextStatus: '启用' | '停用' = target.status === '启用' ? '停用' : '启用';
+    if (nextStatus === '启用' && target.templateType === '报送' && (!target.scoreRuleId || !target.auditFlowId)) {
+      const missing =
+        !target.scoreRuleId && !target.auditFlowId
+          ? '打分规则和审核流程'
+          : !target.scoreRuleId
+            ? '打分规则'
+            : '审核流程';
+      alertDialog(`请先在右侧「其他业务配置」关联${missing}并保存，再启用该模板`);
+      return;
+    }
     const dropPreset = isGlobalScope && target.isPreset && nextStatus === '停用';
     if (
       dropPreset &&
-      !confirm(`「${target.name}」是当前的标准模板，停用后将同时取消标准模板，各机构新增模板时将无法再调用。确认停用吗？`)
+      !(await confirmDialog(
+        `「${target.name}」是当前的标准模板，停用后将同时取消标准模板，各机构新增模板时将无法再调用。确认停用吗？`,
+        { okText: '确认停用' }
+      ))
     ) {
       return;
     }
@@ -666,6 +1055,17 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     showToast(dropPreset ? `「${target.name}」已停用，并取消标准模板` : `模板已${nextStatus}`);
   };
 
+  const isTemplateNameTaken = (name: string, type: BusinessTemplateItem['templateType'], excludeId?: string) =>
+    templates.some(t => t.id !== excludeId && t.templateType === type && t.name.trim() === name);
+
+  /** 「{原名} - 副本」已存在时依次追加数字：副本2、副本3… */
+  const nextCopyName = (tpl: BusinessTemplateItem) => {
+    const base = `${tpl.name.replace(/ - 副本\d*$/, '')} - 副本`;
+    let name = base;
+    for (let n = 2; isTemplateNameTaken(name, tpl.templateType); n++) name = `${base}${n}`;
+    return name;
+  };
+
   // Duplicate a template
   const handleCopyTemplate = (tpl: BusinessTemplateItem, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -673,7 +1073,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     const newTpl: BusinessTemplateItem = {
       ...tpl,
       id: newId,
-      name: `${tpl.name} - 副本`,
+      name: nextCopyName(tpl),
       isDefault: false,
       isPreset: false,
       updateTime: new Date().toISOString().replace('T', ' ').substring(0, 19),
@@ -686,23 +1086,41 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   };
 
   // Delete a template
-  const handleDeleteTemplate = (id: string, e?: React.MouseEvent) => {
+  const handleDeleteTemplate = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     const target = templates.find(t => t.id === id);
     if (!isGlobalScope && target?.isDefault) {
-      alert('系统默认模板受平台全局统一管控，机构端不支持删除！');
+      alertDialog('系统默认模板受平台全局统一管控，机构端不支持删除！');
       return;
     }
     const deleteMessage =
       isGlobalScope && target?.isPreset
         ? `「${target.name}」是当前的标准模板，删除后各机构新增模板时将无法再调用。确认删除吗？`
         : `确认删除模板「${target?.name}」吗？`;
-    if (confirm(deleteMessage)) {
+    if (await confirmDialog(deleteMessage, { title: '删除模板', okText: '确认删除', danger: true })) {
       const updated = templates.filter(t => t.id !== id);
       saveTemplates(updated);
       showToast('模板已删除');
     }
   };
+
+  const designerSnapshot = (name: string, description: string, fields: TemplateFieldItem[]) =>
+    JSON.stringify({
+      name,
+      description,
+      fields: fields.map(f => ({
+        id: f.id,
+        name: f.name,
+        type: f.type,
+        required: !!f.required,
+        placeholder: f.placeholder ?? '',
+        options: f.options ?? [],
+        multiline: !!f.multiline,
+        maxLength: f.maxLength ?? null,
+        pcWidth: f.pcWidth ?? null,
+        locked: f.locked ?? null,
+      })),
+    });
 
   // Open Designer
   const handleOpenDesigner = (mode: 'add' | 'edit' | 'copy', tpl?: BusinessTemplateItem) => {
@@ -712,31 +1130,70 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
         name: topTab === '报送' ? '重点应急事件处置报送' : '重点应急目标快速激活',
         templateType: topTab,
         isDefault: false,
-        status: '启用',
+        status: '停用',
         updateTime: new Date().toISOString().replace('T', ' ').substring(0, 19),
         description: '',
-        fields: topTab === '报送' ? [...standardReportFields] : [...standardActivationFields]
+        fields:
+          topTab === '报送'
+            ? normalizeFixedFieldConstraints(applyFixedFieldRule(standardReportFields, institutionId))
+            : [...standardActivationFields],
       };
       setDesignerItem({ mode: 'add', template: newTpl });
       setDesignerName('');
       setDesignerDesc('');
-      setDesignerFields(topTab === '报送' ? [...standardReportFields] : [...standardActivationFields]);
+      setDesignerFields(newTpl.fields);
+      setDesignerBaseline(designerSnapshot('', '', newTpl.fields));
     } else if (tpl) {
       setDesignerItem({ mode, template: tpl });
-      setDesignerName(tpl.name);
-      setDesignerDesc(tpl.description || '');
-      setDesignerFields(tpl.fields.map(f => ({ ...f })));
+      const nextName = tpl.name;
+      const nextDesc = tpl.description || '';
+      setDesignerName(nextName);
+      setDesignerDesc(nextDesc);
+      const copied = tpl.fields.map(f => ({ ...f }));
+      const nextFields =
+        tpl.templateType === '报送'
+          ? normalizeFixedFieldConstraints(
+              mode === 'copy' ? applyFixedFieldRule(copied, institutionId) : copied
+            )
+          : copied;
+      setDesignerFields(nextFields);
+      setDesignerBaseline(designerSnapshot(nextName, nextDesc, nextFields));
     }
   };
 
+  const handleLeaveDesigner = async () => {
+    if (!designerItem) return;
+    const dirty = designerSnapshot(designerName, designerDesc, designerFields) !== designerBaseline;
+    if (dirty) {
+      const leavingNew = designerItem.mode !== 'edit';
+      const confirmed = await confirmDialog(
+        leavingNew
+          ? '当前填写的内容尚未保存，退出后将不会保留。确认退出吗？'
+          : '已修改的内容尚未保存，退出后将不会保留。确认退出吗？',
+        { okText: '确认退出', cancelText: '继续编辑' }
+      );
+      if (!confirmed) return;
+    }
+    setDesignerItem(null);
+  };
+
   // 标准模板：平台全局设置，全局与机构新增模板时可调用
-  const handleTogglePreset = (id: string, e?: React.MouseEvent) => {
+  const handleTogglePreset = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     const target = templates.find(t => t.id === id);
     if (!target) return;
     const nextPreset = !target.isPreset;
     if (nextPreset && target.status !== '启用') {
       showToast('停用的模板不能设为标准模板，请先启用');
+      return;
+    }
+    if (
+      !nextPreset &&
+      !(await confirmDialog(
+        `确认取消「${target.name}」的标准模板吗？取消后，各机构新增模板时将无法「使用标准模板」，直至重新设置标准模板。`,
+        { okText: '确认取消', cancelText: '暂不取消' }
+      ))
+    ) {
       return;
     }
     const replaced = nextPreset
@@ -752,7 +1209,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     showToast(
       nextPreset
         ? `「${target.name}」已设为标准模板${replaced ? `，原标准模板「${replaced.name}」已取消` : ''}`
-        : `「${target.name}」已取消标准模板`
+        : `「${target.name}」已取消标准模板，当前暂无标准模板`
     );
   };
 
@@ -761,29 +1218,63 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   // Save in Designer
   const handleSaveDesigner = () => {
     if (!designerName.trim()) {
-      alert('请输入模板名称');
+      alertDialog('请输入模板名称');
       return;
     }
     if (designerFields.length === 0) {
-      alert('至少需要配置一个表单字段');
+      alertDialog('至少需要配置一个表单字段');
       return;
     }
 
     if (!designerItem) return;
+    const emptyOptionField = designerFields.find(
+      f => OPTION_FIELD_TYPES.includes(f.type) && !(f.options || []).some(o => o.trim())
+    );
+    if (emptyOptionField) {
+      alertDialog(`字段「${emptyOptionField.name || '未命名字段'}」至少需要配置一个选项`);
+      return;
+    }
+    if (designerFields.some(f => f.type === 'static_text' && !(f.placeholder || '').trim())) {
+      alertDialog('请填写静态提示文本的内容');
+      return;
+    }
+    const badLengthField = designerFields.find(f => f.type === 'text' && !isValidMaxLength(f.maxLength));
+    if (badLengthField) {
+      alertDialog(`字段「${badLengthField.name || '未命名字段'}」的字数上限需为 1–${TEXT_MAX_LENGTH_LIMIT} 的整数`);
+      return;
+    }
+    if (
+      isTemplateNameTaken(
+        designerName.trim(),
+        designerItem.template.templateType,
+        designerItem.mode === 'edit' ? designerItem.template.id : undefined
+      )
+    ) {
+      alertDialog(`模板名称「${designerName.trim()}」已存在，请更换名称`);
+      return;
+    }
     const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const fieldsToSave =
+      designerItem.template.templateType === '报送'
+        ? normalizeFixedFieldConstraints(designerFields)
+        : designerFields;
 
     if (designerItem.mode === 'add') {
       const newItem: BusinessTemplateItem = {
         ...designerItem.template,
         name: designerName.trim(),
         description: designerDesc.trim(),
-        fields: designerFields,
+        fields: fieldsToSave,
         updateTime: nowStr
       };
       const updated = [...templates, newItem];
       saveTemplates(updated);
       setSelectedTemplateId(newItem.id);
-      showToast(`新增模板「${newItem.name}」已成功保存！`);
+      showToast(
+        newItem.templateType === '报送'
+          ? `新增模板「${newItem.name}」已保存，当前为停用。请关联打分规则和审核流程后再启用`
+          : `新增模板「${newItem.name}」已成功保存，当前为停用状态`
+      );
     } else {
       const updated = templates.map(t => {
         if (t.id === designerItem.template.id) {
@@ -791,7 +1282,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
             ...t,
             name: designerName.trim(),
             description: designerDesc.trim(),
-            fields: designerFields,
+            fields: fieldsToSave,
             updateTime: nowStr
           };
         }
@@ -810,13 +1301,14 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
       name: '自定义字段',
       type: 'text',
       required: true,
-      placeholder: '请输入相关信息'
+      placeholder: '请输入相关信息',
+      maxLength: TEXT_MAX_LENGTH_DEFAULT
     };
     setDesignerFields([...designerFields, newField]);
   };
 
   // Field type options for designer dropdown
-  const getFieldTypeOptions = (tType: TemplateType): { value: FieldType; label: string }[] => {
+  const getFieldTypeOptions = (tType: TemplateType): { value: FieldControl; label: string }[] => {
     if (tType === '激活') {
       return [
         { value: 'text', label: '文本字段' },
@@ -831,13 +1323,44 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
       ];
     }
     return [
-      { value: 'text', label: '文本字段' },
-      { value: 'date', label: '时间字段' },
+      { value: 'text', label: '单行文本' },
+      { value: 'textarea', label: '多行文本' },
       { value: 'number', label: '数据字段' },
+      { value: 'date', label: '日期选择字段' },
+      { value: 'radio', label: '单选框组' },
+      { value: 'checkbox', label: '多选框组' },
+      { value: 'select', label: '下拉单选' },
+      { value: 'multi_select', label: '下拉多选' },
       { value: 'link', label: '链接字段' },
       { value: 'file', label: '附件字段' },
-      { value: 'select', label: '选择字段' }
+      { value: 'static_text', label: '静态提示文本' }
     ];
+  };
+
+  const changeFieldControl = (field: TemplateFieldItem, control: FieldControl): TemplateFieldItem => {
+    const type: FieldType = control === 'textarea' ? 'text' : control;
+    return {
+      ...field,
+      type,
+      multiline: control === 'textarea' ? true : undefined,
+      maxLength:
+        type !== 'text'
+          ? undefined
+          : field.type === 'text'
+          ? switchMaxLength(field.maxLength, !!field.multiline, control === 'textarea')
+          : defaultMaxLengthOf(control === 'textarea'),
+      options: OPTION_FIELD_TYPES.includes(type)
+        ? field.options?.length
+          ? field.options
+          : ['选项一', '选项二', '选项三']
+        : type === 'identity'
+        ? field.options || ['超级管理员', '机构管理员', '上报员', '审核员']
+        : undefined,
+      ...(type === 'static_text' ? { required: false } : {}),
+      ...((type === 'static_text') !== (field.type === 'static_text')
+        ? { placeholder: '', name: type === 'static_text' ? '' : field.name || '自定义字段' }
+        : {})
+    };
   };
 
   // Update right side business config (score rules / verification switches / adapted roles)
@@ -845,10 +1368,10 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     if (!activeTemplate) return;
     const updatedTpl: BusinessTemplateItem = {
       ...activeTemplate,
-      scoreRuleId: currentScoreRuleId,
+      scoreRuleId: currentScoreRuleId || undefined,
       scoreTiming: currentScoreTiming,
       includeInEvaluation: currentIncludeInEvaluation,
-      auditFlowId: currentAuditFlowId,
+      auditFlowId: currentAuditFlowId || undefined,
       verificationOptions: currentVerificationOptions,
       adaptedRoles: currentAdaptedRoles
     };
@@ -873,7 +1396,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
       scoreRuleId: ruleId,
       scoreTiming: prev?.templateId === activeTemplate.id && prev.scoreTiming !== undefined ? prev.scoreTiming : (activeTemplate.scoreTiming || '终审打分'),
       includeInEvaluation: prev?.templateId === activeTemplate.id && prev.includeInEvaluation !== undefined ? prev.includeInEvaluation : (activeTemplate.includeInEvaluation ?? true),
-      auditFlowId: prev?.templateId === activeTemplate.id && prev.auditFlowId !== undefined ? prev.auditFlowId : (activeTemplate.auditFlowId || 'flow_adaptive_tree_3'),
+      auditFlowId: prev?.templateId === activeTemplate.id && prev.auditFlowId !== undefined ? prev.auditFlowId : (activeTemplate.auditFlowId),
       verificationOptions: prev?.templateId === activeTemplate.id && prev.verificationOptions !== undefined ? prev.verificationOptions : (activeTemplate.verificationOptions || defaultVerificationOptions),
       adaptedRoles: prev?.templateId === activeTemplate.id && prev.adaptedRoles !== undefined ? prev.adaptedRoles : (activeTemplate.adaptedRoles || defaultAdaptedRoles)
     }));
@@ -884,10 +1407,10 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     if (!activeTemplate) return;
     setPendingOtherConfig(prev => ({
       templateId: activeTemplate.id,
-      scoreRuleId: prev?.templateId === activeTemplate.id && prev.scoreRuleId !== undefined ? prev.scoreRuleId : (activeTemplate.scoreRuleId || 'sr_100_standard'),
+      scoreRuleId: prev?.templateId === activeTemplate.id && prev.scoreRuleId !== undefined ? prev.scoreRuleId : (activeTemplate.scoreRuleId),
       scoreTiming: timing,
       includeInEvaluation: prev?.templateId === activeTemplate.id && prev.includeInEvaluation !== undefined ? prev.includeInEvaluation : (activeTemplate.includeInEvaluation ?? true),
-      auditFlowId: prev?.templateId === activeTemplate.id && prev.auditFlowId !== undefined ? prev.auditFlowId : (activeTemplate.auditFlowId || 'flow_adaptive_tree_3'),
+      auditFlowId: prev?.templateId === activeTemplate.id && prev.auditFlowId !== undefined ? prev.auditFlowId : (activeTemplate.auditFlowId),
       verificationOptions: prev?.templateId === activeTemplate.id && prev.verificationOptions !== undefined ? prev.verificationOptions : (activeTemplate.verificationOptions || defaultVerificationOptions),
       adaptedRoles: prev?.templateId === activeTemplate.id && prev.adaptedRoles !== undefined ? prev.adaptedRoles : (activeTemplate.adaptedRoles || defaultAdaptedRoles)
     }));
@@ -898,10 +1421,10 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     if (!activeTemplate) return;
     setPendingOtherConfig(prev => ({
       templateId: activeTemplate.id,
-      scoreRuleId: prev?.templateId === activeTemplate.id && prev.scoreRuleId !== undefined ? prev.scoreRuleId : (activeTemplate.scoreRuleId || 'sr_100_standard'),
+      scoreRuleId: prev?.templateId === activeTemplate.id && prev.scoreRuleId !== undefined ? prev.scoreRuleId : (activeTemplate.scoreRuleId),
       scoreTiming: prev?.templateId === activeTemplate.id && prev.scoreTiming !== undefined ? prev.scoreTiming : (activeTemplate.scoreTiming || '终审打分'),
       includeInEvaluation: !currentIncludeInEvaluation,
-      auditFlowId: prev?.templateId === activeTemplate.id && prev.auditFlowId !== undefined ? prev.auditFlowId : (activeTemplate.auditFlowId || 'flow_adaptive_tree_3'),
+      auditFlowId: prev?.templateId === activeTemplate.id && prev.auditFlowId !== undefined ? prev.auditFlowId : (activeTemplate.auditFlowId),
       verificationOptions: prev?.templateId === activeTemplate.id && prev.verificationOptions !== undefined ? prev.verificationOptions : (activeTemplate.verificationOptions || defaultVerificationOptions),
       adaptedRoles: prev?.templateId === activeTemplate.id && prev.adaptedRoles !== undefined ? prev.adaptedRoles : (activeTemplate.adaptedRoles || defaultAdaptedRoles)
     }));
@@ -912,7 +1435,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     if (!activeTemplate) return;
     setPendingOtherConfig(prev => ({
       templateId: activeTemplate.id,
-      scoreRuleId: prev?.templateId === activeTemplate.id && prev.scoreRuleId !== undefined ? prev.scoreRuleId : (activeTemplate.scoreRuleId || 'sr_100_standard'),
+      scoreRuleId: prev?.templateId === activeTemplate.id && prev.scoreRuleId !== undefined ? prev.scoreRuleId : (activeTemplate.scoreRuleId),
       scoreTiming: prev?.templateId === activeTemplate.id && prev.scoreTiming !== undefined ? prev.scoreTiming : (activeTemplate.scoreTiming || '终审打分'),
       includeInEvaluation: prev?.templateId === activeTemplate.id && prev.includeInEvaluation !== undefined ? prev.includeInEvaluation : (activeTemplate.includeInEvaluation ?? true),
       auditFlowId: flowId,
@@ -948,10 +1471,10 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     };
     setPendingOtherConfig(prev => ({
       templateId: activeTemplate.id,
-      scoreRuleId: prev?.templateId === activeTemplate.id && prev.scoreRuleId !== undefined ? prev.scoreRuleId : (activeTemplate.scoreRuleId || 'sr_100_standard'),
+      scoreRuleId: prev?.templateId === activeTemplate.id && prev.scoreRuleId !== undefined ? prev.scoreRuleId : (activeTemplate.scoreRuleId),
       scoreTiming: prev?.templateId === activeTemplate.id && prev.scoreTiming !== undefined ? prev.scoreTiming : (activeTemplate.scoreTiming || '终审打分'),
       includeInEvaluation: prev?.templateId === activeTemplate.id && prev.includeInEvaluation !== undefined ? prev.includeInEvaluation : (activeTemplate.includeInEvaluation ?? true),
-      auditFlowId: prev?.templateId === activeTemplate.id && prev.auditFlowId !== undefined ? prev.auditFlowId : (activeTemplate.auditFlowId || 'flow_adaptive_tree_3'),
+      auditFlowId: prev?.templateId === activeTemplate.id && prev.auditFlowId !== undefined ? prev.auditFlowId : (activeTemplate.auditFlowId),
       verificationOptions: nextVerification,
       adaptedRoles: prev?.templateId === activeTemplate.id && prev.adaptedRoles !== undefined ? prev.adaptedRoles : (activeTemplate.adaptedRoles || defaultAdaptedRoles)
     }));
@@ -965,18 +1488,28 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
       : [...currentAdaptedRoles, role];
     setPendingOtherConfig(prev => ({
       templateId: activeTemplate.id,
-      scoreRuleId: prev?.templateId === activeTemplate.id && prev.scoreRuleId !== undefined ? prev.scoreRuleId : (activeTemplate.scoreRuleId || 'sr_100_standard'),
+      scoreRuleId: prev?.templateId === activeTemplate.id && prev.scoreRuleId !== undefined ? prev.scoreRuleId : (activeTemplate.scoreRuleId),
       scoreTiming: prev?.templateId === activeTemplate.id && prev.scoreTiming !== undefined ? prev.scoreTiming : (activeTemplate.scoreTiming || '终审打分'),
       includeInEvaluation: prev?.templateId === activeTemplate.id && prev.includeInEvaluation !== undefined ? prev.includeInEvaluation : (activeTemplate.includeInEvaluation ?? true),
-      auditFlowId: prev?.templateId === activeTemplate.id && prev.auditFlowId !== undefined ? prev.auditFlowId : (activeTemplate.auditFlowId || 'flow_adaptive_tree_3'),
+      auditFlowId: prev?.templateId === activeTemplate.id && prev.auditFlowId !== undefined ? prev.auditFlowId : (activeTemplate.auditFlowId),
       verificationOptions: prev?.templateId === activeTemplate.id && prev.verificationOptions !== undefined ? prev.verificationOptions : (activeTemplate.verificationOptions || defaultVerificationOptions),
       adaptedRoles: nextRoles
     }));
   };
 
   // Helper: Get icon for field type in mobile preview & designer (1:1 with design)
-  const renderFieldIcon = (type: FieldType) => {
+  const renderFieldIcon = (type: FieldControl) => {
     switch (type) {
+      case 'textarea':
+        return <AlignLeft className="w-3.5 h-3.5 text-[#1E5ABB]" />;
+      case 'radio':
+        return <CircleDot className="w-3.5 h-3.5 text-[#1E5ABB]" />;
+      case 'checkbox':
+        return <CheckSquare className="w-3.5 h-3.5 text-[#1E5ABB]" />;
+      case 'multi_select':
+        return <ListChecks className="w-3.5 h-3.5 text-[#1E5ABB]" />;
+      case 'static_text':
+        return <Info className="w-3.5 h-3.5 text-[#1E5ABB]" />;
       case 'text':
       case 'phone':
         return (
@@ -1016,22 +1549,52 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   const renderPhoneSimulator = (
     fields: TemplateFieldItem[],
     headerTitle: string,
-    isActivation: boolean
+    isActivation: boolean,
+    onChangePcWidth?: (fieldId: string, width: PcFieldWidth | undefined) => void
   ) => {
+    const isPc = previewDevice === 'pc';
+    const titleText = headerTitle || (isActivation ? '账号激活' : '快速上报');
+    const fieldBox = isPc ? 'py-2 bg-white rounded-lg text-xs' : 'py-2.5 bg-[#F7F9FC] rounded-xl text-[13px]';
     return (
-      <div className="w-full max-w-[460px] mx-auto bg-white rounded-2xl border border-gray-200/90 p-3 shadow-2xs transition-all">
+      <div
+        className={`w-full mx-auto transition-all ${
+          isPc
+            ? 'max-w-[720px]'
+            : 'max-w-[460px] bg-white rounded-2xl border border-gray-200/90 p-3 shadow-2xs'
+        }`}
+      >
         {/* Inner Container */}
-        <div className="rounded-xl overflow-hidden bg-[#EEF2F7] flex flex-col border border-slate-200/60">
-          {/* Top Banner (Solid Royal Blue #1E5ABB) */}
-          <div className="bg-[#1E5ABB] text-white py-3 px-4 text-center select-none shadow-xs">
-            <div className="font-bold text-sm tracking-wide">{headerTitle || (isActivation ? '账号激活' : '快速上报')}</div>
-          </div>
+        <div
+          className={`overflow-hidden flex flex-col ${
+            isPc
+              ? 'bg-white rounded-lg border border-gray-200 w-full max-w-[720px] mx-auto'
+              : 'rounded-xl border bg-[#EEF2F7] border-slate-200/60'
+          }`}
+        >
+          {isPc ? (
+            <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between gap-3 select-none">
+              <div className="min-w-0 flex items-center gap-2">
+                <span className="text-sm font-bold text-gray-800 truncate">{titleText}</span>
+                {onChangePcWidth && (
+                  <span className="px-1.5 py-0.5 rounded bg-blue-50 text-[11px] text-[#1E5ABB] shrink-0">
+                    鼠标悬停字段，可切换整行 / 半行布局
+                  </span>
+                )}
+              </div>
+              <span className="w-6 h-6 rounded flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+                <X className="w-4 h-4" />
+              </span>
+            </div>
+          ) : (
+            <div className="bg-[#1E5ABB] text-white py-3 px-4 text-center select-none shadow-xs">
+              <div className="font-bold text-sm tracking-wide">{titleText}</div>
+            </div>
+          )}
 
-          {/* Form Body (Soft Light Background #EEF2F7, Individual White Cards) */}
-          <div className="p-3.5 space-y-3 bg-[#EEF2F7]">
+          <div className={isPc ? 'p-6 grid grid-cols-2 gap-x-5 gap-y-4 bg-white' : 'm-3 p-4 space-y-4 bg-white rounded-2xl border border-slate-200/70 shadow-[0_1px_3px_rgba(0,0,0,0.03)]'}>
             {/* Submission Result Notice */}
             {submittedSimulate && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between text-xs text-emerald-800 animate-in fade-in slide-in-from-top-2">
+              <div className={`bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between text-xs text-emerald-800 animate-in fade-in slide-in-from-top-2 ${isPc ? 'col-span-2' : ''}`}>
                 <div className="flex items-center gap-2 font-bold">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>模拟填报已成功提交！</span>
@@ -1047,7 +1610,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
             )}
 
             {fields.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 text-xs bg-white rounded-xl border border-dashed border-slate-200">
+              <div className={`py-12 text-center text-slate-400 text-xs bg-white rounded-xl border border-dashed border-slate-200 ${isPc ? 'col-span-2' : ''}`}>
                 请在左侧添加表单字段以实时预览
               </div>
             ) : (
@@ -1055,21 +1618,178 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                 const currentValue = phoneFormValues[field.id];
                 const selectedRole = phoneFormValues[`${field.id}_role`] || '超级管理员';
                 const selectedGender = phoneFormValues[`${field.id}_gender`] || '男';
+                const autoWideOnPc = isAutoWideOnPc(field);
+                const isWideOnPc = field.pcWidth ? field.pcWidth === 'full' : autoWideOnPc;
+                const canSetPcWidth = isPc && !!onChangePcWidth;
 
                 return (
                   <div
                     key={field.id}
-                    className="bg-white rounded-xl p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] border border-slate-100 space-y-2.5 transition-all"
+                    className={
+                      isPc
+                        ? `space-y-1.5 min-w-0 ${isWideOnPc ? 'col-span-2' : ''} ${
+                            canSetPcWidth
+                              ? 'relative group/pcw rounded-md outline-1 outline-dashed outline-offset-4 outline-transparent hover:outline-blue-300 transition-[outline-color]'
+                              : ''
+                          }`
+                        : 'space-y-2'
+                    }
                   >
+                    {canSetPcWidth && (
+                      <div className="absolute -top-1 right-0 z-10 flex items-center gap-1 opacity-0 pointer-events-none group-hover/pcw:opacity-100 group-hover/pcw:pointer-events-auto transition-opacity">
+                        {field.pcWidth && (
+                          <button
+                            type="button"
+                            onClick={() => onChangePcWidth(field.id, undefined)}
+                            title="恢复按字段类型自动排布"
+                            className="h-5 px-1.5 flex items-center gap-0.5 rounded border border-gray-200 bg-white text-[11px] text-gray-500 hover:text-[#1E5ABB] hover:border-blue-200 cursor-pointer"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            恢复自动
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextWide = !isWideOnPc;
+                            onChangePcWidth(field.id, nextWide === autoWideOnPc ? undefined : nextWide ? 'full' : 'half');
+                          }}
+                          title="切换该字段在 PC 端占整行或半行，H5 端不受影响"
+                          className="h-5 px-1.5 flex items-center gap-0.5 rounded border border-blue-200 bg-blue-50 text-[11px] font-medium text-[#1E5ABB] hover:bg-blue-100 cursor-pointer"
+                        >
+                          <MoveHorizontal className="w-3 h-3" />
+                          {isWideOnPc ? '改为半行' : '改为整行'}
+                        </button>
+                      </div>
+                    )}
                     {/* Card Header: Icon + Label + Asterisk */}
-                    <div className="flex items-center gap-1.5 text-xs text-slate-800 font-bold">
-                      {renderFieldIcon(field.type)}
+                    {field.type !== 'static_text' && (
+                    <div className={`flex items-center gap-1.5 text-slate-800 font-bold ${isPc ? 'text-xs' : 'text-[13px]'}`}>
+                      {isPc && renderFieldIcon(fieldControlOf(field))}
                       <span>{field.name}</span>
                       {field.required && <span className="text-rose-500 font-bold ml-0.5">*</span>}
                     </div>
+                    )}
 
                     {/* Card Body by Field Type */}
-                    {field.type === 'identity' ? (
+                    {field.type === 'static_text' ? (
+                      <div className="flex items-start gap-1.5 px-3 py-2 rounded-lg bg-blue-50/70 border border-blue-100 text-xs leading-5 text-[#1E5ABB]">
+                        <Info className="w-3.5 h-3.5 mt-[3px] shrink-0" />
+                        <span className="whitespace-pre-wrap break-words min-w-0">{field.placeholder || '提示文本内容'}</span>
+                      </div>
+                    ) : field.type === 'radio' || field.type === 'checkbox' ? (
+                      (() => {
+                        const isMulti = field.type === 'checkbox';
+                        const picked: string[] = isMulti ? currentValue || [] : currentValue ? [currentValue] : [];
+                        return (
+                          <div className="flex flex-wrap gap-x-4 gap-y-2 pt-0.5">
+                            {(field.options?.length ? field.options : ['选项一', '选项二']).map((opt, oIdx) => {
+                              const checked = picked.includes(opt);
+                              return (
+                                <button
+                                  key={oIdx}
+                                  type="button"
+                                  onClick={() => {
+                                    setPhoneFormValues(prev => ({
+                                      ...prev,
+                                      [field.id]: isMulti
+                                        ? checked
+                                          ? picked.filter(p => p !== opt)
+                                          : [...picked, opt]
+                                        : opt
+                                    }));
+                                    setSubmittedSimulate(false);
+                                  }}
+                                  className="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer"
+                                >
+                                  {isMulti ? (
+                                    checked ? (
+                                      <CheckSquare className="w-4 h-4 text-[#1E5ABB]" />
+                                    ) : (
+                                      <Square className="w-4 h-4 text-slate-300" />
+                                    )
+                                  ) : (
+                                    <span
+                                      className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                        checked ? 'border-[#1E5ABB]' : 'border-slate-300'
+                                      }`}
+                                    >
+                                      {checked && <span className="w-2 h-2 rounded-full bg-[#1E5ABB]" />}
+                                    </span>
+                                  )}
+                                  <span>{opt}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()
+                    ) : field.type === 'multi_select' ? (
+                      (() => {
+                        const picked: string[] = currentValue || [];
+                        const open = !!phoneFormValues[`${field.id}_open`];
+                        const toggle = (opt: string) => {
+                          setPhoneFormValues(prev => ({
+                            ...prev,
+                            [field.id]: picked.includes(opt) ? picked.filter(p => p !== opt) : [...picked, opt]
+                          }));
+                          setSubmittedSimulate(false);
+                        };
+                        return (
+                          <div className="relative">
+                            <div
+                              onClick={() => setPhoneFormValues(prev => ({ ...prev, [`${field.id}_open`]: !open }))}
+                              className={`relative min-h-[34px] w-full flex items-center gap-1.5 flex-wrap pl-2 pr-8 ${fieldBox} border cursor-pointer transition-colors ${
+                                open ? 'border-[#1E5ABB]' : 'border-slate-200'
+                              }`}
+                            >
+                              {picked.length === 0 ? (
+                                <span className="pl-1 min-w-0 max-w-full truncate text-slate-400">{field.placeholder || '请选择（可多选）'}</span>
+                              ) : (
+                                picked.map(p => (
+                                  <span
+                                    key={p}
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-[#1E5ABB] text-[11px]"
+                                  >
+                                    {p}
+                                    <X
+                                      className="w-3 h-3 cursor-pointer hover:text-rose-500"
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        toggle(p);
+                                      }}
+                                    />
+                                  </span>
+                                ))
+                              )}
+                              <ChevronDown
+                                className={`absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-800 transition-transform ${open ? 'rotate-180' : ''}`}
+                              />
+                            </div>
+                            {open && (
+                              <div className="mt-1 py-1 bg-white border border-slate-200 rounded-lg shadow-sm">
+                                {(field.options?.length ? field.options : ['选项一', '选项二']).map((opt, oIdx) => {
+                                  const checked = picked.includes(opt);
+                                  return (
+                                    <button
+                                      key={oIdx}
+                                      type="button"
+                                      onClick={() => toggle(opt)}
+                                      className={`w-full flex items-center justify-between px-3 py-1.5 text-xs cursor-pointer hover:bg-slate-50 ${
+                                        checked ? 'text-[#1E5ABB] font-medium' : 'text-slate-700'
+                                      }`}
+                                    >
+                                      <span>{opt}</span>
+                                      {checked && <Check className="w-3.5 h-3.5" />}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()
+                    ) : field.type === 'identity' ? (
                       <div className="flex flex-wrap gap-2 pt-0.5">
                         {(field.options && field.options.length > 0
                           ? field.options
@@ -1138,12 +1858,12 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                         </span>
                       </div>
                     ) : field.type === 'date' ? (
-                      <div className="flex items-center justify-between px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-400">
-                        <div className="flex items-center gap-2">
-                          <CalendarIcon className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{currentValue || field.placeholder || '年 /月/日 --:--'}</span>
+                      <div className={`flex items-center justify-between px-3 ${fieldBox} border border-slate-200 text-slate-400`}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <CalendarIcon className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                          <span className="truncate">{currentValue || field.placeholder || '年 /月/日 --:--'}</span>
                         </div>
-                        <CalendarIcon className="w-3.5 h-3.5 text-slate-700" />
+                        <CalendarIcon className="w-3.5 h-3.5 shrink-0 ml-2 text-slate-700" />
                       </div>
                     ) : field.type === 'select' ? (
                       <div className="relative">
@@ -1156,10 +1876,10 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                             }));
                             setSubmittedSimulate(false);
                           }}
-                          className="w-full appearance-none px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:border-[#1E5ABB] transition-colors pr-8 cursor-pointer"
+                          className={`w-full appearance-none px-3 ${fieldBox} border border-slate-200 text-slate-700 focus:outline-none focus:border-[#1E5ABB] transition-colors pr-8 cursor-pointer`}
                         >
                           <option value="" disabled hidden>
-                            {field.placeholder || '请选择事件分类'}
+                            {field.placeholder || '请选择'}
                           </option>
                           {(field.options && field.options.length > 0
                             ? field.options
@@ -1175,24 +1895,143 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                         </div>
                       </div>
                     ) : field.type === 'link' ? (
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
-                          <LinkIcon className="w-3.5 h-3.5 text-slate-400" />
-                        </div>
-                        <input
-                          type="url"
-                          value={currentValue ?? ''}
-                          onChange={e => {
-                            setPhoneFormValues(prev => ({
-                              ...prev,
-                              [field.id]: e.target.value
-                            }));
-                            setSubmittedSimulate(false);
-                          }}
-                          placeholder={field.placeholder || 'https://...'}
-                          className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-[#1E5ABB] transition-colors"
-                        />
-                      </div>
+                      (() => {
+                        const linkValue = String(currentValue ?? '').trim();
+                        const linkValid = linkValue !== '' && isValidLinkUrl(linkValue);
+                        const linkInvalid = linkValue !== '' && !linkValid;
+                        const shot = linkShots[field.id];
+                        return (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <div className="relative flex-1 min-w-0">
+                                <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                                  <LinkIcon className={`w-3.5 h-3.5 ${linkInvalid ? 'text-rose-400' : 'text-slate-400'}`} />
+                                </div>
+                                <input
+                                  type="url"
+                                  value={currentValue ?? ''}
+                                  onChange={e => {
+                                    setPhoneFormValues(prev => ({
+                                      ...prev,
+                                      [field.id]: e.target.value
+                                    }));
+                                    removeLinkShot(field.id);
+                                    setSubmittedSimulate(false);
+                                  }}
+                                  placeholder={field.placeholder || 'https://...'}
+                                  className={`w-full pl-8 pr-3 ${fieldBox} border text-slate-700 placeholder:text-slate-400 focus:outline-none transition-colors ${
+                                    linkInvalid ? 'border-rose-300 focus:border-rose-400' : 'border-slate-200 focus:border-[#1E5ABB]'
+                                  }`}
+                                />
+                              </div>
+                              {shot?.status !== 'done' && (
+                                <button
+                                  type="button"
+                                  disabled={shot?.status === 'loading'}
+                                  onClick={() => {
+                                    if (!linkValue) {
+                                      setLinkShots(prev => ({ ...prev, [field.id]: { status: 'empty', url: '' } }));
+                                      return;
+                                    }
+                                    if (linkInvalid) {
+                                      setLinkShots(prev => ({ ...prev, [field.id]: { status: 'invalid', url: linkValue } }));
+                                      return;
+                                    }
+                                    captureLinkShot(field.id, linkValue);
+                                  }}
+                                  className="shrink-0 self-stretch px-3 flex items-center gap-1 rounded-lg border text-xs font-medium transition-colors cursor-pointer border-[#1E5ABB] text-[#1E5ABB] bg-white hover:bg-blue-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300 disabled:bg-slate-50"
+                                >
+                                  {shot?.status === 'loading' ? (
+                                    <>
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      <span>截图中</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Camera className="w-3.5 h-3.5" />
+                                      <span>截图</span>
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                            </div>
+
+                            {linkInvalid &&
+                              (shot?.status === 'invalid' ? (
+                                <p className="flex items-center gap-1 text-[11px] text-rose-500">
+                                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                  <span>网址格式不正确，无法截图，请修改为以 http:// 或 https:// 开头的正确网址</span>
+                                </p>
+                              ) : (
+                                <p className="text-[11px] text-rose-500">请输入正确的网址，需以 http:// 或 https:// 开头</p>
+                              ))}
+
+                            {shot?.status === 'empty' && !linkValue && (
+                              <p className="flex items-center gap-1 text-[11px] text-amber-600">
+                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                <span>原文地址为空，请先输入原文链接再截图</span>
+                              </p>
+                            )}
+
+                            {shot?.status === 'error' && (
+                              <div className="flex items-start justify-between gap-2 px-2.5 py-2 rounded-lg bg-rose-50 border border-rose-100 text-[11px] text-rose-600">
+                                <div className="flex items-start gap-1.5 min-w-0">
+                                  <AlertCircle className="w-3.5 h-3.5 mt-px shrink-0" />
+                                  <div className="min-w-0">
+                                    <div className="font-medium">原文地址不可访问</div>
+                                    {shot.reason && <div className="truncate text-rose-500/90">访问反馈：{shot.reason}</div>}
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => captureLinkShot(field.id, linkValue)}
+                                  className="shrink-0 font-medium hover:underline cursor-pointer"
+                                >
+                                  重试
+                                </button>
+                              </div>
+                            )}
+
+                            {shot?.status === 'done' && (
+                              <div className="flex items-start gap-3 p-2 rounded-lg bg-slate-50 border border-slate-200">
+                                <button
+                                  type="button"
+                                  onClick={() => setLinkShotViewer({ url: shot.url, shotAt: shot.shotAt })}
+                                  className="w-28 h-[72px] shrink-0 rounded-md overflow-hidden border border-slate-200 cursor-zoom-in hover:border-[#1E5ABB] transition-colors"
+                                  title="查看原图"
+                                >
+                                  {renderLinkShotMock(shot.url)}
+                                </button>
+                                <div className="flex-1 min-w-0 space-y-1.5">
+                                  <div className="flex items-center gap-1 text-[11px] font-medium text-emerald-600">
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span>已截取原文</span>
+                                  </div>
+                                  <div className="text-[11px] text-slate-400">{shot.shotAt}</div>
+                                  <div className="flex items-center gap-3 text-[11px]">
+                                    <button
+                                      type="button"
+                                      onClick={() => captureLinkShot(field.id, shot.url)}
+                                      className="flex items-center gap-0.5 text-[#1E5ABB] hover:underline cursor-pointer"
+                                    >
+                                      <RefreshCw className="w-3 h-3" />
+                                      <span>重新截图</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => removeLinkShot(field.id)}
+                                      className="flex items-center gap-0.5 text-slate-500 hover:text-rose-500 cursor-pointer"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                      <span>删除</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()
                     ) : field.type === 'number' ? (
                       <input
                         type="number"
@@ -1205,32 +2044,151 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                           setSubmittedSimulate(false);
                         }}
                         placeholder={field.placeholder || '请输入传播量/阅读量等数据'}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-[#1E5ABB] transition-colors"
+                        className={`w-full px-3 ${fieldBox} border border-slate-200 text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-[#1E5ABB] transition-colors`}
                       />
                     ) : (
-                      <input
-                        type="text"
-                        value={currentValue ?? ''}
-                        onChange={e => {
-                          setPhoneFormValues(prev => ({
-                            ...prev,
-                            [field.id]: e.target.value
-                          }));
+                      (() => {
+                        const isTextarea = field.multiline || (field.id === 'fixed_event_detail' && field.locked === undefined);
+                        const limit = field.type === 'text' && isValidMaxLength(field.maxLength) ? field.maxLength : undefined;
+                        const textValue = String(currentValue ?? '');
+                        const counter = limit !== undefined && (
+                          <span
+                            className={`pointer-events-none absolute right-3 text-[11px] ${isTextarea ? 'bottom-2' : 'top-1/2 -translate-y-1/2'} ${
+                              textValue.length >= limit ? 'text-rose-500' : 'text-slate-400'
+                            }`}
+                          >
+                            {textValue.length}/{limit}
+                          </span>
+                        );
+                        const handleTextChange = (value: string) => {
+                          setPhoneFormValues(prev => ({ ...prev, [field.id]: value }));
                           setSubmittedSimulate(false);
-                        }}
-                        placeholder={field.placeholder || `请输入${field.name}`}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-[#1E5ABB] transition-colors"
-                      />
+                        };
+                        return (
+                          <div className="relative">
+                            {isTextarea ? (
+                              <textarea
+                                rows={3}
+                                value={textValue}
+                                maxLength={limit}
+                                onChange={e => handleTextChange(e.target.value)}
+                                placeholder={field.placeholder || '请输入上报内容描述'}
+                                className={`w-full px-3 ${limit !== undefined ? 'pb-6' : ''} ${fieldBox} border border-slate-200 text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-[#1E5ABB] transition-colors resize-none`}
+                              />
+                            ) : (
+                              <input
+                                type="text"
+                                value={textValue}
+                                maxLength={limit}
+                                onChange={e => handleTextChange(e.target.value)}
+                                placeholder={field.placeholder || `请输入${field.name}`}
+                                className={`w-full pl-3 ${limit !== undefined ? 'pr-16' : 'pr-3'} ${fieldBox} border border-slate-200 text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-[#1E5ABB] transition-colors`}
+                              />
+                            )}
+                            {counter}
+                          </div>
+                        );
+                      })()
                     )}
                   </div>
                 );
               })
             )}
           </div>
+
+          {!isPc && (
+            <div className="px-3.5 py-3 border-t border-slate-200/80 bg-white grid grid-cols-2 gap-2.5">
+              <button type="button" className="py-2.5 text-xs border border-gray-300 rounded-lg text-gray-600 bg-white font-bold cursor-default">
+                取消
+              </button>
+              <button type="button" className="py-2.5 text-xs rounded-lg bg-[#1E5ABB] text-white font-bold cursor-default">
+                提交审核
+              </button>
+            </div>
+          )}
+
+          {isPc && (
+            <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
+              <button type="button" className="px-4 py-1.5 text-xs border border-gray-300 rounded text-gray-600 bg-white cursor-default">
+                取消
+              </button>
+              <button type="button" className="px-4 py-1.5 text-xs rounded bg-[#1E5ABB] text-white font-bold cursor-default">
+                提交审核
+              </button>
+            </div>
+          )}
         </div>
+
+        {linkShotViewer && (
+          <div
+            className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-6"
+            onClick={() => setLinkShotViewer(null)}
+          >
+            <div
+              className="w-full max-w-[640px] bg-white rounded-xl shadow-2xl overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-bold text-gray-800">原文截图</div>
+                  <div className="text-[11px] text-gray-400 truncate">
+                    {linkShotViewer.url}
+                    {linkShotViewer.shotAt ? ` · ${linkShotViewer.shotAt}` : ''}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLinkShotViewer(null)}
+                  className="w-7 h-7 shrink-0 rounded flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-4 bg-gray-50">
+                <div className="h-[380px] rounded-lg overflow-hidden border border-gray-200">
+                  {renderLinkShotMock(linkShotViewer.url, true)}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
+
+  const changePreviewDevice = (device: 'h5' | 'pc') => {
+    setPreviewDevice(device);
+    try {
+      localStorage.setItem('mt_template_preview_device', device);
+    } catch {
+      // ignore storage failures
+    }
+  };
+
+  const renderPreviewDeviceToggle = () => (
+    <div className="inline-flex items-center rounded-md border border-gray-200 bg-white p-0.5">
+      {([
+        { id: 'h5', label: 'H5', icon: Smartphone },
+        { id: 'pc', label: 'PC', icon: Monitor },
+      ] as const).map(option => {
+        const active = previewDevice === option.id;
+        const OptionIcon = option.icon;
+        return (
+          <button
+            key={option.id}
+            type="button"
+            onClick={() => changePreviewDevice(option.id)}
+            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-bold transition-colors cursor-pointer ${
+              active ? 'bg-[#1E5ABB] text-white' : 'text-gray-500 hover:text-[#1E5ABB]'
+            }`}
+          >
+            <OptionIcon className="w-3.5 h-3.5" />
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 
   // =========================================================================
   // VIEW B: Full Designer View (Screenshots 3 & 4)
@@ -1239,7 +2197,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     const isActivation = designerItem.template.templateType === '激活';
 
     return (
-      <div className="bg-white rounded-xl border border-gray-200 shadow-2xs p-5 space-y-6">
+      <div className="bg-white space-y-7">
         {/* Toast */}
         {toastMessage && (
           <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-lg shadow-xl text-xs flex items-center gap-2 animate-in fade-in slide-in-from-top-3">
@@ -1249,23 +2207,33 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
         )}
 
         {/* Top Header Bar */}
-        <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-          <button
-            type="button"
-            onClick={() => setDesignerItem(null)}
-            className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
-          >
-            <span>&larr;</span>
-            <span>返回模板列表</span>
-          </button>
-
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-4 pb-3 border-b border-gray-100">
+          <div className="flex items-center gap-2.5 min-w-0">
             <button
               type="button"
-              onClick={() => setDesignerItem(null)}
+              onClick={handleLeaveDesigner}
+              className="flex items-center gap-1 shrink-0 text-xs text-gray-500 hover:text-[#1890ff] transition-colors cursor-pointer"
+              title="返回模板列表"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>返回</span>
+            </button>
+            <span className="w-px h-3.5 bg-gray-200 shrink-0" />
+            <span className="text-[15px] font-bold text-gray-900 truncate">
+              {designerItem.mode === 'add' ? '新增模板' : designerName || '编辑模板'}
+            </span>
+            <span className="shrink-0 px-2 py-0.5 rounded bg-blue-50 text-[#1890ff] text-[11px] font-medium">
+              {isActivation ? '激活模板' : '报送模板'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={handleLeaveDesigner}
               className="px-4 py-1.5 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
             >
-              取消返回
+              取消
             </button>
             <button
               type="button"
@@ -1279,9 +2247,9 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
         </div>
 
         {/* Section 1: 基本属性设置 */}
-        <div className="border border-gray-200/90 rounded-xl p-5 bg-white space-y-4 shadow-2xs">
+        <div className="space-y-4">
           <div className="flex items-center gap-2 text-gray-800 font-bold text-sm">
-            <FileText className="w-4 h-4 text-[#1890ff]" />
+            <span className="w-1 h-3.5 rounded-full bg-[#1890ff]" />
             <span>基本属性设置</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1313,17 +2281,12 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
         </div>
 
         {/* Section 2: 表单字段设计与用户端交互预览 */}
-        <div className="border border-gray-200/90 rounded-xl p-5 bg-white space-y-5 shadow-2xs">
+        <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2.5">
               <span className="text-gray-800 font-bold text-sm flex items-center gap-2">
-                <span className="material-symbols-outlined text-[#1890ff] text-[18px]">
-                  dashboard_customize
-                </span>
+                <span className="w-1 h-3.5 rounded-full bg-[#1890ff]" />
                 <span>表单字段设计与用户端交互预览</span>
-              </span>
-              <span className="px-2 py-0.5 bg-blue-50 text-[#1890ff] text-[11px] font-bold rounded-md border border-blue-200">
-                共 {designerFields.length} 个字段
               </span>
             </div>
             <span className="text-xs text-gray-400">
@@ -1332,17 +2295,13 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
           </div>
 
           {/* 2-Column Split: Left Editor, Right Live Phone Mockup */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Left Column: Field Editor in Enclosed Card Container */}
-            <div className="lg:col-span-7 bg-white rounded-2xl p-4 border border-gray-200/90 shadow-2xs flex flex-col">
-              {/* Header aligned with right column */}
-              <div className="flex items-center justify-between pb-3.5 border-b border-gray-100 mb-4">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-gray-800">
-                  <Layers className="w-3.5 h-3.5 text-[#1E5ABB]" />
-                  <span>已配置字段列表</span>
-                  <span className="px-1.5 py-0.5 bg-blue-50 text-[#1E5ABB] text-[10px] font-bold rounded border border-blue-200">
-                    {designerFields.length}
-                  </span>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            {/* Left Column: Field Editor */}
+            <div className="lg:col-span-7 flex flex-col bg-gray-50 rounded-xl p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-gray-700">
+                  <span>已配置字段</span>
+                  <span className="text-[11px] font-medium text-gray-400">{designerFields.length}</span>
                 </div>
                 <button
                   type="button"
@@ -1352,26 +2311,33 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                     );
                     if (standard) {
                       const stamp = Date.now();
-                      setDesignerFields(standard.fields.map((f, index) => ({ ...f, id: `fld_${stamp}_${index}` })));
+                      const copied = standard.fields.map((f, index) =>
+                        isLockedField(f) ? { ...f } : { ...f, id: `fld_${stamp}_${index}` }
+                      );
+                      setDesignerFields(isActivation ? copied : applyFixedFieldRule(copied, institutionId));
                       showToast(`已调用标准模板「${standard.name}」的字段`);
                       return;
                     }
-                    setDesignerFields(isActivation ? [...standardActivationFields] : [...standardReportFields]);
+                    setDesignerFields(
+                      isActivation ? [...standardActivationFields] : applyFixedFieldRule(standardReportFields, institutionId)
+                    );
                     showToast('平台暂未设置标准模板，已使用系统默认字段');
                   }}
-                  className="flex items-center gap-1.5 text-xs text-[#1E5ABB] hover:text-blue-700 font-medium px-2.5 py-1 rounded-md bg-blue-50/80 border border-blue-200/80 transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 text-xs text-[#1E5ABB] hover:bg-blue-50 font-medium px-2 py-1 rounded-md transition-colors cursor-pointer"
                 >
                   <Wand2 className="w-3.5 h-3.5" />
                   <span>使用标准模板</span>
                 </button>
               </div>
 
-              {/* Field Cards */}
-              <div className="space-y-3">
-                {designerFields.map((field, idx) => (
+              {/* Field Rows */}
+              <div className="mt-3 space-y-2">
+                {designerFields.map((field, idx) => {
+                  const isFixed = isLockedField(field);
+                  return (
                   <div
                     key={field.id}
-                    draggable
+                    draggable={!isFixed}
                     onDragStart={e => {
                       setDraggingFieldIndex(idx);
                       e.dataTransfer.effectAllowed = 'move';
@@ -1382,104 +2348,106 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                     }}
                     onDrop={() => handleDropDesignerField(idx)}
                     onDragEnd={() => setDraggingFieldIndex(null)}
-                    className={`border rounded-xl p-3.5 bg-white space-y-3 shadow-2xs hover:border-blue-300 transition-all ${
-                      draggingFieldIndex === idx
-                        ? 'border-blue-400 bg-blue-50/60 opacity-60 scale-[0.99]'
-                        : 'border-gray-200'
+                    className={`group flex items-start gap-2.5 py-3 px-3 rounded-lg transition-shadow ${
+                      draggingFieldIndex === idx ? 'bg-blue-50 opacity-60' : 'bg-white hover:shadow-sm'
                     }`}
                   >
-                    {/* Row 1: Drag & Type & Label & Required & Delete */}
-                    <div className="flex items-center gap-2">
+                    {isFixed ? (
                       <div
-                        className="flex items-center text-gray-400 hover:text-blue-600 font-mono text-[11px] select-none shrink-0 cursor-grab active:cursor-grabbing p-1 -m-1 rounded hover:bg-gray-100 transition-colors"
-                        title="按住拖拽以调整字段排序"
+                        className="mt-1.5 w-8 h-6 flex items-center justify-center gap-0.5 rounded-md bg-gray-50 text-gray-400 font-mono text-[11px] select-none shrink-0 cursor-not-allowed"
+                        title="固定字段，不可调整排序"
                       >
-                        <GripVertical className="w-3.5 h-3.5 text-gray-400" />
+                        <Lock className="w-3 h-3" />
                         <span>{idx + 1}</span>
                       </div>
-
-                      {/* Field Type Select */}
-                      <select
-                        value={field.type}
-                        onChange={e => {
-                          const nextType = e.target.value as FieldType;
-                          const updated = designerFields.map(f =>
-                            f.id === field.id
-                              ? {
-                                  ...f,
-                                  type: nextType,
-                                  options:
-                                    nextType === 'select'
-                                      ? f.options || ['选项一', '选项二', '选项三']
-                                      : nextType === 'identity'
-                                      ? f.options || ['超级管理员', '机构管理员', '上报员', '审核员']
-                                      : undefined
-                                }
-                              : f
-                          );
-                          setDesignerFields(updated);
-                        }}
-                        className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-medium text-gray-700 bg-gray-50/60 focus:outline-none focus:border-[#1890ff] shrink-0"
+                    ) : (
+                      <div
+                        className="mt-1.5 w-8 h-6 flex items-center justify-center gap-0.5 rounded-md bg-gray-50 text-gray-400 font-mono text-[11px] select-none shrink-0 cursor-grab active:cursor-grabbing hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                        title="按住拖拽以调整字段排序"
                       >
-                        {getFieldTypeOptions(designerItem.template.templateType).map(opt => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
+                        <ArrowUpDown className="w-3 h-3" />
+                        <span>{idx + 1}</span>
+                      </div>
+                    )}
 
-                      {/* Field Name Input */}
-                      <input
-                        type="text"
-                        value={field.name}
-                        onChange={e => {
-                          const nextName = e.target.value;
-                          setDesignerFields(
-                            designerFields.map(f => (f.id === field.id ? { ...f, name: nextName } : f))
-                          );
-                        }}
-                        placeholder="字段标题"
-                        className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-800 font-bold focus:outline-none focus:border-[#1890ff]"
-                      />
+                    <div className="flex-1 min-w-0 space-y-2">
+                    {/* Row 1: Label & Type */}
+                    <div className="flex items-center gap-2">
+                      {field.type === 'static_text' ? (
+                        <span className="flex-1 min-w-0 text-[12px] text-gray-400">仅展示下方文本内容，不显示标题</span>
+                      ) : (
+                      <div className="relative flex-1 min-w-0">
+                        <input
+                          type="text"
+                          value={field.name}
+                          onChange={e => {
+                            const nextName = e.target.value;
+                            setDesignerFields(
+                              designerFields.map(f => (f.id === field.id ? { ...f, name: nextName } : f))
+                            );
+                          }}
+                          placeholder="字段标题"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-md text-[13px] font-medium focus:outline-none bg-white text-gray-800 hover:border-gray-300 focus:border-[#1890ff]"
+                        />
+                      </div>
+                      )}
 
-                      {/* Required Toggle */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDesignerFields(
-                            designerFields.map(f =>
-                              f.id === field.id ? { ...f, required: !f.required } : f
-                            )
-                          );
-                        }}
-                        className={`px-2 py-1 rounded text-xs font-bold transition-colors cursor-pointer shrink-0 ${
-                          field.required
-                            ? 'bg-rose-50 text-rose-600 border border-rose-200'
-                            : 'bg-gray-100 text-gray-400 border border-gray-200'
-                        }`}
-                        title={field.required ? '必填项 (点击改为选填)' : '选填项 (点击改为必填)'}
-                      >
-                        {field.required ? '必' : '选'}
-                      </button>
-
-                      {/* Delete button */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (designerFields.length <= 1) {
-                            alert('模板至少需要保留一个表单字段');
-                            return;
-                          }
-                          setDesignerFields(designerFields.filter(f => f.id !== field.id));
-                        }}
-                        className="p-1.5 text-gray-400 hover:text-rose-600 rounded transition-colors cursor-pointer shrink-0"
-                        title="删除该字段"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {/* Field Type Chip */}
+                      {(() => {
+                        const typeOptions = getFieldTypeOptions(designerItem.template.templateType);
+                        const control = fieldControlOf(field);
+                        const typeLabel = typeOptions.find(opt => opt.value === control)?.label ?? control;
+                        return (
+                          <div
+                            className={`relative shrink-0 w-[142px] inline-flex items-center gap-1.5 py-2 px-2.5 rounded-md border text-[13px] font-medium transition-colors ${
+                              isFixed
+                                ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed'
+                                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 focus-within:border-[#1890ff]'
+                            }`}
+                            title={isFixed ? '系统固定字段，类型不可修改' : '点击切换字段类型'}
+                          >
+                            <span className="flex items-center [&_svg]:w-3.5 [&_svg]:h-3.5">{renderFieldIcon(control)}</span>
+                            <span className="flex-1 min-w-0 truncate">{typeLabel}</span>
+                            {!isFixed && <ChevronDown className="w-3 h-3 shrink-0 opacity-60" />}
+                            <select
+                              value={control}
+                              onChange={e => {
+                                const nextControl = e.target.value as FieldControl;
+                                setDesignerFields(
+                                  designerFields.map(f => (f.id === field.id ? changeFieldControl(f, nextControl) : f))
+                                );
+                              }}
+                              disabled={isFixed}
+                              aria-label="字段类型"
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                            >
+                              {typeOptions.map(opt => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Row 2: Placeholder Input */}
+                    {field.type === 'static_text' ? (
+                      <textarea
+                        rows={2}
+                        value={field.placeholder || ''}
+                        onChange={e => {
+                          const nextPh = e.target.value;
+                          setDesignerFields(
+                            designerFields.map(f => (f.id === field.id ? { ...f, placeholder: nextPh } : f))
+                          );
+                        }}
+                        placeholder="设置展示给填报人的提示文本内容..."
+                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-[13px] text-gray-600 bg-gray-50/70 resize-none hover:border-gray-300 focus:outline-none focus:border-[#1890ff] focus:bg-white focus:text-gray-700"
+                      />
+                    ) : (
+                    <div className="flex items-center gap-2">
                     <input
                       type="text"
                       value={field.placeholder || ''}
@@ -1492,14 +2460,43 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                         );
                       }}
                       placeholder="设置填报提示引导词 (Placeholder)..."
-                      className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-500 bg-gray-50/40 focus:outline-none focus:border-[#1890ff]"
+                      className="flex-1 min-w-0 px-3 py-2 border border-gray-200 rounded-md text-[13px] text-gray-500 bg-gray-50/70 focus:outline-none hover:border-gray-300 focus:border-[#1890ff] focus:bg-white focus:text-gray-700"
                     />
+                    {field.type === 'text' && (
+                      <label
+                        className={`w-[142px] shrink-0 flex items-center gap-1 px-2.5 py-2 border rounded-md text-[13px] ${
+                          !isValidMaxLength(field.maxLength)
+                            ? 'border-rose-300 bg-white text-gray-500'
+                            : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 focus-within:border-[#1890ff]'
+                        }`}
+                        title={`填报内容的最大字数，留空表示不限制（1–${TEXT_MAX_LENGTH_LIMIT}）`}
+                      >
+                        <span className="shrink-0">最多</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={TEXT_MAX_LENGTH_LIMIT}
+                          value={field.maxLength ?? ''}
+                          onChange={e => {
+                            const next = parseMaxLengthInput(e.target.value);
+                            setDesignerFields(
+                              designerFields.map(f => (f.id === field.id ? { ...f, maxLength: next } : f))
+                            );
+                          }}
+                          placeholder="不限"
+                          className="w-full min-w-0 text-center bg-transparent focus:outline-none text-gray-800 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        />
+                        <span className="shrink-0">字</span>
+                      </label>
+                    )}
+                    </div>
+                    )}
 
-                    {/* Sub-box: Options for Select field */}
-                    {field.type === 'select' && (
-                      <div className="p-3 bg-rose-50/30 border border-rose-100 rounded-lg space-y-2">
-                        <div className="text-[11px] font-bold text-rose-700">选择项配置</div>
-                        <div className="space-y-1.5">
+                    {/* Sub-box: Options for radio / checkbox / dropdown fields */}
+                    {OPTION_FIELD_TYPES.includes(field.type) && (
+                      <div className="p-3 rounded-lg bg-blue-50/50 border border-blue-100 space-y-2">
+                        <div className="text-xs font-bold text-[#1890ff]">选择项配置</div>
+                        <div className="space-y-2">
                           {(field.options || []).map((opt, optIdx) => (
                             <div key={optIdx} className="flex items-center gap-2">
                               <input
@@ -1514,7 +2511,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                                     )
                                   );
                                 }}
-                                className="flex-1 px-2.5 py-1 text-xs border border-gray-200 rounded bg-white"
+                                className="flex-1 px-3 py-1.5 text-[13px] text-gray-700 border border-gray-200 rounded-md bg-white hover:border-gray-300 focus:outline-none focus:border-[#1890ff]"
                               />
                               <button
                                 type="button"
@@ -1526,9 +2523,10 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                                     )
                                   );
                                 }}
-                                className="text-gray-400 hover:text-rose-600 p-1"
+                                className="text-gray-400 hover:text-rose-600 p-1.5 cursor-pointer"
+                                title="删除该选项"
                               >
-                                <Trash2 className="w-3 h-3" />
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
                           ))}
@@ -1542,7 +2540,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                                 )
                               );
                             }}
-                            className="text-xs text-rose-600 hover:text-rose-800 font-medium flex items-center gap-1 cursor-pointer pt-1"
+                            className="px-2.5 py-1 text-xs text-[#1890ff] font-bold bg-white border border-blue-200 hover:bg-blue-50 rounded-md inline-flex items-center gap-1 cursor-pointer"
                           >
                             <Plus className="w-3 h-3" />
                             <span>新增选项</span>
@@ -1553,8 +2551,8 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
 
                     {/* Sub-box: Role tags for Identity field */}
                     {field.type === 'identity' && (
-                      <div className="p-3 bg-blue-50/40 border border-blue-100 rounded-lg space-y-2">
-                        <div className="text-[11px] font-bold text-[#1890ff]">角色列表 (可多选)</div>
+                      <div className="pt-1 space-y-1.5">
+                        <div className="text-[11px] font-medium text-gray-400">角色列表 (可多选)</div>
                         <div className="flex flex-wrap gap-1.5">
                           {['超级管理员', '机构管理员', '上报员', '审核员', '运营管理员', '临时审核员'].map(r => (
                             <span
@@ -1567,15 +2565,77 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                         </div>
                       </div>
                     )}
+                    </div>
+
+                    <div className="flex flex-col items-center gap-2 shrink-0 pt-1">
+                      {field.type === 'static_text' ? (
+                        <span
+                          className="w-7 h-7 rounded-md border border-dashed border-gray-200 text-[11px] text-gray-300 flex items-center justify-center cursor-not-allowed"
+                          title="静态提示文本仅作展示，无需填写"
+                        >
+                          —
+                        </span>
+                      ) : isRequiredLockedField(field) ? (
+                        <span
+                          className="w-7 h-7 rounded-md border text-xs font-bold flex items-center justify-center cursor-not-allowed bg-rose-50 text-rose-400 border-rose-100"
+                          title="单行文本固定字段默认必填，不可修改"
+                        >
+                          必
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDesignerFields(
+                              designerFields.map(f =>
+                                f.id === field.id ? { ...f, required: !f.required } : f
+                              )
+                            );
+                          }}
+                          className={`w-7 h-7 rounded-md border text-xs font-bold transition-colors cursor-pointer ${
+                            field.required
+                              ? 'bg-rose-50 text-rose-500 border-rose-200 hover:bg-rose-100'
+                              : 'bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100'
+                          }`}
+                          title={field.required ? '必填项 (点击改为选填)' : '选填项 (点击改为必填)'}
+                        >
+                          {field.required ? '必' : '选'}
+                        </button>
+                      )}
+                      {isFixed ? (
+                        <span
+                          className="p-1 text-gray-300 cursor-not-allowed"
+                          title="固定字段不可删除"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (designerFields.length <= 1) {
+                              alertDialog('模板至少需要保留一个表单字段');
+                              return;
+                            }
+                            setDesignerFields(designerFields.filter(f => f.id !== field.id));
+                          }}
+                          className="p-1 text-gray-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                          title="删除该字段"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Add Field Button */}
               <button
                 type="button"
                 onClick={handleAddField}
-                className="w-full mt-3 py-2.5 border-2 border-dashed border-blue-200 hover:border-blue-400 text-[#1E5ABB] hover:bg-blue-50/50 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                className="w-full mt-2 py-2.5 border border-dashed border-blue-300 bg-white/60 hover:bg-blue-50/60 hover:border-[#1890ff] text-[#1E5ABB] rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 <span>添加字段</span>
@@ -1583,13 +2643,14 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
             </div>
 
             {/* Right Column: Live Form Mockup (1:1 Restoration with Screenshot) */}
-            <div className="lg:col-span-5 bg-white rounded-2xl p-4 border border-gray-200/90 shadow-2xs">
-              <div className="flex items-center justify-between pb-3.5 border-b border-gray-100 mb-4">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-gray-800">
+            <div className="lg:col-span-5 bg-gray-50 rounded-xl p-4 lg:sticky lg:top-4">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2 text-xs font-bold text-gray-800">
                   <Eye className="w-3.5 h-3.5 text-[#1E5ABB]" />
                   <span>用户填报界面实时交互预览</span>
+                  {renderPreviewDeviceToggle()}
                 </div>
-                <span className="px-2.5 py-0.5 bg-blue-50/80 text-[#1E5ABB] text-[11px] font-medium rounded border border-blue-200">
+                <span className="text-[11px] text-gray-400">
                   {isActivation ? '激活填报模式' : '报送填报模式'}
                 </span>
               </div>
@@ -1598,7 +2659,9 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
               {renderPhoneSimulator(
                 designerFields,
                 isActivation ? '账号激活' : designerName || '快速上报',
-                isActivation
+                isActivation,
+                (fieldId, width) =>
+                  setDesignerFields(prev => prev.map(f => (f.id === fieldId ? { ...f, pcWidth: width } : f)))
               )}
             </div>
           </div>
@@ -1622,17 +2685,35 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
         </div>
       )}
 
-      <div className="bg-white px-5 py-4 rounded-lg border border-gray-200/80 shadow-2xs">
-        <div className="flex items-center gap-1.5">
-          <h3 className="text-sm font-bold text-gray-800">模板配置</h3>
-          {isGlobalScope && (
-            <ControlNoticeTip
-              title="全平台内置模板母版管控提示"
-              content={`此处新增、配置并启用的${topTab}模板将自动作为系统内置母版同步至全平台所有机构的内置模板库中。受平台全局统一管控，各机构端仅可调用与选用，不支持机构端自行修改或删除。`}
-            />
-          )}
+      {titleMode !== 'hidden' && (
+        <div
+          className={`flex items-center justify-between gap-3 ${
+            titleMode === 'card' ? 'bg-white px-5 py-4 rounded-lg border border-gray-200/80 shadow-2xs' : ''
+          }`}
+        >
+          <div className="flex items-center gap-1.5">
+            <h3 className="text-sm font-bold text-gray-800">模板配置</h3>
+            {isGlobalScope && (
+              <ControlNoticeTip
+                title="全平台系统默认模板管控说明"
+                content={`此处新建的${topTab}模板为全平台所有机构初始化的系统默认模板。机构端仅支持启用、停用，不支持编辑和删除；如需个性化，机构可另建自定义模板。`}
+              />
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {titleExtra}
+            <button
+              type="button"
+              onClick={() => handleOpenDesigner('add')}
+              className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center gap-1 cursor-pointer whitespace-nowrap"
+              title={isActivationMode ? '新增激活模板' : '新增报送模板'}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>新增</span>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ================================================================= */}
       {/* UNIFIED 3-COLUMN WORKBENCH CONTAINER (Figma / Axure Prototype)    */}
@@ -1663,18 +2744,36 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                 {currentCategoryTemplates.length}
               </span>
             </div>
-            <button
-              type="button"
-              onClick={() => handleOpenDesigner('add')}
-              className="w-6 h-6 rounded-md flex items-center justify-center text-[#1890ff] hover:bg-blue-50 border border-transparent hover:border-blue-200 transition-colors cursor-pointer"
-              title={isActivationMode ? '新增激活模板' : '新增报送模板'}
-            >
-              <Plus className="w-4 h-4" />
-            </button>
+            {titleMode === 'hidden' && (
+              <button
+                type="button"
+                onClick={() => handleOpenDesigner('add')}
+                className="w-6 h-6 rounded-md flex items-center justify-center text-[#1890ff] hover:bg-blue-50 border border-transparent hover:border-blue-200 transition-colors cursor-pointer"
+                title={isActivationMode ? '新增激活模板' : '新增报送模板'}
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           {/* Template Cards List */}
           <div className="p-2.5 space-y-2.5 flex-1 overflow-y-auto bg-white">
+            {showPresetTip && (
+              <div className="flex items-start gap-1.5 px-2.5 py-2 rounded-lg bg-amber-50 border border-amber-200 text-[11px] leading-[18px] text-amber-700">
+                <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                <span className="flex-1 min-w-0">
+                  尚未设置标准模板，请在模板预览区点击「设为标准模板」。
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPresetTipClosed(true)}
+                  title="关闭提示"
+                  className="w-4 h-4 mt-px shrink-0 rounded flex items-center justify-center text-amber-500 hover:text-amber-700 hover:bg-amber-100 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
             {visibleTemplates.length === 0 && (
               <div className="py-10 text-center text-[11px] text-gray-400 border border-dashed border-gray-200 rounded-xl">
                 暂无{topTab}模板
@@ -1930,9 +3029,14 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
           <div className="p-4 flex-1 flex flex-col bg-[#F8FAFC]/60 overflow-y-auto">
             {/* Sub-header */}
             <div className="flex items-center justify-between text-xs text-gray-500 mb-3 shrink-0">
-              <div className="flex items-center gap-1.5 font-bold text-gray-700">
-                <Smartphone className="w-3.5 h-3.5 text-[#1890ff]" />
-                <span>移动端填报实时模拟</span>
+              <div className="flex items-center gap-2 font-bold text-gray-700">
+                {previewDevice === 'pc' ? (
+                  <Monitor className="w-3.5 h-3.5 text-[#1890ff]" />
+                ) : (
+                  <Smartphone className="w-3.5 h-3.5 text-[#1890ff]" />
+                )}
+                <span>{previewDevice === 'pc' ? 'PC 端填报实时模拟' : '移动端填报实时模拟'}</span>
+                {renderPreviewDeviceToggle()}
               </div>
               <span className="text-[11px] text-gray-400">
                 共 {activeTemplate?.fields.length || 0} 个表单项 · 可直接体验输入
@@ -2013,14 +3117,10 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
           {/* Right Body */}
           <div className="p-4 flex-1 overflow-y-auto space-y-4 bg-white">
             {!isActivationMode && (() => {
-              const selectedFlow =
-                AUDIT_FLOW_PRESET_OPTIONS.find(
-                  f => f.id === currentAuditFlowId || f.name === currentAuditFlowId
-                ) || AUDIT_FLOW_PRESET_OPTIONS[0];
-
-              const selectedScoreRule =
-                SCORING_RULE_OPTIONS.find(r => r.id === currentScoreRuleId) ||
-                SCORING_RULE_OPTIONS[0];
+              const selectedFlow = AUDIT_FLOW_PRESET_OPTIONS.find(
+                f => f.id === currentAuditFlowId || f.name === currentAuditFlowId
+              );
+              const selectedScoreRule = SCORING_RULE_OPTIONS.find(r => r.id === currentScoreRuleId);
 
               return (
                 <div className="space-y-3.5">
@@ -2063,10 +3163,13 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                         </label>
                         <div className="relative">
                           <select
-                            value={selectedScoreRule.id}
+                            value={selectedScoreRule?.id || ''}
                             onChange={(e) => handleSelectScoreRule(e.target.value)}
                             className="w-full appearance-none px-3 py-1.5 bg-white border border-gray-200 hover:border-gray-300 focus:border-[#1890ff] rounded-lg text-xs font-medium text-gray-800 pr-8 focus:outline-none transition-colors cursor-pointer shadow-2xs"
                           >
+                            <option value="" disabled>
+                              请选择打分规则
+                            </option>
                             {SCORING_RULE_OPTIONS.map((rule) => (
                               <option key={rule.id} value={rule.id}>
                                 {rule.name} ({rule.maxScore}分)
@@ -2078,6 +3181,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                       </div>
 
                       {/* Rule Card Box */}
+                      {selectedScoreRule ? (
                       <div className="border border-amber-200/90 rounded-xl p-3.5 bg-amber-50/30 space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-bold text-gray-900">
@@ -2117,6 +3221,11 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                           </div>
                         </div>
                       </div>
+                      ) : (
+                        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                          尚未关联打分规则。关联并保存后，才可启用该模板。
+                        </p>
+                      )}
 
                       {/* Bottom Link */}
                       <div className="text-center pt-1">
@@ -2142,10 +3251,13 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                         </label>
                         <div className="relative">
                           <select
-                            value={selectedFlow.id}
+                            value={selectedFlow?.id || ''}
                             onChange={(e) => handleSelectAuditFlow(e.target.value)}
                             className="w-full appearance-none px-3 py-1.5 bg-white border border-gray-200 hover:border-gray-300 focus:border-[#873bf5] rounded-lg text-xs font-medium text-gray-800 pr-8 focus:outline-none transition-colors cursor-pointer shadow-2xs"
                           >
+                            <option value="" disabled>
+                              请选择审核流程
+                            </option>
                             {AUDIT_FLOW_PRESET_OPTIONS.map((flow) => (
                               <option key={flow.id} value={flow.id}>
                                 {flow.name}
@@ -2156,7 +3268,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                         </div>
                       </div>
 
-                      {/* 审批节点链路 Card Box */}
+                      {selectedFlow ? (
                       <div className="border border-[#f0e6ff] rounded-xl p-3 bg-[#fbf9fe] space-y-2">
                         {/* Header */}
                         <div className="text-xs font-medium text-gray-400">
@@ -2200,6 +3312,11 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                           <span>{selectedFlow.applyScopeText}</span>
                         </div>
                       </div>
+                      ) : (
+                        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                          尚未关联审核流程。关联并保存后，才可启用该模板。
+                        </p>
+                      )}
 
                       {/* Bottom Link: 管理审核流程模型 */}
                       <div className="text-center pt-1.5">

@@ -20,6 +20,11 @@ const InstitutionManagement = lazy(() =>
 const GlobalConfig = lazy(() =>
   import('./components/GlobalConfig').then((m) => ({ default: m.GlobalConfig }))
 );
+const InstitutionBusinessConfig = lazy(() =>
+  import('./components/InstitutionBusinessConfig').then((m) => ({
+    default: m.InstitutionBusinessConfig,
+  }))
+);
 const OperationsMonitoring = lazy(() =>
   import('./components/OperationsMonitoring').then((m) => ({
     default: m.OperationsMonitoring,
@@ -81,6 +86,7 @@ export default function App() {
     handleSaveInstitution,
     handleAuthorizeInstitution,
     handleConfirmDelete,
+    handleRevokeInstitution,
     handleSelectExpiringInstitution,
     setDeletingInstitution,
   } = actions;
@@ -167,6 +173,7 @@ export default function App() {
                 onBack={handleCloseInstitutionDetail}
                 onSave={handleSaveInstitution}
                 onDelete={(inst) => setDeletingInstitution(inst)}
+                onRevoke={handleRevokeInstitution}
                 onToggleStatus={handleToggleStatus}
                 auditLogs={auditLogs}
               />
@@ -193,7 +200,15 @@ export default function App() {
                   />
                 )}
 
-                {activeTab === 'config' && <GlobalConfig onShowToast={showToast} />}
+                {activeTab === 'config' && <GlobalConfig onShowToast={showToast} institutionIds={institutions.map((inst) => inst.id)} />}
+
+                {activeTab === 'org_config' && (
+                  <InstitutionBusinessConfig
+                    institutions={institutions}
+                    onSave={handleSaveInstitution}
+                    onShowToast={showToast}
+                  />
+                )}
 
                 {activeTab === 'monitoring' && <OperationsMonitoring />}
 

@@ -20,7 +20,7 @@ export interface TerminalDocsBundle {
   syncState: DocsSyncState;
 }
 
-const DOC_ORDER: string[] = [];
+const DOC_ORDER = ['PRD'];
 const DOC_LABELS: Record<string, string> = { CHANGELOG: '更新记录' };
 
 /** Whether this doc name appears in the portal UI (homepage chips, panel tabs, docs modal) */

@@ -8,10 +8,6 @@ import {
   UserX,
   RotateCcw,
   X,
-  RefreshCw,
-  Copy,
-  KeyRound,
-  Download,
   Send,
   Building2,
   ChevronDown,
@@ -20,8 +16,6 @@ import {
   MessageCircle,
   MessageSquare,
   History,
-  Link2,
-  QrCode,
   ShieldCheck,
   Clock3,
   CircleCheckBig
@@ -30,19 +24,18 @@ import { InviteRecordModal } from './InviteRecordModal';
 import { OrgCascadeSelect } from '../components/OrgCascadeSelect';
 import { ExternalUserTable, getFollowStatus } from '../components/ExternalUserTable';
 import { ReinviteModal } from '../components/ReinviteModal';
-import { ShareInvitePanel } from '../components/ShareInvitePanel';
+import { InviteUserModal, resolveInviteStatus } from '../components/InviteUserModal';
+import { Field, MultiSelectDropdown } from '../components/FormControls';
 import type { OrgNode, PersonnelItem } from './OrgManagement';
 import {
   ACCOUNT_ROLE_OPTIONS,
   buildOrgIdPath,
   formatPersonOrgPaths,
-  generateActivationCode,
   getDeepestOrgId,
   getOrgChildrenOf,
   EXTERNAL_APP,
   ORG_MAX_USER_COUNT,
   syncFollowersAfterDelete,
-  type InviteCode,
   type OfficialAccountFollower,
   type UserOrgSharedState
 } from '../data/userOrgShared';
@@ -66,42 +59,6 @@ const createEmptyAccountQuery = () => ({
   groups: [] as string[],
   statuses: [] as string[]
 });
-
-const INVITE_VALIDITY_OPTIONS = [
-  { id: '1d', label: '24小时', hours: 24 },
-  { id: '7d', label: '7天', hours: 168 },
-  { id: '30d', label: '30天', hours: 720 },
-  { id: 'custom', label: '自定义' }
-] as const;
-
-type InviteValidityId = (typeof INVITE_VALIDITY_OPTIONS)[number]['id'];
-
-const padTime = (value: number) => String(value).padStart(2, '0');
-
-const toLocalDateTimeValue = (date: Date) =>
-  `${date.getFullYear()}-${padTime(date.getMonth() + 1)}-${padTime(date.getDate())}T${padTime(date.getHours())}:${padTime(date.getMinutes())}`;
-
-const addHoursLocal = (hours: number) => toLocalDateTimeValue(new Date(Date.now() + hours * 3600 * 1000));
-
-const formatDateTimeLabel = (value: string) => (value ? value.replace('T', ' ') : '—');
-
-const INVITE_COUNT_OPTIONS = [1, 5, 10, 20, 50] as const;
-
-type InviteListFilter = 'all' | '未使用' | '已使用' | '已过期';
-type InviteMode = 'qrcode' | 'code' | 'link';
-
-const INVITE_MODE_TABS: Array<{ id: InviteMode; label: string; desc: string }> = [
-  { id: 'qrcode', label: '二维码邀请', desc: '线下面对面扫码 / 微信群公开加入' },
-  { id: 'code', label: '激活码邀请', desc: '批量发放专属激活码 / 一码一人' },
-  { id: 'link', label: '链接邀请', desc: '复制邀请链接 / 发送到微信群或私聊' }
-];
-
-const INVITE_MODE_STORAGE_KEY = 'v8_invite_mode';
-
-const readStoredInviteMode = (): InviteMode => {
-  const saved = localStorage.getItem(INVITE_MODE_STORAGE_KEY);
-  return saved === 'qrcode' || saved === 'link' ? saved : 'code';
-};
 
 type AccountTab = 'activated' | 'pending';
 const ACCOUNT_TAB_STORAGE_KEY = 'v8_account_tab';
@@ -133,17 +90,6 @@ const FollowerLetterAvatar: React.FC<{ id: string; name: string }> = ({ id, name
   </span>
 );
 
-const formatYmd = (date: Date) =>
-  `${date.getFullYear()}${padTime(date.getMonth() + 1)}${padTime(date.getDate())}`;
-
-const defaultInviteBatchName = () => `邀请批次-${formatYmd(new Date())}`;
-
-const resolveInviteStatus = (item: InviteCode) => {
-  if (item.status === '已使用') return '已使用' as const;
-  if (item.expiresAt && new Date(item.expiresAt).getTime() <= Date.now()) return '已过期' as const;
-  return '未使用' as const;
-};
-
 const STATUS_FILTER_OPTIONS = [
   { id: '已关注', label: '正常关注', dot: 'bg-emerald-500' },
   { id: '已取消关注', label: '取消关注', dot: 'bg-amber-500' },
@@ -171,13 +117,6 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
   const [orgPath, setOrgPath] = useState<string[]>([]);
   const [pGroupIds, setPGroupIds] = useState<string[]>([]);
   const [pStatus, setPStatus] = useState<'启用' | '禁用'>('启用');
-  const [inviteBatchName, setInviteBatchName] = useState(defaultInviteBatchName);
-  const [inviteCount, setInviteCount] = useState(10);
-  const [inviteValidity, setInviteValidity] = useState<InviteValidityId>('7d');
-  const [inviteExpiry, setInviteExpiry] = useState(() => addHoursLocal(168));
-  const [inviteListFilter, setInviteListFilter] = useState<InviteListFilter>('all');
-  const [freshCodeIds, setFreshCodeIds] = useState<string[]>([]);
-  const [inviteMode, setInviteMode] = useState<InviteMode>('code');
   const [accountTab, setAccountTab] = useState<AccountTab>(readStoredAccountTab);
   const [pendingSearch, setPendingSearch] = useState('');
   const [invitingFollower, setInvitingFollower] = useState<OfficialAccountFollower | null>(null);
@@ -298,42 +237,10 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
     }
   };
 
-  const applyValidityPreset = (id: InviteValidityId) => {
-    setInviteValidity(id);
-    if (id === 'custom') return;
-    const option = INVITE_VALIDITY_OPTIONS.find((item) => item.id === id);
-    const hours = option && 'hours' in option ? option.hours : 168;
-    setInviteExpiry(addHoursLocal(hours));
-  };
-
   const openCreateModal = () => {
     setEditing(null);
-    setPRoles(['上报员']);
-    syncOrgPath([]);
-    setInviteBatchName(defaultInviteBatchName());
-    setInviteCount(10);
-    setInviteValidity('7d');
-    setInviteExpiry(addHoursLocal(168));
-    setInviteListFilter('all');
-    setFreshCodeIds([]);
-    setInviteMode(readStoredInviteMode());
     setIsModalOpen(true);
   };
-
-  const switchInviteMode = (mode: InviteMode) => {
-    setInviteMode(mode);
-    if (!pRoles.length) setPRoles(['上报员']);
-    localStorage.setItem(INVITE_MODE_STORAGE_KEY, mode);
-  };
-
-  useEffect(() => {
-    if (!isModalOpen || editing) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsModalOpen(false);
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isModalOpen, editing]);
 
   const openEditModal = (item: PersonnelItem) => {
     setEditing(item);
@@ -391,56 +298,6 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
     }
   };
 
-  const handleGenerateBatch = () => {
-    if (orgPath.length === 0) {
-      triggerToast('请选择激活码所属机构');
-      return;
-    }
-    if (pRoles.length === 0) {
-      triggerToast('请选择激活码所属角色');
-      return;
-    }
-    if (!inviteExpiry) {
-      triggerToast('请设置激活码有效时间');
-      return;
-    }
-    if (new Date(inviteExpiry).getTime() <= Date.now()) {
-      triggerToast('有效时间必须晚于当前时间');
-      return;
-    }
-
-    const existing = new Set(inviteCodes.map((item) => item.code));
-    const codes: string[] = [];
-    while (codes.length < inviteCount) {
-      const next = generateActivationCode();
-      if (!existing.has(next)) {
-        existing.add(next);
-        codes.push(next);
-      }
-    }
-
-    const now = toLocalDateTimeValue(new Date());
-    const batchId = `batch-${Date.now()}`;
-    const batchName = inviteBatchName.trim() || defaultInviteBatchName();
-    const created: InviteCode[] = codes.map((code, index) => ({
-      id: `${batchId}-${index + 1}`,
-      code,
-      batchId,
-      batchName,
-      orgIds: selectedLeafOrgId ? [selectedLeafOrgId] : [],
-      roles: [...pRoles],
-      expiresAt: inviteExpiry,
-      createdAt: now,
-      status: '未使用',
-      channel: 'activation_code'
-    }));
-
-    setInviteCodes((prev) => [...created, ...prev]);
-    setFreshCodeIds(created.map((item) => item.id));
-    setInviteListFilter('all');
-    triggerToast(`已生成 ${created.length} 个激活码，有效期至 ${formatDateTimeLabel(inviteExpiry)}`);
-  };
-
   const invitedFollowerIds = useMemo(
     () =>
       new Set(
@@ -486,53 +343,6 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
       return;
     }
     setInvitingFollower(follower);
-  };
-
-  const codeInviteRecords = inviteCodes.filter((item) => item.channel !== 'qrcode' && item.channel !== 'link');
-  const unusedInviteCodes = codeInviteRecords.filter((item) => resolveInviteStatus(item) === '未使用');
-
-  const visibleInviteCodes = codeInviteRecords.filter((item) => {
-    if (inviteListFilter === 'all') return true;
-    return resolveInviteStatus(item) === inviteListFilter;
-  });
-
-  const copyUnusedCodes = () => {
-    if (!unusedInviteCodes.length) {
-      triggerToast('当前没有未使用的激活码');
-      return;
-    }
-    copyText(unusedInviteCodes.map((item) => item.code).join('\n'), `已复制 ${unusedInviteCodes.length} 个未使用激活码`);
-  };
-
-  const exportInviteCodes = () => {
-    if (!inviteCodes.length) {
-      triggerToast('暂无激活码可导出');
-      return;
-    }
-    const header = ['批次名称', '激活码', '状态', '所属机构', '角色', '有效期至', '使用人', '手机号'];
-    const rows = inviteCodes.map((item) => [
-      item.batchName,
-      item.code,
-      resolveInviteStatus(item),
-      formatPersonOrgPaths(orgNodes, item.orgIds),
-      (item.roles || []).join('、'),
-      formatDateTimeLabel(item.expiresAt),
-      item.usedByName || '',
-      item.usedByPhone || ''
-    ]);
-    const csv = [header, ...rows]
-      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-      .join('\n');
-    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `激活码_${inviteBatchName || '批次'}_${formatYmd(new Date())}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-    triggerToast('激活码表格已导出');
   };
 
   const handleToggleStatus = (item: PersonnelItem) => {
@@ -1032,283 +842,18 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
       )}
 
       {isModalOpen && !editing && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-[88vh] max-h-[780px] flex flex-col">
-            <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center shrink-0 gap-3">
-              <div className="min-w-0">
-                <h3 className="text-sm font-bold text-gray-800">邀请用户</h3>
-                <p className="text-[11px] text-gray-400 mt-0.5">
-                  选择邀请方式，邀请外部人员关注「{EXTERNAL_APP.officialAccount}」并加入本机构
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="w-7 h-7 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 flex items-center justify-center cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="px-4 pt-4 grid grid-cols-3 gap-3 shrink-0">
-              {INVITE_MODE_TABS.map((tab) => {
-                const active = inviteMode === tab.id;
-                const Icon = tab.id === 'qrcode' ? QrCode : tab.id === 'code' ? KeyRound : Link2;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => switchInviteMode(tab.id)}
-                    className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl border text-left cursor-pointer transition-all ${
-                      active
-                        ? 'border-[#1E5ABB] bg-[#F4F8FE] shadow-[0_0_0_3px_rgba(30,90,187,0.08)]'
-                        : 'border-gray-200 bg-white hover:border-[#1E5ABB]/40 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span
-                      className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                        active ? 'bg-[#1E5ABB] text-white' : 'bg-slate-100 text-slate-500'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4" />
-                    </span>
-                    <span className="min-w-0">
-                      <span className={`block text-[13px] font-bold ${active ? 'text-[#1E5ABB]' : 'text-gray-800'}`}>
-                        {tab.label}
-                      </span>
-                      <span className="block text-[11px] text-gray-400 truncate">{tab.desc}</span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="p-4 min-h-0 flex-1 text-xs overflow-hidden grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-4">
-              {inviteMode === 'code' && (
-              <div className="rounded-lg border border-blue-100 bg-[#F4F8FE] p-4 space-y-3 overflow-visible relative z-20">
-                <div className="flex items-center gap-1.5 text-[#1E5ABB] font-bold">
-                  <KeyRound className="w-3.5 h-3.5" />
-                  激活码批次设置
-                </div>
-                <OrgCascadeSelect orgNodes={orgNodes} path={orgPath} onChange={syncOrgPath} />
-                <MultiSelectDropdown
-                  label="所属角色 *"
-                  placeholder="请选择激活后归属的角色"
-                  options={ACCOUNT_ROLE_OPTIONS.map((role) => ({ id: role, label: role }))}
-                  selected={pRoles}
-                  onToggle={(id) => toggleMulti(id, pRoles, setPRoles)}
-                />
-                <Field
-                  label="批次名称"
-                  value={inviteBatchName}
-                  onChange={setInviteBatchName}
-                  placeholder="如：办公室邀请-20260917"
-                />
-                <div>
-                  <label className="block text-gray-700 font-medium mb-1.5">单次生成数量</label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {INVITE_COUNT_OPTIONS.map((count) => (
-                      <button
-                        key={count}
-                        type="button"
-                        onClick={() => setInviteCount(count)}
-                        className={`h-7 px-2.5 rounded-full text-[11px] cursor-pointer ${
-                          inviteCount === count
-                            ? 'bg-[#1E5ABB] text-white'
-                            : 'bg-white text-gray-600 border border-gray-200 hover:border-[#1E5ABB]/40'
-                        }`}
-                      >
-                        {count}个
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-gray-700 font-medium mb-1.5">有效期至 *</label>
-                  <input
-                    type="datetime-local"
-                    value={inviteExpiry}
-                    onChange={(event) => {
-                      setInviteExpiry(event.target.value);
-                      setInviteValidity('custom');
-                    }}
-                    className="w-full px-3 py-1.5 border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                  />
-                  <div className="flex flex-wrap gap-1.5 mt-1.5">
-                    {INVITE_VALIDITY_OPTIONS.filter((option) => option.id !== 'custom').map((option) => (
-                      <button
-                        key={option.id}
-                        type="button"
-                        onClick={() => applyValidityPreset(option.id)}
-                        className={`h-7 px-2.5 rounded-full text-[11px] cursor-pointer ${
-                          inviteValidity === option.id
-                            ? 'bg-[#1E5ABB] text-white'
-                            : 'bg-white text-gray-600 border border-gray-200 hover:border-[#1E5ABB]/40'
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleGenerateBatch}
-                  className="w-full h-9 rounded bg-[#1E5ABB] text-white font-bold hover:bg-[#134092] cursor-pointer flex items-center justify-center gap-1.5"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  生成激活码批次
-                </button>
-              </div>
-              )}
-
-              {inviteMode === 'code' ? (
-              <div className="rounded-lg border border-gray-200 bg-white flex flex-col min-h-[420px] min-w-0 overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
-                  <div className="font-bold text-gray-800">
-                    激活码列表
-                    <span className="ml-1.5 font-normal text-gray-400">
-                      （共 {visibleInviteCodes.length} 条
-                      {inviteListFilter === 'all' ? `，未使用 ${unusedInviteCodes.length}` : ''}）
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={copyUnusedCodes}
-                      className="h-7 px-2.5 rounded border border-blue-100 bg-blue-50 text-[#1E5ABB] font-medium hover:bg-blue-100 cursor-pointer inline-flex items-center gap-1"
-                    >
-                      <Copy className="w-3 h-3" />
-                      一键复制未用码
-                    </button>
-                    <button
-                      type="button"
-                      onClick={exportInviteCodes}
-                      className="h-7 px-2.5 rounded border border-gray-200 text-gray-600 hover:border-[#1E5ABB]/40 hover:text-[#1E5ABB] cursor-pointer inline-flex items-center gap-1"
-                    >
-                      <Download className="w-3 h-3" />
-                      导出表格
-                    </button>
-                  </div>
-                </div>
-                <div className="px-4 py-2 border-b border-gray-50 flex flex-wrap gap-1.5">
-                  {([
-                    { id: 'all', label: '全部' },
-                    { id: '未使用', label: '未使用' },
-                    { id: '已使用', label: '已使用' },
-                    { id: '已过期', label: '已过期' }
-                  ] as const).map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => setInviteListFilter(option.id)}
-                      className={`h-6 px-2 rounded-full text-[11px] cursor-pointer ${
-                        inviteListFilter === option.id
-                          ? 'bg-[#1E5ABB] text-white'
-                          : 'bg-gray-50 text-gray-500 hover:text-[#1E5ABB]'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex-1 overflow-y-auto px-2 py-1">
-                  {visibleInviteCodes.length === 0 ? (
-                    <div className="h-full min-h-[200px] flex items-center justify-center text-gray-400">
-                      尚未生成激活码，请在左侧完成批次设置后生成
-                    </div>
-                  ) : (
-                    visibleInviteCodes.map((item, index) => {
-                      const status = resolveInviteStatus(item);
-                      const unused = status === '未使用';
-                      return (
-                        <div
-                          key={item.id}
-                          className={`flex items-center gap-3 px-2 py-2.5 rounded-lg ${
-                            freshCodeIds.includes(item.id) ? 'bg-blue-50/80' : 'hover:bg-slate-50'
-                          }`}
-                        >
-                          <span className="w-5 text-right text-gray-400 shrink-0">{index + 1}.</span>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="font-mono font-bold text-gray-800 tracking-wide">{item.code}</span>
-                              {unused ? (
-                                <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-[#1E5ABB]">
-                                  未使用
-                                </span>
-                              ) : status === '已过期' ? (
-                                <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">已过期</span>
-                              ) : (
-                                <span className="text-[11px] text-gray-400 truncate">
-                                  已使用
-                                  {item.usedByName
-                                    ? `：${item.usedByName}${item.usedByPhone ? `（${maskPhone(item.usedByPhone)}）` : ''}`
-                                    : ''}
-                                </span>
-                              )}
-                            </div>
-                            <div className="mt-0.5 text-[10px] text-gray-400 truncate" title={`${formatPersonOrgPaths(orgNodes, item.orgIds)} · ${(item.roles || []).join('、')} · 至 ${formatDateTimeLabel(item.expiresAt)}`}>
-                              {formatPersonOrgPaths(orgNodes, item.orgIds)} · {(item.roles || []).join('、')} · 至 {formatDateTimeLabel(item.expiresAt)}
-                            </div>
-                          </div>
-                          {unused && (
-                            <button
-                              type="button"
-                              title="复制激活码"
-                              onClick={() => copyText(item.code, '激活码已复制')}
-                              className="w-7 h-7 rounded text-gray-400 hover:text-[#1E5ABB] hover:bg-white flex items-center justify-center cursor-pointer shrink-0"
-                            >
-                              <Copy className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-                <div className="px-4 py-3 bg-amber-50/70 border-t border-amber-100 text-[11px] text-amber-800/90 leading-relaxed">
-                  激活码规则为一码一人。用户在登录/注册时选择「激活码绑定」，输入任意未过期激活码后，将自动归属该码绑定的机构与角色。
-                </div>
-              </div>
-              ) : (
-                <ShareInvitePanel
-                  key={inviteMode}
-                  mode={inviteMode}
-                  orgNodes={orgNodes}
-                  inviteCodes={inviteCodes}
-                  setInviteCodes={setInviteCodes}
-                  remainingSeats={remainingSeats}
-                  onToast={triggerToast}
-                  onCopy={copyText}
-                />
-              )}
-            </div>
-            <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between gap-2 shrink-0 text-[11px]">
-              <div className="flex items-center gap-3 text-gray-500">
-                <span>
-                  本机构可用名额：已激活 <b className="text-gray-800">{inRoster.length}</b> / {ORG_MAX_USER_COUNT} 人，剩余{' '}
-                  <b className="text-[#1E5ABB]">{Math.max(0, ORG_MAX_USER_COUNT - inRoster.length)}</b> 人
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsModalOpen(false);
-                    setIsInviteRecordOpen(true);
-                  }}
-                  className="inline-flex items-center gap-1 text-[#1E5ABB] hover:underline cursor-pointer"
-                >
-                  <History className="w-3.5 h-3.5" />
-                  查看邀请记录
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="px-4 py-1.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50 cursor-pointer text-xs"
-              >
-                关闭
-              </button>
-            </div>
-          </div>
-        </div>
+        <InviteUserModal
+          orgNodes={orgNodes}
+          inviteCodes={inviteCodes}
+          setInviteCodes={setInviteCodes}
+          activatedCount={inRoster.length}
+          onClose={() => setIsModalOpen(false)}
+          onToast={triggerToast}
+          onOpenRecords={() => {
+            setIsModalOpen(false);
+            setIsInviteRecordOpen(true);
+          }}
+        />
       )}
 
       {invitingFollower && (
@@ -1448,99 +993,12 @@ const MetricItem: React.FC<{ dot: string; label: string; value: number }> = ({ d
   </span>
 );
 
-const Field: React.FC<{
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-}> = ({ label, value, onChange, placeholder }) => (
-  <div>
-    <label className="block text-gray-700 font-medium mb-1">{label}</label>
-    <input
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      placeholder={placeholder}
-      className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-    />
-  </div>
-);
-
 const Detail: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   <div>
     <div className="text-gray-400 mb-0.5">{label}</div>
     <div className="font-medium text-gray-800">{value}</div>
   </div>
 );
-
-const MultiSelectDropdown: React.FC<{
-  label: string;
-  hint?: string;
-  placeholder: string;
-  options: Array<{ id: string; label: string }>;
-  selected: string[];
-  onToggle: (id: string) => void;
-}> = ({ label, hint, placeholder, options, selected, onToggle }) => {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const onDocClick = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
-  }, []);
-
-  const summary =
-    selected.length === 0
-      ? placeholder
-      : selected
-          .map((id) => options.find((option) => option.id === id)?.label)
-          .filter(Boolean)
-          .join('、');
-
-  return (
-    <div ref={rootRef} className="relative">
-      <div className="flex items-center justify-between mb-1">
-        <label className="text-gray-700 font-medium">{label}</label>
-        {hint && <span className="text-[10px] text-gray-400">{hint}</span>}
-      </div>
-      <button
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        className="w-full px-3 py-1.5 border border-gray-300 rounded bg-white text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-      >
-        <span className={`truncate ${selected.length ? 'text-gray-800' : 'text-gray-400'}`}>{summary}</span>
-        <ChevronDown className={`w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div className="absolute z-30 mt-1 w-full max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg p-1">
-          {options.map((option) => {
-            const checked = selected.includes(option.id);
-            return (
-              <label
-                key={option.id}
-                className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer ${
-                  checked ? 'bg-blue-50 text-[#1E5ABB]' : 'hover:bg-slate-50 text-gray-700'
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => onToggle(option.id)}
-                  className="rounded text-[#1E5ABB] focus:ring-[#1E5ABB] w-3.5 h-3.5"
-                />
-                <span className="truncate">{option.label}</span>
-              </label>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-};
 
 const CircleCheck: React.FC<{ checked: boolean; shape?: 'circle' | 'square' }> = ({ checked, shape = 'circle' }) => (
   <span

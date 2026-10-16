@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { alertDialog } from '../components/common/ConfirmDialog';
 import { Institution } from '../types';
 import { calculateDays, calculateRemainingDays, getFutureDateStr, getTodayStr } from '../shared/date';
 import { adminShellStorage } from '../services/adminShellStorage';
@@ -256,7 +257,7 @@ export const useInstitutionListViewModel = ({
     if (!provisioningTarget) return;
     const daysRemaining = calculateDays(provisionForm.startDate, provisionForm.endDate);
     if (daysRemaining <= 0) {
-      alert('服务到期日期必须晚于生效日期！');
+      alertDialog('服务到期日期必须晚于生效日期！');
       return;
     }
 

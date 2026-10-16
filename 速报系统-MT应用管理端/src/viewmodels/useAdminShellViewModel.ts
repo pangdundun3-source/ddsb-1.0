@@ -391,6 +391,18 @@ export const useAdminShellViewModel = () => {
     showToast,
   ]);
 
+  const handleRevokeInstitution = useCallback(
+    (institution: Institution) => {
+      setInstitutions((prev) => prev.filter((item) => item.id !== institution.id));
+      showToast(`机构【${institution.name}】已设为未开通，可在「开通机构」中重新授权。`);
+      if (selectedInstitutionId === institution.id) {
+        openInstitutionDetail(null);
+      }
+      addAuditLog('设为未开通', institution.name);
+    },
+    [addAuditLog, openInstitutionDetail, selectedInstitutionId, showToast]
+  );
+
   const handleSelectExpiringInstitution = useCallback(
     (item: ExpiringInstitution) => {
       const matched = findInstitutionByExpiringItem(institutions, item);
@@ -501,6 +513,7 @@ export const useAdminShellViewModel = () => {
       handleSaveInstitution,
       handleAuthorizeInstitution,
       handleConfirmDelete,
+      handleRevokeInstitution,
       handleSelectExpiringInstitution,
       setDeletingInstitution,
     },

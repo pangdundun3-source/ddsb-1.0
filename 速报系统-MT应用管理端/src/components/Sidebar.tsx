@@ -9,7 +9,9 @@ interface SidebarProps {
 }
 
 interface SubItem {
-  id: SystemSubModule;
+  id: string;
+  tab: ActiveTab;
+  subTab?: SystemSubModule;
   label: string;
   icon: string;
 }
@@ -32,36 +34,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems: NavItem[] = [
     { id: 'home', label: '首页', icon: 'home' },
     { id: 'institutions', label: '机构管理', icon: 'corporate_fare' },
-    { id: 'config', label: '全局配置', icon: 'groups' },
     {
       id: 'system',
       label: '系统管理',
       icon: 'dvr',
       subItems: [
-        { id: 'logs', label: '系统日志', icon: 'receipt_long' },
+        { id: 'config', tab: 'config', label: '全局业务配置', icon: 'groups' },
+        { id: 'org_config', tab: 'org_config', label: '机构业务配置', icon: 'domain' },
       ],
     },
   ];
 
-  const handleSubItemClick = (
-    mainId: ActiveTab,
-    subId: SystemSubModule,
-    e: React.MouseEvent
-  ) => {
+  const isItemActive = (item: NavItem) =>
+    activeTab === item.id || Boolean(item.subItems?.some((sub) => sub.tab === activeTab));
+
+  const isSubItemActive = (sub: SubItem) =>
+    activeTab === sub.tab && (!sub.subTab || systemSubTab === sub.subTab);
+
+  const handleSubItemClick = (sub: SubItem, e: React.MouseEvent) => {
     e.stopPropagation();
-    setActiveTab(mainId);
-    if (setSystemSubTab) {
-      setSystemSubTab(subId);
+    setActiveTab(sub.tab);
+    if (sub.subTab && setSystemSubTab) {
+      setSystemSubTab(sub.subTab);
     }
   };
 
   const handleMainItemClick = (item: NavItem) => {
     if (item.subItems) {
-      if (activeTab === item.id) {
+      if (isItemActive(item)) {
         setIsSystemOpen(!isSystemOpen);
       } else {
         setIsSystemOpen(true);
-        setActiveTab(item.id);
+        setActiveTab(item.subItems[0].tab);
       }
     } else {
       setActiveTab(item.id);
@@ -72,7 +76,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <aside className="w-[213px] min-h-[calc(100vh-74px)] sticky top-[74px] flex flex-col bg-[#f0f5ff] relative z-20 sidebar-bg-pattern border-r border-blue-50 shrink-0 select-none">
       <nav className="flex-1 py-4 space-y-1">
         {navItems.map((item) => {
-          const isActive = activeTab === item.id;
+          const isActive = isItemActive(item);
           const hasSub = !!item.subItems;
 
           return (
@@ -109,11 +113,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {hasSub && isSystemOpen && (
                 <div className="bg-[#e9f1fd]/60 py-1 space-y-0.5">
                   {item.subItems!.map((sub) => {
-                    const isSubActive = isActive && systemSubTab === sub.id;
+                    const isSubActive = isSubItemActive(sub);
                     return (
                       <button
                         key={sub.id}
-                        onClick={(e) => handleSubItemClick(item.id, sub.id, e)}
+                        onClick={(e) => handleSubItemClick(sub, e)}
                         className={`w-full flex items-center pl-12 pr-4 py-2 text-[13px] font-medium transition-colors cursor-pointer text-left ${
                           isSubActive
                             ? 'text-[#1890ff] font-bold bg-[#dbeafe]/80'

@@ -39,7 +39,48 @@ export interface InviteCode {
   /** 二维码邀请：扫码上限人数与已扫码加入人数 */
   qrLimit?: number;
   scannedCount?: number;
+  /** 二维码 / 链接邀请：已通过本次邀请激活的人员 */
+  joinedMembers?: InviteJoinedMember[];
 }
+
+export interface InviteJoinedMember {
+  id: string;
+  name: string;
+  phone: string;
+  joinedAt: string;
+}
+
+const JOINED_MEMBER_SURNAMES = ['林', '陈', '黄', '张', '李', '王', '吴', '刘', '蔡', '杨', '许', '郑', '谢', '洪', '曾', '邱', '周', '赵', '徐', '孙', '胡', '朱', '高', '何'];
+const JOINED_MEMBER_GIVEN_NAMES = [
+  '雅婷', '志豪', '冠宇', '雅琪', '承恩', '怡君', '俊杰', '佳蓉', '明哲', '淑芬', '家豪', '宜蓁', '宗翰', '静怡', '柏翰', '诗涵',
+  '子轩', '欣怡', '浩然', '梓涵', '宇航', '思远', '嘉欣', '文博', '晓雯', '建华', '海燕', '立伟', '晨阳', '雨桐'
+];
+
+/** 未记录明细的邀请按已加入人数生成稳定的示例名单 */
+export const getInviteJoinedMembers = (invite: InviteCode): InviteJoinedMember[] => {
+  if (invite.joinedMembers?.length) return invite.joinedMembers;
+  const count = invite.scannedCount || 0;
+  if (!count) return [];
+  const seed = Array.from(invite.id).reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+  const start = new Date(invite.createdAt || Date.now()).getTime();
+  const end = Math.min(Date.now(), invite.expiresAt ? new Date(invite.expiresAt).getTime() : Date.now());
+  const step = Math.max(end - start, 60 * 60 * 1000) / (count + 1);
+  return Array.from({ length: count }, (_, index) => {
+    const name =
+      JOINED_MEMBER_SURNAMES[(seed + index * 7) % JOINED_MEMBER_SURNAMES.length] +
+      JOINED_MEMBER_GIVEN_NAMES[(seed * 3 + index * 11) % JOINED_MEMBER_GIVEN_NAMES.length];
+    const tail = String((seed * 37 + index * 731) % 10000).padStart(4, '0');
+    const jitter = (((seed * 13 + index * 29) % 100) / 100 - 0.5) * step * 0.6;
+    const joined = new Date(start + (index + 1) * step + jitter);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return {
+      id: `${invite.id}-m${index + 1}`,
+      name,
+      phone: `13${(seed + index) % 10}${String(5100 + index * 13).padStart(4, '0')}${tail}`.slice(0, 11),
+      joinedAt: `${joined.getFullYear()}-${pad(joined.getMonth() + 1)}-${pad(joined.getDate())} ${pad(joined.getHours())}:${pad(joined.getMinutes())}`,
+    };
+  }).reverse();
+};
 
 export interface OfficialAccountFollower {
   id: string;
@@ -467,82 +508,251 @@ export const INITIAL_GROUPS: PersonnelGroup[] = [
   }
 ];
 
+const buildBatchActivationCodes = (
+  batch: Pick<InviteCode, 'batchId' | 'batchName' | 'orgIds' | 'roles' | 'expiresAt' | 'createdAt'>,
+  codes: string[],
+  usedBy: Array<{ name: string; phone: string }>
+): InviteCode[] =>
+  codes.map((code, index) => ({
+    ...batch,
+    id: `${batch.batchId}-${index + 1}`,
+    code,
+    channel: 'activation_code' as const,
+    status: index < usedBy.length ? ('已使用' as const) : ('未使用' as const),
+    usedByName: usedBy[index]?.name,
+    usedByPhone: usedBy[index]?.phone
+  }));
+
+const buildShareInvite = (
+  channel: 'qrcode' | 'link',
+  invite: Pick<InviteCode, 'id' | 'code' | 'batchName' | 'orgIds' | 'roles' | 'expiresAt' | 'createdAt' | 'qrLimit' | 'scannedCount'>
+): InviteCode => ({
+  ...invite,
+  batchId: `batch-${invite.id}`,
+  status: '未使用',
+  channel
+});
+
+const buildOfficialAccountInvite = (
+  invite: Pick<InviteCode, 'id' | 'code' | 'orgIds' | 'roles' | 'expiresAt' | 'createdAt' | 'sentToName' | 'sentToWechat' | 'sentToFollowerId'> &
+    Partial<Pick<InviteCode, 'status' | 'usedByName' | 'usedByPhone'>>
+): InviteCode => ({
+  status: '未使用',
+  ...invite,
+  batchId: `batch-${invite.id}`,
+  batchName: `公众号主动邀请-${invite.createdAt.slice(0, 10).replace(/-/g, '')}`,
+  channel: 'official_account'
+});
+
 export const INITIAL_INVITE_CODES: InviteCode[] = [
-  {
-    id: 'inv-1',
-    code: 'SB-2026-8A91F',
-    batchId: 'batch-seed',
-    batchName: '办公室邀请-20260917',
-    orgIds: ['org-1-1'],
+  buildShareInvite('qrcode', {
+    id: 'inv-qr-1014',
+    code: 'QR-2026-B8N4W',
+    batchName: '夜班席扫码入组-20261014',
+    orgIds: ['org-1-2-1-1-1'],
     roles: ['上报员'],
-    expiresAt: '2026-09-30T23:59',
-    createdAt: '2026-09-17T10:20',
-    status: '未使用'
-  },
-  {
-    id: 'inv-2',
-    code: 'SB-2026-3B22C',
-    batchId: 'batch-seed',
-    batchName: '办公室邀请-20260917',
-    orgIds: ['org-1-1'],
+    expiresAt: '2026-10-31T23:59',
+    createdAt: '2026-10-14T08:40',
+    qrLimit: 20,
+    scannedCount: 0
+  }),
+  buildOfficialAccountInvite({
+    id: 'inv-oa-1013',
+    code: 'SB-2026-ZK7P3',
+    orgIds: ['org-2-1'],
     roles: ['上报员'],
-    expiresAt: '2026-09-30T23:59',
-    createdAt: '2026-09-17T10:20',
-    status: '已使用',
-    usedByName: '周敏',
-    usedByPhone: '13900006621'
-  },
-  {
-    id: 'inv-3',
-    code: 'SB-2026-7C11D',
-    batchId: 'batch-seed',
-    batchName: '办公室邀请-20260917',
-    orgIds: ['org-1-1'],
+    expiresAt: '2026-10-27T23:59',
+    createdAt: '2026-10-13T16:20',
+    sentToName: '郑凯',
+    sentToWechat: 'zhengkai88',
+    sentToFollowerId: 'flw-5'
+  }),
+  ...buildBatchActivationCodes(
+    {
+      batchId: 'batch-ac-1013',
+      batchName: '舆情监测科审核员邀请-20261013',
+      orgIds: ['org-2-1'],
+      roles: ['审核员'],
+      expiresAt: '2026-10-20T23:59',
+      createdAt: '2026-10-13T10:30'
+    },
+    ['SB-2026-A3R8V', 'SB-2026-C7T2X', 'SB-2026-F5W9Y'],
+    [{ name: '赵子轩', phone: '13856781203' }]
+  ),
+  buildShareInvite('qrcode', {
+    id: 'inv-qr-1013',
+    code: 'QR-2026-D4M9S',
+    batchName: '台中日报社融媒通讯员-20261013',
+    orgIds: ['org-4'],
     roles: ['上报员'],
-    expiresAt: '2026-09-30T23:59',
-    createdAt: '2026-09-17T10:20',
-    status: '未使用'
-  },
-  {
-    id: 'inv-4',
-    code: 'SB-2026-9E40E',
-    batchId: 'batch-seed',
-    batchName: '办公室邀请-20260917',
-    orgIds: ['org-1-1'],
+    expiresAt: '2026-11-15T23:59',
+    createdAt: '2026-10-13T09:00',
+    qrLimit: 30,
+    scannedCount: 30
+  }),
+  ...buildBatchActivationCodes(
+    {
+      batchId: 'batch-ac-1012',
+      batchName: '网信指导处批量邀请-20261012',
+      orgIds: ['org-1-2'],
+      roles: ['上报员'],
+      expiresAt: '2026-11-30T23:59',
+      createdAt: '2026-10-12T14:05'
+    },
+    ['SB-2026-K4P2A', 'SB-2026-M7Q9B', 'SB-2026-R2T6C', 'SB-2026-W8X3D', 'SB-2026-H5J1E', 'SB-2026-N9L4F', 'SB-2026-Z3V7G', 'SB-2026-E6Y2H'],
+    [
+      { name: '林雅婷', phone: '13812345170' },
+      { name: '陈志豪', phone: '13987654321' },
+      { name: '黄冠宇', phone: '13655553904' }
+    ]
+  ),
+  buildShareInvite('link', {
+    id: 'inv-lk-1012',
+    code: 'LK-2026-H2Q6E',
+    batchName: '网信指导处联络员链接邀请-20261012',
+    orgIds: ['org-1-2'],
     roles: ['上报员'],
-    expiresAt: '2026-09-30T23:59',
-    createdAt: '2026-09-17T10:20',
-    status: '未使用'
-  },
-  {
-    id: 'inv-5',
-    code: 'SB-2026-HX91A',
-    batchId: 'batch-oa-seed',
-    batchName: '公众号主动邀请-20260916',
-    orgIds: ['org-1-1'],
+    expiresAt: '2026-12-12T23:59',
+    createdAt: '2026-10-12T15:30',
+    qrLimit: 80,
+    scannedCount: 41
+  }),
+  buildOfficialAccountInvite({
+    id: 'inv-oa-1011',
+    code: 'SB-2026-SB4M2',
+    orgIds: ['org-1-1-1-1-1'],
     roles: ['上报员'],
-    expiresAt: '2026-09-30T23:59',
-    createdAt: '2026-09-16T15:40',
-    status: '未使用',
-    channel: 'official_account',
-    sentToName: '何岚',
-    sentToWechat: 'helan_wx',
-    sentToFollowerId: 'flw-1'
-  },
-  {
+    expiresAt: '2026-10-25T23:59',
+    createdAt: '2026-10-11T11:05',
+    sentToName: '孙博',
+    sentToWechat: 'sunbo_tz',
+    sentToFollowerId: 'flw-2'
+  }),
+  buildShareInvite('qrcode', {
     id: 'inv-qr-1',
     code: 'QR-2026-T7K3M',
-    batchId: 'batch-qr-seed',
-    batchName: '二维码邀请-20261010',
+    batchName: '办公室扫码入组-20261010',
     orgIds: ['org-1-1'],
     roles: ['上报员'],
     expiresAt: '2026-12-31T23:59',
     createdAt: '2026-10-10T09:30',
-    status: '未使用',
-    channel: 'qrcode',
     qrLimit: 100,
     scannedCount: 12
-  }
+  }),
+  buildShareInvite('link', {
+    id: 'inv-lk-1009',
+    code: 'LK-2026-P5V1J',
+    batchName: '蜀山区网信联络员链接邀请-20261009',
+    orgIds: ['org-3'],
+    roles: ['上报员'],
+    expiresAt: '2026-11-09T23:59',
+    createdAt: '2026-10-09T10:10',
+    qrLimit: 50,
+    scannedCount: 23
+  }),
+  ...buildBatchActivationCodes(
+    {
+      batchId: 'batch-ac-1008',
+      batchName: '蜀山区委网信办批量邀请-20261008',
+      orgIds: ['org-3'],
+      roles: ['上报员'],
+      expiresAt: '2026-10-31T23:59',
+      createdAt: '2026-10-08T09:15'
+    },
+    ['SB-2026-P1A8K', 'SB-2026-Q6C3M', 'SB-2026-S9D5N', 'SB-2026-U2F7R', 'SB-2026-Y4G1T'],
+    [
+      { name: '张雅琪', phone: '13722221711' },
+      { name: '李承恩', phone: '13599990249' }
+    ]
+  ),
+  buildOfficialAccountInvite({
+    id: 'inv-oa-1003',
+    code: 'SB-2026-LL6Q8',
+    orgIds: ['org-4'],
+    roles: ['上报员'],
+    expiresAt: '2026-10-17T23:59',
+    createdAt: '2026-10-03T14:45',
+    sentToName: '日报梁编',
+    sentToWechat: 'll_media',
+    sentToFollowerId: 'flw-6',
+    status: '已使用',
+    usedByName: '梁琳',
+    usedByPhone: '13912342244'
+  }),
+  buildOfficialAccountInvite({
+    id: 'inv-oa-0920',
+    code: 'SB-2026-FH2D7',
+    orgIds: ['org-1-2-1-1-1'],
+    roles: ['上报员'],
+    expiresAt: '2026-10-04T23:59',
+    createdAt: '2026-09-20T09:35',
+    sentToName: '傅浩',
+    sentToWechat: 'fuhao_work',
+    sentToFollowerId: 'flw-8'
+  }),
+  ...buildBatchActivationCodes(
+    {
+      batchId: 'batch-seed',
+      batchName: '办公室邀请-20260917',
+      orgIds: ['org-1-1'],
+      roles: ['上报员'],
+      expiresAt: '2026-09-30T23:59',
+      createdAt: '2026-09-17T10:20'
+    },
+    ['SB-2026-3B22C', 'SB-2026-8A91F', 'SB-2026-7C11D', 'SB-2026-9E40E'],
+    [{ name: '周敏', phone: '13900006621' }]
+  ),
+  buildOfficialAccountInvite({
+    id: 'inv-5',
+    code: 'SB-2026-HX91A',
+    orgIds: ['org-1-1'],
+    roles: ['上报员'],
+    expiresAt: '2026-09-30T23:59',
+    createdAt: '2026-09-16T15:40',
+    sentToName: '何岚',
+    sentToWechat: 'helan_wx',
+    sentToFollowerId: 'flw-1'
+  }),
+  buildShareInvite('link', {
+    id: 'inv-lk-0915',
+    code: 'LK-2026-Y7C3U',
+    batchName: '值班席链接邀请-20260915',
+    orgIds: ['org-1-1-1-1-1'],
+    roles: ['上报员'],
+    expiresAt: '2026-09-25T23:59',
+    createdAt: '2026-09-15T08:50',
+    qrLimit: 20,
+    scannedCount: 8
+  }),
+  buildShareInvite('qrcode', {
+    id: 'inv-qr-0901',
+    code: 'QR-2026-G6E1R',
+    batchName: '舆情监测科扫码入组-20260901',
+    orgIds: ['org-2-1'],
+    roles: ['上报员'],
+    expiresAt: '2026-09-30T23:59',
+    createdAt: '2026-09-01T09:00',
+    qrLimit: 50,
+    scannedCount: 37
+  }),
+  ...buildBatchActivationCodes(
+    {
+      batchId: 'batch-ac-0825',
+      batchName: '应急值守班批量邀请-20260825',
+      orgIds: ['org-1-2-1'],
+      roles: ['上报员'],
+      expiresAt: '2026-09-10T23:59',
+      createdAt: '2026-08-25T16:00'
+    },
+    ['SB-2026-J2K8L', 'SB-2026-T4N6P', 'SB-2026-V9B3Q', 'SB-2026-X1D5R', 'SB-2026-B6F2S', 'SB-2026-G8H4T'],
+    [
+      { name: '徐晨阳', phone: '13611208842' },
+      { name: '胡海燕', phone: '13798763315' },
+      { name: '朱立伟', phone: '13566017729' },
+      { name: '高嘉欣', phone: '13843215568' },
+      { name: '何文博', phone: '13955890174' }
+    ]
+  )
 ];
 
 export const INITIAL_FOLLOWERS: OfficialAccountFollower[] = [

@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Institution, AuditLog } from '../types';
+import { ChangeAuthorizationModal } from './ChangeAuthorizationModal';
 import { BusinessRuleNavKey, InstitutionBusinessRulesTab } from './InstitutionBusinessRulesTab';
 import { OtherBusinessConfigTab } from './OtherBusinessConfigTab';
 import { InstitutionUserManagement } from './InstitutionUserManagement';
@@ -18,19 +19,6 @@ import {
 import { getInstitutionProfile } from '../viewmodels/useInstitutionListViewModel';
 import { getTodayStr } from '../shared/date';
 
-/** Keep in sync with the client port in scripts/suite-apps.mjs */
-const CLIENT_DEV_PORT = '3001';
-const CLIENT_ENTRY_HASH = '#/portal?sso=admin';
-
-/** 开发时客户管理端单独占用 3001 端口；静态部署时与本端同在 apps/ 目录下 */
-const getClientAppUrl = () => {
-  const { protocol, hostname, port, href } = window.location;
-  if (port === '3004') {
-    return `${protocol}//${hostname}:${CLIENT_DEV_PORT}/${CLIENT_ENTRY_HASH}`;
-  }
-  return new URL(`../v8-client/app.html${CLIENT_ENTRY_HASH}`, href).href;
-};
-
 const daysUntil = (endDate: string) => {
   const today = new Date(getTodayStr()).getTime();
   return Math.ceil((new Date(endDate).getTime() - today) / (1000 * 60 * 60 * 24));
@@ -40,7 +28,9 @@ const InstitutionSummaryBar: React.FC<{
   institution: Institution;
   onCopy: (label: string, value: string) => void;
   onOpenService: () => void;
-}> = ({ institution, onCopy, onOpenService }) => {
+  onChangeAuth: () => void;
+  onRevoke: () => void;
+}> = ({ institution, onCopy, onOpenService, onChangeAuth, onRevoke }) => {
   const profile = getInstitutionProfile(institution);
   const running = institution.daysRemaining > 0;
   const remaining = running ? institution.daysRemaining : Math.min(daysUntil(institution.endDate), 0);
@@ -92,30 +82,53 @@ const InstitutionSummaryBar: React.FC<{
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={onOpenService}
-        title="配置服务有效期"
-        className="shrink-0 flex items-center gap-4 border border-[#dbe4f0] bg-[#f7f9fc] rounded-md px-4 py-2.5 hover:border-[#c5d3e6] cursor-pointer transition-colors"
-      >
+      <div className="shrink-0 flex items-center gap-4 border border-[#dbe4f0] bg-[#f7f9fc] rounded-md px-4 py-2.5">
         <div className="text-right">
           <div className="text-xs text-gray-500 flex items-center justify-end gap-1">
             综合服务有效期
-            <span className="relative group/tip inline-flex" onClick={(e) => e.stopPropagation()}>
+            <span className="relative group/tip inline-flex">
               <span className="material-symbols-outlined text-[15px] text-[#1890ff] cursor-help">help</span>
               <span className="pointer-events-none absolute right-0 bottom-full mb-2 w-[400px] rounded-md bg-[#1c2536] px-4 py-3 text-left text-[13px] leading-6 text-white shadow-xl opacity-0 group-hover/tip:opacity-100 transition-opacity z-30">
                 系统依据机构下最后到期的应用，确定机构登录 V8 系统的最终时效；但不影响单应用登录权限，用户能否登录应用以该应用自身配置的到期时间为准。
               </span>
             </span>
           </div>
-          <div className={`text-sm font-mono font-bold mt-1 ${running ? 'text-gray-800' : 'text-rose-600'}`}>
-            {institution.endDate}（{remaining}天）
+          <div className="mt-1 font-mono">
+            <span className={`text-sm font-bold ${running ? 'text-gray-800' : 'text-rose-600'}`}>{institution.endDate}</span>
+            <span className={`ml-1 text-xs ${running ? 'text-gray-400' : 'text-rose-400'}`}>({remaining}天)</span>
           </div>
         </div>
-        <span className={`material-symbols-outlined text-[22px] ${running ? 'text-[#1890ff]' : 'text-rose-500'}`}>
-          calendar_month
-        </span>
-      </button>
+        <button
+          type="button"
+          onClick={onOpenService}
+          title="配置服务有效期"
+          aria-label="配置服务有效期"
+          className={`w-9 h-9 rounded-md border flex items-center justify-center cursor-pointer transition-colors ${
+            running
+              ? 'border-[#bcd3f2] bg-[#eaf2fd] text-[#1890ff] hover:bg-[#dcebfc]'
+              : 'border-rose-200 bg-rose-50 text-rose-500 hover:bg-rose-100'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[20px]">calendar_month</span>
+        </button>
+        <span className="w-px h-9 bg-[#dbe4f0]" />
+        <div className="flex flex-col items-center gap-1">
+          <button
+            type="button"
+            onClick={onChangeAuth}
+            className="text-sm font-bold text-[#1E3A6B] hover:text-[#1890ff] cursor-pointer"
+          >
+            变更授权
+          </button>
+          <button
+            type="button"
+            onClick={onRevoke}
+            className="text-[11px] text-gray-400 hover:text-rose-500 cursor-pointer"
+          >
+            设为未开通
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
@@ -128,6 +141,7 @@ interface InstitutionDetailPageProps {
   onBack: () => void;
   onSave: (updatedData: Partial<Institution>) => void;
   onDelete?: (inst: Institution) => void;
+  onRevoke?: (inst: Institution) => void;
   onToggleStatus?: (id: number) => void;
   auditLogs?: AuditLog[];
 }
@@ -140,8 +154,11 @@ export const InstitutionDetailPage: React.FC<InstitutionDetailPageProps> = ({
   onBack,
   onSave,
   onDelete,
+  onRevoke,
   onToggleStatus,
 }) => {
+  const [showChangeAuth, setShowChangeAuth] = useState(false);
+  const [showRevokeConfirm, setShowRevokeConfirm] = useState(false);
   const { state, actions, refs, derived } = useInstitutionDetailViewModel({
     institution,
     isCreateMode,
@@ -242,20 +259,6 @@ export const InstitutionDetailPage: React.FC<InstitutionDetailPageProps> = ({
             </span>
           </div>
         </div>
-
-        {/* Action Buttons in Header */}
-        <div className="flex items-center gap-3">
-          {!isCreateMode && (
-            <button
-              type="button"
-              onClick={() => window.open(getClientAppUrl(), '_blank', 'noopener')}
-              className="flex items-center gap-1 text-sm font-semibold text-white bg-[#1890ff] hover:bg-[#1677d9] px-3.5 py-1.5 rounded shadow-2xs transition-colors cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[18px]">open_in_new</span>
-              访问机构前台
-            </button>
-          )}
-        </div>
       </div>
 
       {!isCreateMode && institution && (
@@ -266,7 +269,62 @@ export const InstitutionDetailPage: React.FC<InstitutionDetailPageProps> = ({
             showToast(`已复制${label}：${value}`);
           }}
           onOpenService={handleOpenProvisionModal}
+          onChangeAuth={() => setShowChangeAuth(true)}
+          onRevoke={() => setShowRevokeConfirm(true)}
         />
+      )}
+
+      {showChangeAuth && institution && (
+        <ChangeAuthorizationModal
+          institution={institution}
+          onClose={() => setShowChangeAuth(false)}
+          onConfirm={({ status, startDate, endDate, daysRemaining }) => {
+            onSave({ id: institution.id, status, startDate, endDate, daysRemaining });
+            setShowChangeAuth(false);
+          }}
+        />
+      )}
+
+      {showRevokeConfirm && institution && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4" onClick={() => setShowRevokeConfirm(false)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-md bg-white rounded-xl shadow-2xl p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[20px]">warning</span>
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-gray-900">确认将机构设为未开通？</h3>
+                <p className="text-xs text-gray-500 mt-1.5 leading-5">
+                  「{institution.name}」将立即失去「点点速报 - 清朗净网鉴谣速报系统」的访问权限，并从已开通列表中移除；后续可在「开通机构」中重新授权。
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                type="button"
+                onClick={() => setShowRevokeConfirm(false)}
+                className="px-4 py-2 text-sm font-bold text-gray-700 border border-gray-200 rounded-md hover:bg-gray-50 cursor-pointer"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRevokeConfirm(false);
+                  onRevoke?.(institution);
+                }}
+                className="px-4 py-2 text-sm font-bold text-white bg-rose-500 rounded-md hover:bg-rose-600 cursor-pointer"
+              >
+                确认设为未开通
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Navigation Tabs Switcher (Only shown in Detail/Edit mode, hidden in Create mode) */}

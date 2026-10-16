@@ -46,6 +46,7 @@ interface ShareInvitePanelProps {
   inviteCodes: InviteCode[];
   setInviteCodes: React.Dispatch<React.SetStateAction<InviteCode[]>>;
   remainingSeats: number;
+  initialOrgPath?: string[];
   onToast: (message: string) => void;
   onCopy: (text: string, message: string) => void;
 }
@@ -57,12 +58,16 @@ export const ShareInvitePanel: React.FC<ShareInvitePanelProps> = ({
   inviteCodes,
   setInviteCodes,
   remainingSeats,
+  initialOrgPath,
   onToast,
   onCopy
 }) => {
   const meta = MODE_META[mode];
-  const records = inviteCodes.filter((item) => item.channel === mode);
-  const [orgPath, setOrgPath] = useState<string[]>([]);
+  const scopeOrgId = initialOrgPath?.[initialOrgPath.length - 1];
+  const records = inviteCodes.filter(
+    (item) => item.channel === mode && (!scopeOrgId || (item.orgIds || []).includes(scopeOrgId))
+  );
+  const [orgPath, setOrgPath] = useState<string[]>(() => initialOrgPath || []);
   const [role, setRole] = useState<string>('上报员');
   const [limit, setLimit] = useState(100);
   const [validity, setValidity] = useState<string>('30d');

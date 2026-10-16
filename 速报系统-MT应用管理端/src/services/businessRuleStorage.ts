@@ -19,9 +19,17 @@ export const businessRuleStorage = {
         assessmentRules: parsed.assessmentRules || initialGlobalBusinessRules.assessmentRules,
         metricsFormula: parsed.metricsFormula || initialGlobalBusinessRules.metricsFormula,
         reviewNodes: parsed.reviewNodes || initialGlobalBusinessRules.reviewNodes,
-        valueAddedServices: parsed.valueAddedServices
-          ? dropRetiredValueAddedServices(parsed.valueAddedServices)
-          : initialGlobalBusinessRules.valueAddedServices,
+        valueAddedServices: (() => {
+          const savedVas = parsed.valueAddedServices
+            ? dropRetiredValueAddedServices(parsed.valueAddedServices)
+            : [];
+          if (!savedVas.length) return initialGlobalBusinessRules.valueAddedServices;
+          const savedIds = new Set(savedVas.map((v) => v.id));
+          const missingDefaults = (initialGlobalBusinessRules.valueAddedServices || []).filter(
+            (v) => !savedIds.has(v.id)
+          );
+          return dropRetiredValueAddedServices([...savedVas, ...missingDefaults]);
+        })(),
         otherConfig: parsed.otherConfig || initialGlobalBusinessRules.otherConfig,
         loginAuth: parsed.loginAuth || initialGlobalBusinessRules.loginAuth,
       };

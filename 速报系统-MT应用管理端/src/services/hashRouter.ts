@@ -9,6 +9,7 @@ export type AppRouteType =
   | 'institutions_detail'
   | 'institutions_edit'
   | 'config'
+  | 'org_config'
   | 'monitoring'
   | 'system_accounts'
   | 'system_logs';
@@ -144,6 +145,18 @@ export const hashRouter = {
       };
     }
 
+    if (hash === 'org-config') {
+      return {
+        routeType: 'org_config',
+        activeTab: 'org_config',
+        isAuthenticated: true,
+        activeView: 'operation',
+        selectedInstitutionId: null,
+        isCreatingInstitution: false,
+        isEditingInstitution: false,
+      };
+    }
+
     if (hash === 'system/logs') {
       return {
         routeType: 'system_logs',
@@ -209,6 +222,10 @@ export const hashRouter = {
 
     if (state.activeTab === 'config') {
       return '#/config';
+    }
+
+    if (state.activeTab === 'org_config') {
+      return '#/org-config';
     }
 
     if (state.activeTab === 'monitoring') {

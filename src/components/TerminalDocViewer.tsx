@@ -29,12 +29,12 @@ import {
   useTerminalDocs,
 } from '../data/terminalDocs';
 import { extractDocHeadings, findActiveModuleLine, type DocHeading } from '../data/docModules';
-import type { DocRichEditorHandle } from './DocRichEditor';
+import type { DocReadingPosition, DocRichEditorHandle } from './DocRichEditor';
 
 const DocRichEditor = lazy(() => import('./DocRichEditor'));
 
 const TOC_STORAGE_KEY = 'portal_doc_toc_';
-const TOC_MAX_LEVEL = 3;
+const TOC_MAX_LEVEL = 4;
 
 /**
  * Outline entries with their index in `headings`. Sections nested in a prototype-linked module
@@ -83,14 +83,18 @@ interface TerminalDocViewerProps {
 }
 
 const proseComponents: Components = {
-  h4: ({ node, ...props }) => <h4 className="text-sm font-bold text-slate-800 mt-4 mb-2" {...props} />,
   p: ({ node, ...props }) => <p className="text-sm text-slate-700 leading-7 my-2" {...props} />,
   ul: ({ node, ...props }) => <ul className="list-disc pl-6 my-2 space-y-1 text-sm text-slate-700" {...props} />,
   ol: ({ node, ...props }) => <ol className="list-decimal pl-6 my-2 space-y-1 text-sm text-slate-700" {...props} />,
   li: ({ node, ...props }) => <li className="leading-7" {...props} />,
-  a: ({ node, ...props }) => (
-    <a className="text-[#1d61d6] hover:underline" target="_blank" rel="noopener noreferrer" {...props} />
-  ),
+  a: ({ node, href, children, ...props }) =>
+    href === '#prd-new' ? (
+      <mark className="bg-amber-200/90 text-inherit rounded px-0.5">{children}</mark>
+    ) : (
+      <a className="text-[#1d61d6] hover:underline" href={href} target="_blank" rel="noopener noreferrer" {...props}>
+        {children}
+      </a>
+    ),
   blockquote: ({ node, ...props }) => (
     <blockquote className="my-3 pl-4 border-l-4 border-slate-200 text-slate-500 [&_p]:text-slate-500" {...props} />
   ),
@@ -119,6 +123,7 @@ const HEADING_CLASSES: Record<number, string> = {
   1: 'text-xl font-bold text-slate-900 mt-6 mb-3',
   2: 'text-lg font-bold text-slate-900 mt-6 mb-3 pb-1.5 border-b border-slate-100',
   3: 'text-base font-bold text-slate-800 mt-5 mb-2',
+  4: 'text-sm font-bold text-slate-800 mt-4 mb-2',
 };
 
 async function copyText(text: string) {
@@ -182,6 +187,8 @@ export function TerminalDocViewer({
   const editorRef = useRef<DocRichEditorHandle>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const tocRef = useRef<HTMLElement>(null);
+  /** Reading position carried across switching between reading and editing */
+  const pendingPositionRef = useRef<DocReadingPosition | null>(null);
 
   const idPrefix = `${variant}-doc-line-`;
   const headingId = (line: number | undefined) => `${idPrefix}${line ?? 0}`;
@@ -204,6 +211,7 @@ export function TerminalDocViewer({
   useEffect(() => {
     setIsEditing(false);
     setNotice(null);
+    pendingPositionRef.current = null;
     contentRef.current?.scrollTo({ top: 0 });
   }, [terminalId, docName]);
 
@@ -214,9 +222,24 @@ export function TerminalDocViewer({
   }, [notice]);
 
   useEffect(() => {
-    if (activeLine === null || isEditing) return;
+    if (activeLine === null || isEditing || pendingPositionRef.current) return;
     document.getElementById(`${idPrefix}${activeLine}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [activeLine, isEditing, idPrefix]);
+
+  useEffect(() => {
+    const position = pendingPositionRef.current;
+    const scroller = contentRef.current;
+    if (isEditing || !position || !scroller) return;
+    pendingPositionRef.current = null;
+    // Only h1–h4 are rendered with ids; fall back to the nearest preceding one
+    for (let index = position.index; index >= 0; index--) {
+      const element = document.getElementById(`${idPrefix}${headings[index]?.line ?? 0}`);
+      if (!element) continue;
+      const top = element.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+      scroller.scrollTo({ top: top + (index === position.index ? position.offset : 0) });
+      return;
+    }
+  }, [isEditing, headings, idPrefix]);
 
   useEffect(() => {
     localStorage.setItem(`${TOC_STORAGE_KEY}${variant}`, showToc ? '1' : '0');
@@ -281,7 +304,26 @@ export function TerminalDocViewer({
     if (confirmDiscard()) onClose();
   };
 
+  const readViewPosition = (): DocReadingPosition | null => {
+    const scroller = contentRef.current;
+    if (!scroller) return null;
+    const scrollerTop = scroller.getBoundingClientRect().top;
+    let position: DocReadingPosition | null = null;
+    headings.forEach((heading, index) => {
+      const element = document.getElementById(`${idPrefix}${heading.line}`);
+      const top = element && element.getBoundingClientRect().top - scrollerTop;
+      if (top !== null && top !== undefined && top <= 1) position = { index, offset: -top };
+    });
+    return position;
+  };
+
+  const stopEditing = () => {
+    pendingPositionRef.current = editorRef.current?.getReadingPosition() ?? null;
+    setIsEditing(false);
+  };
+
   const startEditing = () => {
+    pendingPositionRef.current = readViewPosition();
     setEditorSource(content);
     setDraft(content);
     setEditorBaseline(null);
@@ -293,7 +335,7 @@ export function TerminalDocViewer({
     setIsSaving(true);
     try {
       await saveTerminalDoc(terminalId, docName, draft);
-      setIsEditing(false);
+      stopEditing();
       setNotice({ type: 'success', text: '已保存到文档文件' });
     } catch (error) {
       setNotice({ type: 'error', text: error instanceof Error ? error.message : '保存失败' });
@@ -358,11 +400,11 @@ export function TerminalDocViewer({
 
   const markdownComponents = useMemo<Components>(() => {
     const renderHeading =
-      (level: 1 | 2 | 3) =>
+      (level: 1 | 2 | 3 | 4) =>
       ({ node, children }: { node?: { position?: { start: { line: number } } }; children?: React.ReactNode }) => {
         const line = node?.position?.start.line;
         const route = line !== undefined ? routeByLine.get(line) : undefined;
-        const Tag = `h${level}` as 'h1' | 'h2' | 'h3';
+        const Tag = `h${level}` as 'h1' | 'h2' | 'h3' | 'h4';
         const isActive = line !== undefined && line === activeLine;
         const clickable = !!route && !!onRouteClick;
         return (
@@ -388,6 +430,7 @@ export function TerminalDocViewer({
       h1: renderHeading(1),
       h2: renderHeading(2),
       h3: renderHeading(3),
+      h4: renderHeading(4),
       img: ({ node, src, alt, ...props }) => (
         <img
           src={typeof src === 'string' ? resolveDocAssetUrl(terminalId, src) : undefined}
@@ -464,7 +507,7 @@ export function TerminalDocViewer({
             <>
               <button
                 type="button"
-                onClick={() => confirmDiscard() && setIsEditing(false)}
+                onClick={() => confirmDiscard() && stopEditing()}
                 className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
               >
                 取消
@@ -615,6 +658,13 @@ export function TerminalDocViewer({
                 onReady={(markdown) => {
                   setEditorBaseline(markdown);
                   setDraft(markdown);
+                  const position = pendingPositionRef.current;
+                  pendingPositionRef.current = null;
+                  if (position) {
+                    requestAnimationFrame(() =>
+                      editorRef.current?.scrollToHeading(position.index, { offset: position.offset, instant: true }),
+                    );
+                  }
                 }}
                 onChange={setDraft}
                 onSave={() => void handleSave()}
@@ -627,7 +677,7 @@ export function TerminalDocViewer({
           <div ref={contentRef} className={`flex-1 min-w-0 overflow-y-auto ${isPanel ? 'px-5 py-4' : 'px-8 py-6'}`}>
             {content.trim() ? (
               <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={markdownComponents}>
-                {content}
+                {content.replace(/==([^=\n]+)==/g, '[$1](#prd-new)')}
               </ReactMarkdown>
             ) : (
               emptyState

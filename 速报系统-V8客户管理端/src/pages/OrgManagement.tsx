@@ -36,7 +36,8 @@ import {
   CheckCircle2,
   Lock,
   Sparkles,
-  Download
+  Download,
+  UserPlus
 } from 'lucide-react';
 import type { PageId } from '../types';
 import {
@@ -47,6 +48,7 @@ import {
   INITIAL_ORG_NODES,
   INITIAL_PERSONNEL,
   syncFollowersAfterDelete,
+  type InviteCode,
   type UserOrgSharedState
 } from '../data/userOrgShared';
 import {
@@ -61,6 +63,8 @@ import {
 } from '../components/PersonAccountDisplay';
 import { ExternalUserTable, FollowStatusBadges } from '../components/ExternalUserTable';
 import { OrgCascadeSelect } from '../components/OrgCascadeSelect';
+import { InviteUserModal } from '../components/InviteUserModal';
+import { InviteRecordModal } from './InviteRecordModal';
 
 export interface CategoryItem {
   id: string;
@@ -84,6 +88,9 @@ export interface OrgNode {
   /** 外部组织管理 */
   orgType?: string;
   duty?: string;
+  /** 人员配额，含下级节点；未设置时共享上级配额 */
+  quota?: number;
+  disabled?: boolean;
 }
 
 export interface PersonnelItem {
@@ -146,6 +153,8 @@ const PERSONNEL_LABEL_OPTIONS: Array<{
   { name: '二级审核员', group: '审核员' },
   { name: '三级审核员', group: '审核员' },
 ];
+
+const EXTERNAL_QUOTA_LIMIT = 500;
 
 const getPersonnelLabelOptionsByRoles = (roles: string[] = []) =>
   PERSONNEL_LABEL_OPTIONS.filter((option) => roles.includes(option.group));
@@ -226,6 +235,18 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
   const [isLeaderActionMenuOpen, setIsLeaderActionMenuOpen] = useState(false);
   const [leaderPickerSearch, setLeaderPickerSearch] = useState('');
   const [leaderPickerPage, setLeaderPickerPage] = useState(1);
+  const [inviteTarget, setInviteTarget] = useState<{ orgId?: string } | null>(null);
+  const [isInviteRecordOpen, setIsInviteRecordOpen] = useState(false);
+  const [quotaModalOrgId, setQuotaModalOrgId] = useState<string | null>(null);
+  const [quotaInput, setQuotaInput] = useState('');
+  const [quotaUnlimited, setQuotaUnlimited] = useState(true);
+  const [localInviteCodes, setLocalInviteCodes] = useState<InviteCode[]>([]);
+  const inviteCodes = shared?.inviteCodes ?? localInviteCodes;
+  const setInviteCodes = shared?.setInviteCodes ?? setLocalInviteCodes;
+  const [leaderModalOrgId, setLeaderModalOrgId] = useState<string | null>(null);
+  const [leaderDraftIds, setLeaderDraftIds] = useState<number[]>([]);
+  const [leaderModalSearch, setLeaderModalSearch] = useState('');
+  const [leaderModalScope, setLeaderModalScope] = useState<'org' | 'all'>('org');
   const [editingPersonnel, setEditingPersonnel] = useState<PersonnelItem | null>(null);
   const [pUsername, setPUsername] = useState('');
   const [pRealName, setPRealName] = useState('');
@@ -609,7 +630,9 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
 
   const getOrgLeaderNames = (node: OrgNode) => {
     const names = getOrgLeaderPeople(node).map((person) => person.realName);
-    if (node.leaderName && !names.includes(node.leaderName)) names.push(node.leaderName);
+    (node.leaderName || '').split('、').filter(Boolean).forEach((name) => {
+      if (!names.includes(name)) names.push(name);
+    });
     return names;
   };
 
@@ -621,7 +644,9 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
 
   const getOrgLeaderPhoneSummary = (node: OrgNode) => {
     const phones = getOrgLeaderPeople(node).map((person) => person.phone);
-    if (node.leaderPhone && !phones.includes(node.leaderPhone)) phones.push(node.leaderPhone);
+    (node.leaderPhone || '').split('、').filter(Boolean).forEach((phone) => {
+      if (!phones.includes(phone)) phones.push(phone);
+    });
     if (phones.length <= 1) return phones[0] || '';
     return `${phones[0]}等${phones.length}个电话`;
   };
@@ -1057,6 +1082,95 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
     triggerToast(`已取消${person.realName}在${currentOrg.name}的负责人身份`);
   };
 
+  const getCurrentLeaderIds = (node: OrgNode) =>
+    Array.from(
+      new Set([
+        ...getOrgLeaderIds(node),
+        ...personnelList.filter((person) => !person.recycled && isPersonLeaderOfOrg(node, person)).map((person) => person.id),
+      ])
+    );
+
+  const openLeaderModal = (node: OrgNode, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setLeaderModalOrgId(node.id);
+    setLeaderDraftIds(getCurrentLeaderIds(node).slice(0, 1));
+    setLeaderModalSearch('');
+    setLeaderModalScope('org');
+  };
+
+  const closeLeaderModal = () => setLeaderModalOrgId(null);
+
+  const toggleLeaderDraft = (personId: number) => {
+    setLeaderDraftIds((prev) => (prev.includes(personId) ? [] : [personId]));
+  };
+
+  const saveOrgLeaders = () => {
+    const target = orgNodes.find((node) => node.id === leaderModalOrgId);
+    if (!target) return;
+    const prevIds = getCurrentLeaderIds(target);
+    const leaderMeta = getLeaderMetaByIds(leaderDraftIds);
+    const nextOrgNodes = orgNodes.map((node) => (node.id === target.id ? { ...node, ...leaderMeta } : node));
+    setOrgNodes(nextOrgNodes);
+    setPersonnelList((prev) =>
+      prev.map((person) => {
+        if (leaderDraftIds.includes(person.id)) return { ...person, isLeader: true };
+        if (prevIds.includes(person.id) && !personLeadsAnyOrg(person.id, nextOrgNodes)) {
+          return { ...person, isLeader: false };
+        }
+        return person;
+      })
+    );
+    setLeaderModalOrgId(null);
+    triggerToast(
+      leaderDraftIds.length > 0
+        ? `已设置「${target.name}」负责人：${leaderMeta.leaderName}`
+        : `已清空「${target.name}」的负责人`
+    );
+  };
+
+  const getPersonOwnOrg = (person: PersonnelItem) => {
+    const orgId = getDeepestOrgId(orgNodes, person.orgIds, person.primaryOrgId);
+    return orgId ? orgNodes.find((node) => node.id === orgId) : undefined;
+  };
+
+  const getLedOrgs = (person: PersonnelItem) => orgNodes.filter((node) => isPersonLeaderOfOrg(node, person));
+
+  const getLeaderActionOrg = (person: PersonnelItem) =>
+    isRootSelected ? getPersonOwnOrg(person) : currentOrg;
+
+  const toggleLeaderInOwnOrg = (person: PersonnelItem) => {
+    const ownOrg = getLeaderActionOrg(person);
+    if (!ownOrg) {
+      triggerToast(`${person.realName}尚未归属任何组织节点`);
+      return;
+    }
+    const leading = isPersonLeaderOfOrg(ownOrg, person);
+    const prevIds = getCurrentLeaderIds(ownOrg);
+    const prevNames = getOrgLeaderNames(ownOrg);
+    if (
+      !leading &&
+      prevNames.length > 0 &&
+      !confirm(`「${ownOrg.name}」当前负责人为${prevNames.join('、')}，每个节点仅一名负责人，确定替换为${person.realName}吗？`)
+    ) {
+      return;
+    }
+    const leaderMeta = getLeaderMetaByIds(leading ? [] : [person.id]);
+    const nextOrgNodes = orgNodes.map((node) => (node.id === ownOrg.id ? { ...node, ...leaderMeta } : node));
+    setOrgNodes(nextOrgNodes);
+    setPersonnelList((prev) =>
+      prev.map((item) => {
+        if (item.id === person.id) return { ...item, isLeader: !leading || personLeadsAnyOrg(item.id, nextOrgNodes) };
+        if (prevIds.includes(item.id)) return { ...item, isLeader: personLeadsAnyOrg(item.id, nextOrgNodes) };
+        return item;
+      })
+    );
+    triggerToast(
+      leading
+        ? `已取消${person.realName}的「${ownOrg.name}」负责人身份`
+        : `已将${person.realName}设为「${ownOrg.name}」负责人${prevNames.length > 0 ? `，替换原负责人${prevNames.join('、')}` : ''}`
+    );
+  };
+
   const handleTogglePersonnelLeader = (person: PersonnelItem) => {
     if (isRootSelected) {
       triggerToast('平台根节点不支持直接设置负责人');
@@ -1199,7 +1313,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
           nextLeaderIds = nextLeaderIds.filter((leaderId) => leaderId !== editingPersonnel.id);
         }
         if (shouldBeLeaderOfNode) {
-          nextLeaderIds = Array.from(new Set([...nextLeaderIds, savedPersonId]));
+          nextLeaderIds = [savedPersonId];
         }
         const nextLeaderMeta = getLeaderMetaByIds(nextLeaderIds);
 
@@ -1257,6 +1371,19 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
     const nextOrgId = moveOrgPath[moveOrgPath.length - 1];
     if (!nextOrgId) {
       triggerToast('请选择组织节点');
+      return;
+    }
+    if (isOrgDisabled(nextOrgId)) {
+      triggerToast('目标节点已停用，不能调入人员');
+      return;
+    }
+    const currentOrgId = getDeepestOrgId(orgNodes, moveOrgTarget.orgIds, moveOrgTarget.primaryOrgId);
+    const currentPathIds = new Set(currentOrgId ? getOrgAncestorIds(currentOrgId) : []);
+    const fullNode = getOrgPath(nextOrgId).find(
+      (node) => node.quota !== undefined && !currentPathIds.has(node.id) && (orgHeadcount[node.id] || 0) >= node.quota
+    );
+    if (fullNode) {
+      triggerToast(`「${fullNode.name}」人员配额已满（${orgHeadcount[fullNode.id] || 0}/${fullNode.quota}），请先调整配额`);
       return;
     }
     reassignPersonOrg(moveOrgTarget, nextOrgId);
@@ -1363,11 +1490,99 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
     currentOrgLeaderSelectorPage * orgLeaderSelectorPageSize
   );
 
+  const activatedExternalCount = personnelList.filter((person) => !person.recycled && !person.wechatUnbound).length;
+  const externalQuotaRemaining = Math.max(0, EXTERNAL_QUOTA_LIMIT - activatedExternalCount);
+  const externalQuotaRate = (activatedExternalCount / EXTERNAL_QUOTA_LIMIT) * 100;
+
+  const getNodeCapacity = (orgId: string | null | undefined): number => {
+    if (!orgId) return EXTERNAL_QUOTA_LIMIT;
+    const node = orgNodes.find((item) => item.id === orgId);
+    if (!node) return EXTERNAL_QUOTA_LIMIT;
+    return node.quota ?? getNodeCapacity(node.parentId);
+  };
+
+  const getAllocatedQuota = (parentId: string | null, excludeId?: string) =>
+    orgNodes
+      .filter((node) => (node.parentId ?? null) === parentId && node.id !== excludeId)
+      .reduce((sum, node) => sum + (node.quota ?? 0), 0);
+
+  const isOrgDisabled = (orgId: string) => getOrgPath(orgId).some((node) => node.disabled);
+
+  const openQuotaModal = (node: OrgNode) => {
+    setQuotaModalOrgId(node.id);
+    setQuotaUnlimited(node.quota === undefined);
+    setQuotaInput(node.quota !== undefined ? String(node.quota) : '');
+  };
+
+  const saveOrgQuota = () => {
+    const node = orgNodes.find((item) => item.id === quotaModalOrgId);
+    if (!node) return;
+    let nextQuota: number | undefined;
+    if (!quotaUnlimited) {
+      const value = Number(quotaInput);
+      const used = orgHeadcount[node.id] || 0;
+      const childAllocated = getAllocatedQuota(node.id);
+      const available = getNodeCapacity(node.parentId) - getAllocatedQuota(node.parentId ?? null, node.id);
+      const message = !Number.isInteger(value) || value < 1
+        ? '请输入大于 0 的整数配额'
+        : value < used
+          ? `配额不能少于本节点及下级已有人数（${used} 人）`
+          : value < childAllocated
+            ? `配额不能少于下级节点已分配的配额（${childAllocated} 人）`
+            : value > available
+              ? `超出可分配配额，${node.parentId ? '上级节点' : '根节点'}剩余可分配 ${Math.max(0, available)} 人`
+              : '';
+      if (message) {
+        triggerToast(message);
+        return;
+      }
+      nextQuota = value;
+    }
+    setOrgNodes((prev) => prev.map((item) => (item.id === node.id ? { ...item, quota: nextQuota } : item)));
+    setQuotaModalOrgId(null);
+    triggerToast(nextQuota === undefined ? `「${node.name}」已改为共享上级配额` : `已将「${node.name}」人员配额设为 ${nextQuota} 人`);
+  };
+
+  const toggleOrgDisabled = (node: OrgNode) => {
+    const descendantIds = getAllDescendantIds(node.id);
+    if (node.disabled) {
+      const disabledAncestor = getOrgPath(node.id).slice(0, -1).find((item) => item.disabled);
+      if (disabledAncestor) {
+        triggerToast(`上级节点「${disabledAncestor.name}」已停用，请先启用上级节点`);
+        return;
+      }
+    } else if (
+      !confirm(
+        `确定停用「${node.name}」吗？${descendantIds.length ? `下级 ${descendantIds.length} 个节点将同时停用，` : ''}停用后节点内人员无法登录，也不能继续邀请用户。`
+      )
+    ) {
+      return;
+    }
+    const affected = new Set([node.id, ...descendantIds]);
+    const nextDisabled = !node.disabled;
+    setOrgNodes((prev) => prev.map((item) => (affected.has(item.id) ? { ...item, disabled: nextDisabled } : item)));
+    triggerToast(nextDisabled ? `已停用「${node.name}」${descendantIds.length ? `及下级 ${descendantIds.length} 个节点` : ''}` : `已启用「${node.name}」${descendantIds.length ? `及下级 ${descendantIds.length} 个节点` : ''}`);
+  };
+
+  const openInviteForOrg = (node: OrgNode) => {
+    if (isOrgDisabled(node.id)) {
+      triggerToast(`「${node.name}」已停用，启用后才能邀请用户`);
+      return;
+    }
+    const used = orgHeadcount[node.id] || 0;
+    const capacity = getNodeCapacity(node.id);
+    if (used >= capacity) {
+      triggerToast(`「${node.name}」人员配额已满（${used}/${capacity}），请先调整配额`);
+      return;
+    }
+    setInviteTarget({ orgId: node.id });
+  };
+
   const orgHeadcount = personnelList.reduce<Record<string, number>>((acc, person) => {
     if (person.recycled) return acc;
     const personOrgId = getDeepestOrgId(orgNodes, person.orgIds, person.primaryOrgId);
     if (!personOrgId) return acc;
-    [personOrgId, ...getOrgAncestorIds(personOrgId)].forEach((id) => {
+    getOrgAncestorIds(personOrgId).forEach((id) => {
       acc[id] = (acc[id] || 0) + 1;
     });
     return acc;
@@ -1402,6 +1617,8 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
           const dragNode = orgNodes.find((item) => item.id === (draggingOrgIdRef.current || draggingOrgId));
           const canDropHere = Boolean(dragNode && dragNode.id !== node.id && sameOrgParent(dragNode, node));
           const hintHere = dropHint?.id === node.id ? dropHint.position : null;
+          const nodeLeaderNames = getOrgLeaderNames(node);
+          const nodeDisabled = isOrgDisabled(node.id);
 
           return (
             <div key={node.id}>
@@ -1494,20 +1711,54 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                     renderRenameOrgInput()
                   ) : (
                     <>
-                      <span className="truncate text-xs" title={node.name}>{node.name}</span>
                       <span
-                        className={`shrink-0 inline-flex items-center gap-0.5 text-[10px] font-normal tabular-nums ${isSelected && !isRootSelected ? 'text-[#1E5ABB]/70' : 'text-gray-400'}`}
-                        title="本机构及下级机构人数"
+                        className={`truncate min-w-[2em] text-xs ${nodeDisabled ? 'text-gray-400 line-through' : ''}`}
+                        title={nodeDisabled ? `${node.name}（已停用）` : node.name}
+                      >
+                        {node.name}
+                      </span>
+                      <span
+                        className={`shrink-0 inline-flex items-center gap-0.5 text-[10px] font-normal tabular-nums ${
+                          node.quota !== undefined && (orgHeadcount[node.id] || 0) >= node.quota
+                            ? 'text-rose-500'
+                            : isSelected && !isRootSelected
+                              ? 'text-[#1E5ABB]/70'
+                              : 'text-gray-400'
+                        }`}
+                        title={node.quota !== undefined ? '本节点及下级人数 / 人员配额' : '本节点及下级人数（共享上级配额）'}
                       >
                         <Users className="w-3 h-3" />
                         {orgHeadcount[node.id] || 0}
+                        {node.quota !== undefined && `/${node.quota}`}
                       </span>
+                      {node.disabled && (
+                        <span className="shrink-0 px-1 rounded bg-rose-50 border border-rose-100 text-[10px] font-normal text-rose-500">停用</span>
+                      )}
+                      {nodeLeaderNames.length > 0 && (
+                        <span
+                          className={`${isSelected ? 'hidden' : 'inline-flex group-hover/org:hidden'} shrink-[3] min-w-[22px] items-center gap-0.5 max-w-[64px] px-1 rounded bg-amber-50 border border-amber-100 text-[10px] font-normal text-amber-700`}
+                          title={`负责人：${nodeLeaderNames.join('、')}`}
+                        >
+                          <UserCheck className="w-2.5 h-2.5 shrink-0" />
+                          <span className="truncate min-w-0">
+                            {nodeLeaderNames.length > 1 ? `${nodeLeaderNames[0]}等${nodeLeaderNames.length}人` : nodeLeaderNames[0]}
+                          </span>
+                        </span>
+                      )}
                     </>
                   )}
                 </div>
 
                 {/* Node Hover Actions */}
-                <div className={`${renamingOrgId === node.id ? 'hidden' : isSelected ? 'opacity-100' : 'opacity-0 group-hover/org:opacity-100'} flex items-center space-x-1 transition-opacity shrink-0`}>
+                <div className={`${renamingOrgId === node.id ? 'hidden' : isSelected ? 'flex' : 'hidden group-hover/org:flex'} items-center space-x-1 shrink-0 pl-1`}>
+                  <button
+                    type="button"
+                    onClick={(e) => openLeaderModal(node, e)}
+                    title="设置节点负责人"
+                    className="p-0.5 hover:bg-amber-100 text-amber-600 rounded cursor-pointer"
+                  >
+                    <UserCheck className="w-3 h-3" />
+                  </button>
                   <button
                     type="button"
                     onClick={(e) => startAddOrg(node.id, node.categoryId, e)}
@@ -1561,7 +1812,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
       <div className={embedded ? 'flex h-full min-h-0' : 'flex flex-col lg:flex-row gap-5'}>
         {/* Left Side: Tree Navigation Card */}
         <div className={embedded
-          ? 'w-[260px] shrink-0 border-r border-slate-100 p-3 flex flex-col gap-3 min-h-0 bg-slate-50/30'
+          ? 'w-[300px] shrink-0 border-r border-slate-100 p-3 flex flex-col gap-3 min-h-0 bg-slate-50/30'
           : 'w-full lg:w-80 bg-white rounded-lg border border-gray-200/80 shadow-2xs p-4 flex flex-col space-y-3 shrink-0'}>
           {/* Search filter and tree actions */}
           <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
@@ -1826,22 +2077,22 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                 </div>
                 <button
                   type="button"
-                  onClick={() => startAddOrg(null, categories[0]?.id || 'cat-1')}
-                  className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-[#1E5ABB] hover:bg-blue-100 cursor-pointer shrink-0 whitespace-nowrap"
-                  title="在根节点下新增一级机构"
+                  onClick={() => setInviteTarget({ orgId: undefined })}
+                  className="inline-flex items-center gap-1 rounded bg-[#1E5ABB] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#134092] cursor-pointer shrink-0 whitespace-nowrap"
+                  title="邀请外部人员加入"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>新增一级机构</span>
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>邀请用户</span>
                 </button>
               </div>
 
               {/* Platform Basic Info Stat Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-1">
-                {/* 平台运营联系人 */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                {/* 负责人 */}
                 <div className="bg-gradient-to-br from-amber-50/60 to-orange-50/30 p-3 rounded-lg border border-amber-100/90 space-y-1">
                   <div className="text-xs text-gray-500 flex items-center space-x-1">
-                    <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
-                    <span>平台运营联系人</span>
+                    <UserCheck className="w-3.5 h-3.5 text-amber-600" />
+                    <span>负责人</span>
                   </div>
                   <div className="text-sm font-bold text-gray-900 pt-0.5">张三</div>
                   <div className="text-[11px] text-gray-500 font-mono flex items-center space-x-1">
@@ -1850,44 +2101,58 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                   </div>
                 </div>
 
-                {/* 3. 子机构总数 */}
-                <div className="bg-gradient-to-br from-blue-50/50 to-indigo-50/30 p-3 rounded-lg border border-blue-100/90 space-y-1">
-                  <div className="text-xs text-gray-500 flex items-center space-x-1">
-                    <Building className="w-3.5 h-3.5 text-[#1E5ABB]" />
-                    <span>子机构总数</span>
-                  </div>
-                  <div className="flex items-baseline space-x-1 pt-0.5">
-                    <span className="text-xl font-bold text-[#1E5ABB]">{orgNodes.length}</span>
-                    <span className="text-xs text-gray-500">个机构节点</span>
-                  </div>
-                  <div className="text-[10px] text-gray-400">按机构层级直接展示</div>
-                </div>
-
-                {/* 4. 二维码总数 */}
-                <div className="bg-gradient-to-br from-indigo-50/60 to-purple-50/30 p-3 rounded-lg border border-indigo-100/90 space-y-1.5">
-                  <div className="text-xs text-gray-500 flex items-center justify-between">
-                    <div className="flex items-center space-x-1">
-                      <QrCode className="w-3.5 h-3.5 text-indigo-600" />
-                      <span>二维码总数</span>
+                {/* 4. 外部配额使用统计 */}
+                <div className="md:col-span-2 bg-white p-3 rounded-lg border border-gray-200/90 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-gray-800">
+                      <Users className="w-3.5 h-3.5 text-[#1E5ABB]" />
+                      <span>外部配额使用统计</span>
                     </div>
-                    <span className="text-[10px] text-indigo-600 font-bold font-mono">
-                      {((qrUsedCount / 10000) * 100).toFixed(1)}%
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      受配额管控
                     </span>
                   </div>
-                  <div className="flex items-baseline space-x-1">
-                    <span className="text-xl font-bold text-indigo-950">10,000</span>
-                    <span className="text-xs text-gray-500">个</span>
-                  </div>
-                  <div className="space-y-1 pt-0.5">
-                    <div className="w-full bg-indigo-100 rounded-full h-1.5 overflow-hidden">
-                      <div
-                        className="bg-indigo-600 h-1.5 rounded-full transition-all duration-300"
-                        style={{ width: `${Math.min(100, Math.max(0.2, (qrUsedCount / 10000) * 100))}%` }}
-                      ></div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <div className="text-[11px] text-gray-400">已激活外部人员</div>
+                      <div className="flex items-baseline gap-0.5 pt-0.5">
+                        <span className="text-lg font-bold text-gray-800 font-mono">{activatedExternalCount}</span>
+                        <span className="text-xs text-gray-500">人</span>
+                      </div>
                     </div>
-                    <div className="text-[10px] text-indigo-600 font-medium font-mono flex justify-between">
-                      <span>已用 {qrUsedCount} 个</span>
-                      <span>剩余 {10000 - qrUsedCount} 个</span>
+                    <div>
+                      <div className="text-[11px] text-gray-400">外部上限配额</div>
+                      <div className="flex items-baseline gap-0.5 pt-0.5">
+                        <span className="text-lg font-bold text-emerald-700 font-mono">{EXTERNAL_QUOTA_LIMIT}</span>
+                        <span className="text-xs text-emerald-700">人</span>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] text-gray-400">剩余可用名额</div>
+                      <div className="flex items-baseline gap-0.5 pt-0.5">
+                        <span className="text-lg font-bold text-[#1E5ABB] font-mono">{externalQuotaRemaining}</span>
+                        <span className="text-xs text-[#1E5ABB]">人</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px] text-gray-400">
+                      <span>
+                        配额使用率
+                        <span className="ml-2 text-gray-500">
+                          已分配给一级节点 <b className="font-mono text-gray-700">{getAllocatedQuota(null)}</b> 人，未分配{' '}
+                          <b className="font-mono text-gray-700">{Math.max(0, EXTERNAL_QUOTA_LIMIT - getAllocatedQuota(null))}</b> 人
+                        </span>
+                      </span>
+                      <span className="font-mono">{externalQuotaRate.toFixed(1)}%</span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className={`h-1.5 rounded-full transition-all duration-300 ${
+                          externalQuotaRate >= 90 ? 'bg-rose-500' : externalQuotaRate >= 70 ? 'bg-amber-500' : 'bg-emerald-500'
+                        }`}
+                        style={{ width: `${Math.min(100, Math.max(1, externalQuotaRate))}%` }}
+                      />
                     </div>
                   </div>
                 </div>
@@ -1919,32 +2184,70 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
             </div>
 
             {/* Header Main Bar */}
-            <div className="flex items-center justify-between gap-3 pt-1 overflow-x-auto">
+            <div className="flex items-center justify-between gap-3 pt-1">
               <div className="flex items-center space-x-2 text-base font-bold text-gray-800 min-w-0 whitespace-nowrap">
                 <Building2 className="w-5 h-5 text-[#1E5ABB] shrink-0" />
-                <span className="truncate">{currentOrg.name}</span>
+                <span className={`truncate ${isOrgDisabled(currentOrg.id) ? 'text-gray-400' : ''}`}>{currentOrg.name}</span>
+                {isOrgDisabled(currentOrg.id) && (
+                  <span className="shrink-0 text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                    {currentOrg.disabled ? '已停用' : '上级已停用'}
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-1 text-xs font-normal text-gray-500 pl-2 ml-1 border-l border-gray-200">
+                  <UserCheck className="w-3.5 h-3.5 text-amber-500" />
+                  负责人：
+                  {getOrgLeaderNames(currentOrg).length > 0 ? (
+                    <span className="text-gray-800 font-bold" title={getOrgLeaderPhoneSummary(currentOrg)}>
+                      {getOrgLeaderNames(currentOrg).join('、')}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400">未设置</span>
+                  )}
+                </span>
+                {(() => {
+                  const used = orgHeadcount[currentOrg.id] || 0;
+                  const capacity = getNodeCapacity(currentOrg.id);
+                  const full = used >= capacity;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => openQuotaModal(currentOrg)}
+                      title="设置人员配额"
+                      className="inline-flex items-center gap-1.5 text-xs font-normal text-gray-500 pl-2 ml-1 border-l border-gray-200 hover:text-[#1E5ABB] cursor-pointer"
+                    >
+                      <Users className="w-3.5 h-3.5 text-[#1E5ABB]" />
+                      人员配额：
+                      <span className={`font-bold font-mono ${full ? 'text-rose-600' : 'text-gray-800'}`}>
+                        {used} / {capacity}
+                      </span>
+                      {currentOrg.quota === undefined && <span className="text-[10px] text-gray-400">共享上级</span>}
+                      <Edit3 className="w-3 h-3" />
+                    </button>
+                  );
+                })()}
               </div>
 
               <div className="flex items-center space-x-2 shrink-0 whitespace-nowrap">
+                <span className="inline-flex items-center gap-1.5 text-xs text-gray-500">
+                  节点状态
+                  <StatusSwitch enabled={!currentOrg.disabled} onToggle={() => toggleOrgDisabled(currentOrg)} />
+                </span>
                 <button
-                  onClick={() => {
-                    startAddOrg(currentOrg.parentId || null, currentOrg.categoryId);
-                  }}
-                  className="px-3 py-1.5 text-xs bg-white text-gray-700 border border-gray-300 rounded hover:border-[#1E5ABB] hover:text-[#1E5ABB] font-bold flex items-center space-x-1 cursor-pointer transition-colors"
-                  title="在当前机构的同一层级新增机构"
+                  onClick={() => openLeaderModal(currentOrg)}
+                  className="px-3 py-1.5 text-xs bg-amber-50 text-amber-700 border border-amber-200 rounded hover:bg-amber-100 font-bold flex items-center space-x-1 cursor-pointer transition-colors"
+                  title="设置当前节点的负责人"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>新增同级机构</span>
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>设置负责人</span>
                 </button>
                 <button
-                  onClick={() => {
-                    startAddOrg(currentOrg.id, currentOrg.categoryId);
-                  }}
-                  className="px-3 py-1.5 text-xs bg-blue-50 text-[#1E5ABB] border border-blue-200 rounded hover:bg-blue-100 font-bold flex items-center space-x-1 cursor-pointer transition-colors"
-                  title="在此节点下方新增子机构"
+                  type="button"
+                  onClick={() => openInviteForOrg(currentOrg)}
+                  className="px-3 py-1.5 text-xs bg-[#1E5ABB] text-white rounded hover:bg-[#134092] font-bold flex items-center space-x-1 cursor-pointer transition-colors"
+                  title={`邀请外部人员直接加入「${currentOrg.name}」`}
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>新增子机构</span>
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>邀请用户</span>
                 </button>
               </div>
             </div>
@@ -1994,8 +2297,42 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                 getGroupName={(id) => getGroupName(id) || id}
                 emptyText="当前节点暂无所属人员，点击右上角“新增人员”添加或调整归属"
                 onAvatarClick={openPersonnelDetail}
-                renderExtraActions={(item) => (
+                renderNameBadge={(item) => {
+                  const ledOrgs = getLedOrgs(item);
+                  if (ledOrgs.length === 0) return null;
+                  const leadsCurrent = !isRootSelected && ledOrgs.some((node) => node.id === currentOrg.id);
+                  return (
+                    <span
+                      className={`shrink-0 inline-flex items-center gap-0.5 h-4 px-1 rounded text-[10px] font-bold leading-none ${
+                        leadsCurrent
+                          ? 'bg-amber-500 text-white'
+                          : 'bg-amber-50 text-amber-700 border border-amber-200'
+                      }`}
+                      title={`负责人：${ledOrgs.map((node) => getOrgPath(node.id).map((n) => n.name).join(' / ')).join('；')}`}
+                    >
+                      <UserCheck className="w-2.5 h-2.5" />
+                      {leadsCurrent ? '本节点负责人' : `${ledOrgs[0].name}负责人`}
+                    </span>
+                  );
+                }}
+                renderExtraActions={(item) => {
+                  const ownOrg = getLeaderActionOrg(item);
+                  const leadsOwn = ownOrg ? isPersonLeaderOfOrg(ownOrg, item) : false;
+                  return (
                   <>
+                    <button
+                      type="button"
+                      onClick={() => toggleLeaderInOwnOrg(item)}
+                      disabled={!ownOrg}
+                      title={ownOrg ? `${leadsOwn ? '取消' : '设为'}「${ownOrg.name}」负责人` : '未归属组织节点'}
+                      className={`h-6 px-2 rounded border text-[11px] font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                        leadsOwn
+                          ? 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                          : 'border-amber-200 text-amber-700 hover:bg-amber-50'
+                      }`}
+                    >
+                      {leadsOwn ? '取消负责人' : '设为负责人'}
+                    </button>
                     <button
                       type="button"
                       onClick={() => openMoveOrg(item)}
@@ -2011,7 +2348,8 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                       移出
                     </button>
                   </>
-                )}
+                  );
+                }}
               />
             </div>
 
@@ -2033,6 +2371,332 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
           )}
         </div>
       </div>
+
+      {quotaModalOrgId && (() => {
+        const node = orgNodes.find((item) => item.id === quotaModalOrgId);
+        if (!node) return null;
+        const used = orgHeadcount[node.id] || 0;
+        const childAllocated = getAllocatedQuota(node.id);
+        const parentCapacity = getNodeCapacity(node.parentId);
+        const available = Math.max(0, parentCapacity - getAllocatedQuota(node.parentId ?? null, node.id));
+        const minQuota = Math.max(used, childAllocated, 1);
+        const parentName = node.parentId ? orgNodes.find((item) => item.id === node.parentId)?.name : '根节点';
+        return (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setQuotaModalOrgId(null)}>
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-md text-xs" onClick={(event) => event.stopPropagation()}>
+              <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-gray-800 text-sm flex items-center gap-1.5">
+                    <Users className="w-4 h-4 text-[#1E5ABB]" />
+                    人员配额设置
+                  </div>
+                  <div className="text-[11px] text-gray-400 mt-0.5 truncate">
+                    {getOrgPath(node.id).map((item) => item.name).join(' / ')}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setQuotaModalOrgId(null)}
+                  className="w-7 h-7 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 flex items-center justify-center cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="px-5 py-4 space-y-4">
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: '本节点及下级人数', value: used, tone: 'text-gray-800' },
+                    { label: '下级已分配配额', value: childAllocated, tone: 'text-gray-800' },
+                    { label: `${parentName}可分配`, value: available, tone: 'text-[#1E5ABB]' },
+                  ].map((stat) => (
+                    <div key={stat.label} className="rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-2">
+                      <div className="text-[11px] text-gray-400 truncate" title={stat.label}>{stat.label}</div>
+                      <div className={`text-base font-bold font-mono ${stat.tone}`}>
+                        {stat.value}
+                        <span className="text-[11px] font-normal text-gray-400 ml-0.5">人</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      checked={quotaUnlimited}
+                      onChange={() => setQuotaUnlimited(true)}
+                      className="accent-[#1E5ABB]"
+                    />
+                    <span className="font-bold text-gray-800">共享上级配额</span>
+                    <span className="text-gray-400">不单独限制，占用上级节点配额（当前上限 {parentCapacity} 人）</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      checked={!quotaUnlimited}
+                      onChange={() => {
+                        setQuotaUnlimited(false);
+                        if (!quotaInput) setQuotaInput(String(Math.min(available, Math.max(minQuota, 10))));
+                      }}
+                      className="accent-[#1E5ABB]"
+                    />
+                    <span className="font-bold text-gray-800">单独设置配额</span>
+                  </label>
+                  {!quotaUnlimited && (
+                    <div className="pl-6 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min={minQuota}
+                          max={available}
+                          value={quotaInput}
+                          onChange={(event) => setQuotaInput(event.target.value)}
+                          className="w-32 px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] font-mono"
+                        />
+                        <span className="text-gray-500">人</span>
+                      </div>
+                      <div className="text-[11px] text-gray-400">
+                        可设置范围 {minQuota} ~ {available} 人；配额包含下级节点人员，总量受根节点配额 {EXTERNAL_QUOTA_LIMIT} 人控制
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setQuotaModalOrgId(null)}
+                  className="px-4 py-1.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50 cursor-pointer"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={saveOrgQuota}
+                  className="px-4 py-1.5 bg-[#1E5ABB] text-white rounded font-bold hover:bg-[#174a9c] cursor-pointer"
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {inviteTarget && (
+        <InviteUserModal
+          key={inviteTarget.orgId || 'root'}
+          orgNodes={orgNodes}
+          inviteCodes={inviteCodes}
+          setInviteCodes={setInviteCodes}
+          activatedCount={personnelList.filter((person) => !person.recycled).length}
+          initialOrgId={inviteTarget.orgId}
+          onClose={() => setInviteTarget(null)}
+          onToast={triggerToast}
+          onOpenRecords={() => {
+            setInviteTarget(null);
+            setIsInviteRecordOpen(true);
+          }}
+        />
+      )}
+
+      {isInviteRecordOpen && (
+        <InviteRecordModal
+          inviteCodes={inviteCodes}
+          orgNodes={orgNodes}
+          onClose={() => setIsInviteRecordOpen(false)}
+          onCopy={async (text, message) => {
+            try {
+              await navigator.clipboard.writeText(text);
+              triggerToast(message);
+            } catch {
+              triggerToast('复制失败，请手动复制');
+            }
+          }}
+        />
+      )}
+
+      {leaderModalOrgId && (() => {
+        const target = orgNodes.find((node) => node.id === leaderModalOrgId);
+        if (!target) return null;
+        const scopeOrgIds = new Set([target.id, ...getAllDescendantIds(target.id)]);
+        const query = leaderModalSearch.trim().toLowerCase();
+        const candidates = personnelList.filter((person) => {
+          if (person.recycled) return false;
+          if (leaderModalScope === 'org' && !person.orgIds.some((id) => scopeOrgIds.has(id))) return false;
+          if (!query) return true;
+          return person.realName.toLowerCase().includes(query) || person.phone.includes(query);
+        });
+        const draftPeople = leaderDraftIds
+          .map((id) => personnelList.find((person) => person.id === id))
+          .filter((person): person is PersonnelItem => !!person);
+        const originalIds = getCurrentLeaderIds(target);
+        const unlinkedLeaderNames = getOrgLeaderNames(target).filter(
+          (name) => !personnelList.some((person) => originalIds.includes(person.id) && person.realName === name)
+        );
+
+        return (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={closeLeaderModal}>
+            <div
+              className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col text-xs"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-gray-800 text-sm flex items-center gap-1.5">
+                    <UserCheck className="w-4 h-4 text-amber-500" />
+                    设置节点负责人
+                  </div>
+                  <div className="text-[11px] text-gray-400 mt-0.5 truncate">
+                    {getOrgPath(target.id).map((node) => node.name).join(' / ')}，每个节点仅一名负责人
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeLeaderModal}
+                  className="w-7 h-7 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 flex items-center justify-center cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="px-5 py-3 border-b border-gray-50 space-y-2.5">
+                <div className="flex items-start gap-2">
+                  <span className="text-gray-500 shrink-0 pt-1">选定负责人</span>
+                  <div className="flex flex-wrap gap-1.5 min-h-[26px]">
+                    {draftPeople.length === 0 ? (
+                      <span className="text-gray-400 pt-1">暂未选择，确认后将清空该节点负责人</span>
+                    ) : (
+                      draftPeople.map((person) => (
+                        <span
+                          key={person.id}
+                          className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 font-bold"
+                        >
+                          {person.realName}
+                          <button
+                            type="button"
+                            onClick={() => toggleLeaderDraft(person.id)}
+                            className="w-4 h-4 rounded-full hover:bg-amber-200 flex items-center justify-center cursor-pointer"
+                            title="移除"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))
+                    )}
+                  </div>
+                </div>
+                {unlinkedLeaderNames.length > 0 && (
+                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-amber-50/70 border border-amber-100 text-amber-700">
+                    <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
+                    原负责人「{unlinkedLeaderNames.join('、')}」未关联人员账号，确认后将以本次选择为准
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <div className="inline-flex rounded border border-gray-200 p-0.5 bg-gray-50">
+                    {([
+                      { id: 'org', label: '本节点及下级人员' },
+                      { id: 'all', label: '全部人员' },
+                    ] as const).map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setLeaderModalScope(tab.id)}
+                        className={`px-2.5 py-1 rounded font-bold cursor-pointer ${
+                          leaderModalScope === tab.id ? 'bg-white text-[#1E5ABB] shadow-2xs' : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="relative flex-1">
+                    <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2" />
+                    <input
+                      type="text"
+                      value={leaderModalSearch}
+                      onChange={(e) => setLeaderModalSearch(e.target.value)}
+                      placeholder="搜索姓名 / 手机号"
+                      className="w-full pl-8 pr-3 py-1.5 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex-1 min-h-[240px] overflow-y-auto px-3 py-2">
+                {candidates.length === 0 ? (
+                  <div className="py-12 text-center text-gray-400">
+                    {leaderModalScope === 'org' ? '本节点暂无可选人员，可切换到「全部人员」选择' : '没有匹配的人员'}
+                  </div>
+                ) : (
+                  candidates.map((person) => {
+                    const checked = leaderDraftIds.includes(person.id);
+                    const personOrgId = getDeepestOrgId(orgNodes, person.orgIds, person.primaryOrgId);
+                    const orgPath = personOrgId ? getOrgPath(personOrgId).map((node) => node.name).join(' / ') : '未分配组织';
+                    return (
+                      <label
+                        key={person.id}
+                        className={`flex items-center gap-3 px-2.5 py-2 rounded cursor-pointer transition-colors ${
+                          checked ? 'bg-amber-50/70' : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="org-leader"
+                          checked={checked}
+                          onChange={() => setLeaderDraftIds([person.id])}
+                          onClick={() => checked && setLeaderDraftIds([])}
+                          className="w-3.5 h-3.5 accent-amber-500 cursor-pointer"
+                        />
+                        <span className="w-8 h-8 rounded-full overflow-hidden shrink-0 bg-slate-100">
+                          <PersonAvatar name={person.realName} src={getPersonAvatarUrl(person)} size="sm" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-gray-800">{person.realName}</span>
+                            <span className="text-gray-400 tabular-nums">{maskPhone(person.phone)}</span>
+                            {originalIds.includes(person.id) && (
+                              <span className="px-1.5 rounded bg-amber-100 text-amber-700 text-[10px] font-bold">当前负责人</span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-gray-400 truncate" title={orgPath}>{orgPath}</div>
+                        </div>
+                        <span className="text-[11px] text-gray-400 shrink-0">{person.roles.join('、')}</span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setLeaderDraftIds([])}
+                  disabled={leaderDraftIds.length === 0}
+                  className="text-rose-600 font-bold hover:underline disabled:text-gray-300 disabled:no-underline cursor-pointer disabled:cursor-not-allowed"
+                >
+                  清空负责人
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={closeLeaderModal}
+                    className="px-4 py-1.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50 cursor-pointer"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    onClick={saveOrgLeaders}
+                    className="px-4 py-1.5 bg-[#1E5ABB] text-white rounded font-bold hover:bg-[#174a9c] cursor-pointer"
+                  >
+                    确认设置
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {isPickPersonOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setIsPickPersonOpen(false)}>

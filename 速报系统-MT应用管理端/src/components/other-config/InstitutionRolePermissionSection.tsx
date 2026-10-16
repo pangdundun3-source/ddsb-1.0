@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { confirmDialog } from '../common/ConfirmDialog';
 
 interface PermissionModule {
   id: string;
@@ -450,8 +451,8 @@ const RolePermissionPanel: React.FC<PanelProps> = ({
     setRoleModal(null);
   };
 
-  const deleteRole = (role: InstitutionRole) => {
-    if (!window.confirm(`确定删除角色「${role.name}」吗？`)) return;
+  const deleteRole = async (role: InstitutionRole) => {
+    if (!(await confirmDialog(`确定删除角色「${role.name}」吗？`, { title: '删除角色', okText: '确认删除', danger: true }))) return;
     const next = roles.filter((item) => item.id !== role.id);
     setRoles(next);
     if (selectedId === role.id) setSelectedId(next[0]?.id ?? '');
@@ -469,8 +470,8 @@ const RolePermissionPanel: React.FC<PanelProps> = ({
     showToast(isGlobalScope ? '平台角色权限配置已保存' : '角色权限配置已保存并实时生效', 'success');
   };
 
-  const handleReset = () => {
-    if (!window.confirm('确定恢复默认角色权限吗？自定义角色将被清空。')) return;
+  const handleReset = async () => {
+    if (!(await confirmDialog('确定恢复默认角色权限吗？自定义角色将被清空。', { title: '恢复默认', okText: '确认恢复' }))) return;
     const defaults = isGlobalScope ? catalog.buildDefaults() : platformRoles.map((role) => ({ ...role, permissions: [...role.permissions] }));
     setRoles(defaults);
     setSelectedId(defaults[0].id);

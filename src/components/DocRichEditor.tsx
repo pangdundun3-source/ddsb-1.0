@@ -6,7 +6,14 @@ import { fromEditorMarkdown, resolveDocAssetUrl, toEditorMarkdown, uploadDocAsse
 
 export interface DocRichEditorHandle {
   /** Index into the document's headings (levels 1–4, as returned by extractDocHeadings) */
-  scrollToHeading: (index: number) => void;
+  scrollToHeading: (index: number, options?: { offset?: number; instant?: boolean }) => void;
+  /** Heading at the top of the viewport and how far the view has scrolled past it */
+  getReadingPosition: () => DocReadingPosition | null;
+}
+
+export interface DocReadingPosition {
+  index: number;
+  offset: number;
 }
 
 interface DocRichEditorProps {
@@ -81,11 +88,22 @@ export default function DocRichEditor({
   };
 
   useImperativeHandle(ref, () => ({
-    scrollToHeading: (index) => {
+    scrollToHeading: (index, options) => {
       const element = headingElements()[index];
       const offset = element && offsetInScroller(element);
       if (!offset) return;
-      offset.scroller.scrollTo({ top: offset.scroller.scrollTop + offset.top - HEADING_TOP_OFFSET, behavior: 'smooth' });
+      offset.scroller.scrollTo({
+        top: offset.scroller.scrollTop + offset.top - HEADING_TOP_OFFSET + (options?.offset ?? 0),
+        behavior: options?.instant ? 'instant' : 'smooth',
+      });
+    },
+    getReadingPosition: () => {
+      let position: DocReadingPosition | null = null;
+      headingElements().forEach((element, index) => {
+        const offset = element && offsetInScroller(element);
+        if (offset && offset.top <= HEADING_TOP_OFFSET) position = { index, offset: HEADING_TOP_OFFSET - offset.top };
+      });
+      return position;
     },
   }));
 

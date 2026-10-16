@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { PageId } from '../types';
 import {
@@ -40,6 +40,7 @@ import {
   ChevronRight,
   ChevronDown,
   Smartphone,
+  Monitor,
   ArrowRight,
   Copy,
   MoreHorizontal,
@@ -47,7 +48,8 @@ import {
   Sliders,
   SlidersHorizontal,
   UserPlus,
-  Workflow
+  Workflow,
+  X as WinCloseIcon
 } from 'lucide-react';
 import { TemplateOtherConfigPanel } from '../components/TemplateOtherConfigPanel';
 import { InviteRegisterFieldsPanel } from '../components/InviteRegisterFieldsPanel';
@@ -776,7 +778,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       },
       {
         id: '603',
-        name: '直接总机构审核通道',
+        name: '直达总机构审核通道',
         isDefault: false,
         status: '启用',
         updateTime: '2023-11-08 09:15:00',
@@ -842,6 +844,17 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         updateTime: '2023-11-10 10:00:00',
         description: '支撑全网节点重大通知广播、突发风险预警弹窗强提醒及全局公告消息穿透推送',
         isDefault: true
+      },
+      {
+        id: 'va_6',
+        name: '外部审核',
+        dictCategoryName: '增值业务',
+        dictCode: 'VA_EXTERNAL_CONTACT_AUDIT',
+        status: '停用',
+        activatedStatus: '未开通',
+        updateTime: '2023-11-10 10:00:00',
+        description: '针对外部联系人的注册激活、资料变更与组织节点调整进行审核把关，支持通过 / 驳回与审核留痕，保障外部协作人员身份真实可控',
+        isDefault: true
       }
     ]
   });
@@ -863,6 +876,13 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
   const [formDesc, setFormDesc] = useState('');
   const [formFields, setFormFields] = useState<TemplateField[]>([]);
   const [modalActiveTab, setModalActiveTab] = useState<'build' | 'preview'>('build');
+  const [previewDevice, setPreviewDevice] = useState<'h5' | 'pc'>(() => {
+    try {
+      return localStorage.getItem('v8_template_preview_device') === 'pc' ? 'pc' : 'h5';
+    } catch {
+      return 'h5';
+    }
+  });
   const [draggingFieldIndex, setDraggingFieldIndex] = useState<number | null>(null);
   const [fieldAddNotice, setFieldAddNotice] = useState('');
   const latestFieldRef = useRef<HTMLDivElement | null>(null);
@@ -1401,7 +1421,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
             note: '查看上报内容 / 前序记录 / 填写意见 / 按模板评分 / 驳回或通过评分完成'
           }
         ],
-        ruleExplanation: '【模式三：直接总机构审核】：无需任何基层或中间机构复核，直接流转至总机构管理员终审并评分，扁平极速直达。'
+        ruleExplanation: '【模式三：直达总机构审核】：无需任何基层或中间机构复核，直接流转至总机构管理员终审并评分，扁平极速直达。'
       };
     }
 
@@ -1533,7 +1553,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     },
     {
       id: 'direct_headquarters',
-      title: '模式三：直接总机构审核',
+      title: '模式三：直达总机构审核',
       subtitle: '扁平极速直达通道',
       badge: '极速直审',
       badgeStyle: 'bg-purple-50 text-purple-700 border-purple-200',
@@ -1683,7 +1703,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       ? '模式一：逐级审核（组织树自适应）'
       : mode === 'max_n_steps'
         ? `模式二：最多${item.maxIntermediateNodes || 3}级审核`
-        : '模式三：直接总机构审核（极速直达）';
+        : '模式三：直达总机构审核（极速直达）';
 
     const enabledTimeoutCount = (item.auditNodes || []).filter(n => n.enableTimeout !== false && (n.timeLimitMinutes ?? 0) > 0).length;
     const totalNodesCount = item.auditNodes?.length || (mode === 'direct_headquarters' ? 2 : 3);
@@ -2175,19 +2195,47 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     emptyText = '请先配置表单字段',
     templateType: ConfigModuleItem['templateType'] = formTemplateType,
     variant: 'compact' | 'full' = 'compact',
-    customTitle?: string
+    customTitle?: string,
+    device: 'h5' | 'pc' = 'h5'
   ) => {
     const titleText = customTitle || (templateType === '激活' ? '账号激活' : '标准图文报送模板');
+    const isPc = device === 'pc';
 
-    return (
-      <div className="bg-[#F8FAFC] rounded-2xl border border-gray-200/90 shadow-2xs overflow-hidden w-full">
-        <div className="h-11 bg-[#1E5ABB] text-white flex items-center justify-center px-4 select-none">
-          <span className="text-sm font-bold tracking-wide truncate max-w-[90%]">{titleText}</span>
-        </div>
+    const panel = (
+      <div
+        className={
+          isPc
+            ? 'bg-white rounded-lg border border-gray-200 overflow-hidden w-full max-w-[720px] mx-auto'
+            : 'bg-[#F8FAFC] rounded-2xl border border-gray-200/90 shadow-2xs overflow-hidden w-full'
+        }
+      >
+        {isPc ? (
+          <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between gap-3 select-none">
+            <div className="min-w-0 flex items-center gap-2">
+              <span className="text-sm font-bold text-gray-800 truncate">{titleText}</span>
+              <span className="text-[11px] text-gray-400 shrink-0">
+                带 <span className="text-rose-500">*</span> 为必填项
+              </span>
+            </div>
+            <span className="w-6 h-6 rounded flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+              <WinCloseIcon className="w-4 h-4" />
+            </span>
+          </div>
+        ) : (
+          <div className="h-11 bg-[#1E5ABB] text-white flex items-center justify-center px-4 select-none">
+            <span className="text-sm font-bold tracking-wide truncate max-w-[90%]">{titleText}</span>
+          </div>
+        )}
 
-        <div className={`p-3.5 sm:p-4 ${variant === 'full' ? 'space-y-3' : 'space-y-2.5'}`}>
+        <div
+          className={
+            isPc
+              ? 'p-6 grid grid-cols-2 gap-x-5 gap-y-4'
+              : `p-3.5 sm:p-4 ${variant === 'full' ? 'space-y-3' : 'space-y-2.5'}`
+          }
+        >
           {fields.length === 0 ? (
-            <div className="py-12 text-center text-gray-400 text-xs bg-white rounded-xl border border-dashed border-gray-200">
+            <div className={`py-12 text-center text-gray-400 text-xs bg-white rounded-xl border border-dashed border-gray-200 ${isPc ? 'col-span-2' : ''}`}>
               {emptyText}
             </div>
           ) : (
@@ -2196,12 +2244,20 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
               const meta = getFieldTypeMeta(field.type);
               const IconComp = meta.icon;
               const isLongText = field.type === 'text' && /内容|摘要|简述|说明|情况|描述|详情/.test(field.name);
+              const isWideOnPc = isLongText || ['address', 'file', 'identity'].includes(field.type);
               const selectOptions = field.options && field.options.length > 0
                 ? field.options.filter(option => option.trim())
                 : ['突发敏感事件', '网络舆情动态', '民生诉求建议'];
 
               return (
-                <div key={field.id || idx} className="bg-white rounded-xl border border-gray-200/80 p-3 sm:p-3.5 space-y-2 shadow-2xs">
+                <div
+                  key={field.id || idx}
+                  className={
+                    isPc
+                      ? `space-y-1.5 min-w-0 ${isWideOnPc ? 'col-span-2' : ''}`
+                      : 'bg-white rounded-xl border border-gray-200/80 p-3 sm:p-3.5 space-y-2 shadow-2xs'
+                  }
+                >
                   <label className="flex items-center justify-between gap-2">
                     <span className="text-xs font-bold text-gray-800 flex items-center gap-1.5 min-w-0">
                       {field.type === 'text' ? (
@@ -2379,9 +2435,67 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
             })
           )}
         </div>
+
+        {!isPc && (
+          <div className="px-3.5 py-3 border-t border-gray-200/80 bg-white grid grid-cols-2 gap-2.5">
+            <button type="button" className="py-2.5 text-xs border border-gray-300 rounded-lg text-gray-600 bg-white font-bold cursor-default">
+              取消
+            </button>
+            <button type="button" className="py-2.5 text-xs rounded-lg bg-[#1E5ABB] text-white font-bold cursor-default">
+              提交审核
+            </button>
+          </div>
+        )}
+
+        {isPc && (
+          <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
+            <button type="button" className="px-4 py-1.5 text-xs border border-gray-300 rounded text-gray-600 bg-white cursor-default">
+              取消
+            </button>
+            <button type="button" className="px-4 py-1.5 text-xs rounded bg-[#1E5ABB] text-white font-bold cursor-default">
+              提交审核
+            </button>
+          </div>
+        )}
       </div>
     );
+
+    return panel;
   };
+
+  const changePreviewDevice = (device: 'h5' | 'pc') => {
+    setPreviewDevice(device);
+    try {
+      localStorage.setItem('v8_template_preview_device', device);
+    } catch {
+      // ignore storage failures
+    }
+  };
+
+  const renderPreviewDeviceToggle = () => (
+    <div className="inline-flex items-center rounded-md border border-gray-200 bg-white p-0.5">
+      {([
+        { id: 'h5', label: 'H5', icon: Smartphone },
+        { id: 'pc', label: 'PC', icon: Monitor },
+      ] as const).map(option => {
+        const active = previewDevice === option.id;
+        const OptionIcon = option.icon;
+        return (
+          <button
+            key={option.id}
+            type="button"
+            onClick={() => changePreviewDevice(option.id)}
+            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-bold transition-colors cursor-pointer ${
+              active ? 'bg-[#1E5ABB] text-white' : 'text-gray-500 hover:text-[#1E5ABB]'
+            }`}
+          >
+            <OptionIcon className="w-3.5 h-3.5" />
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 
   const enabledStatsMetrics = (dataStore.stats_metric || []).filter(item => item.status === '启用');
   const getMetricPageLabel = (page: MetricDisplayPage) => metricPageOptions.find(item => item.id === page)?.label || page;
@@ -2692,7 +2806,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 
     if (mode === 'direct_headquarters') {
       if (!editingItem || formName.includes('逐级') || formName.includes('最多')) {
-        setFormName('直接总机构审核通道');
+        setFormName('直达总机构审核通道');
         setFormDesc('【扁平直审】无需下级或中间机构审核，上报人提报后直接由总机构终审并评分。');
       }
       const directNodes: AuditNode[] = [
@@ -4261,10 +4375,15 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 
                       {/* Right Column: Live User Preview */}
                       <div className="bg-gray-50/80 rounded-lg border border-gray-200/80 p-4 space-y-3">
-                        <div className="w-full flex items-center justify-between text-xs pb-1">
-                          <div className="inline-flex items-center gap-1.5 font-bold text-xs text-gray-800">
-                            <Smartphone className="w-3.5 h-3.5 text-[#1E5ABB]" />
-                            <span>移动端填报实时模拟</span>
+                        <div className="w-full flex items-center justify-between gap-3 text-xs pb-1">
+                          <div className="inline-flex items-center gap-2 font-bold text-xs text-gray-800">
+                            {previewDevice === 'pc' ? (
+                              <Monitor className="w-3.5 h-3.5 text-[#1E5ABB]" />
+                            ) : (
+                              <Smartphone className="w-3.5 h-3.5 text-[#1E5ABB]" />
+                            )}
+                            <span>{previewDevice === 'pc' ? 'PC 端填报实时模拟' : '移动端填报实时模拟'}</span>
+                            {renderPreviewDeviceToggle()}
                           </div>
                           <div className="text-xs text-gray-500 font-medium">
                             共 {formFields.length} 个表单项 · 可直接体验输入
@@ -4272,12 +4391,16 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                         </div>
 
                         <div className="flex justify-center">
-                          <div className="w-[375px] max-w-full bg-white rounded-lg p-3.5 border border-gray-200/70 shadow-2xs">
+                          <div
+                            className={`${previewDevice === 'pc' ? 'w-full max-w-[880px]' : 'w-[375px]'} max-w-full bg-white rounded-lg p-3.5 border border-gray-200/70 shadow-2xs`}
+                          >
                             {renderUserReportPreview(
                               formFields,
                               '请先在左侧添加表单字段，即可在此处实时体验用户填报效果',
                               formTemplateType,
-                              'full'
+                              'full',
+                              undefined,
+                              previewDevice
                             )}
                           </div>
                         </div>
@@ -4552,24 +4675,31 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               {/* Simulation Stage Canvas matching Add/Edit Detail Page Style */}
                               <div className="bg-gray-50/80 rounded-lg border border-gray-200/80 p-4 space-y-3 m-4 flex flex-col items-center flex-1 overflow-y-auto">
                                 {/* Preview Toolbar: Left and Right Aligned */}
-                                <div className="w-full flex items-center justify-between text-xs pb-1">
-                                  <div className="inline-flex items-center gap-1.5 font-bold text-xs text-gray-800">
-                                    <Smartphone className="w-3.5 h-3.5 text-[#1E5ABB]" />
-                                    <span>移动端填报实时模拟</span>
+                                <div className="w-full flex items-center justify-between gap-3 text-xs pb-1">
+                                  <div className="inline-flex items-center gap-2 font-bold text-xs text-gray-800">
+                                    {previewDevice === 'pc' ? (
+                                      <Monitor className="w-3.5 h-3.5 text-[#1E5ABB]" />
+                                    ) : (
+                                      <Smartphone className="w-3.5 h-3.5 text-[#1E5ABB]" />
+                                    )}
+                                    <span>{previewDevice === 'pc' ? 'PC 端填报实时模拟' : '移动端填报实时模拟'}</span>
+                                    {renderPreviewDeviceToggle()}
                                   </div>
                                   <div className="text-xs text-gray-500 font-medium">
                                     共 {(activeSelectedTemplate.fields || []).length} 个表单项 · 可直接体验输入
                                   </div>
                                 </div>
 
-                                {/* 375px Width Preview Container matching detail page */}
-                                <div className="w-[375px] max-w-full bg-white rounded-lg p-3.5 border border-gray-200/70 shadow-2xs">
+                                <div
+                                  className={`${previewDevice === 'pc' ? 'w-full' : 'w-[375px]'} max-w-full bg-white rounded-lg p-3.5 border border-gray-200/70 shadow-2xs`}
+                                >
                                   {renderUserReportPreview(
                                     activeSelectedTemplate.fields || [],
                                     '当前模板暂未配置表单字段，请点击右上角“编辑”添加',
                                     activeSelectedTemplate.templateType || '报送',
                                     'full',
-                                    activeSelectedTemplate.name
+                                    activeSelectedTemplate.name,
+                                    previewDevice
                                   )}
                                 </div>
                               </div>
@@ -6313,7 +6443,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                         <span className="font-bold text-gray-800 text-xs">审核流程模式 *</span>
                       </div>
                       <span className="text-[11px] font-bold text-[#1E5ABB] bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
-                        当前选中：{formAuditFlowMode === 'step_by_step' ? '逐级审核' : formAuditFlowMode === 'max_n_steps' ? `最多${formMaxIntermediateNodes}级审核` : '直接总机构审核'}
+                        当前选中：{formAuditFlowMode === 'step_by_step' ? '逐级审核' : formAuditFlowMode === 'max_n_steps' ? `最多${formMaxIntermediateNodes}级审核` : '直达总机构审核'}
                       </span>
                     </div>
 
@@ -6335,7 +6465,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                         },
                         {
                           id: 'direct_headquarters' as const,
-                          title: '模式三：直接总机构审核',
+                          title: '模式三：直达总机构审核',
                           badge: '极速直达',
                           badgeStyle: 'bg-purple-50 text-purple-700 border-purple-200',
                           desc: '跳过所有下级中间机构，提报后直接由总机构管理员终审并评分结案。'

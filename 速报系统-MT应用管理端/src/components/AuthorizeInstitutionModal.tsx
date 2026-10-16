@@ -29,7 +29,7 @@ interface Props {
   onManage?: (institutionId: number) => void;
 }
 
-const VERSION_OPTIONS = [
+export const VERSION_OPTIONS = [
   { value: '正式' as const, title: '正式版', desc: '全功能开放与长周期服务' },
   { value: '试用' as const, title: '试用版', desc: '短期测试评估与限额体验' },
 ];
