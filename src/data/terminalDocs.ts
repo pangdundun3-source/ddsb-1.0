@@ -31,6 +31,15 @@ const EXTERNAL_DOC_URLS: Record<string, Partial<Record<string, string>>> = {
   'mt-app': {
     PRD: 'https://bvhnst56r3r.feishu.cn/wiki/Q8Q4wWyOuiUsWDkC2UHc5MYynCc',
   },
+  'v8-client': {
+    PRD: 'https://bvhnst56r3r.feishu.cn/wiki/MZAVwhifyirxHjkj79acAd5RnTd',
+  },
+  'v8-audit-pc': {
+    PRD: 'https://bvhnst56r3r.feishu.cn/wiki/YDeYwAXZQinHULk15RWc9W14nf9',
+  },
+  'v8-audit-h5': {
+    PRD: 'https://bvhnst56r3r.feishu.cn/wiki/OLnSwFv7XiwgwOk4AdicYrcLndh',
+  },
 };
 
 /** Whether this doc name can open in-terminal (panel / hash ?doc=) */
