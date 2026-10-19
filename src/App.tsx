@@ -128,6 +128,8 @@ const terminalHash = (terminalId: string, docName?: string | null) =>
 
 const DOC_PANEL_WIDTH_KEY = 'portal_doc_panel_width';
 const DOC_PANEL_MIN_WIDTH = 360;
+/** 原型区最小适配宽度；PRD 分栏挤占后不足时保持该宽度并横向滚动，避免布局变形 */
+const PROTOTYPE_FRAME_MIN_WIDTH = 1280;
 
 const STATUS_META: Record<TerminalStatus, { label: string; dot: string; chip: string }> = {
   checking: {
@@ -361,22 +363,47 @@ export default function App() {
     setFrameHash(hash);
   };
 
-  const startPanelResize = (event: React.PointerEvent) => {
+  const startPanelResize = (event: React.PointerEvent<HTMLDivElement>) => {
     event.preventDefault();
+    event.stopPropagation();
+    const handle = event.currentTarget;
+    handle.setPointerCapture(event.pointerId);
     setIsResizingPanel(true);
+
     let width = panelWidth;
+    let raf = 0;
+    const maxWidth = () => Math.round(window.innerWidth * 0.7);
+    const clampWidth = (clientX: number) =>
+      Math.min(Math.max(window.innerWidth - clientX, DOC_PANEL_MIN_WIDTH), maxWidth());
+
     const handleMove = (moveEvent: PointerEvent) => {
-      width = Math.min(Math.max(window.innerWidth - moveEvent.clientX, DOC_PANEL_MIN_WIDTH), window.innerWidth * 0.7);
-      setPanelWidth(width);
+      const next = clampWidth(moveEvent.clientX);
+      width = next;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => setPanelWidth(next));
     };
-    const handleUp = () => {
+
+    const handleUp = (upEvent: PointerEvent) => {
+      cancelAnimationFrame(raf);
+      const next = clampWidth(upEvent.clientX);
+      width = next;
+      setPanelWidth(next);
       setIsResizingPanel(false);
-      localStorage.setItem(DOC_PANEL_WIDTH_KEY, String(Math.round(width)));
-      window.removeEventListener('pointermove', handleMove);
-      window.removeEventListener('pointerup', handleUp);
+      localStorage.setItem(DOC_PANEL_WIDTH_KEY, String(Math.round(next)));
+      try {
+        handle.releasePointerCapture(upEvent.pointerId);
+      } catch {
+        // already released
+      }
+      handle.removeEventListener('pointermove', handleMove);
+      handle.removeEventListener('pointerup', handleUp);
+      handle.removeEventListener('pointercancel', handleUp);
     };
-    window.addEventListener('pointermove', handleMove);
-    window.addEventListener('pointerup', handleUp);
+
+    handle.addEventListener('pointermove', handleMove);
+    handle.addEventListener('pointerup', handleUp);
+    handle.addEventListener('pointercancel', handleUp);
+    handleMove(event.nativeEvent);
   };
 
   const docHash = (terminalId: string, docName: string) => `#/docs/${terminalId}/${encodeURIComponent(docName)}`;
@@ -524,18 +551,22 @@ export default function App() {
           </div>
         </header>
 
-        {/* Embedded Application Frame */}
-        <main className="flex-1 min-h-0 w-full bg-[#f5f7fa] overflow-hidden flex">
-          <div className="flex-1 min-w-0 relative">
-            <iframe
-              key={`${activeTerminal.id}-${iframeKey}`}
-              ref={iframeRef}
-              src={url}
-              title={activeTerminal.name}
-              onLoad={handleFrameLoad}
-              className="w-full h-full border-0"
-            />
-            {isResizingPanel && <div className="absolute inset-0 cursor-col-resize" />}
+        {/* Embedded Application Frame：PRD 拖宽不压缩原型，不足最小宽度时横向滚动 */}
+        <main className="flex-1 min-h-0 w-full bg-[#f5f7fa] overflow-hidden flex relative">
+          {/* 拖拽时遮罩两侧 iframe，避免指针事件被抢走导致不灵敏 */}
+          {isResizingPanel && <div className="fixed inset-0 z-40 cursor-col-resize" />}
+
+          <div className="flex-1 min-w-0 relative overflow-x-auto overflow-y-hidden">
+            <div className="h-full w-full" style={{ minWidth: PROTOTYPE_FRAME_MIN_WIDTH }}>
+              <iframe
+                key={`${activeTerminal.id}-${iframeKey}`}
+                ref={iframeRef}
+                src={url}
+                title={activeTerminal.name}
+                onLoad={handleFrameLoad}
+                className="block w-full h-full border-0"
+              />
+            </div>
           </div>
 
           {panelDoc && (
@@ -543,11 +574,14 @@ export default function App() {
               <div
                 onPointerDown={startPanelResize}
                 title="拖动调整宽度"
-                className={`w-1.5 shrink-0 cursor-col-resize transition-colors ${
-                  isResizingPanel ? 'bg-[#1d61d6]/50' : 'bg-slate-200 hover:bg-[#1d61d6]/40'
+                className={`relative z-50 shrink-0 w-1 touch-none select-none cursor-col-resize transition-colors ${
+                  isResizingPanel ? 'bg-[#1d61d6]' : 'bg-slate-200 hover:bg-[#1d61d6]/70'
                 }`}
-              />
-              <aside style={{ width: panelWidth }} className="shrink-0 min-w-0 flex">
+              >
+                {/* 加宽热区，更容易抓取 */}
+                <div className="absolute inset-y-0 -left-2 -right-2" />
+              </div>
+              <aside style={{ width: panelWidth }} className="shrink-0 min-w-0 flex relative z-0">
                 <TerminalDocViewer
                   variant="panel"
                   terminalId={activeTerminal.id}
