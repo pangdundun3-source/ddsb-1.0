@@ -20,8 +20,9 @@ export interface TerminalDocsBundle {
   syncState: DocsSyncState;
 }
 
-const DOC_ORDER = ['PRD'];
-const DOC_LABELS: Record<string, string> = { CHANGELOG: '更新记录' };
+/** 门户可见的文档入口；置空即隐藏首页卡片、顶栏与分栏中的 PRD / 更新记录入口 */
+const DOC_ORDER: string[] = [];
+const DOC_LABELS: Record<string, string> = { CHANGELOG: '更新记录', PRD: 'PRD' };
 
 /** Whether this doc name appears in the portal UI (homepage chips, panel tabs, docs modal) */
 export function isPortalDoc(name: string): boolean {

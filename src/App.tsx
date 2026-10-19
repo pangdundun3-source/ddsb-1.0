@@ -452,7 +452,9 @@ export default function App() {
               );
             })}
 
-            <div className="h-5 w-px bg-slate-200" />
+            {getTerminalDocs(docsBundle, activeTerminal.id).length > 0 && (
+              <div className="h-5 w-px bg-slate-200" />
+            )}
 
             <button
               onClick={refreshIframe}
