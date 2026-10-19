@@ -8,6 +8,14 @@ This contains everything you need to run your app locally.
 
 View your app in AI Studio: https://ai.studio/apps/022eb7df-cf7c-4a8a-a8b8-e6ec5f17b5fb
 
+## 在线预览（GitHub Pages）
+
+推送到 `main` 后由 Actions 自动部署。当前预览地址：
+
+**https://pangdundun3-source.github.io/ddsb-1.0/**
+
+仓库：https://github.com/pangdundun3-source/ddsb-1.0
+
 ## Run Locally
 
 **Prerequisites:**  Node.js
