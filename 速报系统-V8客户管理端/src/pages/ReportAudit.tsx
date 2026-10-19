@@ -27,6 +27,9 @@ import {
   TrendingUp,
   FileText
 } from 'lucide-react';
+import { DateRangeField } from '../components/DateRangeField';
+import { OrgFilterSelect } from '../components/OrgFilterSelect';
+import { INITIAL_ORG_NODES, matchOrganizationByFilter } from '../data/userOrgShared';
 
 interface ReportAuditProps {
   auditPendingList: ReportItem[];
@@ -54,7 +57,8 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
   // Navigation tabs & Filter States
   const [activeTab, setActiveTab] = useState<'待审核' | '已驳回' | '已通过' | '已采纳' | '全部'>('待审核');
   const [keyword, setKeyword] = useState('');
-  const [selectedOrg, setSelectedOrg] = useState('全部');
+  /** 上报机构：外部联系人组织树节点 id；null = 全部 */
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [isBatchMatchActive, setIsBatchMatchActive] = useState(false);
@@ -78,9 +82,6 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
 
   // Source list for auditing
   const sourceList = allReports.length > 0 ? allReports : auditPendingList;
-
-  // Extract all distinct organizations for the dropdown filter
-  const orgOptions = ['全部', ...Array.from(new Set(sourceList.map((r) => r.organization).filter(Boolean)))];
 
   // KPI Calculations
   const pendingCount = sourceList.filter((r) => r.auditStatus === '待审核').length;
@@ -114,8 +115,8 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
       }
     }
 
-    // Organization filter
-    if (selectedOrg !== '全部' && item.organization !== selectedOrg) return false;
+    // 上报机构：外部联系人组织树，选中节点含下级
+    if (!matchOrganizationByFilter(item.organization, selectedOrgId, INITIAL_ORG_NODES)) return false;
 
     if (startDate && item.submitTime < startDate) return false;
     if (endDate && item.submitTime > endDate) return false;
@@ -151,7 +152,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
 
   const handleReset = () => {
     setKeyword('');
-    setSelectedOrg('全部');
+    setSelectedOrgId(null);
     setStartDate('');
     setEndDate('');
     setActiveTab('待审核');
@@ -164,7 +165,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, keyword, selectedOrg, startDate, endDate, isBatchMatchActive]);
+  }, [activeTab, keyword, selectedOrgId, startDate, endDate, isBatchMatchActive]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
@@ -400,38 +401,25 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
             </div>
           </div>
 
-          {/* 报送时间 */}
-          <div className="flex items-center space-x-1.5 shrink-0" title="报送时间">
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              title="报送开始日期"
-              className="w-[118px] px-2 py-2 border border-gray-300 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 shadow-2xs"
-            />
-            <span className="text-gray-400 font-bold">-</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              title="报送结束日期"
-              className="w-[118px] px-2 py-2 border border-gray-300 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 shadow-2xs"
+          {/* 上报时间 */}
+          <div className="flex items-center space-x-2 shrink-0">
+            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">上报时间</label>
+            <DateRangeField
+              startValue={startDate}
+              endValue={endDate}
+              onStartChange={setStartDate}
+              onEndChange={setEndDate}
+              title="上报时间区间"
+              startTitle="上报开始日期"
+              endTitle="上报结束日期"
             />
           </div>
 
-          {/* 上报机构 */}
-          <select
-            value={selectedOrg}
-            onChange={(e) => setSelectedOrg(e.target.value)}
-            title={selectedOrg === '全部' ? '上报机构' : selectedOrg}
-            className="lg:w-36 shrink-0 truncate px-2.5 py-2 border border-gray-300 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 shadow-2xs cursor-pointer"
-          >
-            {orgOptions.map((org) => (
-              <option key={org} value={org}>
-                {org === '全部' ? '全部上报机构' : org}
-              </option>
-            ))}
-          </select>
+          {/* 上报机构：外部联系人组织树，默认全部，支持下钻含子级 */}
+          <div className="flex items-center space-x-2 min-w-0 shrink-0">
+            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">上报机构</label>
+            <OrgFilterSelect value={selectedOrgId} onChange={setSelectedOrgId} />
+          </div>
 
           <div className="flex items-center gap-2 shrink-0 lg:ml-auto">
             <button

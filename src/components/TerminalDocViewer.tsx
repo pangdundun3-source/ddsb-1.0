@@ -148,7 +148,7 @@ function formatTime(iso: string) {
   return new Date(iso).toLocaleString('zh-CN', { hour12: false });
 }
 
-function ExternalDocViewer({
+function FeishuDocPanel({
   variant,
   terminalName,
   accent,
@@ -165,19 +165,14 @@ function ExternalDocViewer({
       <header
         className={`${isPanel ? 'px-3 gap-2' : 'px-5 gap-3'} h-14 border-b border-slate-100 flex items-center justify-between shrink-0`}
       >
-        <div className="flex items-center gap-2.5 min-w-0">
-          {title ?? (
-            <>
-              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: accent }} />
-              <span className="text-sm font-bold text-slate-900 truncate">
-                {terminalName} · {docLabel(docName)}
-              </span>
-            </>
-          )}
-          <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200 shrink-0">
-            飞书
-          </span>
-        </div>
+        <div className="flex items-center gap-2.5 min-w-0">{title ?? (
+          <>
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: accent }} />
+            <span className="text-sm font-bold text-slate-900 truncate">
+              {terminalName} · {docLabel(docName)}
+            </span>
+          </>
+        )}</div>
         <div className="flex items-center gap-1 shrink-0">
           <a
             href={url}
@@ -213,11 +208,12 @@ function ExternalDocViewer({
   );
 }
 
+/** 有飞书链接时直接打开飞书文档（隐藏原生 PRD 入口） */
 export function TerminalDocViewer(props: TerminalDocViewerProps) {
   const externalUrl = getExternalDocUrl(props.terminalId, props.docName);
   if (externalUrl) {
     return (
-      <ExternalDocViewer
+      <FeishuDocPanel
         variant={props.variant}
         terminalName={props.terminalName}
         accent={props.accent}

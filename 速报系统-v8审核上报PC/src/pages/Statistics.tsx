@@ -66,6 +66,7 @@ import {
   Line,
   CartesianGrid
 } from 'recharts';
+import { DateRangeField } from '../components/DateRangeField';
 
 export type TimeDimension = 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
 export type ViewPerspective = 'submitter' | 'auditor' | 'global_org';
@@ -756,28 +757,22 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
             </div>
 
             {/* Custom Range Picker */}
-            <div className="flex items-center space-x-1 bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 shadow-2xs">
-              <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value);
-                  setTimeDim('custom');
-                }}
-                className="w-24 focus:outline-none text-gray-700 font-mono text-[11px]"
-              />
-              <span className="text-gray-400">至</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => {
-                  setEndDate(e.target.value);
-                  setTimeDim('custom');
-                }}
-                className="w-24 focus:outline-none text-gray-700 font-mono text-[11px]"
-              />
-            </div>
+            <DateRangeField
+              startValue={startDate}
+              endValue={endDate}
+              onStartChange={(value) => {
+                setStartDate(value);
+                setTimeDim('custom');
+              }}
+              onEndChange={(value) => {
+                setEndDate(value);
+                setTimeDim('custom');
+              }}
+              title="统计时间区间"
+              startTitle="开始日期"
+              endTitle="结束日期"
+              inputClassName="w-24 flex-none font-mono text-[11px]"
+            />
           </div>
 
           {/* Reset */}

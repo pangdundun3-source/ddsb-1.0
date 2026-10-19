@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Search, RotateCcw } from 'lucide-react';
+import { DateRangeField } from '../components/DateRangeField';
 
 interface OpLogItem {
   id: string;
@@ -208,21 +209,16 @@ export const SystemLogs: React.FC = () => {
 
             <div>
               <label className="block text-gray-600 mb-1 font-medium">操作时间</label>
-              <div className="flex items-center space-x-1">
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-1/2 px-1.5 py-1 border border-gray-200 rounded bg-white text-[11px] text-gray-700"
-                />
-                <span className="text-gray-400">-</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-1/2 px-1.5 py-1 border border-gray-200 rounded bg-white text-[11px] text-gray-700"
-                />
-              </div>
+              <DateRangeField
+                fullWidth
+                startValue={startDate}
+                endValue={endDate}
+                onStartChange={setStartDate}
+                onEndChange={setEndDate}
+                title="操作时间区间"
+                startTitle="操作开始日期"
+                endTitle="操作结束日期"
+              />
             </div>
           </div>
 

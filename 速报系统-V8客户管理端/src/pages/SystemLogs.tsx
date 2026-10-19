@@ -13,6 +13,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import type { LogItem } from '../types';
+import { DateRangeField } from '../components/DateRangeField';
 
 type LogTab = 'operation' | 'login';
 type LogResult = '成功' | '失败';
@@ -341,21 +342,16 @@ export const SystemLogs: React.FC<SystemLogsProps> = ({ logs = [] }) => {
           </div>
           <div>
             <label className="block text-gray-600 mb-1 font-medium">日志时间</label>
-            <div className="flex items-center space-x-1">
-              <input
-                type="date"
-                value={startDate}
-                onChange={(event) => updateFilter(setStartDate, event.target.value)}
-                className="w-1/2 min-w-0 px-2 py-1.5 border border-gray-300 rounded bg-white text-gray-700 text-[11px] focus:outline-none"
-              />
-              <span className="text-gray-400">-</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(event) => updateFilter(setEndDate, event.target.value)}
-                className="w-1/2 min-w-0 px-2 py-1.5 border border-gray-300 rounded bg-white text-gray-700 text-[11px] focus:outline-none"
-              />
-            </div>
+            <DateRangeField
+              fullWidth
+              startValue={startDate}
+              endValue={endDate}
+              onStartChange={(value) => updateFilter(setStartDate, value)}
+              onEndChange={(value) => updateFilter(setEndDate, value)}
+              title="日志时间区间"
+              startTitle="日志开始日期"
+              endTitle="日志结束日期"
+            />
           </div>
         </div>
 

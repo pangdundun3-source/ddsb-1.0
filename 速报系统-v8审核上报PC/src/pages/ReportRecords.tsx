@@ -36,6 +36,7 @@ import {
   ShieldCheck,
   Info
 } from 'lucide-react';
+import { DateRangeField } from '../components/DateRangeField';
 interface OrgAccount {
   name?: string;
   role?: string;
@@ -275,21 +276,15 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
           {/* 报送时间 */}
           <div className="flex items-center space-x-2 shrink-0">
             <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">报送时间</label>
-            <div className="flex items-center space-x-1.5">
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-32 px-2.5 py-2 border border-gray-300 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 shadow-2xs"
-              />
-              <span className="text-gray-400 font-bold">-</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-32 px-2.5 py-2 border border-gray-300 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 shadow-2xs"
-              />
-            </div>
+            <DateRangeField
+              startValue={startDate}
+              endValue={endDate}
+              onStartChange={setStartDate}
+              onEndChange={setEndDate}
+              title="报送时间区间"
+              startTitle="报送开始日期"
+              endTitle="报送结束日期"
+            />
           </div>
         </div>
 

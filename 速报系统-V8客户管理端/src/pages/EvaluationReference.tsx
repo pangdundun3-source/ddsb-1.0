@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { EvaluationProfileModal, ProfileDetailData } from '../components/EvaluationProfileModal';
 import { PaginationBar } from '../components/PaginationBar';
+import { DateRangeField } from '../components/DateRangeField';
 import { PageId } from '../types';
 
 interface EvaluationReferenceProps {
@@ -663,34 +664,22 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
             })}
           </div>
 
-          <div className="relative flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs text-slate-700 shadow-xs">
-            <Calendar className="h-3.5 w-3.5 text-[#2F74FF] shrink-0" />
-            <span className="font-mono text-xs text-slate-700">{startDate}</span>
-            <Calendar className="h-3 w-3 text-slate-400 shrink-0" />
-            <span className="text-slate-400 select-none">至</span>
-            <span className="font-mono text-xs text-slate-700">{endDate}</span>
-            <Calendar className="h-3 w-3 text-slate-400 shrink-0" />
-            <input
-              type="date"
-              className="absolute left-6 top-0 h-full w-20 cursor-pointer opacity-0"
-              title="选择开始日期"
-              value={startDate.replaceAll('/', '-')}
-              onChange={(e) => {
-                setStartDate(e.target.value.replaceAll('-', '/'));
-                setPeriod('custom');
-              }}
-            />
-            <input
-              type="date"
-              className="absolute right-4 top-0 h-full w-20 cursor-pointer opacity-0"
-              title="选择结束日期"
-              value={endDate.replaceAll('/', '-')}
-              onChange={(e) => {
-                setEndDate(e.target.value.replaceAll('-', '/'));
-                setPeriod('custom');
-              }}
-            />
-          </div>
+          <DateRangeField
+            startValue={startDate.replaceAll('/', '-')}
+            endValue={endDate.replaceAll('/', '-')}
+            onStartChange={(value) => {
+              setStartDate(value.replaceAll('-', '/'));
+              setPeriod('custom');
+            }}
+            onEndChange={(value) => {
+              setEndDate(value.replaceAll('-', '/'));
+              setPeriod('custom');
+            }}
+            title="考核时间区间"
+            startTitle="选择开始日期"
+            endTitle="选择结束日期"
+            inputClassName="w-24 flex-none font-mono text-[11px]"
+          />
 
           <div className="relative flex items-center">
             <select

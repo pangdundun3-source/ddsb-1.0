@@ -23,6 +23,7 @@ import { OrgPathDisplay, getOrganizationPathText } from '../components/OrgPathDi
 import { IdentificationBadge } from '../components/IdentificationBadge';
 import { resolveIdentification } from '../services/identificationService';
 import { TransferDirectiveModal } from '../components/TransferDirectiveModal';
+import { DateRangeField } from '../components/DateRangeField';
 
 const SHARE_ICON: Record<WarehouseShareScope, React.ElementType> = {
   全机构可见: Globe,
@@ -677,9 +678,15 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
               )}
             </div>
             <span className="text-gray-500">报送时间</span>
-            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} aria-label="开始日期" className={`${filterSelect} w-32`} />
-            <span className="text-gray-400">-</span>
-            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} aria-label="结束日期" className={`${filterSelect} w-32`} />
+            <DateRangeField
+              startValue={startDate}
+              endValue={endDate}
+              onStartChange={setStartDate}
+              onEndChange={setEndDate}
+              title="报送时间区间"
+              startTitle="开始日期"
+              endTitle="结束日期"
+            />
             <select value={orgFilter} onChange={(e) => setOrgFilter(e.target.value)} aria-label="报送机构" className={`${filterSelect} max-w-[180px]`}>
               <option value="全部">全部报送机构</option>
               {activeOrgOptions.map((name) => (
@@ -1007,21 +1014,15 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
               <option value="submit">报送时间</option>
               <option value="auditComplete">审核时间</option>
             </select>
-            <div className="flex items-center space-x-1.5">
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-32 px-2.5 py-2 border border-gray-300 rounded-lg text-xs bg-white text-gray-700 shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB]"
-              />
-              <span className="text-gray-400 font-bold">-</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-32 px-2.5 py-2 border border-gray-300 rounded-lg text-xs bg-white text-gray-700 shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB]"
-              />
-            </div>
+            <DateRangeField
+              startValue={startDate}
+              endValue={endDate}
+              onStartChange={setStartDate}
+              onEndChange={setEndDate}
+              title="时间区间"
+              startTitle="开始日期"
+              endTitle="结束日期"
+            />
           </div>
 
           {/* 机构（报送机构 / 审核机构 下拉切换） */}

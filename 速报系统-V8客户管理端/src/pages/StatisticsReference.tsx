@@ -21,6 +21,7 @@ import {
   YAxis,
 } from 'recharts';
 import { PageId } from '../types';
+import { DateRangeField } from '../components/DateRangeField';
 
 interface StatisticsReferenceProps {
   onNavigate?: (page: PageId) => void;
@@ -317,40 +318,22 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
             </div>
 
             {/* 日期选择器卡片 */}
-            <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs text-slate-700 shadow-xs">
-              <Calendar className="h-3.5 w-3.5 text-[#2F74FF] shrink-0" />
-              <div className="relative flex items-center gap-1.5 cursor-pointer">
-                <span className="font-mono text-xs text-slate-700 select-none">
-                  {startDate.replaceAll('-', '/')}
-                </span>
-                <Calendar className="h-3 w-3 text-slate-400 shrink-0 pointer-events-none" />
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(event) => {
-                    setStartDate(event.target.value);
-                    setTimeRange('custom');
-                  }}
-                  className="absolute inset-0 cursor-pointer opacity-0"
-                />
-              </div>
-              <span className="text-xs text-slate-400 select-none">至</span>
-              <div className="relative flex items-center gap-1.5 cursor-pointer">
-                <span className="font-mono text-xs text-slate-700 select-none">
-                  {endDate.replaceAll('-', '/')}
-                </span>
-                <Calendar className="h-3 w-3 text-slate-400 shrink-0 pointer-events-none" />
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(event) => {
-                    setEndDate(event.target.value);
-                    setTimeRange('custom');
-                  }}
-                  className="absolute inset-0 cursor-pointer opacity-0"
-                />
-              </div>
-            </div>
+            <DateRangeField
+              startValue={startDate}
+              endValue={endDate}
+              onStartChange={(value) => {
+                setStartDate(value);
+                setTimeRange('custom');
+              }}
+              onEndChange={(value) => {
+                setEndDate(value);
+                setTimeRange('custom');
+              }}
+              title="统计时间区间"
+              startTitle="开始日期"
+              endTitle="结束日期"
+              inputClassName="w-24 flex-none font-mono text-[11px]"
+            />
 
               <select
                 value={selectedOrg}

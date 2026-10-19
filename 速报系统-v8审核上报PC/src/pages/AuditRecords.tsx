@@ -6,6 +6,9 @@ import { OrgPathDisplay, getOrganizationPathText } from '../components/OrgPathDi
 import { StackedDateTime } from '../components/StackedDateTime';
 import { ReportOriginBadge } from '../components/ReportOriginBadge';
 import { AuditRecordDetail } from './AuditRecordDetail';
+import { DateRangeField } from '../components/DateRangeField';
+import { OrgFilterSelect } from '../components/OrgFilterSelect';
+import { INITIAL_ORG_NODES, matchOrganizationByFilter } from '../data/externalOrgTree';
 
 interface AuditRecordsProps {
   records: AuditRecordItem[];
@@ -32,19 +35,8 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
   const [keyword, setKeyword] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [selectedOrg, setSelectedOrg] = useState('全部机构');
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
   const [selectedResult, setSelectedResult] = useState('通过');
-
-  const orgOptions = [
-    '全部机构',
-    '市委网信办',
-    '台中市网信办',
-    '台东区网信办',
-    '花莲区网信办',
-    '高新区宣传部',
-    '西城区网信办',
-    '东城区网信办',
-  ];
 
   const baseFiltered = records.filter((rec) => {
     if (keyword.trim()) {
@@ -59,7 +51,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
       const matchReason = rec.rejectReason?.toLowerCase().includes(q);
       if (!matchTitle && !matchAuditor && !matchSubmitter && !matchOrg && !matchOrgPath && !matchAuditorOrgPath && !matchReason) return false;
     }
-    if (selectedOrg !== '全部机构' && rec.organization !== selectedOrg) {
+    if (!matchOrganizationByFilter(rec.organization, selectedOrgId, INITIAL_ORG_NODES)) {
       return false;
     }
     if (startDate) {
@@ -85,7 +77,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
     setKeyword('');
     setStartDate('');
     setEndDate('');
-    setSelectedOrg('全部机构');
+    setSelectedOrgId(null);
     setSelectedResult('通过');
   };
 
@@ -95,7 +87,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [keyword, selectedOrg, selectedResult, startDate, endDate]);
+  }, [keyword, selectedOrgId, selectedResult, startDate, endDate]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
@@ -154,38 +146,23 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
           {/* 审核时间 */}
           <div className="flex items-center space-x-2 shrink-0">
             <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">审核时间</label>
-            <div className="flex items-center space-x-1.5">
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-32 px-2.5 py-2 border border-gray-300 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 shadow-2xs"
-              />
-              <span className="text-gray-400 font-bold">-</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-32 px-2.5 py-2 border border-gray-300 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 shadow-2xs"
-              />
-            </div>
+            <DateRangeField
+              startValue={startDate}
+              endValue={endDate}
+              onStartChange={setStartDate}
+              onEndChange={setEndDate}
+              title="审核时间区间"
+              startTitle="审核开始日期"
+              endTitle="审核结束日期"
+            />
           </div>
 
-          {/* 上报机构 */}
-          <div className="flex items-center space-x-2 shrink-0 min-w-[180px]">
+          {/* 上报机构：外部联系人组织树，默认全部，支持下钻含子级 */}
+          <div className="flex items-center space-x-2 shrink-0">
             <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">上报机构</label>
-            <select
-              value={selectedOrg}
-              onChange={(e) => setSelectedOrg(e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 shadow-2xs cursor-pointer"
-            >
-              {orgOptions.map((org) => (
-                <option key={org} value={org}>
-                  {org}
-                </option>
-              ))}
-            </select>
-          </div>        </div>
+            <OrgFilterSelect value={selectedOrgId} onChange={setSelectedOrgId} />
+          </div>
+        </div>
 
         {/* Action Row */}
         <div className="flex items-center justify-end pt-1 border-t border-gray-100">

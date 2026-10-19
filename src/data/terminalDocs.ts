@@ -26,7 +26,7 @@ const DOC_ORDER = ['PRD'];
 const HOME_DOC_ORDER: string[] = [];
 const DOC_LABELS: Record<string, string> = { CHANGELOG: '更新记录', PRD: 'PRD' };
 
-/** 外链文档：点击入口时打开该 URL，不再使用本地 Markdown 预览 */
+/** 飞书 Wiki：有配置时 PRD 分栏直接打开飞书（不再展示原生 PRD 切换） */
 const EXTERNAL_DOC_URLS: Record<string, Partial<Record<string, string>>> = {
   'mt-app': {
     PRD: 'https://bvhnst56r3r.feishu.cn/wiki/Q8Q4wWyOuiUsWDkC2UHc5MYynCc',

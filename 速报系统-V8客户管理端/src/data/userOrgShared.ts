@@ -944,6 +944,39 @@ export const getOrgChildrenOf = (orgNodes: OrgNode[], parentId: string | null) =
     .filter((node) => (node.parentId ?? null) === parentId)
     .sort((a, b) => (b.sortOrder || 0) - (a.sortOrder || 0) || a.name.localeCompare(b.name, 'zh-CN'));
 
+/** 选中节点及其全部下级（含自身） */
+export const getOrgSubtreeIds = (orgNodes: OrgNode[], orgId: string): string[] => {
+  const ids: string[] = [];
+  const walk = (id: string) => {
+    ids.push(id);
+    getOrgChildrenOf(orgNodes, id).forEach((child) => walk(child.id));
+  };
+  walk(orgId);
+  return ids;
+};
+
+export const getOrgSubtreeNames = (orgNodes: OrgNode[], orgId: string): string[] =>
+  getOrgSubtreeIds(orgNodes, orgId)
+    .map((id) => getOrgById(orgNodes, id)?.name)
+    .filter((name): name is string => Boolean(name));
+
+/**
+ * 上报机构筛选：未选=全部；选中某节点时匹配该节点及子级机构名称
+ * （数据来源：外部联系人 - 外部组织管理）
+ */
+export const matchOrganizationByFilter = (
+  organization: string | undefined,
+  selectedOrgId: string | null | undefined,
+  orgNodes: OrgNode[]
+): boolean => {
+  if (!selectedOrgId) return true;
+  const org = (organization || '').trim();
+  if (!org) return false;
+  const names = getOrgSubtreeNames(orgNodes, selectedOrgId);
+  if (names.some((name) => name === org || org.includes(name))) return true;
+  return false;
+};
+
 export const buildOrgIdPath = (orgNodes: OrgNode[], orgId?: string) => {
   if (!orgId) return [] as string[];
   const path: string[] = [];

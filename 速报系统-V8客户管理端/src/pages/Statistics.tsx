@@ -56,6 +56,7 @@ import {
 import { AllOrgMacroSection, OrgMacroData } from '../components/AllOrgMacroSection';
 import { AllOrgTrendSection } from '../components/AllOrgTrendSection';
 import { EvaluationProfileModal, ProfileDetailData } from '../components/EvaluationProfileModal';
+import { DateRangeField } from '../components/DateRangeField';
 
 export type TimeDimension = 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
 export type ViewScope = 'all_orgs' | 'current_org';
@@ -532,28 +533,22 @@ export const Statistics: React.FC<StatisticsProps> = ({ onNavigate }) => {
 
           {/* Right: Date Picker & Org Filter & Perspective Switch */}
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center space-x-1.5 bg-white border border-gray-300 rounded-lg px-2.5 py-1 text-gray-700 shadow-2xs">
-              <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value);
-                  setTimeDim('custom');
-                }}
-                className="w-24 focus:outline-none text-[11px] font-mono"
-              />
-              <span className="text-gray-400 text-xs">至</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => {
-                  setEndDate(e.target.value);
-                  setTimeDim('custom');
-                }}
-                className="w-24 focus:outline-none text-[11px] font-mono"
-              />
-            </div>
+            <DateRangeField
+              startValue={startDate}
+              endValue={endDate}
+              onStartChange={(value) => {
+                setStartDate(value);
+                setTimeDim('custom');
+              }}
+              onEndChange={(value) => {
+                setEndDate(value);
+                setTimeDim('custom');
+              }}
+              title="统计时间区间"
+              startTitle="开始日期"
+              endTitle="结束日期"
+              inputClassName="w-24 flex-none font-mono text-[11px]"
+            />
 
             <select
               value={selectedOrgFilter}

@@ -131,7 +131,7 @@ export default function App() {
   }
 
   return (
-    <div className="w-full min-h-screen bg-[#f5f7fa] flex flex-col font-sans">
+    <div className="w-full min-h-screen bg-white flex flex-col font-sans">
       {/* Toast Notification Banner */}
       {toastMessage && (
         <div className="fixed top-4 right-4 z-50 bg-[#1890ff] text-white px-5 py-3 rounded-lg shadow-lg flex items-center gap-2 text-sm animate-bounce">
@@ -160,7 +160,7 @@ export default function App() {
         />
 
         {/* Right Content Body */}
-        <main className="flex-1 bg-[#f5f7fa] overflow-y-auto overflow-x-auto min-h-[calc(100vh-74px)]">
+        <main className="flex-1 bg-white overflow-y-auto overflow-x-auto min-h-[calc(100vh-74px)]">
           <Suspense fallback={<PageLoadingFallback />}>
             {activeTab === 'institutions' && activeDetailInstitution ? (
               /* If secondary institution detail page is open */
