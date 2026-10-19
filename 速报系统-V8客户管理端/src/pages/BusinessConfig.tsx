@@ -63,6 +63,12 @@ export interface TemplateField {
   required: boolean;
   placeholder?: string;
   options?: string[];
+  /** 固定字段锁定：不可删除/排序/改类型 */
+  locked?: boolean;
+  /** 文本字段以多行输入框展示 */
+  multiline?: boolean;
+  /** 单行 / 多行文本字数上限 */
+  maxLength?: number;
 }
 
 export interface ScoreLevel {
@@ -84,6 +90,11 @@ export interface AuditNode {
   timeLimitMinutes?: number;
   enableTimeout?: boolean;
   isUnifiedFinalNode?: boolean;
+  /** 上报发起阶段（非审核节点） */
+  isSubmitStage?: boolean;
+  dynamicMechanism?: string;
+  missingRule?: 'skip' | 'block' | 'terminate_error' | 'transfer_admin';
+  timeoutReminderEnabled?: boolean;
   ownerMissingStrategy?: AuditOwnerMissingStrategy;
   ownerMissingFallbackRole?: string;
   ownerMissingFallbackUserName?: string;
@@ -196,8 +207,12 @@ interface ConfigModuleItem {
   relatedTemplateName?: string;
   templateApplyMode?: AuditTemplateApplyMode;
   auditFlowMode?: AuditFlowMode;
+  /** MT 对齐：adaptive↔step_by_step, max_n↔max_n_steps, direct↔direct_headquarters */
+  flowMode?: 'adaptive' | 'max_n' | 'direct';
   maxIntermediateNodes?: number;
   flowDepth?: number;
+  /** 最多N级时的级数计算方向，默认 up（从本级向上） */
+  flowLevelDirection?: 'up' | 'down';
   auditNodes?: AuditNode[];
   orgApplyMode?: 'all_orgs' | 'specific_orgs';
   orgSettings?: OrgScopeSetting[];
@@ -305,14 +320,76 @@ const getDefaultFieldPlaceholder = (type: FieldType) => {
   }
 };
 
-const standardReportFields: TemplateField[] = [
-  { id: 'p_1', name: '报送主题/事件标题', type: 'text', required: true, placeholder: '请输入具体报送的主题或事件全称' },
+const TITLE_FIELD_ID = 'fixed_event_title';
+const DETAIL_FIELD_ID = 'fixed_event_detail';
+const TEXT_MAX_LENGTH_DEFAULT = 20;
+const TEXTAREA_MAX_LENGTH_DEFAULT = 500;
+
+const fixedReportFields: TemplateField[] = [
+  {
+    id: TITLE_FIELD_ID,
+    name: '上报标题',
+    type: 'text',
+    required: true,
+    placeholder: '请输入上报标题',
+    maxLength: TEXT_MAX_LENGTH_DEFAULT,
+    locked: true,
+  },
+  {
+    id: DETAIL_FIELD_ID,
+    name: '上报内容描述',
+    type: 'text',
+    required: true,
+    placeholder: '请输入上报内容描述',
+    maxLength: TEXTAREA_MAX_LENGTH_DEFAULT,
+    multiline: true,
+    locked: true,
+  },
+];
+
+const isFixedReportField = (id?: string) => fixedReportFields.some(f => f.id === id);
+const isLockedField = (field?: TemplateField) => !!field && (field.locked ?? isFixedReportField(field.id));
+const isRequiredLockedField = (field?: TemplateField) => !!field && field.id === TITLE_FIELD_ID;
+
+const normalizeFixedFieldConstraints = (fields: TemplateField[]): TemplateField[] =>
+  fields.map(f => {
+    if (f.id === TITLE_FIELD_ID) {
+      const maxLength =
+        f.maxLength === undefined || f.maxLength === 50 ? TEXT_MAX_LENGTH_DEFAULT : f.maxLength;
+      return {
+        ...f,
+        type: 'text' as const,
+        multiline: false,
+        required: true,
+        locked: true,
+        maxLength,
+      };
+    }
+    if (f.id === DETAIL_FIELD_ID) {
+      return {
+        ...f,
+        type: 'text' as const,
+        multiline: true,
+        locked: true,
+        required: f.required ?? true,
+        maxLength: f.maxLength === undefined ? TEXTAREA_MAX_LENGTH_DEFAULT : f.maxLength,
+      };
+    }
+    return f;
+  });
+
+const withFixedReportFields = (fields: TemplateField[]): TemplateField[] => [
+  ...fixedReportFields.map(f => ({ ...f })),
+  ...fields.filter(f => !isFixedReportField(f.id) && !/事件标题|事件详情|上报标题|上报内容描述|报送主题/.test(f.name)),
+];
+
+const standardReportFields: TemplateField[] = withFixedReportFields([
   { id: 'p_2', name: '事件发生/发现时间', type: 'date', required: true, placeholder: '请选择事件发生或传播时间' },
   { id: 'p_3', name: '涉事热度/影响数据', type: 'number', required: false, placeholder: '请输入传播量/阅读量等数据' },
   { id: 'p_4', name: '来源网址/文章出处', type: 'link', required: false, placeholder: 'https://...' },
   { id: 'p_5', name: '现场图片/证据附件', type: 'file', required: true, placeholder: '支持图片、视频、PDF证明文档' },
   { id: 'p_6', name: '事件分类', type: 'select', required: true, placeholder: '请选择事件分类', options: ['突发敏感事件', '网络舆情动态', '民生诉求建议'] }
-];
+]);
 
 const standardActivationFields: TemplateField[] = [
   { id: 'ap_1', name: '真实姓名', type: 'text', required: true, placeholder: '请输入真实姓名' },
@@ -562,11 +639,11 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         relatedTemplateId: '1',
         relatedTemplateName: '标准图文报送模板',
         scoreLevels: [
-          { id: 'sl_1', levelName: '一等（特优）', score: 100, description: '省级以上领导批示或极高价值采纳' },
-          { id: 'sl_2', levelName: '二等（优秀）', score: 90, description: '市级领导批示或形成深度专报' },
-          { id: 'sl_3', levelName: '三等（良好）', score: 80, description: '研判要素齐全且上报迅速及时' },
-          { id: 'sl_4', levelName: '四等（合格）', score: 70, description: '基础提报符合规范与事实' },
-          { id: 'sl_5', levelName: '五等（基本）', score: 60, description: '提供线索参考价值' }
+          { id: 'sl_1', levelName: '一等', score: 100, description: '省级以上领导批示或极高价值采纳' },
+          { id: 'sl_2', levelName: '二等', score: 90, description: '市级领导批示或形成深度专报' },
+          { id: 'sl_3', levelName: '三等', score: 80, description: '研判要素齐全且上报迅速及时' },
+          { id: 'sl_4', levelName: '四等', score: 70, description: '基础提报符合规范与事实' },
+          { id: 'sl_5', levelName: '五等', score: 60, description: '提供线索参考价值' }
         ]
       },
       {
@@ -581,9 +658,9 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         relatedTemplateId: '3',
         relatedTemplateName: '突发事件快速上报',
         scoreLevels: [
-          { id: 'sl_201', levelName: '一级（优秀）', score: 10, description: '快速高效且要素极其精准' },
-          { id: 'sl_202', levelName: '二级（良好）', score: 8, description: '基本要素完整无缺失' },
-          { id: 'sl_203', levelName: '三级（合格）', score: 6, description: '仅提供初始简报线索' }
+          { id: 'sl_201', levelName: '一级', score: 10, description: '快速高效且要素极其精准' },
+          { id: 'sl_202', levelName: '二级', score: 8, description: '基本要素完整无缺失' },
+          { id: 'sl_203', levelName: '三级', score: 6, description: '仅提供初始简报线索' }
         ]
       },
       {
@@ -598,10 +675,10 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         relatedTemplateId: '1',
         relatedTemplateName: '标准图文报送模板',
         scoreLevels: [
-          { id: 'sl_301', levelName: 'A级（特级）', score: 50, description: '关键引导节点起到决定性效果' },
-          { id: 'sl_302', levelName: 'B级（高级）', score: 40, description: '有效正向引导并扭转态势' },
-          { id: 'sl_303', levelName: 'C级（中级）', score: 30, description: '按指令要求完成跟进' },
-          { id: 'sl_304', levelName: 'D级（初级）', score: 20, description: '参与协同排查' }
+          { id: 'sl_301', levelName: 'A级', score: 50, description: '关键引导节点起到决定性效果' },
+          { id: 'sl_302', levelName: 'B级', score: 40, description: '有效正向引导并扭转态势' },
+          { id: 'sl_303', levelName: 'C级', score: 30, description: '按指令要求完成跟进' },
+          { id: 'sl_304', levelName: 'D级', score: 20, description: '参与协同排查' }
         ]
       }
     ],
@@ -732,13 +809,15 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         relatedTemplateName: '全部报送模板通用',
         templateApplyMode: 'all_report_templates',
         auditFlowMode: 'step_by_step',
+        flowMode: 'adaptive',
         flowDepth: 3,
+        flowLevelDirection: 'up',
         orgApplyMode: 'all_orgs',
         ownerMissingStrategy: 'skip_to_next',
         auditNodes: [
-          { id: 'an1', nodeName: '本级机构初审', approverRole: '本级机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_submitter', timeLimitMinutes: 15 },
-          { id: 'an2', nodeName: '上级机构逐级复核', approverRole: '上级机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_previous', timeLimitMinutes: 30 },
-          { id: 'an3', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_previous', timeLimitMinutes: 60, isUnifiedFinalNode: true }
+          { id: 'an0', nodeName: '上报人', approverRole: '上报功能人员暂无限制', rejectStrategy: 'return_submitter', timeLimitMinutes: 10, dynamicMechanism: '上报功能人员暂无限制', isSubmitStage: true, enableTimeout: false },
+          { id: 'an2', nodeName: '机构逐级审核', approverRole: '归属机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_submitter', timeLimitMinutes: 30, dynamicMechanism: '自上报机构逐级向上审核' },
+          { id: 'an3', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, dynamicMechanism: '固定总机构管理员终审+评分', isUnifiedFinalNode: true }
         ],
         orgSettings: [
           { orgId: 'org1', orgName: '市委宣传部', enabled: true },
@@ -759,14 +838,16 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         relatedTemplateName: '突发事件快速上报',
         templateApplyMode: 'single_template',
         auditFlowMode: 'max_n_steps',
+        flowMode: 'max_n',
         maxIntermediateNodes: 3,
         flowDepth: 3,
+        flowLevelDirection: 'up',
         orgApplyMode: 'all_orgs',
         ownerMissingStrategy: 'skip_to_next',
         auditNodes: [
-          { id: 'an201', nodeName: '基层机构初审', approverRole: '基层机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_submitter', timeLimitMinutes: 10 },
-          { id: 'an202', nodeName: '中间机构流转 (最多3个)', approverRole: '各级审核负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_previous', timeLimitMinutes: 20 },
-          { id: 'an203', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_previous', timeLimitMinutes: 60, isUnifiedFinalNode: true }
+          { id: 'an200', nodeName: '上报人', approverRole: '上报功能人员暂无限制', rejectStrategy: 'return_submitter', timeLimitMinutes: 10, dynamicMechanism: '上报功能人员暂无限制', isSubmitStage: true, enableTimeout: false },
+          { id: 'an202', nodeName: '中间机构流转 (最多3级，含本级初审)', approverRole: '归属机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_previous', timeLimitMinutes: 20, dynamicMechanism: '含本级初审，从上报机构向上最多经过设定级数，超出直达总机构' },
+          { id: 'an203', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, dynamicMechanism: '固定总机构管理员终审+评分', isUnifiedFinalNode: true }
         ],
         orgSettings: [
           { orgId: 'org1', orgName: '市委宣传部', enabled: true },
@@ -787,12 +868,13 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         relatedTemplateName: '标准图文报送模板',
         templateApplyMode: 'single_template',
         auditFlowMode: 'direct_headquarters',
+        flowMode: 'direct',
         flowDepth: 2,
         orgApplyMode: 'all_orgs',
         ownerMissingStrategy: 'skip_to_next',
         auditNodes: [
-          { id: 'an301', nodeName: '上报人直报', approverRole: '提报人员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 10 },
-          { id: 'an302', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, isUnifiedFinalNode: true }
+          { id: 'an301', nodeName: '上报', approverRole: '上报功能人员暂无限制', rejectStrategy: 'return_submitter', timeLimitMinutes: 10, dynamicMechanism: '上报功能人员暂无限制', isSubmitStage: true, enableTimeout: false },
+          { id: 'an302', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, dynamicMechanism: '总机构直审并打分一体化', isUnifiedFinalNode: true }
         ],
         orgSettings: [
           { orgId: 'org1', orgName: '市委宣传部', enabled: true },
@@ -916,6 +998,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 
   // Audit Flow Hierarchy Enhanced States
   const [formAuditFlowMode, setFormAuditFlowMode] = useState<AuditFlowMode>('step_by_step');
+  const [formFlowLevelDirection, setFormFlowLevelDirection] = useState<'up' | 'down'>('up');
   const [formMaxIntermediateNodes, setFormMaxIntermediateNodes] = useState<number>(3);
   const [formSimulatorScenario, setFormSimulatorScenario] = useState<'depth_5' | 'depth_3' | 'depth_2'>('depth_5');
   const [detailSimulatorScenario, setDetailSimulatorScenario] = useState<'depth_5' | 'depth_3' | 'depth_2'>('depth_5');
@@ -1607,8 +1690,138 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     return option?.label || '阻止提交并提示';
   };
 
+  const fromMtFlowMode = (mode?: 'adaptive' | 'max_n' | 'direct'): AuditFlowMode => {
+    if (mode === 'max_n') return 'max_n_steps';
+    if (mode === 'direct') return 'direct_headquarters';
+    return 'step_by_step';
+  };
+
+  const toMtFlowMode = (mode?: AuditFlowMode): 'adaptive' | 'max_n' | 'direct' => {
+    if (mode === 'max_n_steps') return 'max_n';
+    if (mode === 'direct_headquarters') return 'direct';
+    return 'adaptive';
+  };
+
+  const resolveAuditFlowMode = (item: ConfigModuleItem): AuditFlowMode => {
+    if (item.auditFlowMode) return item.auditFlowMode;
+    if (item.flowMode) return fromMtFlowMode(item.flowMode);
+    if (item.name.includes('直接') || item.name.includes('直达')) return 'direct_headquarters';
+    if (item.name.includes('最多')) return 'max_n_steps';
+    return 'step_by_step';
+  };
+
+  const adaptiveStepName = '机构逐级审核';
+  const adaptiveStepMechanism = '自上报机构逐级向上审核';
+
+  const collapseAdaptiveMiddleNodes = (nodes: AuditNode[]): AuditNode[] => {
+    const isMiddle = (node: AuditNode) => {
+      if (node.isSubmitStage || node.isUnifiedFinalNode) return false;
+      const name = node.nodeName || '';
+      return name === adaptiveStepName || name.includes('本级') || name.includes('初审') || name.includes('逐级');
+    };
+    const middles = nodes.filter(isMiddle);
+    if (middles.length === 0) return nodes;
+    const kept = middles.find(node => (node.nodeName || '').includes('逐级') || node.nodeName === adaptiveStepName) || middles[0];
+    let inserted = false;
+    return nodes.flatMap(node => {
+      if (!isMiddle(node)) return [node];
+      if (!inserted && node.id === kept.id) {
+        inserted = true;
+        return [{ ...kept, nodeName: adaptiveStepName, dynamicMechanism: adaptiveStepMechanism }];
+      }
+      return [];
+    });
+  };
+
+  const maxNMiddleNodeName = (depth: number, direction: 'up' | 'down' = 'up') =>
+    direction === 'down'
+      ? `中间机构流转 (最多${depth}级，从总机构向下)`
+      : `中间机构流转 (最多${depth}级，含本级初审)`;
+
+  const maxNMiddleNodeMechanism = (direction: 'up' | 'down' = 'up') =>
+    direction === 'down'
+      ? '从总机构下一层向下取设定级数，更低层级穿透到其中最底层'
+      : '含本级初审，从上报机构向上最多经过设定级数，超出直达总机构';
+
+  const buildDefaultFlowNodes = (mode: AuditFlowMode, depth: number, direction: 'up' | 'down' = 'up'): AuditNode[] => {
+    if (mode === 'step_by_step') {
+      return [
+        { id: 'an_0', nodeName: '上报人', approverRole: '上报功能人员暂无限制', rejectStrategy: 'return_submitter', timeLimitMinutes: 10, dynamicMechanism: '上报功能人员暂无限制', missingRule: 'skip', isSubmitStage: true, enableTimeout: false },
+        { id: 'an_2', nodeName: adaptiveStepName, approverRole: '归属机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_submitter', timeLimitMinutes: 30, dynamicMechanism: adaptiveStepMechanism, missingRule: 'skip', enableTimeout: false },
+        { id: 'an_3', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, dynamicMechanism: '固定总机构管理员终审+评分', missingRule: 'block', isUnifiedFinalNode: true, enableTimeout: false }
+      ];
+    }
+    if (mode === 'max_n_steps') {
+      const level = depth || 3;
+      return [
+        { id: 'an_200', nodeName: '上报人', approverRole: '上报功能人员暂无限制', rejectStrategy: 'return_submitter', timeLimitMinutes: 10, dynamicMechanism: '上报功能人员暂无限制', missingRule: 'skip', isSubmitStage: true, enableTimeout: false },
+        { id: 'an_202', nodeName: maxNMiddleNodeName(level, direction), approverRole: '归属机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_submitter', timeLimitMinutes: 30, dynamicMechanism: maxNMiddleNodeMechanism(direction), missingRule: 'skip', enableTimeout: false },
+        { id: 'an_203', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, dynamicMechanism: '固定总机构管理员终审+评分', missingRule: 'block', isUnifiedFinalNode: true, enableTimeout: false }
+      ];
+    }
+    return [
+      { id: 'an_301', nodeName: '上报', approverRole: '上报功能人员暂无限制', rejectStrategy: 'return_submitter', timeLimitMinutes: 10, dynamicMechanism: '上报功能人员暂无限制', missingRule: 'skip', isSubmitStage: true, enableTimeout: false },
+      { id: 'an_302', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, dynamicMechanism: '总机构直审并打分一体化', missingRule: 'block', isUnifiedFinalNode: true, enableTimeout: false }
+    ];
+  };
+
+  const normalizeAuditFlowNodesForMode = (
+    mode: AuditFlowMode,
+    rawNodes: AuditNode[],
+    depth: number,
+    direction: 'up' | 'down' = 'up'
+  ): AuditNode[] => {
+    const mapped = rawNodes.map(node => ({
+      ...node,
+      assigneeSource: node.assigneeSource || 'role',
+      rejectStrategy: node.rejectStrategy || 'return_submitter',
+    }));
+    const normalized = mode === 'max_n_steps'
+      ? mapped.flatMap(node => {
+          const name = node.nodeName || '';
+          if (!node.isSubmitStage && !node.isUnifiedFinalNode && name.includes('初审') && !name.includes('中间')) return [];
+          if (name.includes('中间') || name.includes('中继')) {
+            return [{ ...node, nodeName: maxNMiddleNodeName(depth, direction), dynamicMechanism: maxNMiddleNodeMechanism(direction) }];
+          }
+          return [node];
+        })
+      : mode === 'step_by_step'
+        ? collapseAdaptiveMiddleNodes(mapped)
+        : mapped;
+    if (mode !== 'direct_headquarters' && !normalized.some(node => node.isSubmitStage)) {
+      return [
+        {
+          id: mode === 'max_n_steps' ? 'an_200' : 'an_0',
+          nodeName: '上报人',
+          approverRole: '上报功能人员暂无限制',
+          rejectStrategy: 'return_submitter' as const,
+          timeLimitMinutes: 10,
+          dynamicMechanism: '上报功能人员暂无限制',
+          missingRule: 'skip' as const,
+          enableTimeout: false,
+          isSubmitStage: true,
+        },
+        ...normalized,
+      ];
+    }
+    return normalized;
+  };
+
   const buildAuditFlowLinearPreviewData = (item: ConfigModuleItem, preferredStepsPerRow = 4, singleRowLimit = 5) => {
-    const mode = item.auditFlowMode || 'step_by_step';
+    const mode = resolveAuditFlowMode(item);
+    const direction = item.flowLevelDirection === 'down' ? 'down' : 'up';
+    const depth = item.flowDepth || item.maxIntermediateNodes || 3;
+    const rawNodes = item.auditNodes || [];
+    const nodes = mode === 'max_n_steps'
+      ? (rawNodes.length > 0
+          ? normalizeAuditFlowNodesForMode(mode, rawNodes, depth, direction)
+          : buildDefaultFlowNodes(mode, depth, direction))
+      : mode === 'direct_headquarters'
+        ? (rawNodes.length > 0 ? rawNodes : buildDefaultFlowNodes(mode, depth, direction))
+        : (rawNodes.length > 0
+            ? collapseAdaptiveMiddleNodes(rawNodes)
+            : buildDefaultFlowNodes(mode, depth, direction));
+
     let flowSteps: Array<{
       id: string;
       type: 'start' | 'node' | 'end';
@@ -1623,72 +1836,49 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       assigneeUserName?: string;
       ownerMissingStrategy?: string;
       rejectStrategy?: string;
-    }> = [];
+    }> = [
+      { id: 'start', type: 'start' as const, title: '开始', description: '发起上报' },
+      ...nodes.map((node, index) => {
+        const isFinalNode = Boolean(node.isUnifiedFinalNode || (!node.isSubmitStage && index === nodes.length - 1));
+        const roleText = node.isSubmitStage
+          ? '上报功能人员暂无限制'
+          : node.nodeName === adaptiveStepName
+            ? adaptiveStepMechanism
+            : node.assigneeSource === 'org_owner'
+              ? '归属机构负责人'
+              : node.assigneeSource === 'user'
+                ? (node.assigneeUserName || '指定人员')
+                : (node.approverRole || '审核员');
 
-    if (item.auditNodes && item.auditNodes.length > 0) {
-      flowSteps = [
-        { id: 'start', type: 'start' as const, title: '开始', description: '发起上报' },
-        ...item.auditNodes.map((node, index) => {
-          const isFinalNode = Boolean(node.isUnifiedFinalNode || index === item.auditNodes!.length - 1);
-          const assigneeText = node.assigneeSource === 'org_owner'
-            ? '归属机构负责人'
-            : node.assigneeSource === 'user'
-            ? (node.assigneeUserName || '指定人员')
-            : (node.approverRole || '审核员');
+        const isTimeoutOn = node.enableTimeout !== false && (node.timeLimitMinutes ?? 0) > 0 && !node.isSubmitStage;
+        const timeoutText = isTimeoutOn
+          ? (node.timeLimitMinutes! >= 60 && node.timeLimitMinutes! % 60 === 0
+              ? `限时${node.timeLimitMinutes! / 60}小时`
+              : `限时${node.timeLimitMinutes}分`)
+          : '';
 
-          const isTimeoutOn = node.enableTimeout !== false && (node.timeLimitMinutes ?? 0) > 0;
-          const timeoutText = isTimeoutOn
-            ? (node.timeLimitMinutes! >= 60 && node.timeLimitMinutes! % 60 === 0
-                ? `限时${node.timeLimitMinutes! / 60}小时`
-                : `限时${node.timeLimitMinutes}分`)
-            : '无提醒';
+        const rejectText = node.isSubmitStage
+          ? ''
+          : (node.rejectStrategy === 'return_previous' ? '退回上一节点' : '退回上报人');
 
-          const rejectText = node.rejectStrategy === 'return_previous' ? '退回上一节点' : '退回上报人';
-
-          return {
-            id: node.id || `node_${index}`,
-            type: 'node' as const,
-            title: node.nodeName,
-            description: assigneeText,
-            ruleDescription: `${timeoutText} · ${rejectText}`,
-            isFinalNode,
-            enableTimeout: isTimeoutOn,
-            timeLimitMinutes: node.timeLimitMinutes,
-            assigneeSource: node.assigneeSource,
-            approverRole: node.approverRole,
-            assigneeUserName: node.assigneeUserName,
-            ownerMissingStrategy: node.ownerMissingStrategy,
-            rejectStrategy: node.rejectStrategy
-          };
-        }),
-        { id: 'end', type: 'end' as const, title: '结束', description: '审核+评分+流程全完成' }
-      ];
-    } else if (mode === 'direct_headquarters') {
-      flowSteps = [
-        { id: 'start', type: 'start' as const, title: '开始', description: '发起上报' },
-        { id: 'node_submitter', type: 'node' as const, title: '上报人直报', description: '业务/网格提报员', ruleDescription: '无需基层与中间机构流转，直达总机构' },
-        { id: 'node_final', type: 'node' as const, title: '总机构终审并评分', description: '总机构管理员', ruleDescription: '终审与评分一体化完成，不拆分流程节点', isFinalNode: true },
-        { id: 'end', type: 'end' as const, title: '结束', description: '审核+评分+流程全完成' }
-      ];
-    } else if (mode === 'max_n_steps') {
-      const maxN = item.maxIntermediateNodes || 3;
-      flowSteps = [
-        { id: 'start', type: 'start' as const, title: '开始', description: '发起上报' },
-        { id: 'node_base', type: 'node' as const, title: '基层机构初审', description: '提交机构负责人', ruleDescription: '就地初核，时效15分钟' },
-        { id: 'node_inter', type: 'node' as const, title: `中间机构 (最多${maxN}级)`, description: '各级审核负责人', ruleDescription: '最多N级自适应流转，不足不报错不强制补齐' },
-        { id: 'node_final', type: 'node' as const, title: '总机构终审并评分', description: '总机构管理员', ruleDescription: '终审与评分一体化完成，不拆分流程节点', isFinalNode: true },
-        { id: 'end', type: 'end' as const, title: '结束', description: '审核+评分+流程全完成' }
-      ];
-    } else {
-      // step_by_step
-      flowSteps = [
-        { id: 'start', type: 'start' as const, title: '开始', description: '发起上报' },
-        { id: 'node_base', type: 'node' as const, title: '本级机构初审', description: '归属机构负责人', ruleDescription: '提报机构就地核实初审' },
-        { id: 'node_inter', type: 'node' as const, title: '上级机构逐级复核', description: '组织树向上回溯', ruleDescription: '系统根据组织树动态解析，无需配置上N级' },
-        { id: 'node_final', type: 'node' as const, title: '总机构终审并评分', description: '总机构管理员', ruleDescription: '终审与评分一体化完成，不拆分流程节点', isFinalNode: true },
-        { id: 'end', type: 'end' as const, title: '结束', description: '审核+评分+流程全完成' }
-      ];
-    }
+        return {
+          id: node.id || `node_${index}`,
+          type: 'node' as const,
+          title: node.nodeName,
+          description: roleText,
+          ruleDescription: [timeoutText, rejectText].filter(Boolean).join(' · ') || (node.dynamicMechanism || ''),
+          isFinalNode,
+          enableTimeout: isTimeoutOn,
+          timeLimitMinutes: node.timeLimitMinutes,
+          assigneeSource: node.assigneeSource,
+          approverRole: node.approverRole,
+          assigneeUserName: node.assigneeUserName,
+          ownerMissingStrategy: node.ownerMissingStrategy,
+          rejectStrategy: node.rejectStrategy
+        };
+      }),
+      { id: 'end', type: 'end' as const, title: '结束', description: '审核+评分+流程全完成' }
+    ];
 
     const stepsPerRow = flowSteps.length <= singleRowLimit ? flowSteps.length : preferredStepsPerRow;
     const flowRows = flowSteps.reduce<Array<typeof flowSteps>>((rows, step, index) => {
@@ -1702,11 +1892,17 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     const modeLabel = mode === 'step_by_step'
       ? '模式一：逐级审核（组织树自适应）'
       : mode === 'max_n_steps'
-        ? `模式二：最多${item.maxIntermediateNodes || 3}级审核`
+        ? `模式二：最多${depth}级审核`
         : '模式三：直达总机构审核（极速直达）';
 
-    const enabledTimeoutCount = (item.auditNodes || []).filter(n => n.enableTimeout !== false && (n.timeLimitMinutes ?? 0) > 0).length;
-    const totalNodesCount = item.auditNodes?.length || (mode === 'direct_headquarters' ? 2 : 3);
+    const stageText = mode === 'direct_headquarters'
+      ? '2 级阶段（标准固定）'
+      : mode === 'max_n_steps'
+        ? `3 级阶段（上限${depth}级截断）`
+        : `${nodes.length} 级阶段（组织树自适应）`;
+
+    const enabledTimeoutCount = nodes.filter(n => !n.isSubmitStage && n.enableTimeout !== false && (n.timeLimitMinutes ?? 0) > 0).length;
+    const totalNodesCount = nodes.length;
 
     const timeoutSummary = totalNodesCount > 0
       ? enabledTimeoutCount === 0
@@ -1724,7 +1920,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       summaryItems: [
         { label: '流程模式', value: modeLabel },
         { label: '启用状态', value: item.status || '启用' },
-        { label: '审批阶段', value: `${totalNodesCount} 级阶段（标准固定）` },
+        { label: '审批阶段', value: stageText },
         { label: '终审评分机制', value: '总机构终审并评分（一体化统一节点）' },
         { label: '超时提醒配置', value: timeoutSummary },
         { label: '无负责人策略', value: getOwnerMissingStrategyText(item) },
@@ -2083,10 +2279,26 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
   };
 
   const handleUpdateField = (index: number, updates: Partial<TemplateField>) => {
-    setFormFields(prev => prev.map((f, i) => (i === index ? { ...f, ...updates } : f)));
+    setFormFields(prev => prev.map((f, i) => {
+      if (i !== index) return f;
+      if (isLockedField(f)) {
+        const next = { ...f, ...updates };
+        // 锁定字段不可改类型 / 多行属性 / 锁定标记
+        next.type = f.type;
+        next.multiline = f.multiline;
+        next.locked = true;
+        if (isRequiredLockedField(f)) next.required = true;
+        return next;
+      }
+      return { ...f, ...updates };
+    }));
   };
 
   const handleDeleteField = (index: number) => {
+    if (isLockedField(formFields[index])) {
+      alert('固定字段不可删除');
+      return;
+    }
     const removedFieldId = formFields[index]?.id;
     setFormFields(prev => prev.filter((_, i) => i !== index));
     if (removedFieldId) {
@@ -2103,12 +2315,18 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
   };
 
   const openPreviewItem = (item: ConfigModuleItem) => {
+    // 增值业务不提供详情弹窗，仅卡片展示与开通/启禁
+    if (activeModule === 'value_added') return;
     setPreviewValues({});
     setPreviewItem(item);
   };
 
   const handleDropField = (targetIndex: number) => {
     if (draggingFieldIndex === null || draggingFieldIndex === targetIndex) {
+      setDraggingFieldIndex(null);
+      return;
+    }
+    if (isLockedField(formFields[draggingFieldIndex]) || isLockedField(formFields[targetIndex])) {
       setDraggingFieldIndex(null);
       return;
     }
@@ -2243,8 +2461,10 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
               const fieldValue = previewValues[field.id] || '';
               const meta = getFieldTypeMeta(field.type);
               const IconComp = meta.icon;
-              const isLongText = field.type === 'text' && /内容|摘要|简述|说明|情况|描述|详情/.test(field.name);
-              const isWideOnPc = isLongText || ['address', 'file', 'identity'].includes(field.type);
+              const isLongText = field.type === 'text' && (
+                !!field.multiline || /内容|摘要|简述|说明|情况|描述|详情/.test(field.name)
+              );
+              const isWideOnPc = isLongText || isLockedField(field) || ['address', 'file', 'identity'].includes(field.type);
               const selectOptions = field.options && field.options.length > 0
                 ? field.options.filter(option => option.trim())
                 : ['突发敏感事件', '网络舆情动态', '民生诉求建议'];
@@ -2276,6 +2496,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                     isLongText ? (
                       <textarea
                         rows={4}
+                        maxLength={field.maxLength}
                         value={fieldValue}
                         onChange={(e) => handlePreviewValueChange(field.id, e.target.value)}
                         placeholder={field.placeholder || '请输入相关内容'}
@@ -2284,6 +2505,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                     ) : (
                       <input
                         type="text"
+                        maxLength={field.maxLength}
                         value={fieldValue}
                         onChange={(e) => handlePreviewValueChange(field.id, e.target.value)}
                         placeholder={field.placeholder || '请输入相关内容'}
@@ -2666,15 +2888,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 
   const openEditTemplatePage = (item: ConfigModuleItem) => {
     if (item.isDefault) {
-      setEditingItem(item);
-      setFormName(item.name);
-      setFormTemplateType(item.templateType || '报送');
-      setFormDesc(item.description || '');
-      setFormScoreStatus(item.status);
-      setPreviewValues({});
-      setFormFields(item.fields && item.fields.length > 0 ? item.fields : []);
-      setTemplateDetailMode('view');
-      setIsTemplateDetailPageOpen(true);
+      alert('系统默认模板受平台全局统一管控，机构端不支持编辑。如需个性化，请复制为新模板或新建自定义模板。');
       return;
     }
     setEditingItem(item);
@@ -2756,6 +2970,13 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     }
 
     const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const savedFields = formTemplateType === '报送'
+      ? normalizeFixedFieldConstraints(
+          formFields.some(f => isFixedReportField(f.id))
+            ? formFields
+            : withFixedReportFields(formFields)
+        )
+      : formFields;
 
     if (editingItem && !editingItem.isDefault) {
       setDataStore(prev => ({
@@ -2769,7 +2990,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                 status: formScoreStatus,
                 description: formDesc.trim(),
                 updateTime: nowStr,
-                fields: formFields
+                fields: savedFields
               }
             : item
         )
@@ -2784,7 +3005,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         status: formScoreStatus,
         updateTime: nowStr,
         description: formDesc.trim() || `${formTemplateType}模板配置`,
-        fields: formFields
+        fields: savedFields
       };
       setDataStore(prev => ({
         ...prev,
@@ -2809,56 +3030,60 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         setFormName('直达总机构审核通道');
         setFormDesc('【扁平直审】无需下级或中间机构审核，上报人提报后直接由总机构终审并评分。');
       }
-      const directNodes: AuditNode[] = [
-        { id: 'an_dir_1', nodeName: '发起上报直报', approverRole: '提报人员', assigneeSource: 'role' as const, rejectStrategy: 'return_submitter' as const, timeLimitMinutes: 10 },
-        { id: 'an_dir_final', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role' as const, rejectStrategy: 'return_submitter' as const, timeLimitMinutes: 60, isUnifiedFinalNode: true }
-      ];
+      const directNodes = buildDefaultFlowNodes('direct_headquarters', 2);
       setFormAuditNodes(directNodes);
-      setSelectedAuditNodeId(directNodes[1].id);
+      setSelectedAuditNodeId(directNodes[0]?.id || null);
       setFormFlowDepth(2);
     } else if (mode === 'max_n_steps') {
+      const depth = formMaxIntermediateNodes || 3;
+      const direction = formFlowLevelDirection === 'down' ? 'down' : 'up';
       if (!editingItem || formName.includes('逐级') || formName.includes('直接')) {
-        setFormName(`最多${formMaxIntermediateNodes}级快速审核流程`);
-        setFormDesc(`【上限截断】下级机构提报后最多经过${formMaxIntermediateNodes}个中间机构审核后直达总机构终审并评分。不足${formMaxIntermediateNodes}级按实际层级自适应审核，不强制补齐。`);
+        setFormName(`最多${depth}级快速审核流程`);
+        setFormDesc(`【上限截断】下级机构提报后最多经过${depth}个中间机构审核后直达总机构终审并评分。不足${depth}级按实际层级自适应审核，不强制补齐。`);
       }
-      const maxNNodes: AuditNode[] = [
-        { id: 'an_max_1', nodeName: '基层机构初审', approverRole: '基层机构负责人', assigneeSource: 'org_owner' as const, rejectStrategy: 'return_submitter' as const, timeLimitMinutes: 15 },
-        { id: 'an_max_2', nodeName: `中间机构流转 (最多${formMaxIntermediateNodes}级)`, approverRole: '各级审核负责人', assigneeSource: 'org_owner' as const, rejectStrategy: 'return_previous' as const, timeLimitMinutes: 30 },
-        { id: 'an_max_final', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role' as const, rejectStrategy: 'return_previous' as const, timeLimitMinutes: 60, isUnifiedFinalNode: true }
-      ];
+      const maxNNodes = buildDefaultFlowNodes('max_n_steps', depth, direction);
       setFormAuditNodes(maxNNodes);
-      setSelectedAuditNodeId(maxNNodes[0].id);
-      setFormFlowDepth(3);
+      setSelectedAuditNodeId(maxNNodes[0]?.id || null);
+      setFormFlowDepth(depth);
     } else {
-      // step_by_step
       if (!editingItem || formName.includes('最多') || formName.includes('直接')) {
         setFormName('逐级审核流程（组织树自适应）');
         setFormDesc('本级机构提报后沿组织树逐级向上传递审核，最终由总机构终审并评分。系统动态解析审核路径，自动适配任意组织深度。');
       }
-      const stepNodes: AuditNode[] = [
-        { ...createDefaultAuditNode(1), id: 'an_1', nodeName: '本级机构初审', approverRole: '本级机构负责人', assigneeSource: 'org_owner' as const, timeLimitMinutes: 15 },
-        { ...createDefaultAuditNode(2), id: 'an_2', nodeName: '上级机构逐级复核', approverRole: '上级机构负责人', assigneeSource: 'org_owner' as const, timeLimitMinutes: 30 },
-        { ...createDefaultAuditNode(3), id: 'an_3', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role' as const, timeLimitMinutes: 60, isUnifiedFinalNode: true }
-      ];
+      const stepNodes = buildDefaultFlowNodes('step_by_step', 3);
       setFormAuditNodes(stepNodes);
-      setSelectedAuditNodeId(stepNodes[0].id);
+      setSelectedAuditNodeId(stepNodes[0]?.id || null);
       setFormFlowDepth(3);
     }
+  };
+
+  const renameMaxNMiddleNode = (depth: number, direction: 'up' | 'down') => {
+    setFormAuditNodes(prev =>
+      prev.map(node => {
+        if (node.id === 'an_202' || node.id === 'an202' || (node.nodeName || '').includes('中间机构') || (node.nodeName || '').includes('中继')) {
+          return { ...node, nodeName: maxNMiddleNodeName(depth, direction), dynamicMechanism: maxNMiddleNodeMechanism(direction) };
+        }
+        return node;
+      })
+    );
   };
 
   const handleMaxIntermediateNodesChange = (newCount: number) => {
     const val = Math.max(1, Math.min(5, newCount));
     setFormMaxIntermediateNodes(val);
+    setFormFlowDepth(val);
     if (formAuditFlowMode === 'max_n_steps') {
-      setFormAuditNodes(prev => prev.map(n => {
-        if (n.id.includes('max_2') || n.nodeName.includes('中间机构')) {
-          return { ...n, nodeName: `中间机构流转 (最多${val}级)` };
-        }
-        return n;
-      }));
+      renameMaxNMiddleNode(val, formFlowLevelDirection);
       if (!editingItem || formName.includes('最多')) {
         setFormName(`最多${val}级快速审核流程`);
       }
+    }
+  };
+
+  const handleMaxNDirectionChange = (direction: 'up' | 'down') => {
+    setFormFlowLevelDirection(direction);
+    if (formAuditFlowMode === 'max_n_steps') {
+      renameMaxNMiddleNode(formMaxIntermediateNodes || formFlowDepth || 3, direction);
     }
   };
 
@@ -2899,11 +3124,11 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       const defaultTpl = enabledReportTemplates[0];
       setFormRelatedTemplateId(defaultTpl ? defaultTpl.id : '1');
       setFormScoreLevels([
-        { id: 'sl_1', levelName: '一等（特优）', score: 100, description: '特优级标准' },
-        { id: 'sl_2', levelName: '二等（优秀）', score: 90, description: '优秀级标准' },
-        { id: 'sl_3', levelName: '三等（良好）', score: 80, description: '良好级标准' },
-        { id: 'sl_4', levelName: '四等（合格）', score: 70, description: '合格级标准' },
-        { id: 'sl_5', levelName: '五等（基本）', score: 60, description: '基本级标准' }
+        { id: 'sl_1', levelName: '一等', score: 100, description: '特优级标准' },
+        { id: 'sl_2', levelName: '二等', score: 90, description: '优秀级标准' },
+        { id: 'sl_3', levelName: '三等', score: 80, description: '良好级标准' },
+        { id: 'sl_4', levelName: '四等', score: 70, description: '合格级标准' },
+        { id: 'sl_5', levelName: '五等', score: 60, description: '基本级标准' }
       ]);
     } else if (activeModule === 'audit_flow') {
       setFormName('逐级审核流程（组织树自适应）');
@@ -2914,6 +3139,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       setFormTemplateApplyMode('all_report_templates');
       setFormAuditFlowMode('step_by_step');
       setFormMaxIntermediateNodes(3);
+      setFormFlowLevelDirection('up');
       setFormSimulatorScenario('depth_5');
       setSimResultStatus('idle');
       setFormFlowDepth(3);
@@ -2923,13 +3149,9 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       setFormOwnerMissingFallbackRole('机构管理员');
       setFormOwnerMissingFallbackUserName('');
       resetOrgPickerState();
-      const defaultFlowNodes = [
-        { ...createDefaultAuditNode(1), id: 'an_1', nodeName: '本级机构初审', approverRole: '本级机构负责人', assigneeSource: 'org_owner' as const, timeLimitMinutes: 15 },
-        { ...createDefaultAuditNode(2), id: 'an_2', nodeName: '上级机构逐级复核', approverRole: '上级机构负责人', assigneeSource: 'org_owner' as const, timeLimitMinutes: 30 },
-        { ...createDefaultAuditNode(3), id: 'an_3', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role' as const, timeLimitMinutes: 60, isUnifiedFinalNode: true }
-      ];
+      const defaultFlowNodes = buildDefaultFlowNodes('step_by_step', 3);
       setFormAuditNodes(defaultFlowNodes);
-      setSelectedAuditNodeId(defaultFlowNodes[0].id);
+      setSelectedAuditNodeId(defaultFlowNodes[0]?.id || null);
     } else if (activeModule === 'evaluation_rule') {
       setFormName('人员考核配置');
       setFormDesc('用于配置人员月度目标上报量和数量、质量评分权重，考核页面按周期自动计算人员得分、等级和排名。');
@@ -2959,7 +3181,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       return;
     }
     if (item.isDefault && activeModule !== 'evaluation_rule') {
-      alert('系统默认模板不支持删除和修改！仅提供查看功能。如需个性化格式，请新建“自定义”模板。');
+      alert('系统默认配置受平台全局统一管控，机构端仅提供查看功能。如需个性化格式，请新建“自定义”规则。');
       openPreviewItem(item);
       return;
     }
@@ -3003,11 +3225,15 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       const defaultTpl = enabledReportTemplates[0];
       setFormRelatedTemplateId(item.relatedTemplateId || (defaultTpl ? defaultTpl.id : '1'));
       setFormTemplateApplyMode(item.templateApplyMode || (item.relatedTemplateId === 'all_report_templates' ? 'all_report_templates' : 'single_template'));
-      setFormAuditFlowMode(item.auditFlowMode || 'step_by_step');
-      setFormMaxIntermediateNodes(item.maxIntermediateNodes || 3);
+      const mode = resolveAuditFlowMode(item);
+      const direction = item.flowLevelDirection === 'down' ? 'down' : 'up';
+      const depth = item.flowDepth || item.maxIntermediateNodes || 3;
+      setFormAuditFlowMode(mode);
+      setFormMaxIntermediateNodes(item.maxIntermediateNodes || depth || 3);
+      setFormFlowLevelDirection(direction);
       setFormSimulatorScenario('depth_5');
       setSimResultStatus('idle');
-      setFormFlowDepth(item.flowDepth || (item.auditNodes ? item.auditNodes.length : 3));
+      setFormFlowDepth(depth);
       setFormOrgApplyMode(item.orgApplyMode || 'all_orgs');
       setFormOrgSettings(item.orgSettings && item.orgSettings.length > 0 ? item.orgSettings : defaultOrgList);
       setFormOwnerMissingStrategy(item.ownerMissingStrategy || 'skip_to_next');
@@ -3015,17 +3241,8 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       setFormOwnerMissingFallbackUserName(item.ownerMissingFallbackUserName || '');
       resetOrgPickerState();
       const editFlowNodes = item.auditNodes && item.auditNodes.length > 0
-        ? item.auditNodes.map((node, idx) => ({
-            ...node,
-            assigneeSource: node.assigneeSource || 'role',
-            rejectStrategy: node.rejectStrategy || (idx === item.auditNodes!.length - 1 ? 'return_previous' : 'return_submitter'),
-            isUnifiedFinalNode: node.isUnifiedFinalNode || idx === item.auditNodes!.length - 1
-          }))
-        : [
-            { ...createDefaultAuditNode(1), id: 'an_1', nodeName: '本级机构初审', approverRole: '本级机构负责人', assigneeSource: 'org_owner', timeLimitMinutes: 15 },
-            { ...createDefaultAuditNode(2), id: 'an_2', nodeName: '上级机构逐级复核', approverRole: '上级机构负责人', assigneeSource: 'org_owner', timeLimitMinutes: 30 },
-            { ...createDefaultAuditNode(3), id: 'an_3', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', timeLimitMinutes: 60, isUnifiedFinalNode: true }
-          ];
+        ? normalizeAuditFlowNodesForMode(mode, item.auditNodes, depth, direction)
+        : buildDefaultFlowNodes(mode, depth, direction);
       setFormAuditNodes(editFlowNodes);
       setSelectedAuditNodeId(editFlowNodes[0]?.id || null);
     } else if (activeModule === 'evaluation_rule') {
@@ -3293,39 +3510,19 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         ? '全部报送模板通用'
         : selTpl ? selTpl.name : (formRelatedTemplateId ? '关联上报模版' : '标准图文报送模板');
 
-      let effectiveNodes: AuditNode[] = [];
-      if (formAuditFlowMode === 'direct_headquarters') {
-        effectiveNodes = formAuditNodes.length >= 2
-          ? formAuditNodes.map((n, idx) => ({
-              ...n,
-              isUnifiedFinalNode: idx === formAuditNodes.length - 1 ? true : n.isUnifiedFinalNode
-            }))
-          : [
-              { id: 'an_direct_1', nodeName: '发起上报直报', approverRole: '提报人员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 10 },
-              { id: 'an_direct_final', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, isUnifiedFinalNode: true }
-            ];
-      } else if (formAuditFlowMode === 'max_n_steps') {
-        effectiveNodes = formAuditNodes.length >= 2
-          ? formAuditNodes.map((n, idx) => ({
-              ...n,
-              isUnifiedFinalNode: idx === formAuditNodes.length - 1 ? true : n.isUnifiedFinalNode
-            }))
-          : [
-              { id: 'an_maxn_1', nodeName: '基层机构初审', approverRole: '基层机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_submitter', timeLimitMinutes: 15 },
-              { id: 'an_maxn_2', nodeName: `中间机构流转 (最多${formMaxIntermediateNodes}级)`, approverRole: '各级审核负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_previous', timeLimitMinutes: 30 },
-              { id: 'an_maxn_final', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_previous', timeLimitMinutes: 60, isUnifiedFinalNode: true }
-            ];
-      } else {
-        effectiveNodes = formAuditNodes.length >= 2
-          ? formAuditNodes.map((n, idx) => ({
-              ...n,
-              isUnifiedFinalNode: idx === formAuditNodes.length - 1 ? true : n.isUnifiedFinalNode
-            }))
-          : [
-              { ...createDefaultAuditNode(1), id: 'an_1', nodeName: '本级机构初审', approverRole: '本级机构负责人', assigneeSource: 'org_owner', timeLimitMinutes: 15 },
-              { ...createDefaultAuditNode(2), id: 'an_2', nodeName: '上级机构逐级复核', approverRole: '上级机构负责人', assigneeSource: 'org_owner', timeLimitMinutes: 30 },
-              { ...createDefaultAuditNode(3), id: 'an_3', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', timeLimitMinutes: 60, isUnifiedFinalNode: true }
-            ];
+      const maxNDepth = formMaxIntermediateNodes || formFlowDepth || 3;
+      const direction = formFlowLevelDirection === 'down' ? 'down' : 'up';
+      let effectiveNodes: AuditNode[] = formAuditNodes.length >= 2
+        ? formAuditNodes.map((n, idx) => ({
+            ...n,
+            isUnifiedFinalNode: idx === formAuditNodes.length - 1 ? true : n.isUnifiedFinalNode
+          }))
+        : buildDefaultFlowNodes(formAuditFlowMode, maxNDepth, direction);
+
+      if (formAuditFlowMode === 'max_n_steps') {
+        effectiveNodes = normalizeAuditFlowNodesForMode('max_n_steps', effectiveNodes, maxNDepth, direction);
+      } else if (formAuditFlowMode === 'step_by_step') {
+        effectiveNodes = collapseAdaptiveMiddleNodes(effectiveNodes);
       }
 
       const flowItem: ConfigModuleItem = {
@@ -3339,8 +3536,10 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         relatedTemplateName: relTplName,
         templateApplyMode: formTemplateApplyMode,
         auditFlowMode: formAuditFlowMode,
-        maxIntermediateNodes: formMaxIntermediateNodes,
-        flowDepth: effectiveNodes.length,
+        flowMode: toMtFlowMode(formAuditFlowMode),
+        maxIntermediateNodes: formAuditFlowMode === 'max_n_steps' ? maxNDepth : undefined,
+        flowDepth: formAuditFlowMode === 'max_n_steps' ? maxNDepth : effectiveNodes.length,
+        flowLevelDirection: formAuditFlowMode === 'max_n_steps' ? direction : undefined,
         auditNodes: effectiveNodes,
         orgApplyMode: formOrgApplyMode,
         orgSettings: formOrgSettings,
@@ -3988,10 +4187,9 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 
                             <div className="flex items-center gap-2 shrink-0">
                               {item.isDefault ? (
-                                <div className="flex items-center gap-1 text-xs text-gray-400 whitespace-nowrap">
+                                <span className="p-1 text-gray-300 select-none inline-flex items-center" title="系统默认">
                                   <Lock className="w-3.5 h-3.5 shrink-0" />
-                                  <span>内置</span>
-                                </div>
+                                </span>
                               ) : (
                                 <>
                                   <button
@@ -4193,42 +4391,64 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               {formFields.map((field, index) => {
                                 const meta = getFieldTypeMeta(field.type);
                                 const IconComp = meta.icon;
+                                const fieldLocked = isLockedField(field);
                                 const isReadOnly = Boolean(editingItem?.isDefault);
+                                const canReorder = !isReadOnly && !fieldLocked;
+                                const typeLocked = isReadOnly || fieldLocked;
+                                const requiredLocked = isReadOnly || isRequiredLockedField(field);
 
                                 return (
                                   <div
                                     key={field.id}
                                     ref={index === formFields.length - 1 ? latestFieldRef : null}
-                                    draggable={!isReadOnly}
-                                    onDragStart={() => !isReadOnly && setDraggingFieldIndex(index)}
-                                    onDragOver={e => !isReadOnly && e.preventDefault()}
-                                    onDrop={() => !isReadOnly && handleDropField(index)}
-                                    onDragEnd={() => !isReadOnly && setDraggingFieldIndex(null)}
+                                    draggable={canReorder}
+                                    onDragStart={() => canReorder && setDraggingFieldIndex(index)}
+                                    onDragOver={e => canReorder && e.preventDefault()}
+                                    onDrop={() => canReorder && handleDropField(index)}
+                                    onDragEnd={() => canReorder && setDraggingFieldIndex(null)}
                                     className={`bg-white p-3 rounded-lg border shadow-2xs transition-colors space-y-2 ${
-                                      !isReadOnly ? 'hover:border-blue-200 cursor-move' : ''
+                                      canReorder ? 'hover:border-blue-200 cursor-move' : ''
                                     } ${
                                       draggingFieldIndex === index
                                         ? 'border-blue-300 bg-blue-50/50 opacity-70'
-                                        : 'border-gray-200'
+                                        : fieldLocked
+                                          ? 'border-amber-200 bg-amber-50/20'
+                                          : 'border-gray-200'
                                     }`}
                                   >
                                     <div className="flex items-start gap-2">
-                                      <span className="w-6 h-6 rounded bg-gray-100 text-gray-500 text-[10px] font-mono flex items-center justify-center gap-0.5 shrink-0 mt-0.5" title={isReadOnly ? `第 ${index + 1} 个字段` : '拖拽调整字段顺序'}>
-                                        {!isReadOnly && <GripVertical className="w-2.5 h-2.5 text-gray-300" aria-hidden="true" />}
+                                      <span className="w-6 h-6 rounded bg-gray-100 text-gray-500 text-[10px] font-mono flex items-center justify-center gap-0.5 shrink-0 mt-0.5" title={canReorder ? '拖拽调整字段顺序' : fieldLocked ? '固定字段不可排序' : `第 ${index + 1} 个字段`}>
+                                        {canReorder && <GripVertical className="w-2.5 h-2.5 text-gray-300" aria-hidden="true" />}
+                                        {fieldLocked && <Lock className="w-2.5 h-2.5 text-amber-500" aria-hidden="true" />}
                                         <span>{index + 1}</span>
                                       </span>
                                       <div className="flex-1 min-w-0 space-y-2">
                                         <div className="grid grid-cols-1 sm:grid-cols-[130px_1fr] gap-2">
                                           <div className="relative">
                                             <select
-                                              disabled={isReadOnly}
-                                              value={field.type}
-                                              onChange={e => handleUpdateField(index, { type: e.target.value as FieldType })}
+                                              disabled={typeLocked}
+                                              value={field.multiline ? 'textarea' : field.type}
+                                              onChange={e => {
+                                                if (fieldLocked) return;
+                                                const next = e.target.value;
+                                                if (next === 'textarea') {
+                                                  handleUpdateField(index, { type: 'text', multiline: true });
+                                                } else {
+                                                  handleUpdateField(index, { type: next as FieldType, multiline: undefined });
+                                                }
+                                              }}
                                               className="w-full pl-7 pr-2 py-1.5 bg-gray-50 border border-gray-200 rounded text-xs text-gray-700 font-medium focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] cursor-pointer disabled:bg-gray-100 disabled:cursor-not-allowed"
                                             >
-                                              {(formTemplateType === '激活' ? activationFieldTypeOptions : reportFieldTypeOptions).map(type => (
-                                                <option key={type} value={type}>{getFieldTypeMeta(type).label}</option>
-                                              ))}
+                                              {field.multiline || fieldLocked ? (
+                                                <>
+                                                  <option value="text">单行文本</option>
+                                                  <option value="textarea">多行文本</option>
+                                                </>
+                                              ) : (
+                                                (formTemplateType === '激活' ? activationFieldTypeOptions : reportFieldTypeOptions).map(type => (
+                                                  <option key={type} value={type}>{getFieldTypeMeta(type).label}</option>
+                                                ))
+                                              )}
                                             </select>
                                             <IconComp className="w-3.5 h-3.5 text-blue-600 absolute left-2 top-2 pointer-events-none" />
                                           </div>
@@ -4329,18 +4549,18 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                       <div className="flex flex-col items-center gap-1 shrink-0 mt-0.5">
                                         <button
                                           type="button"
-                                          disabled={isReadOnly}
-                                          onClick={() => !isReadOnly && handleUpdateField(index, { required: !field.required })}
+                                          disabled={requiredLocked}
+                                          onClick={() => !requiredLocked && handleUpdateField(index, { required: !field.required })}
                                           className={`h-6 px-1.5 rounded text-[10px] font-bold transition-colors ${
                                             field.required
                                               ? 'bg-red-50 text-red-600 border border-red-200'
                                               : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200'
-                                          } ${isReadOnly ? 'cursor-default' : 'cursor-pointer'}`}
-                                          title={field.required ? '必填字段' : '选填字段'}
+                                          } ${requiredLocked ? 'cursor-default' : 'cursor-pointer'}`}
+                                          title={requiredLocked ? '固定必填不可改' : (field.required ? '必填字段' : '选填字段')}
                                         >
                                           {field.required ? '必' : '选'}
                                         </button>
-                                        {!isReadOnly && (
+                                        {!isReadOnly && !fieldLocked && (
                                           <button
                                             type="button"
                                             onClick={() => handleDeleteField(index)}
@@ -4550,18 +4770,27 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                       )}
 
                                       <div className="flex items-center gap-2 text-gray-500">
-                                        <button
-                                          type="button"
-                                          onClick={e => {
-                                            e.stopPropagation();
-                                            openEditTemplatePage(item);
-                                          }}
-                                          className="hover:text-[#1E5ABB] flex items-center gap-0.5 text-[11px] cursor-pointer"
-                                          title={item.isDefault ? '查看详情' : '编辑模板'}
-                                        >
-                                          <Edit3 className="w-3.5 h-3.5" />
-                                          <span>{item.isDefault ? '详情' : '编辑'}</span>
-                                        </button>
+                                        {!item.isDefault ? (
+                                          <button
+                                            type="button"
+                                            onClick={e => {
+                                              e.stopPropagation();
+                                              openEditTemplatePage(item);
+                                            }}
+                                            className="hover:text-[#1E5ABB] flex items-center gap-0.5 text-[11px] cursor-pointer"
+                                            title="编辑模板"
+                                          >
+                                            <Edit3 className="w-3.5 h-3.5" />
+                                            <span>编辑</span>
+                                          </button>
+                                        ) : (
+                                          <span
+                                            className="p-0.5 text-gray-300 select-none inline-flex items-center"
+                                            title="系统默认"
+                                          >
+                                            <Lock className="w-3.5 h-3.5" />
+                                          </span>
+                                        )}
                                         <div className="relative">
                                           <button
                                             type="button"
@@ -4658,18 +4887,20 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                   )}
                                 </div>
 
-                                {/* Action Buttons: Edit into Detail Page */}
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <button
-                                    type="button"
-                                    onClick={() => openEditTemplatePage(activeSelectedTemplate)}
-                                    className="px-3 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center gap-1 cursor-pointer transition-colors shrink-0 whitespace-nowrap"
-                                  >
-                                    <Edit3 className="w-3.5 h-3.5 shrink-0" />
-                                    <span>编辑</span>
-                                    <ArrowRight className="w-3.5 h-3.5 shrink-0" />
-                                  </button>
-                                </div>
+                                {/* Action Buttons: Edit into Detail Page（系统默认仅预览，不展示编辑入口） */}
+                                {!activeSelectedTemplate.isDefault && (
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => openEditTemplatePage(activeSelectedTemplate)}
+                                      className="px-3 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center gap-1 cursor-pointer transition-colors shrink-0 whitespace-nowrap"
+                                    >
+                                      <Edit3 className="w-3.5 h-3.5 shrink-0" />
+                                      <span>编辑</span>
+                                      <ArrowRight className="w-3.5 h-3.5 shrink-0" />
+                                    </button>
+                                  </div>
+                                )}
                               </div>
 
                               {/* Simulation Stage Canvas matching Add/Edit Detail Page Style */}
@@ -4994,10 +5225,9 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 
                             <div className="flex items-center gap-2 shrink-0">
                               {item.isDefault ? (
-                                <div className="flex items-center gap-1 text-xs text-gray-400 whitespace-nowrap">
+                                <span className="p-1 text-gray-300 select-none inline-flex items-center" title="系统默认">
                                   <Lock className="w-3.5 h-3.5 shrink-0" />
-                                  <span>内置</span>
-                                </div>
+                                </span>
                               ) : (
                                 <>
                                   <button
@@ -5772,11 +6002,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                       {previewItem.name}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <div className="rounded-md border border-gray-100 bg-gray-50/70 px-2.5 py-2 min-w-0">
-                        <div className="text-[10px] text-gray-400 mb-0.5">适用范围</div>
-                        <div className="text-[11px] font-bold text-blue-700 truncate">全部上报统一适用</div>
-                      </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div className="rounded-md border border-gray-100 bg-gray-50/70 px-2.5 py-2 min-w-0">
                         <div className="text-[10px] text-gray-400 mb-0.5">规则总分</div>
                         <div className="text-[11px] font-bold text-amber-700">{previewItem.totalScore || 100} 分 / {levelCount} 等级</div>
@@ -6089,27 +6315,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                 </div>
               )}
 
-              {/* Value Added Module Feature Introduction */}
-              {activeModule === 'value_added' && (
-                <div className="space-y-3 pt-2 border-t border-gray-100">
-                  <div className="p-3 bg-amber-50 border border-amber-200/80 rounded-lg space-y-2">
-                    <div className="font-bold text-amber-900 flex items-center space-x-1.5 text-xs">
-                      <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span>增值业务【{previewItem.name}】功能说明与开通指导</span>
-                    </div>
-                    <p className="text-[11px] text-amber-800 leading-relaxed">
-                      本增值业务通过底层算力与高级权限管控引擎深度集成，旨在提高线索处置、数据分析与跨部门协同处置效能。
-                    </p>
-                    <div className="bg-white p-2.5 rounded border border-amber-200/80 text-[11px] text-gray-700 space-y-1">
-                      <div className="font-bold text-gray-800">· 在线申请开通步骤说明：</div>
-                      <p className="text-gray-600">1. 由所在单位/部门系统管理员向运营维护统筹部门提交《增值扩展业务申请表》；</p>
-                      <p className="text-gray-600">2. 审核通过后，管理员将在系统后台进行对应节点功能标识 (<strong>{previewItem.dictCode || `VA_${previewItem.id}`}</strong>) 授权；</p>
-                      <p className="text-gray-600">3. 授权生效后全网即刻解锁相应业务功能模块与组件界面。</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {activeModule === 'report_template' && previewItem.fields && (
                 <div className="space-y-3">
                   <div className="bg-blue-50/30 p-2.5 rounded border border-blue-100 flex items-center justify-between">
@@ -6339,7 +6544,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
               {/* Basic Fields */}
               {activeModule === 'audit_score' ? (
                 <div className="space-y-2.5">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_1.4fr] gap-3">
                     <div>
                       <label className="block text-gray-700 font-medium mb-1">规则名称</label>
                       <input
@@ -6352,14 +6557,19 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                       />
                     </div>
 
-                    <div className="flex items-end">
-                      <div className="w-full px-3 py-1.5 border border-gray-200 rounded bg-gray-50 text-gray-600 font-bold">
-                        全部上报统一适用
-                      </div>
+                    <div>
+                      <label className="block text-gray-700 font-medium mb-1">说明</label>
+                      <input
+                        type="text"
+                        value={formDesc}
+                        onChange={e => setFormDesc(e.target.value)}
+                        placeholder="请输入适用场景..."
+                        className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                      />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-[120px_120px_180px_1fr] gap-3 items-end">
+                  <div className="grid grid-cols-1 sm:grid-cols-[120px_120px_180px] gap-3 items-end">
                     <div>
                       <label className="block text-gray-700 font-medium mb-1">总分</label>
                       <div className="flex items-center space-x-2">
@@ -6393,17 +6603,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                     </div>
 
                     {renderFormStatusSegment('启用状态 *')}
-
-                    <div>
-                      <label className="block text-gray-700 font-medium mb-1">说明</label>
-                      <input
-                        type="text"
-                        value={formDesc}
-                        onChange={e => setFormDesc(e.target.value)}
-                        placeholder="请输入适用场景..."
-                        className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                      />
-                    </div>
                   </div>
                 </div>
               ) : activeModule === 'audit_flow' ? (
@@ -6498,31 +6697,56 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                       })}
                     </div>
 
-                    {/* 最多N级模式下的档位微调 */}
+                    {/* 最多N级：中间机构上限 + 级数计算方向 */}
                     {formAuditFlowMode === 'max_n_steps' && (
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-amber-50/70 border border-amber-200 text-xs">
-                        <div className="flex items-center space-x-2">
-                          <Sliders className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                          <span className="font-bold text-amber-900">中间机构审核上限：</span>
-                          <div className="flex items-center space-x-1">
-                            {[1, 2, 3, 4, 5].map(cnt => (
-                              <button
-                                key={cnt}
-                                type="button"
-                                onClick={() => handleMaxIntermediateNodesChange(cnt)}
-                                className={`px-2 py-0.5 rounded text-xs font-bold cursor-pointer transition-colors ${
-                                  formMaxIntermediateNodes === cnt
-                                    ? 'bg-amber-600 text-white shadow-2xs'
-                                    : 'bg-white text-amber-800 border border-amber-300 hover:bg-amber-100'
-                                }`}
-                              >
-                                {cnt} 级
-                              </button>
-                            ))}
+                      <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 space-y-2 mt-2">
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-xs font-bold text-amber-900">中间机构上限</span>
+                            <div className="flex items-center space-x-1.5">
+                              {[1, 2, 3, 4, 5].map(depth => (
+                                <button
+                                  key={depth}
+                                  type="button"
+                                  onClick={() => handleMaxIntermediateNodesChange(depth)}
+                                  className={`px-3 py-1 rounded-md text-xs font-medium cursor-pointer transition-colors ${
+                                    (formMaxIntermediateNodes || 3) === depth
+                                      ? 'bg-amber-500 text-white font-bold shadow-xs'
+                                      : 'bg-white border border-gray-200 text-gray-700 hover:bg-amber-100/50'
+                                  }`}
+                                >
+                                  {depth} 级
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-xs font-bold text-amber-900">级数计算</span>
+                            <div className="flex items-center space-x-1.5">
+                              {([
+                                { id: 'up' as const, label: '从本级向上' },
+                                { id: 'down' as const, label: '从总机构向下' },
+                              ]).map(option => (
+                                <button
+                                  key={option.id}
+                                  type="button"
+                                  onClick={() => handleMaxNDirectionChange(option.id)}
+                                  className={`px-3 py-1 rounded-md text-xs font-medium cursor-pointer transition-colors ${
+                                    formFlowLevelDirection === option.id
+                                      ? 'bg-amber-500 text-white font-bold shadow-xs'
+                                      : 'bg-white border border-gray-200 text-gray-700 hover:bg-amber-100/50'
+                                  }`}
+                                >
+                                  {option.label}
+                                </button>
+                              ))}
+                            </div>
                           </div>
                         </div>
-                        <span className="text-[11px] text-amber-700 hidden sm:inline">
-                          （不足 {formMaxIntermediateNodes} 级时按实际层级流转，超出则直达总机构）
+                        <span className="text-[11px] leading-4 text-gray-400 font-normal">
+                          {formFlowLevelDirection === 'down'
+                            ? `从总机构下一层向下取 ${formMaxIntermediateNodes || 3} 级，更低层级穿透到其中最底层，再进入总机构终审。不足 ${formMaxIntermediateNodes || 3} 级时按实际层级流转。`
+                            : `从上报机构向上最多 ${formMaxIntermediateNodes || 3} 级，含本级初审，超出直达总机构终审。不足 ${formMaxIntermediateNodes || 3} 级时按实际层级流转。`}
                         </span>
                       </div>
                     )}

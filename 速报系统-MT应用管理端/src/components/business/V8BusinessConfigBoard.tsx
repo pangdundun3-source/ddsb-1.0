@@ -589,11 +589,11 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
         relatedTemplateId: '1',
         relatedTemplateName: '标准图文报送模板',
         scoreLevels: [
-          { id: 'sl_1', levelName: '一等（特优）', score: 100, description: '省级以上领导批示或极高价值采纳' },
-          { id: 'sl_2', levelName: '二等（优秀）', score: 90, description: '市级领导批示或形成深度专报' },
-          { id: 'sl_3', levelName: '三等（良好）', score: 80, description: '研判要素齐全且上报迅速及时' },
-          { id: 'sl_4', levelName: '四等（合格）', score: 70, description: '基础提报符合规范与事实' },
-          { id: 'sl_5', levelName: '五等（基本）', score: 60, description: '提供线索参考价值' }
+          { id: 'sl_1', levelName: '一等', score: 100, description: '省级以上领导批示或极高价值采纳' },
+          { id: 'sl_2', levelName: '二等', score: 90, description: '市级领导批示或形成深度专报' },
+          { id: 'sl_3', levelName: '三等', score: 80, description: '研判要素齐全且上报迅速及时' },
+          { id: 'sl_4', levelName: '四等', score: 70, description: '基础提报符合规范与事实' },
+          { id: 'sl_5', levelName: '五等', score: 60, description: '提供线索参考价值' }
         ]
       },
       {
@@ -608,9 +608,9 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
         relatedTemplateId: '3',
         relatedTemplateName: '突发事件快速上报',
         scoreLevels: [
-          { id: 'sl_201', levelName: '一级（优秀）', score: 10, description: '快速高效且要素极其精准' },
-          { id: 'sl_202', levelName: '二级（良好）', score: 8, description: '基本要素完整无缺失' },
-          { id: 'sl_203', levelName: '三级（合格）', score: 6, description: '仅提供初始简报线索' }
+          { id: 'sl_201', levelName: '一级', score: 10, description: '快速高效且要素极其精准' },
+          { id: 'sl_202', levelName: '二级', score: 8, description: '基本要素完整无缺失' },
+          { id: 'sl_203', levelName: '三级', score: 6, description: '仅提供初始简报线索' }
         ]
       },
       {
@@ -625,10 +625,10 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
         relatedTemplateId: '1',
         relatedTemplateName: '标准图文报送模板',
         scoreLevels: [
-          { id: 'sl_301', levelName: 'A级（特级）', score: 50, description: '关键引导节点起到决定性效果' },
-          { id: 'sl_302', levelName: 'B级（高级）', score: 40, description: '有效正向引导并扭转态势' },
-          { id: 'sl_303', levelName: 'C级（中级）', score: 30, description: '按指令要求完成跟进' },
-          { id: 'sl_304', levelName: 'D级（初级）', score: 20, description: '参与协同排查' }
+          { id: 'sl_301', levelName: 'A级', score: 50, description: '关键引导节点起到决定性效果' },
+          { id: 'sl_302', levelName: 'B级', score: 40, description: '有效正向引导并扭转态势' },
+          { id: 'sl_303', levelName: 'C级', score: 30, description: '按指令要求完成跟进' },
+          { id: 'sl_304', levelName: 'D级', score: 20, description: '参与协同排查' }
         ]
       }
     ],
@@ -2048,6 +2048,8 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
   };
 
   const openPreviewItem = (item: ConfigModuleItem) => {
+    // 全局 / 机构端增值业务均不提供详情弹窗，仅卡片展示与开通/启禁
+    if (activeModule === 'value_added') return;
     setPreviewValues({});
     setPreviewItem(item);
   };
@@ -2526,11 +2528,11 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       const defaultTpl = enabledReportTemplates[0];
       setFormRelatedTemplateId(defaultTpl ? defaultTpl.id : '1');
       setFormScoreLevels([
-        { id: 'sl_1', levelName: '一等（特优）', score: 100, description: '特优级标准' },
-        { id: 'sl_2', levelName: '二等（优秀）', score: 90, description: '优秀级标准' },
-        { id: 'sl_3', levelName: '三等（良好）', score: 80, description: '良好级标准' },
-        { id: 'sl_4', levelName: '四等（合格）', score: 70, description: '合格级标准' },
-        { id: 'sl_5', levelName: '五等（基本）', score: 60, description: '基本级标准' }
+        { id: 'sl_1', levelName: '一等', score: 100, description: '特优级标准' },
+        { id: 'sl_2', levelName: '二等', score: 90, description: '优秀级标准' },
+        { id: 'sl_3', levelName: '三等', score: 80, description: '良好级标准' },
+        { id: 'sl_4', levelName: '四等', score: 70, description: '合格级标准' },
+        { id: 'sl_5', levelName: '五等', score: 60, description: '基本级标准' }
       ]);
     } else if (activeModule === 'audit_flow') {
       setFormName('逐级审核流程（组织树自适应）');
@@ -3114,7 +3116,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                       content={
                         isGlobalScope
                           ? '此处启用的增值业务向全平台所有机构开放，机构端可按需开通或关闭；此处禁用的增值业务，机构端不再显示。名称与描述修改后同步至全平台。'
-                          : '本模块面向平台运营人员统一管控。在全局配置中开启增值业务后，机构在添加或编辑时才能进行管理与开通；如果在此处未开启该增值业务，机构端将不会出现对应业务选项。'
+                          : '本模块面向平台运营人员统一管控。在全局配置中开启增值业务后，机构在添加或编辑时运营人员才能进行管理与开通；如果在此处未开通该增值业务，机构端将不会出现对应业务功能。'
                       }
                     />
                   )}
@@ -3635,9 +3637,11 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                   </button>
                                 </>
                               ) : (
-                                <span className="text-[11px] text-gray-300 px-1 select-none flex items-center gap-0.5">
-                                  <Lock className="w-3 h-3 text-gray-300" />
-                                  内置
+                                <span
+                                  className="p-1.5 text-gray-300 select-none inline-flex items-center"
+                                  title="系统默认"
+                                >
+                                  <Lock className="w-3.5 h-3.5" />
                                 </span>
                               )}
                             </div>
@@ -3929,9 +3933,11 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                   </button>
                                 </>
                               ) : (
-                                <span className="text-[11px] text-gray-300 px-1 select-none flex items-center gap-0.5">
-                                  <Lock className="w-3 h-3 text-gray-300" />
-                                  内置
+                                <span
+                                  className="p-1.5 text-gray-300 select-none inline-flex items-center"
+                                  title="系统默认"
+                                >
+                                  <Lock className="w-3.5 h-3.5" />
                                 </span>
                               )}
                             </div>
@@ -4141,21 +4147,20 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                       return (
                         <div
                           key={item.id}
-                          onClick={() => openPreviewItem(item)}
-                          className={`bg-white rounded-xl border transition-all duration-200 p-4 flex flex-col justify-between group shadow-2xs hover:shadow-md cursor-pointer relative overflow-hidden ${
+                          className={`bg-white rounded-xl border transition-all duration-200 p-4 flex flex-col justify-between group shadow-2xs relative overflow-hidden ${
                             isActivated
                               ? isEnabled
-                                ? 'border-blue-200/90 ring-1 ring-blue-500/10 hover:border-[#1890ff]'
-                                : 'border-gray-200 hover:border-gray-300'
-                              : 'border-gray-200 bg-gray-50/70 opacity-90 hover:border-gray-300'
+                                ? 'border-blue-200/90 ring-1 ring-blue-500/10'
+                                : 'border-gray-200'
+                              : 'border-gray-200 bg-gray-50/70 opacity-90'
                           }`}
                         >
                           <div>
                             {/* Card Top: Title & Switch */}
                             <div className="flex items-center justify-between gap-2.5 pb-3 border-b border-gray-100/90">
                               <div className="flex items-center gap-2 min-w-0">
-                                <h3 className={`font-bold text-sm truncate transition-colors ${
-                                  isActivated ? 'text-gray-900 group-hover:text-[#1890ff]' : 'text-gray-600'
+                                <h3 className={`font-bold text-sm truncate ${
+                                  isActivated ? 'text-gray-900' : 'text-gray-600'
                                 }`}>
                                   {item.name}
                                 </h3>
@@ -5021,11 +5026,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                       {previewItem.name}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <div className="rounded-md border border-gray-100 bg-gray-50/70 px-2.5 py-2 min-w-0">
-                        <div className="text-[10px] text-gray-400 mb-0.5">适用范围</div>
-                        <div className="text-[11px] font-bold text-blue-700 truncate">全部上报统一适用</div>
-                      </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div className="rounded-md border border-gray-100 bg-gray-50/70 px-2.5 py-2 min-w-0">
                         <div className="text-[10px] text-gray-400 mb-0.5">规则总分</div>
                         <div className="text-[11px] font-bold text-amber-700">{previewItem.totalScore || 100} 分 / {levelCount} 等级</div>
@@ -5338,27 +5339,6 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                 </div>
               )}
 
-              {/* Value Added Module Feature Introduction */}
-              {activeModule === 'value_added' && (
-                <div className="space-y-3 pt-2 border-t border-gray-100">
-                  <div className="p-3 bg-amber-50 border border-amber-200/80 rounded-lg space-y-2">
-                    <div className="font-bold text-amber-900 flex items-center space-x-1.5 text-xs">
-                      <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span>增值业务【{previewItem.name}】功能说明与开通指导</span>
-                    </div>
-                    <p className="text-[11px] text-amber-800 leading-relaxed">
-                      本增值业务通过底层算力与高级权限管控引擎深度集成，旨在提高线索处置、数据分析与跨部门协同处置效能。
-                    </p>
-                    <div className="bg-white p-2.5 rounded border border-amber-200/80 text-[11px] text-gray-700 space-y-1">
-                      <div className="font-bold text-gray-800">· 在线申请开通步骤说明：</div>
-                      <p className="text-gray-600">1. 由所在单位/部门系统管理员向运营维护统筹部门提交《增值扩展业务申请表》；</p>
-                      <p className="text-gray-600">2. 审核通过后，管理员将在系统后台进行对应节点功能标识 (<strong>{previewItem.dictCode || `VA_${previewItem.id}`}</strong>) 授权；</p>
-                      <p className="text-gray-600">3. 授权生效后全网即刻解锁相应业务功能模块与组件界面。</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {activeModule === 'report_template' && previewItem.fields && (
                 <div className="space-y-3">
                   <div className="bg-blue-50/30 p-2.5 rounded border border-blue-100 flex items-center justify-between">
@@ -5597,7 +5577,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
               {/* Basic Fields */}
               {activeModule === 'audit_score' ? (
                 <div className="space-y-2.5">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_1.4fr] gap-3">
                     <div>
                       <label className="block text-gray-700 font-medium mb-1">规则名称</label>
                       <input
@@ -5610,14 +5590,19 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                       />
                     </div>
 
-                    <div className="flex items-end">
-                      <div className="w-full px-3 py-1.5 border border-gray-200 rounded bg-gray-50 text-gray-600 font-bold">
-                        全部上报统一适用
-                      </div>
+                    <div>
+                      <label className="block text-gray-700 font-medium mb-1">说明</label>
+                      <input
+                        type="text"
+                        value={formDesc}
+                        onChange={e => setFormDesc(e.target.value)}
+                        placeholder="请输入适用场景..."
+                        className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                      />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-[120px_120px_180px_1fr] gap-3 items-end">
+                  <div className="grid grid-cols-1 sm:grid-cols-[120px_120px_180px] gap-3 items-end">
                     <div>
                       <label className="block text-gray-700 font-medium mb-1">总分</label>
                       <div className="flex items-center space-x-2">
@@ -5651,17 +5636,6 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                     </div>
 
                     {renderFormStatusSegment('启用状态 *')}
-
-                    <div>
-                      <label className="block text-gray-700 font-medium mb-1">说明</label>
-                      <input
-                        type="text"
-                        value={formDesc}
-                        onChange={e => setFormDesc(e.target.value)}
-                        placeholder="请输入适用场景..."
-                        className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                      />
-                    </div>
                   </div>
                 </div>
               ) : activeModule === 'login_method' ? (

@@ -15,6 +15,7 @@ import {
   ValueAddedServiceItem,
 } from '../types';
 import { formatDateTime } from '../shared/date';
+import { hashRouter, normalizeConfigModule, type ConfigModuleKey } from '../services/hashRouter';
 
 export type BusinessRuleNavKey =
   | 'role_permission'
@@ -26,6 +27,28 @@ export type BusinessRuleNavKey =
   | 'qr_code'
   | 'invite_fields'
   | 'other';
+
+const VALID_NAV_KEYS: BusinessRuleNavKey[] = [
+  'role_permission',
+  'templates',
+  'scoring',
+  'workflow',
+  'qr_code',
+  'invite_fields',
+  'value_added',
+  'dictionary',
+  'other',
+];
+
+const readNavFromHash = (isGlobalScope: boolean): BusinessRuleNavKey | null => {
+  const module = hashRouter.getConfigModule();
+  if (!module) return null;
+  const expectedPath = isGlobalScope ? 'config' : 'org-config';
+  const raw = hashRouter.getRawHash();
+  const path = raw.replace(/^#\/?/, '').split('?')[0].replace(/\/+$/, '');
+  if (path !== expectedPath) return null;
+  return VALID_NAV_KEYS.includes(module as BusinessRuleNavKey) ? (module as BusinessRuleNavKey) : null;
+};
 
 interface MetricItem {
   id: string;
@@ -72,20 +95,11 @@ export const useBusinessRulesViewModel = ({
       : mergeWithGlobal(institution?.businessRules, readGlobalRules())
   );
   const [activeNav, setActiveNav] = useState<BusinessRuleNavKey>(() => {
+    const fromHash = readNavFromHash(isGlobalScope);
+    if (fromHash) return fromHash;
     if (initialNav) return initialNav;
     const saved = localStorage.getItem('admin_business_rule_active_subnav');
-    const validKeys: BusinessRuleNavKey[] = [
-      'role_permission',
-      'templates',
-      'scoring',
-      'workflow',
-      'qr_code',
-      'invite_fields',
-      'value_added',
-      'dictionary',
-      'other',
-    ];
-    return saved && validKeys.includes(saved as BusinessRuleNavKey)
+    return saved && VALID_NAV_KEYS.includes(saved as BusinessRuleNavKey)
       ? (saved as BusinessRuleNavKey)
       : 'workflow';
   });
@@ -95,6 +109,22 @@ export const useBusinessRulesViewModel = ({
       setActiveNav(initialNav);
     }
   }, [initialNav]);
+
+  // 门户 PRD / 浏览器 hash 带 ?module=templates 时，切到对应二级页签
+  useEffect(() => {
+    const applyHashModule = () => {
+      const fromHash = readNavFromHash(isGlobalScope);
+      if (!fromHash) return;
+      setActiveNav(prev => {
+        if (prev === fromHash) return prev;
+        localStorage.setItem('admin_business_rule_active_subnav', fromHash);
+        return fromHash;
+      });
+    };
+    applyHashModule();
+    window.addEventListener('hashchange', applyHashModule);
+    return () => window.removeEventListener('hashchange', applyHashModule);
+  }, [isGlobalScope]);
 
   const [templateFilterType, setTemplateFilterType] = useState<'all' | 'report' | 'active'>('active');
   const [templateSearchKeyword, setTemplateSearchKeyword] = useState('');
@@ -137,6 +167,10 @@ export const useBusinessRulesViewModel = ({
   const handleNavChange = (key: BusinessRuleNavKey) => {
     setActiveNav(key);
     localStorage.setItem('admin_business_rule_active_subnav', key);
+    const module = normalizeConfigModule(key) as ConfigModuleKey | null;
+    if (module) {
+      hashRouter.setConfigModule(module, { isGlobalScope, replace: true });
+    }
   };
 
   const handleUpdateQrConfig = (qrUsage: QrCodeUsageConfig) => {
@@ -328,11 +362,11 @@ export const useBusinessRulesViewModel = ({
       description: '按审核结果命中一个评分等级，设为启用后替换当前规则',
       updatedAt: formatDateTime(),
       levels: [
-        { id: `lvl-${timestamp}-1`, name: '一等（特优）', score: 100, description: '特优级标准' },
-        { id: `lvl-${timestamp}-2`, name: '二等（优秀）', score: 90, description: '优秀级标准' },
-        { id: `lvl-${timestamp}-3`, name: '三等（良好）', score: 80, description: '良好级标准' },
-        { id: `lvl-${timestamp}-4`, name: '四等（合格）', score: 70, description: '合格级标准' },
-        { id: `lvl-${timestamp}-5`, name: '五等（基本）', score: 60, description: '基本级标准' },
+        { id: `lvl-${timestamp}-1`, name: '一等', score: 100, description: '特优级标准' },
+        { id: `lvl-${timestamp}-2`, name: '二等', score: 90, description: '优秀级标准' },
+        { id: `lvl-${timestamp}-3`, name: '三等', score: 80, description: '良好级标准' },
+        { id: `lvl-${timestamp}-4`, name: '四等', score: 70, description: '合格级标准' },
+        { id: `lvl-${timestamp}-5`, name: '五等', score: 60, description: '基本级标准' },
       ],
     });
   };

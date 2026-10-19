@@ -173,11 +173,11 @@ export const SCORING_RULE_OPTIONS: ScoringRuleOptionItem[] = [
     name: '标准五级百分制打分规则组',
     maxScore: 100,
     grades: [
-      { name: '一等（特优）', score: 100 },
-      { name: '二等（优秀）', score: 90 },
-      { name: '三等（良好）', score: 80 },
-      { name: '四等（合格）', score: 70 },
-      { name: '五等（基本）', score: 60 }
+      { name: '一等', score: 100 },
+      { name: '二等', score: 90 },
+      { name: '三等', score: 80 },
+      { name: '四等', score: 70 },
+      { name: '五等', score: 60 }
     ]
   },
   {
@@ -1124,6 +1124,10 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
 
   // Open Designer
   const handleOpenDesigner = (mode: 'add' | 'edit' | 'copy', tpl?: BusinessTemplateItem) => {
+    if (!isGlobalScope && mode === 'edit' && tpl?.isDefault) {
+      alertDialog('系统默认模板受平台全局统一管控，机构端不支持编辑。如需个性化，请复制为新模板或新建自定义模板。');
+      return;
+    }
     if (mode === 'add') {
       const newTpl: BusinessTemplateItem = {
         id: `tpl_${Date.now()}`,
@@ -1217,6 +1221,10 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
 
   // Save in Designer
   const handleSaveDesigner = () => {
+    if (!isGlobalScope && designerItem?.mode === 'edit' && designerItem.template.isDefault) {
+      alertDialog('系统默认模板受平台全局统一管控，机构端不支持编辑。如需个性化，请复制为新模板或新建自定义模板。');
+      return;
+    }
     if (!designerName.trim()) {
       alertDialog('请输入模板名称');
       return;
@@ -2869,18 +2877,28 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                     )}
 
                     <div className="flex items-center gap-2 text-gray-500">
-                      <button
-                        type="button"
-                        onClick={e => {
-                          e.stopPropagation();
-                          handleOpenDesigner('edit', tpl);
-                        }}
-                        className="hover:text-[#1890ff] flex items-center gap-0.5 text-[11px] cursor-pointer"
-                        title={!isGlobalScope && tpl.isDefault ? '查看详情' : '编辑模板'}
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                        <span>{!isGlobalScope && tpl.isDefault ? '详情' : '编辑'}</span>
-                      </button>
+                      {(isGlobalScope || !tpl.isDefault) && (
+                        <button
+                          type="button"
+                          onClick={e => {
+                            e.stopPropagation();
+                            handleOpenDesigner('edit', tpl);
+                          }}
+                          className="hover:text-[#1890ff] flex items-center gap-0.5 text-[11px] cursor-pointer"
+                          title="编辑模板"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>编辑</span>
+                        </button>
+                      )}
+                      {!isGlobalScope && tpl.isDefault && (
+                        <span
+                          className="p-0.5 text-gray-300 select-none inline-flex items-center"
+                          title="系统默认"
+                        >
+                          <Lock className="w-3.5 h-3.5" />
+                        </span>
+                      )}
 
                       <div className="relative">
                         <button
@@ -3012,16 +3030,17 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
               </button>
             )}
 
-            {/* Edit Button */}
-            <button
-              type="button"
-              onClick={() => handleOpenDesigner('edit', activeTemplate)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1890ff] hover:bg-blue-600 text-white rounded-lg text-xs font-medium shadow-2xs transition-colors cursor-pointer shrink-0"
-              title="编辑当前模板"
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-              <span>编辑</span>
-            </button>
+            {(isGlobalScope || !activeTemplate?.isDefault) && (
+              <button
+                type="button"
+                onClick={() => handleOpenDesigner('edit', activeTemplate)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1890ff] hover:bg-blue-600 text-white rounded-lg text-xs font-medium shadow-2xs transition-colors cursor-pointer shrink-0"
+                title="编辑当前模板"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>编辑</span>
+              </button>
+            )}
             </div>
           </div>
 

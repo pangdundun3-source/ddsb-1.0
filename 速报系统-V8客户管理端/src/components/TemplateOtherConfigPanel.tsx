@@ -103,11 +103,11 @@ const DEFAULT_SCORE_RULES: ScoreRuleItem[] = [
     totalScore: 100,
     levelCount: 5,
     scoreLevels: [
-      { id: 'sl_1', levelName: '一等（特优）', score: 100 },
-      { id: 'sl_2', levelName: '二等（优秀）', score: 90 },
-      { id: 'sl_3', levelName: '三等（良好）', score: 80 },
-      { id: 'sl_4', levelName: '四等（合格）', score: 70 },
-      { id: 'sl_5', levelName: '五等（基本）', score: 60 }
+      { id: 'sl_1', levelName: '一等', score: 100 },
+      { id: 'sl_2', levelName: '二等', score: 90 },
+      { id: 'sl_3', levelName: '三等', score: 80 },
+      { id: 'sl_4', levelName: '四等', score: 70 },
+      { id: 'sl_5', levelName: '五等', score: 60 }
     ]
   },
   {
@@ -116,9 +116,9 @@ const DEFAULT_SCORE_RULES: ScoreRuleItem[] = [
     totalScore: 10,
     levelCount: 3,
     scoreLevels: [
-      { id: 'sl_201', levelName: '一级（优秀）', score: 10 },
-      { id: 'sl_202', levelName: '二级（良好）', score: 8 },
-      { id: 'sl_203', levelName: '三级（合格）', score: 6 }
+      { id: 'sl_201', levelName: '一级', score: 10 },
+      { id: 'sl_202', levelName: '二级', score: 8 },
+      { id: 'sl_203', levelName: '三级', score: 6 }
     ]
   },
   {
@@ -127,10 +127,10 @@ const DEFAULT_SCORE_RULES: ScoreRuleItem[] = [
     totalScore: 50,
     levelCount: 4,
     scoreLevels: [
-      { id: 'sl_301', levelName: 'A级（特级）', score: 50 },
-      { id: 'sl_302', levelName: 'B级（高级）', score: 40 },
-      { id: 'sl_303', levelName: 'C级（中级）', score: 30 },
-      { id: 'sl_304', levelName: 'D级（初级）', score: 20 }
+      { id: 'sl_301', levelName: 'A级', score: 50 },
+      { id: 'sl_302', levelName: 'B级', score: 40 },
+      { id: 'sl_303', levelName: 'C级', score: 30 },
+      { id: 'sl_304', levelName: 'D级', score: 20 }
     ]
   }
 ];

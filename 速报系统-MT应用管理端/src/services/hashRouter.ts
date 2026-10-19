@@ -14,6 +14,18 @@ export type AppRouteType =
   | 'system_accounts'
   | 'system_logs';
 
+/** 全局 / 机构业务配置二级页签（与 InstitutionBusinessRulesTab 导航 key 对齐） */
+export type ConfigModuleKey =
+  | 'templates'
+  | 'workflow'
+  | 'scoring'
+  | 'value_added'
+  | 'dictionary'
+  | 'invite_fields'
+  | 'role_permission'
+  | 'qr_code'
+  | 'other';
+
 export interface RouteState {
   routeType: AppRouteType;
   activeTab: ActiveTab;
@@ -23,13 +35,46 @@ export interface RouteState {
   isEditingInstitution: boolean;
   isAuthenticated: boolean;
   activeView: 'portal' | 'operation';
+  /** 业务配置二级导航，如 templates / workflow */
+  configModule?: ConfigModuleKey | null;
 }
 
-const cleanHash = (hash: string): string => {
-  const withoutHash = hash.startsWith('#') ? hash.slice(1) : hash;
-  const withoutLeadingSlash = withoutHash.startsWith('/') ? withoutHash.slice(1) : withoutHash;
-  // Remove query params or trailing slash
-  return withoutLeadingSlash.split('?')[0].replace(/\/+$/, '');
+const CONFIG_MODULE_ALIASES: Record<string, ConfigModuleKey> = {
+  templates: 'templates',
+  template: 'templates',
+  report_template: 'templates',
+  workflow: 'workflow',
+  audit_flow: 'workflow',
+  scoring: 'scoring',
+  audit_score: 'scoring',
+  value_added: 'value_added',
+  dictionary: 'dictionary',
+  data_dict: 'dictionary',
+  invite_fields: 'invite_fields',
+  invite: 'invite_fields',
+  role_permission: 'role_permission',
+  qr_code: 'qr_code',
+  other: 'other',
+};
+
+const parseHashParts = (rawHash: string): { path: string; params: URLSearchParams } => {
+  const withoutHash = rawHash.startsWith('#') ? rawHash.slice(1) : rawHash;
+  const [pathPart = '', query = ''] = withoutHash.split('?');
+  const path = pathPart.replace(/^\//, '').replace(/\/+$/, '');
+  return { path, params: new URLSearchParams(query) };
+};
+
+export const normalizeConfigModule = (raw?: string | null): ConfigModuleKey | null => {
+  if (!raw) return null;
+  return CONFIG_MODULE_ALIASES[raw.trim()] ?? null;
+};
+
+const cleanHash = (hash: string): string => parseHashParts(hash).path;
+
+const readConfigModuleFromRaw = (rawHash: string, expectedPath: 'config' | 'org-config'): ConfigModuleKey | null => {
+  const { path, params } = parseHashParts(rawHash);
+  if (path !== expectedPath) return null;
+  return normalizeConfigModule(params.get('module'));
 };
 
 export const hashRouter = {
@@ -38,8 +83,18 @@ export const hashRouter = {
     return window.location.hash || '';
   },
 
+  getConfigModule: (rawHash?: string): ConfigModuleKey | null => {
+    const raw = rawHash !== undefined ? rawHash : typeof window !== 'undefined' ? window.location.hash : '';
+    const { path } = parseHashParts(raw);
+    if (path === 'config' || path === 'org-config') {
+      return readConfigModuleFromRaw(raw, path);
+    }
+    return null;
+  },
+
   parseRoute: (rawHash?: string): Partial<RouteState> => {
-    const hash = cleanHash(rawHash !== undefined ? rawHash : (typeof window !== 'undefined' ? window.location.hash : ''));
+    const raw = rawHash !== undefined ? rawHash : typeof window !== 'undefined' ? window.location.hash : '';
+    const hash = cleanHash(raw);
 
     if (!hash) {
       return {
@@ -142,6 +197,7 @@ export const hashRouter = {
         selectedInstitutionId: null,
         isCreatingInstitution: false,
         isEditingInstitution: false,
+        configModule: readConfigModuleFromRaw(raw, 'config'),
       };
     }
 
@@ -154,6 +210,7 @@ export const hashRouter = {
         selectedInstitutionId: null,
         isCreatingInstitution: false,
         isEditingInstitution: false,
+        configModule: readConfigModuleFromRaw(raw, 'org-config'),
       };
     }
 
@@ -195,6 +252,7 @@ export const hashRouter = {
     selectedInstitutionId?: number | null;
     isCreatingInstitution?: boolean;
     isEditingInstitution?: boolean;
+    configModule?: ConfigModuleKey | null;
   }): string => {
     if (state.isAuthenticated === false) {
       return '#/login';
@@ -221,11 +279,28 @@ export const hashRouter = {
     }
 
     if (state.activeTab === 'config') {
-      return '#/config';
+      const currentPath =
+        typeof window !== 'undefined' ? parseHashParts(window.location.hash).path : '';
+      // 显式传入优先；否则仅在当前已是 config 时保留二级 module，避免从其他页切过来带上旧参数
+      const keep =
+        state.configModule !== undefined
+          ? state.configModule
+          : currentPath === 'config'
+            ? hashRouter.getConfigModule()
+            : null;
+      return keep ? `#/config?module=${keep}` : '#/config';
     }
 
     if (state.activeTab === 'org_config') {
-      return '#/org-config';
+      const currentPath =
+        typeof window !== 'undefined' ? parseHashParts(window.location.hash).path : '';
+      const keep =
+        state.configModule !== undefined
+          ? state.configModule
+          : currentPath === 'org-config'
+            ? hashRouter.getConfigModule()
+            : null;
+      return keep ? `#/org-config?module=${keep}` : '#/org-config';
     }
 
     if (state.activeTab === 'monitoring') {
@@ -248,6 +323,7 @@ export const hashRouter = {
       selectedInstitutionId?: number | null;
       isCreatingInstitution?: boolean;
       isEditingInstitution?: boolean;
+      configModule?: ConfigModuleKey | null;
     },
     replace = false
   ) => {
@@ -264,9 +340,26 @@ export const hashRouter = {
 
   navigate: (targetHash: string) => {
     if (typeof window === 'undefined') return;
-    const normalized = targetHash.startsWith('#') ? targetHash : `#${targetHash.startsWith('/') ? targetHash : `/${targetHash}`}`;
+    const normalized = targetHash.startsWith('#')
+      ? targetHash
+      : `#${targetHash.startsWith('/') ? targetHash : `/${targetHash}`}`;
     if (window.location.hash !== normalized) {
       window.location.hash = normalized;
+    }
+  },
+
+  /** 更新业务配置二级页签（全局 #/config?module=… / 机构 #/org-config?module=…） */
+  setConfigModule: (module: ConfigModuleKey, options?: { isGlobalScope?: boolean; replace?: boolean }) => {
+    if (typeof window === 'undefined') return;
+    const isGlobal = options?.isGlobalScope !== false;
+    const base = isGlobal ? 'config' : 'org-config';
+    const targetHash = `#/${base}?module=${module}`;
+    if (window.location.hash === targetHash) return;
+    if (options?.replace && window.history?.replaceState) {
+      window.history.replaceState(null, '', targetHash);
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    } else {
+      window.location.hash = targetHash;
     }
   },
 };
