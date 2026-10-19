@@ -8,7 +8,14 @@ import {
   type TerminalId,
   type TerminalMode,
 } from './data/terminalUrls';
-import { docLabel, getTerminalDocs, isPortalDoc, useTerminalDocs } from './data/terminalDocs';
+import {
+  docLabel,
+  getExternalDocUrl,
+  getHomeTerminalDocs,
+  getTerminalDocs,
+  isPortalDoc,
+  useTerminalDocs,
+} from './data/terminalDocs';
 import { TerminalDocsModal } from './components/TerminalDocsModal';
 import { TerminalDocViewer } from './components/TerminalDocViewer';
 import {
@@ -183,6 +190,20 @@ export default function App() {
       if (docMatch && docTerminal) {
         const docName = decodeURIComponent(docMatch[2]);
         if (isPortalDoc(docName)) {
+          // 外链 PRD 在原型右侧分栏展示，不进文档中心弹窗
+          if (getExternalDocUrl(docTerminal.id, docName)) {
+            setDocView(null);
+            widenPanelForExternalDoc(docTerminal.id, docName);
+            window.history.replaceState(
+              null,
+              '',
+              `${window.location.pathname}${window.location.search}${terminalHash(docTerminal.id, docName)}`,
+            );
+            setPanelDoc(docName);
+            setActiveTerminal(docTerminal);
+            setRecentTerminals((prev) => [docTerminal, ...prev.filter((t) => t.id !== docTerminal.id)].slice(0, 4));
+            return;
+          }
           setDocView({ terminalId: docTerminal.id, docName });
           return;
         }
@@ -194,7 +215,9 @@ export default function App() {
         const found = TERMINALS.find((t) => t.id === match[1]);
         if (found) {
           const docName = new URLSearchParams(hash.split('?')[1] ?? '').get('doc');
-          setPanelDoc(docName && isPortalDoc(docName) ? docName : null);
+          const nextPanelDoc = docName && isPortalDoc(docName) ? docName : null;
+          if (nextPanelDoc) widenPanelForExternalDoc(found.id, nextPanelDoc);
+          setPanelDoc(nextPanelDoc);
           setActiveTerminal(found);
           setRecentTerminals((prev) => [found, ...prev.filter((t) => t.id !== found.id)].slice(0, 4));
           return;
@@ -291,9 +314,18 @@ export default function App() {
   const confirmPanelDiscard = () =>
     !panelDirtyRef.current || window.confirm('当前文档有未保存的修改，确定放弃吗？');
 
+  const widenPanelForExternalDoc = (terminalId: string, docName: string) => {
+    if (!getExternalDocUrl(terminalId, docName)) return;
+    const half = Math.round(window.innerWidth * 0.5);
+    setPanelWidth((width) =>
+      width >= half * 0.9 ? width : Math.min(Math.max(half, DOC_PANEL_MIN_WIDTH), Math.round(window.innerWidth * 0.7)),
+    );
+  };
+
   const openDocPanel = (docName: string) => {
     if (!activeTerminal || docName === panelDoc) return;
     if (!confirmPanelDiscard()) return;
+    widenPanelForExternalDoc(activeTerminal.id, docName);
     window.location.hash = terminalHash(activeTerminal.id, docName);
   };
 
@@ -350,6 +382,11 @@ export default function App() {
   const docHash = (terminalId: string, docName: string) => `#/docs/${terminalId}/${encodeURIComponent(docName)}`;
 
   const openDocs = (terminalId: TerminalId, docName = 'PRD') => {
+    // 外链文档进入对应端原型，并在右侧半屏分栏内嵌展示
+    if (getExternalDocUrl(terminalId, docName)) {
+      window.location.hash = terminalHash(terminalId, docName);
+      return;
+    }
     const currentHash = window.location.hash || '#/';
     if (!currentHash.startsWith('#/docs/')) {
       docReturnHash.current = currentHash;
@@ -367,6 +404,10 @@ export default function App() {
       terminalId={docView.terminalId}
       docName={docView.docName}
       onNavigate={(terminalId, docName) => {
+        if (getExternalDocUrl(terminalId, docName)) {
+          window.location.hash = terminalHash(terminalId, docName);
+          return;
+        }
         window.location.hash = docHash(terminalId, docName);
       }}
       onClose={closeDocs}
@@ -444,7 +485,13 @@ export default function App() {
                       ? 'bg-[#1d61d6]/10 text-[#1d61d6]'
                       : 'text-slate-600 hover:text-[#1d61d6] hover:bg-slate-100'
                   }`}
-                  title={isOpen ? `收起${docLabel(doc.name)}` : `在右侧对照查看${docLabel(doc.name)}`}
+                  title={
+                    isOpen
+                      ? `收起${docLabel(doc.name)}`
+                      : getExternalDocUrl(activeTerminal.id, doc.name)
+                        ? `在右侧分栏打开飞书${docLabel(doc.name)}`
+                        : `在右侧对照查看${docLabel(doc.name)}`
+                  }
                 >
                   <FileText className="w-3.5 h-3.5" />
                   <span>{docLabel(doc.name)}</span>
@@ -637,8 +684,9 @@ export default function App() {
 
                     {/* 文档入口 */}
                     <div className="flex items-center gap-1.5 flex-wrap empty:hidden">
-                      {getTerminalDocs(docsBundle, terminal.id).map((doc) => {
-                        const isEmpty = !doc.content.trim();
+                      {getHomeTerminalDocs(docsBundle, terminal.id).map((doc) => {
+                        const externalUrl = getExternalDocUrl(terminal.id, doc.name);
+                        const isEmpty = !externalUrl && !doc.content.trim();
                         return (
                           <button
                             key={doc.name}
@@ -647,7 +695,13 @@ export default function App() {
                               event.stopPropagation();
                               openDocs(terminal.id, doc.name);
                             }}
-                            title={isEmpty ? `${docLabel(doc.name)}（待补充）` : `查看${docLabel(doc.name)}`}
+                            title={
+                              externalUrl
+                                ? `进入原型并在右侧分栏打开飞书${docLabel(doc.name)}`
+                                : isEmpty
+                                  ? `${docLabel(doc.name)}（待补充）`
+                                  : `查看${docLabel(doc.name)}`
+                            }
                             className={`inline-flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] font-semibold transition-colors ${
                               isEmpty
                                 ? 'bg-white border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300'

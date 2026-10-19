@@ -6,6 +6,7 @@ import {
   Check,
   ChevronDown,
   Copy,
+  ExternalLink,
   FileCode,
   FileDown,
   FileText,
@@ -23,6 +24,7 @@ import {
   docLabel,
   exportMarkdownFile,
   getDocSyncState,
+  getExternalDocUrl,
   resolveDocAssetUrl,
   saveTerminalDoc,
   updateSyncRequest,
@@ -146,7 +148,90 @@ function formatTime(iso: string) {
   return new Date(iso).toLocaleString('zh-CN', { hour12: false });
 }
 
-export function TerminalDocViewer({
+function ExternalDocViewer({
+  variant,
+  terminalName,
+  accent,
+  docName,
+  title,
+  onClose,
+  url,
+}: Pick<TerminalDocViewerProps, 'variant' | 'terminalName' | 'accent' | 'docName' | 'title' | 'onClose'> & {
+  url: string;
+}) {
+  const isPanel = variant === 'panel';
+  return (
+    <section className="flex-1 min-w-0 h-full flex flex-col bg-white">
+      <header
+        className={`${isPanel ? 'px-3 gap-2' : 'px-5 gap-3'} h-14 border-b border-slate-100 flex items-center justify-between shrink-0`}
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          {title ?? (
+            <>
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: accent }} />
+              <span className="text-sm font-bold text-slate-900 truncate">
+                {terminalName} · {docLabel(docName)}
+              </span>
+            </>
+          )}
+          <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200 shrink-0">
+            飞书
+          </span>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-[#1d61d6] hover:bg-slate-100 transition-colors"
+            title="在新标签页打开飞书文档"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">新窗口打开</span>
+          </a>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            title="关闭"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </header>
+      <div className="flex-1 min-h-0 relative bg-slate-50">
+        <iframe
+          key={url}
+          src={url}
+          title={`${terminalName} ${docLabel(docName)}`}
+          className="absolute inset-0 w-full h-full border-0 bg-white"
+          allow="clipboard-read; clipboard-write"
+          referrerPolicy="no-referrer-when-downgrade"
+        />
+      </div>
+    </section>
+  );
+}
+
+export function TerminalDocViewer(props: TerminalDocViewerProps) {
+  const externalUrl = getExternalDocUrl(props.terminalId, props.docName);
+  if (externalUrl) {
+    return (
+      <ExternalDocViewer
+        variant={props.variant}
+        terminalName={props.terminalName}
+        accent={props.accent}
+        docName={props.docName}
+        title={props.title}
+        onClose={props.onClose}
+        url={externalUrl}
+      />
+    );
+  }
+  return <LocalTerminalDocViewer {...props} />;
+}
+
+function LocalTerminalDocViewer({
   variant,
   terminalId,
   terminalName,

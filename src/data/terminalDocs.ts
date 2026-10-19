@@ -20,13 +20,27 @@ export interface TerminalDocsBundle {
   syncState: DocsSyncState;
 }
 
-/** 门户可见的文档入口；置空即隐藏首页卡片、顶栏与分栏中的 PRD / 更新记录入口 */
-const DOC_ORDER: string[] = [];
+/** 进入各端后顶栏 / 右侧分栏可见的文档入口 */
+const DOC_ORDER = ['PRD'];
+/** 门户首页卡片上的文档入口；置空则首页不展示 PRD / 更新记录 */
+const HOME_DOC_ORDER: string[] = [];
 const DOC_LABELS: Record<string, string> = { CHANGELOG: '更新记录', PRD: 'PRD' };
 
-/** Whether this doc name appears in the portal UI (homepage chips, panel tabs, docs modal) */
+/** 外链文档：点击入口时打开该 URL，不再使用本地 Markdown 预览 */
+const EXTERNAL_DOC_URLS: Record<string, Partial<Record<string, string>>> = {
+  'mt-app': {
+    PRD: 'https://bvhnst56r3r.feishu.cn/wiki/Q8Q4wWyOuiUsWDkC2UHc5MYynCc',
+  },
+};
+
+/** Whether this doc name can open in-terminal (panel / hash ?doc=) */
 export function isPortalDoc(name: string): boolean {
   return DOC_ORDER.includes(name);
+}
+
+/** 若该端文档配置了外链（如飞书 Wiki），返回 URL；否则返回 undefined */
+export function getExternalDocUrl(terminalId: string, name: string): string | undefined {
+  return EXTERNAL_DOC_URLS[terminalId]?.[name];
 }
 
 /** Saving writes to docs/terminals through the dev server; static builds are read-only */
@@ -59,6 +73,13 @@ export function docLabel(name: string): string {
 
 export function getTerminalDocs(bundle: TerminalDocsBundle, terminalId: string): TerminalDoc[] {
   return DOC_ORDER.flatMap((name) =>
+    bundle.docs.filter((doc) => doc.terminalId === terminalId && doc.name === name),
+  );
+}
+
+/** 门户首页卡片上的文档入口（与端内入口可分开配置） */
+export function getHomeTerminalDocs(bundle: TerminalDocsBundle, terminalId: string): TerminalDoc[] {
+  return HOME_DOC_ORDER.flatMap((name) =>
     bundle.docs.filter((doc) => doc.terminalId === terminalId && doc.name === name),
   );
 }

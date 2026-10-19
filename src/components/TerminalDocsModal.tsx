@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef } from 'react';
-import { docLabel, getDocSyncState, getTerminalDocs, useTerminalDocs } from '../data/terminalDocs';
+import { docLabel, getDocSyncState, getExternalDocUrl, getTerminalDocs, useTerminalDocs } from '../data/terminalDocs';
 import { TerminalDocViewer } from './TerminalDocViewer';
 
 export interface DocsTerminal {
@@ -39,7 +39,9 @@ export function TerminalDocsModal({ terminals, terminalId, docName, onNavigate, 
   });
 
   const handleNavigate = (nextTerminalId: string, nextDocName: string) => {
-    if (nextTerminalId === terminalId && nextDocName === docName) return;
+    if (nextTerminalId === terminalId && nextDocName === docName && !getExternalDocUrl(nextTerminalId, nextDocName)) {
+      return;
+    }
     if (confirmDiscard()) onNavigate(nextTerminalId, nextDocName);
   };
 
@@ -63,6 +65,7 @@ export function TerminalDocsModal({ terminals, terminalId, docName, onNavigate, 
                 {getTerminalDocs(bundle, item.id).map((itemDoc) => {
                   const isActive = item.id === terminalId && itemDoc.name === docName;
                   const isPending = !!getDocSyncState(bundle, item.id, itemDoc.name).requestedAt;
+                  const isExternal = !!getExternalDocUrl(item.id, itemDoc.name);
                   return (
                     <div
                       key={itemDoc.name}
@@ -70,10 +73,15 @@ export function TerminalDocsModal({ terminals, terminalId, docName, onNavigate, 
                       className={`flex items-center justify-between gap-2 pl-6 pr-2 py-1.5 rounded-lg cursor-pointer text-xs transition-colors ${
                         isActive ? 'bg-white text-[#1d61d6] font-bold shadow-xs' : 'text-slate-600 hover:bg-white/70'
                       }`}
+                      title={isExternal ? '进入原型右侧分栏打开飞书文档' : undefined}
                     >
                       <span className="truncate">
                         {docLabel(itemDoc.name)}
-                        {!itemDoc.content.trim() && <span className="ml-1.5 text-[10px] font-normal text-slate-400">待补充</span>}
+                        {isExternal ? (
+                          <span className="ml-1.5 text-[10px] font-normal text-slate-400">飞书</span>
+                        ) : (
+                          !itemDoc.content.trim() && <span className="ml-1.5 text-[10px] font-normal text-slate-400">待补充</span>
+                        )}
                       </span>
                       {isPending && (
                         <span className="shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
