@@ -401,7 +401,7 @@ export const useBusinessRulesViewModel = ({
       sortOrder: rules.dictItems.filter((item) => item.dictType === dictType).length + 1,
       isSystem: false,
       status: true,
-      description: isRejectReason ? '请填写该驳回原因对应的审核员提示说明' : '请填写该人员标签对应的业务职能说明',
+      description: isRejectReason ? '请填写该驳回原因对应的提示说明' : '请填写该人员标签对应的业务职能说明',
       updatedAt: formatDateTime(),
     });
   };

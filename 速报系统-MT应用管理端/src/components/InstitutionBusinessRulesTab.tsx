@@ -2063,7 +2063,7 @@ export const InstitutionBusinessRulesTab: React.FC<Props> = ({
                   className="px-4 py-1.5 rounded text-xs font-semibold bg-[#1677ff] hover:bg-blue-600 text-white transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
                 >
                   <span className="material-symbols-outlined text-[16px]">add</span>
-                  <span>{selectedDictType === 'reject_reason' ? '新增驳回理由' : '新增人员标签'}</span>
+                  <span>{selectedDictType === 'reject_reason' ? '新增' : '新增人员标签'}</span>
                 </button>
               </div>
 
@@ -2074,10 +2074,10 @@ export const InstitutionBusinessRulesTab: React.FC<Props> = ({
                     <tr>
                       <th className="py-3.5 px-6 w-16 text-center">序号</th>
                       <th className="py-3.5 px-6 w-72">
-                        {selectedDictType === 'reject_reason' ? '驳回理由' : '标签名称'}
+                        {selectedDictType === 'reject_reason' ? '字典名称' : '标签名称'}
                       </th>
                       <th className="py-3.5 px-6">
-                        {selectedDictType === 'reject_reason' ? '审核员提示说明' : '标签说明'}
+                        {selectedDictType === 'reject_reason' ? '提示说明' : '标签说明'}
                       </th>
                       <th className="py-3.5 px-6 w-32">状态</th>
                       <th className="py-3.5 px-6 w-48 font-mono">更新时间</th>
@@ -4017,7 +4017,7 @@ export const InstitutionBusinessRulesTab: React.FC<Props> = ({
 
               <div>
                 <span className="text-gray-400 block text-[11px] mb-1">
-                  {viewingDictItem.dictType === 'reject_reason' ? '驳回理由名称' : '标签名称'}
+                  {viewingDictItem.dictType === 'reject_reason' ? '字典名称' : '标签名称'}
                 </span>
                 <div className="text-sm font-bold text-gray-900 bg-white border border-gray-200 rounded-md px-3 py-2">
                   {viewingDictItem.label}
@@ -4026,7 +4026,7 @@ export const InstitutionBusinessRulesTab: React.FC<Props> = ({
 
               <div>
                 <span className="text-gray-400 block text-[11px] mb-1">
-                  {viewingDictItem.dictType === 'reject_reason' ? '审核员提示说明' : '标签说明'}
+                  {viewingDictItem.dictType === 'reject_reason' ? '提示说明' : '标签说明'}
                 </span>
                 <div className="text-xs text-gray-700 bg-gray-50/50 border border-gray-200 rounded-md px-3 py-2.5 leading-relaxed min-h-[60px]">
                   {viewingDictItem.description || '暂无说明'}
@@ -4118,7 +4118,7 @@ export const InstitutionBusinessRulesTab: React.FC<Props> = ({
             <div className="p-6 space-y-4 text-xs">
               <div>
                 <label className="text-gray-700 font-semibold block mb-1">
-                  {editingDictItem.dictType === 'reject_reason' ? '驳回理由名称' : '人员标签名称'}
+                  {editingDictItem.dictType === 'reject_reason' ? '字典名称' : '人员标签名称'}
                   <span className="text-red-500 ml-0.5">*</span>
                 </label>
                 <input
@@ -4134,7 +4134,7 @@ export const InstitutionBusinessRulesTab: React.FC<Props> = ({
 
               <div>
                 <label className="text-gray-700 font-semibold block mb-1">
-                  {editingDictItem.dictType === 'reject_reason' ? '审核员提示说明' : '标签业务职能说明'}
+                  {editingDictItem.dictType === 'reject_reason' ? '提示说明' : '标签业务职能说明'}
                 </label>
                 <textarea
                   rows={3}

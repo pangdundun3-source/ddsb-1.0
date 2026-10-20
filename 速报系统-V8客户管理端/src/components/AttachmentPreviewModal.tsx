@@ -73,13 +73,22 @@ export const AttachmentPreviewModal: React.FC<AttachmentPreviewModalProps> = ({
 
   if (!isOpen || !currentAtt) return null;
 
-  const currentIndex = attachments.findIndex((a) => a.id === currentAtt.id);
+  // 仅图片可预览；PDF/表格等文件走下载，不进入预览切换列表
+  const isPreviewable = (att: Attachment) =>
+    att.type === 'image' ||
+    ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.bmp'].some((ext) =>
+      att.name.toLowerCase().endsWith(ext)
+    );
+  const previewableAttachments = (attachments.length > 0 ? attachments : [currentAtt]).filter(
+    isPreviewable
+  );
+  const currentIndex = previewableAttachments.findIndex((a) => a.id === currentAtt.id);
   const hasPrev = currentIndex > 0;
-  const hasNext = currentIndex >= 0 && currentIndex < attachments.length - 1;
+  const hasNext = currentIndex >= 0 && currentIndex < previewableAttachments.length - 1;
 
   const handlePrev = () => {
     if (hasPrev) {
-      const prev = attachments[currentIndex - 1];
+      const prev = previewableAttachments[currentIndex - 1];
       setCurrentAtt(prev);
       if (onSelectAttachment) onSelectAttachment(prev);
       setZoomLevel(100);
@@ -90,7 +99,7 @@ export const AttachmentPreviewModal: React.FC<AttachmentPreviewModalProps> = ({
 
   const handleNext = () => {
     if (hasNext) {
-      const next = attachments[currentIndex + 1];
+      const next = previewableAttachments[currentIndex + 1];
       setCurrentAtt(next);
       if (onSelectAttachment) onSelectAttachment(next);
       setZoomLevel(100);
@@ -172,11 +181,11 @@ export const AttachmentPreviewModal: React.FC<AttachmentPreviewModalProps> = ({
                 <ShieldCheck className="w-3.5 h-3.5" />
                 <span>安全扫描通过</span>
               </span>
-              {attachments.length > 1 && (
+              {previewableAttachments.length > 1 && currentIndex >= 0 && (
                 <>
                   <span className="text-gray-600">|</span>
                   <span className="text-blue-400">
-                    第 {currentIndex + 1} / {attachments.length} 个附件
+                    第 {currentIndex + 1} / {previewableAttachments.length} 张图片
                   </span>
                 </>
               )}
@@ -661,14 +670,14 @@ export const AttachmentPreviewModal: React.FC<AttachmentPreviewModalProps> = ({
         </div>
       </div>
 
-      {/* Bottom Thumbnail Strip (if multiple attachments exist) */}
-      {attachments.length > 1 && (
+      {/* Bottom Thumbnail Strip (仅图片可切换预览) */}
+      {previewableAttachments.length > 1 && (
         <div className="h-20 bg-gray-950/90 border-t border-gray-800/80 px-4 flex items-center justify-center space-x-3 shrink-0 overflow-x-auto z-10">
           <span className="text-[11px] text-gray-400 font-medium shrink-0 mr-2 flex items-center space-x-1">
             <Layers className="w-3.5 h-3.5" />
-            <span>所有附件清单：</span>
+            <span>可预览图片：</span>
           </span>
-          {attachments.map((att, idx) => {
+          {previewableAttachments.map((att, idx) => {
             const isSelected = att.id === currentAtt.id;
             return (
               <button
@@ -688,14 +697,10 @@ export const AttachmentPreviewModal: React.FC<AttachmentPreviewModalProps> = ({
                 }`}
               >
                 <div className="w-8 h-8 rounded bg-gray-800 shrink-0 overflow-hidden flex items-center justify-center">
-                  {att.type === 'image' && att.thumbnailUrl ? (
+                  {att.thumbnailUrl ? (
                     <img src={att.thumbnailUrl} alt={att.name} className="w-full h-full object-cover" />
-                  ) : att.type === 'pdf' || att.name.toLowerCase().endsWith('.pdf') ? (
-                    <FileText className="w-4 h-4 text-rose-400" />
-                  ) : att.type === 'word' || att.name.toLowerCase().endsWith('.doc') || att.name.toLowerCase().endsWith('.docx') ? (
-                    <FileText className="w-4 h-4 text-blue-400" />
                   ) : (
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                    <ImageIcon className="w-4 h-4 text-blue-400" />
                   )}
                 </div>
                 <div className="min-w-0">

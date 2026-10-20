@@ -16,6 +16,7 @@ import {
   SlidersHorizontal,
   MapPin,
   Eye,
+  Download,
   FileSpreadsheet,
   Plus
 } from 'lucide-react';
@@ -253,25 +254,18 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
               <Sparkles className="w-4 h-4 text-amber-300" />
             </div>
             <div>
-              <div className="flex items-center space-x-2">
-                <h2 className="text-base font-bold tracking-tight">
-                  {isEditMode
-                    ? editingReport && (editingReport.auditStatus === '被驳回' || editingReport.auditStatus === '已驳回')
-                      ? '修改补充并重新提交'
-                      : '编辑草稿速报'
-                    : '新建速报上报'}
-                </h2>
-                {!isEditMode && (
-                  <span className="text-[11px] bg-white/20 text-white px-2 py-0.5 rounded-full font-medium border border-white/30">
-                    支持多套智能模板
-                  </span>
-                )}
-              </div>
-              <p className="text-[11px] text-blue-100/80">
+              <h2 className="text-base font-bold tracking-tight">
                 {isEditMode
-                  ? '已自动带入原报送内容，补充修正后重新提交送审'
-                  : '根据业务场景快速套用标准化上报格式'}
-              </p>
+                  ? editingReport && (editingReport.auditStatus === '被驳回' || editingReport.auditStatus === '已驳回')
+                    ? '修改补充并重新提交'
+                    : '编辑草稿速报'
+                  : '新建速报'}
+              </h2>
+              {isEditMode && (
+                <p className="text-[11px] text-blue-100/80">
+                  已自动带入原报送内容，补充修正后重新提交送审
+                </p>
+              )}
             </div>
           </div>
 
@@ -307,7 +301,6 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
                   <SlidersHorizontal className="w-3.5 h-3.5" />
                 </span>
                 <span className="text-xs font-bold text-gray-800">选择报送模板</span>
-                <span className="text-[11px] text-gray-500">点击模板一键套用标准结构与样例</span>
               </div>
             </div>
 
@@ -320,7 +313,7 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
                     key={tpl.id}
                     type="button"
                     onClick={() => applyTemplate(tpl, true)}
-                    className={`p-2.5 rounded-lg border text-left transition-all relative flex flex-col justify-between cursor-pointer group ${
+                    className={`p-2.5 rounded-lg border text-left transition-all relative cursor-pointer group ${
                       isSelected
                         ? 'bg-white border-[#1E5ABB] shadow-md ring-2 ring-blue-100'
                         : 'bg-white/80 hover:bg-white border-gray-200/80 hover:border-blue-200 shadow-2xs'
@@ -331,15 +324,10 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
                         <Check className="w-2.5 h-2.5 stroke-[3]" />
                       </span>
                     )}
-                    <div>
-                      <div className="flex items-center space-x-1.5 mb-1">
-                        {renderTemplateIcon(tpl.iconName)}
-                        <span className={`text-[11px] font-bold truncate ${isSelected ? 'text-[#1E5ABB]' : 'text-gray-700'}`}>
-                          {tpl.name.replace('模板', '')}
-                        </span>
-                      </div>
-                      <span className={`inline-block text-[9px] px-1.5 py-0.2 rounded border font-semibold ${tpl.badgeColor}`}>
-                        {tpl.badge}
+                    <div className="flex items-center space-x-1.5">
+                      {renderTemplateIcon(tpl.iconName)}
+                      <span className={`text-[11px] font-bold truncate ${isSelected ? 'text-[#1E5ABB]' : 'text-gray-700'}`}>
+                        {tpl.name.replace('模板', '')}
                       </span>
                     </div>
                   </button>
@@ -533,7 +521,9 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
               >
                 <UploadCloud className="w-7 h-7 text-gray-400 group-hover:text-[#1E5ABB] mx-auto mb-1 transition-colors" />
                 <p className="text-gray-700 font-semibold text-xs group-hover:text-[#1E5ABB]">点击选择或拖拽文件至此处上传 (点击添加示例附件)</p>
-                <p className="text-gray-400 text-[10px] mt-0.5">支持 PNG, JPG, PDF, XLSX, DOCX (单个文件最大 20MB)</p>
+                <p className="text-gray-400 text-[10px] mt-0.5 leading-relaxed text-left sm:text-center">
+                  ①图片：jpg、jpeg、png、bmp，单文件上限 20MB；②文档：pdf、doc、docx、xls、xlsx，单文件上限 20MB；单条上报全部附件总和上限 100MB；图片支持预览，附件仅支持下载
+                </p>
               </div>
 
               {/* Uploaded Attachments List */}
@@ -541,7 +531,7 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
                 <div className="mt-3 space-y-2">
                   <div className="text-[11px] font-bold text-gray-500 flex items-center justify-between">
                     <span>已选佐证附件列表：</span>
-                    <span className="text-[10px] text-gray-400 font-normal">点击“预览”可即时查看内容</span>
+                    <span className="text-[10px] text-gray-400 font-normal">图片可预览，其它附件仅支持下载</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {attachments.map((att) => (
@@ -566,17 +556,31 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
                         </div>
 
                         <div className="flex items-center space-x-1.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setPreviewAttachment(att);
-                            }}
-                            className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-[#1E5ABB] rounded text-[11px] font-bold flex items-center space-x-1 transition-colors cursor-pointer"
-                          >
-                            <Eye className="w-3 h-3" />
-                            <span>预览</span>
-                          </button>
+                          {att.type === 'image' ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPreviewAttachment(att);
+                              }}
+                              className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-[#1E5ABB] rounded text-[11px] font-bold flex items-center space-x-1 transition-colors cursor-pointer"
+                            >
+                              <Eye className="w-3 h-3" />
+                              <span>预览</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                triggerToast(`已开始下载：${att.name}`);
+                              }}
+                              className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-[#1E5ABB] rounded text-[11px] font-bold flex items-center space-x-1 transition-colors cursor-pointer"
+                            >
+                              <Download className="w-3 h-3" />
+                              <span>下载</span>
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={(e) => {

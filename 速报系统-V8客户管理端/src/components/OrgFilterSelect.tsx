@@ -28,8 +28,8 @@ export const OrgFilterSelect: React.FC<OrgFilterSelectProps> = ({
   value,
   onChange,
   orgNodes = INITIAL_ORG_NODES,
-  allLabel = '全部上报机构',
-  title = '上报机构',
+  allLabel = '全部报送机构',
+  title = '报送机构',
   className = '',
   triggerClassName = ''
 }) => {

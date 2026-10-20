@@ -148,6 +148,46 @@ function formatTime(iso: string) {
   return new Date(iso).toLocaleString('zh-CN', { hour12: false });
 }
 
+type DocSource = 'native' | 'feishu';
+
+function DocSourceSwitch({
+  value,
+  onChange,
+}: {
+  value: DocSource;
+  onChange: (next: DocSource) => void;
+}) {
+  const options: { id: DocSource; label: string }[] = [
+    { id: 'native', label: '原生PRD' },
+    { id: 'feishu', label: '飞书' },
+  ];
+  return (
+    <div
+      role="tablist"
+      aria-label="PRD 来源"
+      className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg shrink-0"
+    >
+      {options.map((option) => {
+        const active = value === option.id;
+        return (
+          <button
+            key={option.id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(option.id)}
+            className={`px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap transition-colors ${
+              active ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function FeishuDocPanel({
   variant,
   terminalName,
@@ -208,21 +248,47 @@ function FeishuDocPanel({
   );
 }
 
-/** 有飞书链接时直接打开飞书文档（隐藏原生 PRD 入口） */
-export function TerminalDocViewer(props: TerminalDocViewerProps) {
-  const externalUrl = getExternalDocUrl(props.terminalId, props.docName);
-  if (externalUrl) {
+/** 有飞书链接时：原生 Markdown PRD 与飞书 Wiki 用顶栏切换 */
+function DualSourceDocViewer({
+  externalUrl,
+  ...props
+}: TerminalDocViewerProps & { externalUrl: string }) {
+  const [source, setSource] = useState<DocSource>('native');
+  const titleWithSwitch = (
+    <div className="flex items-center gap-1.5 min-w-0">
+      {props.title ?? (
+        <>
+          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: props.accent }} />
+          <span className="text-sm font-bold text-slate-900 truncate">
+            {props.terminalName} · {docLabel(props.docName)}
+          </span>
+        </>
+      )}
+      <DocSourceSwitch value={source} onChange={setSource} />
+    </div>
+  );
+
+  if (source === 'feishu') {
     return (
       <FeishuDocPanel
         variant={props.variant}
         terminalName={props.terminalName}
         accent={props.accent}
         docName={props.docName}
-        title={props.title}
+        title={titleWithSwitch}
         onClose={props.onClose}
         url={externalUrl}
       />
     );
+  }
+
+  return <LocalTerminalDocViewer {...props} title={titleWithSwitch} />;
+}
+
+export function TerminalDocViewer(props: TerminalDocViewerProps) {
+  const externalUrl = getExternalDocUrl(props.terminalId, props.docName);
+  if (externalUrl) {
+    return <DualSourceDocViewer {...props} externalUrl={externalUrl} />;
   }
   return <LocalTerminalDocViewer {...props} />;
 }

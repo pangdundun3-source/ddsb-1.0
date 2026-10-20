@@ -301,9 +301,13 @@ export const ReportDetailCard: React.FC<ReportDetailCardProps> = ({
                 key={file.id || idx}
                 className="rounded-xl border border-gray-200/80 bg-white overflow-hidden shadow-2xs hover:shadow-xs transition-all flex flex-col group"
               >
-                {/* Visual Area (h-36) */}
+                {/* Visual Area (h-36)：图片可预览，其它文件仅下载 */}
                 {isImage ? (
-                  <div className="relative h-36 bg-gray-100 overflow-hidden">
+                  <div
+                    className="relative h-36 bg-gray-100 overflow-hidden cursor-pointer"
+                    onClick={() => handlePreview(file)}
+                    title="点击预览图片"
+                  >
                     <img
                       src={
                         file.thumbnailUrl ||
@@ -320,7 +324,11 @@ export const ReportDetailCard: React.FC<ReportDetailCardProps> = ({
                     </div>
                   </div>
                 ) : (
-                  <div className="relative h-36 bg-[#FAFAFA] flex flex-col items-center justify-center p-4">
+                  <div
+                    className="relative h-36 bg-[#FAFAFA] flex flex-col items-center justify-center p-4 cursor-pointer"
+                    onClick={() => handleDownload(file)}
+                    title="点击下载文件"
+                  >
                     {/* Red PDF 文档 Badge on Top-Left */}
                     <span className="absolute top-2.5 left-2.5 bg-[#EF4444] text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-2xs">
                       {isPdf ? 'PDF 文档' : '文档'}
@@ -337,22 +345,26 @@ export const ReportDetailCard: React.FC<ReportDetailCardProps> = ({
                   </div>
                 )}
 
-                {/* Bottom Footer: File Size on Left, 👁 预览 | ⬇ 下载 on Right */}
+                {/* Bottom Footer: 图片显示预览+下载，文件仅下载 */}
                 <div className="p-3 px-3.5 bg-white flex items-center justify-between text-xs border-t border-gray-100 mt-auto">
                   <span className="text-gray-400 text-xs font-normal">
                     {file.size}
                   </span>
                   <div className="flex items-center space-x-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handlePreview(file)}
-                      className="text-[#2563EB] hover:text-blue-700 font-medium flex items-center space-x-1 cursor-pointer transition-colors"
-                      title="预览该附件"
-                    >
-                      <Eye className="w-3.5 h-3.5 text-[#2563EB]" />
-                      <span>预览</span>
-                    </button>
-                    <span className="text-gray-300 font-light select-none">|</span>
+                    {isImage && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handlePreview(file)}
+                          className="text-[#2563EB] hover:text-blue-700 font-medium flex items-center space-x-1 cursor-pointer transition-colors"
+                          title="预览该图片"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-[#2563EB]" />
+                          <span>预览</span>
+                        </button>
+                        <span className="text-gray-300 font-light select-none">|</span>
+                      </>
+                    )}
                     <button
                       type="button"
                       onClick={() => handleDownload(file)}

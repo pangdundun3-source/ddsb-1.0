@@ -132,6 +132,7 @@ export const SideSubNav: React.FC<SideSubNavProps> = ({
             return (
               <button
                 key={item.page}
+                type="button"
                 onClick={() => onNavigate(item.page)}
                 className={`relative w-full text-left px-2.5 py-2.5 rounded-xl flex items-start space-x-2.5 transition-all cursor-pointer ${
                   active
@@ -152,7 +153,9 @@ export const SideSubNav: React.FC<SideSubNavProps> = ({
                       </span>
                     )}
                   </span>
-                  <span className="block text-[11px] text-slate-400 mt-0.5 truncate">{item.desc}</span>
+                  <span className="block text-[11px] text-slate-400 mt-0.5 truncate" title={item.desc}>
+                    {item.desc}
+                  </span>
                 </span>
               </button>
             );

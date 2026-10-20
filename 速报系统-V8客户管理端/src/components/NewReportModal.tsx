@@ -17,6 +17,7 @@ import {
   MapPin,
   Eye,
   FileSpreadsheet,
+  Download,
   Plus
 } from 'lucide-react';
 import {
@@ -523,7 +524,9 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
               >
                 <UploadCloud className="w-7 h-7 text-gray-400 group-hover:text-[#1E5ABB] mx-auto mb-1 transition-colors" />
                 <p className="text-gray-700 font-semibold text-xs group-hover:text-[#1E5ABB]">点击选择或拖拽文件至此处上传 (点击添加示例附件)</p>
-                <p className="text-gray-400 text-[10px] mt-0.5">支持 PNG, JPG, PDF, XLSX, DOCX (单个文件最大 20MB)</p>
+                <p className="text-gray-400 text-[10px] mt-0.5 leading-relaxed text-left sm:text-center">
+                  ①图片：jpg、jpeg、png、bmp，单文件上限 20MB；②文档：pdf、doc、docx、xls、xlsx，单文件上限 20MB；单条上报全部附件总和上限 100MB；图片支持预览，附件仅支持下载
+                </p>
               </div>
 
               {/* Uploaded Attachments List */}
@@ -531,7 +534,7 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
                 <div className="mt-3 space-y-2">
                   <div className="text-[11px] font-bold text-gray-500 flex items-center justify-between">
                     <span>已选佐证附件列表：</span>
-                    <span className="text-[10px] text-gray-400 font-normal">点击“预览”可即时查看内容</span>
+                    <span className="text-[10px] text-gray-400 font-normal">图片可预览，其它附件仅支持下载</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {attachments.map((att) => (
@@ -556,17 +559,31 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
                         </div>
 
                         <div className="flex items-center space-x-1.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setPreviewAttachment(att);
-                            }}
-                            className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-[#1E5ABB] rounded text-[11px] font-bold flex items-center space-x-1 transition-colors cursor-pointer"
-                          >
-                            <Eye className="w-3 h-3" />
-                            <span>预览</span>
-                          </button>
+                          {att.type === 'image' ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPreviewAttachment(att);
+                              }}
+                              className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-[#1E5ABB] rounded text-[11px] font-bold flex items-center space-x-1 transition-colors cursor-pointer"
+                            >
+                              <Eye className="w-3 h-3" />
+                              <span>预览</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                triggerToast(`已开始下载：${att.name}`);
+                              }}
+                              className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-[#1E5ABB] rounded text-[11px] font-bold flex items-center space-x-1 transition-colors cursor-pointer"
+                            >
+                              <Download className="w-3 h-3" />
+                              <span>下载</span>
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={(e) => {

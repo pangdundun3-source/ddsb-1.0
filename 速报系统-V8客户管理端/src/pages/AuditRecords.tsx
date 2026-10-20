@@ -210,9 +210,9 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
             />
           </div>
 
-          {/* 上报机构：外部联系人组织树，默认全部，支持下钻含子级 */}
+          {/* 报送机构：外部联系人组织树，默认全部，支持下钻含子级 */}
           <div className="flex items-center space-x-2 min-w-0 shrink-0">
-            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">上报机构</label>
+            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">报送机构</label>
             <OrgFilterSelect value={selectedOrgId} onChange={setSelectedOrgId} />
           </div>
 

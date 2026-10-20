@@ -163,7 +163,12 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
         <div className="relative z-10 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
           <h2 className="text-base font-bold tracking-tight">报送管理工作台</h2>
-          <span className="text-[11px] text-blue-100/70 ml-1 truncate">集中处理待审核、审核中及被驳回修改舆情速报事项 · 我的报送</span>
+          <span
+            className="text-[11px] text-blue-100/70 ml-1 truncate min-w-0"
+            title="集中处理待审核、审核中及被驳回修改的速报事项。"
+          >
+            集中处理待审核、审核中及被驳回修改的速报事项。
+          </span>
         </div>
 
         {/* 4 Large Translucent Metric Cards */}
@@ -254,7 +259,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
               type="text"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="搜索上报标题、上报人姓名..."
+              placeholder="搜索上报标题、事件描述关键词..."
               className="w-full pl-9 pr-8 py-2 bg-white border border-gray-200 hover:border-gray-300 focus:border-[#1E5ABB] rounded-lg text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 transition-all shadow-2xs"
             />
             <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-2.5" />

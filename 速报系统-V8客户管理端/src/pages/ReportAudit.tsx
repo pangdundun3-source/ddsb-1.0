@@ -401,23 +401,23 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
             </div>
           </div>
 
-          {/* 上报时间 */}
+          {/* 报送时间 */}
           <div className="flex items-center space-x-2 shrink-0">
-            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">上报时间</label>
+            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">报送时间</label>
             <DateRangeField
               startValue={startDate}
               endValue={endDate}
               onStartChange={setStartDate}
               onEndChange={setEndDate}
-              title="上报时间区间"
-              startTitle="上报开始日期"
-              endTitle="上报结束日期"
+              title="报送时间区间"
+              startTitle="报送开始日期"
+              endTitle="报送结束日期"
             />
           </div>
 
-          {/* 上报机构：外部联系人组织树，默认全部，支持下钻含子级 */}
+          {/* 报送机构：外部联系人组织树，默认全部，支持下钻含子级 */}
           <div className="flex items-center space-x-2 min-w-0 shrink-0">
-            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">上报机构</label>
+            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">报送机构</label>
             <OrgFilterSelect value={selectedOrgId} onChange={setSelectedOrgId} />
           </div>
 
@@ -505,8 +505,14 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                               </div>
 
                               <button
-                                onClick={() => openBatchModal(cluster)}
+                                onClick={() => {
+                                  const first = cluster.items[0];
+                                  if (!first) return;
+                                  onSelectAudit(first);
+                                  onNavigate('audit-detail');
+                                }}
                                 className="px-3.5 py-1.5 bg-[#F26522] hover:bg-[#D9531E] text-white text-xs font-bold rounded-lg shadow-2xs transition-all shrink-0 flex items-center space-x-1.5 cursor-pointer active:scale-98"
+                                title="进入首条详情，在详情页勾选同源报送继续批量审核"
                               >
                                 <Layers className="w-3.5 h-3.5" />
                                 <span>批量审核</span>

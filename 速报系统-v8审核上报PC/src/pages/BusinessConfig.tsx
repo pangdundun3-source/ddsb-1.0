@@ -166,7 +166,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
           { id: 'f2', name: '事件发生时间', type: 'date', required: true, placeholder: '请选择事件发生或发现的时间' },
           { id: 'f3', name: '涉事传播数据量', type: 'number', required: false, placeholder: '输入阅读/点赞/转发估算量' },
           { id: 'f4', name: '来源网址/文章链接', type: 'link', required: false, placeholder: 'https://...' },
-          { id: 'f5', name: '现场图片/证据附件', type: 'file', required: true, placeholder: '支持上传JPG, PNG, PDF' }
+          { id: 'f5', name: '现场图片/证据附件', type: 'file', required: true, placeholder: '①图片：jpg、jpeg、png、bmp，单文件上限 20MB；②文档：pdf、doc、docx、xls、xlsx，单文件上限 20MB；单条上报全部附件总和上限 100MB；图片支持预览，附件仅支持下载' }
         ]
       },
       {
@@ -874,7 +874,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
       { id: 'p_2', name: '事件发生/发现时间', type: 'date', required: true, placeholder: '请选择事件发生或传播时间' },
       { id: 'p_3', name: '涉事热度/影响数据', type: 'number', required: false, placeholder: '请输入传播量/阅读量等数据' },
       { id: 'p_4', name: '来源网址/文章出处', type: 'link', required: false, placeholder: 'https://...' },
-      { id: 'p_5', name: '现场图片/证据附件', type: 'file', required: true, placeholder: '支持图片、视频、PDF证明文档' }
+      { id: 'p_5', name: '现场图片/证据附件', type: 'file', required: true, placeholder: '①图片：jpg、jpeg、png、bmp，单文件上限 20MB；②文档：pdf、doc、docx、xls、xlsx，单文件上限 20MB；单条上报全部附件总和上限 100MB；图片支持预览，附件仅支持下载' }
     ]);
   };
 
@@ -3694,7 +3694,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
                                 <div className="border-2 border-dashed border-gray-200 rounded-lg p-3 text-center bg-gray-50/50 text-gray-400 space-y-1">
                                   <Paperclip className="w-5 h-5 mx-auto text-gray-300" />
                                   <p className="text-[11px] font-medium text-gray-500">点击或将凭证文件拖拽至此处上传</p>
-                                  <p className="text-[10px] text-gray-400">{field.placeholder || '支持格式: JPG, PNG, PDF, MP4, ZIP'}</p>
+                                  <p className="text-[10px] text-gray-400 leading-relaxed">{field.placeholder || '①图片：jpg、jpeg、png、bmp，单文件上限 20MB；②文档：pdf、doc、docx、xls、xlsx，单文件上限 20MB；单条上报全部附件总和上限 100MB；图片支持预览，附件仅支持下载'}</p>
                                 </div>
                               )}
 

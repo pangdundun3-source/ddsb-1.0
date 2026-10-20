@@ -387,7 +387,7 @@ const standardReportFields: TemplateField[] = withFixedReportFields([
   { id: 'p_2', name: '事件发生/发现时间', type: 'date', required: true, placeholder: '请选择事件发生或传播时间' },
   { id: 'p_3', name: '涉事热度/影响数据', type: 'number', required: false, placeholder: '请输入传播量/阅读量等数据' },
   { id: 'p_4', name: '来源网址/文章出处', type: 'link', required: false, placeholder: 'https://...' },
-  { id: 'p_5', name: '现场图片/证据附件', type: 'file', required: true, placeholder: '支持图片、视频、PDF证明文档' },
+  { id: 'p_5', name: '现场图片/证据附件', type: 'file', required: true, placeholder: '①图片：jpg、jpeg、png、bmp，单文件上限 20MB；②文档：pdf、doc、docx、xls、xlsx，单文件上限 20MB；单条上报全部附件总和上限 100MB；图片支持预览，附件仅支持下载' },
   { id: 'p_6', name: '事件分类', type: 'select', required: true, placeholder: '请选择事件分类', options: ['突发敏感事件', '网络舆情动态', '民生诉求建议'] }
 ]);
 
@@ -2590,8 +2590,8 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                       <p className="text-xs text-gray-800 font-medium break-words">
                         {fieldValue || '上传图片、视频或证明材料'}
                       </p>
-                      <p className="text-gray-400 text-[11px] mt-0.5">
-                        {field.placeholder || '支持图片、视频、PDF证明文档'}
+                      <p className="text-gray-400 text-[11px] mt-0.5 leading-relaxed">
+                        {field.placeholder || '①图片：jpg、jpeg、png、bmp，单文件上限 20MB；②文档：pdf、doc、docx、xls、xlsx，单文件上限 20MB；单条上报全部附件总和上限 100MB；图片支持预览，附件仅支持下载'}
                       </p>
                     </label>
                   )}
@@ -3321,6 +3321,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
           ? (prev.data_dict || []).map(i => (i.id === editingItem.id ? dictItem : i))
           : [...(prev.data_dict || []), dictItem]
       }));
+      setDictSubCategoryFilter(formDictCategory);
       setIsModalOpen(false);
       return;
     }
@@ -3705,11 +3706,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                     ? '新增审核流程'
                     : activeModule === 'audit_score'
                     ? '新增打分规则'
-                    : dictSubCategoryFilter === 'reject_reason'
-                    ? '新增驳回理由'
-                    : dictSubCategoryFilter === 'info_category'
-                    ? '新增公告分类'
-                    : '新增字典项'}
+                    : '新增'}
                 </span>
               </button>
             )}
@@ -3945,14 +3942,11 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                           <tr className="bg-gray-50/80 text-gray-500 border-b border-gray-200 font-medium">
                             <th className="py-2.5 px-4 font-medium whitespace-nowrap w-14 text-center">序号</th>
                             <th className="py-2.5 px-4 font-medium whitespace-nowrap min-w-36">
-                              {isRejectReasonView ? '驳回理由' : '字典项名称'}
+                              字典名称
                             </th>
                             <th className="py-2.5 px-4 font-medium whitespace-nowrap min-w-28 font-mono">字典编码</th>
-                            {!isRejectReasonView && (
-                              <th className="py-2.5 px-4 font-medium whitespace-nowrap">所属分类</th>
-                            )}
                             <th className="py-2.5 px-4 font-medium min-w-56">
-                              {isRejectReasonView ? '审核员提示说明' : '业务说明'}
+                              提示说明
                             </th>
                             <th className="py-2.5 px-4 font-medium whitespace-nowrap text-center w-16">排序号</th>
                             <th className="py-2.5 px-4 font-medium whitespace-nowrap w-24">状态</th>
@@ -3963,7 +3957,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                         <tbody className="divide-y divide-gray-100 text-gray-700">
                           {sortedDictList.length === 0 ? (
                             <tr>
-                              <td colSpan={isRejectReasonView ? 8 : 9} className="py-12 text-center text-gray-400 text-xs">
+                              <td colSpan={8} className="py-12 text-center text-gray-400 text-xs">
                                 暂无相关字典条目
                               </td>
                             </tr>
@@ -3995,13 +3989,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                   <td className="py-3 px-4 align-middle whitespace-nowrap font-mono text-gray-500 text-[11px]">
                                     {item.dictCode || buildDictCode(itemCategory, item.sortOrder || index + 1)}
                                   </td>
-                                  {!isRejectReasonView && (
-                                    <td className="py-3 px-4 align-middle whitespace-nowrap">
-                                      <span className={`inline-flex px-2 py-0.5 text-[10px] font-bold rounded border ${getDictCategoryBadge(itemCategory)}`}>
-                                        {itemMeta.label}
-                                      </span>
-                                    </td>
-                                  )}
                                   <td className="py-3 px-4 align-middle">
                                     <p className="text-[11px] text-gray-600 leading-relaxed line-clamp-2" title={item.description || ''}>
                                       {item.description || (isRejectReasonView ? '审核员选择该理由后，将作为本次驳回说明同步给上报人。' : itemMeta.description)}
@@ -4030,14 +4017,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                   </td>
                                   <td className="py-3 px-4 align-middle text-center whitespace-nowrap">
                                     <div className="flex items-center justify-center gap-1.5">
-                                      <button
-                                        type="button"
-                                        onClick={() => openPreviewItem(item)}
-                                        title="查看详情"
-                                        className="p-1 text-gray-400 hover:text-[#1E5ABB] rounded hover:bg-blue-50 cursor-pointer"
-                                      >
-                                        <Eye className="w-3.5 h-3.5" />
-                                      </button>
                                       {item.isDefault ? (
                                         <span className="p-1 text-gray-300 cursor-not-allowed" title="系统默认字典项暂不支持编辑">
                                           <Edit3 className="w-3.5 h-3.5" />
@@ -5386,7 +5365,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                   <thead>
                     <tr className="bg-gray-50/80 text-gray-500 border-b border-gray-200 font-medium">
                       <th className="py-2.5 px-4 font-medium">
-                        {activeModule === 'data_dict' ? '字典项名称 / 类别与描述' : ['audit_score', 'evaluation_rule'].includes(activeModule) ? '规则名称' : '模板名称'}
+                        {activeModule === 'data_dict' ? '字典名称 / 类别与描述' : ['audit_score', 'evaluation_rule'].includes(activeModule) ? '规则名称' : '模板名称'}
                       </th>
                       <th className="py-2.5 px-4 font-medium whitespace-nowrap">
                         {activeModule === 'data_dict' ? '字典编码 & 排序号' : activeModule === 'report_template' ? '模板类型' : activeModule === 'audit_score' ? '适用范围与打分参数' : activeModule === 'audit_flow' ? '关联模版 / 层级节点 / 机构规则' : '属性类型'}
@@ -5929,7 +5908,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                       <>
                         <div>
                           <span className="text-gray-400 block mb-1">
-                            {(previewItem.dictCategory || 'reject_reason') === 'reject_reason' ? '驳回理由名称:' : '字典项名称:'}
+                            字典名称:
                           </span>
                           <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                             <span className="font-bold text-gray-800 text-sm">{previewItem.name}</span>
@@ -5979,7 +5958,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 
                         <div>
                           <span className="text-gray-400 block mb-1">
-                            {(previewItem.dictCategory || 'reject_reason') === 'reject_reason' ? '审核员提示说明:' : '业务说明:'}
+                            提示说明:
                           </span>
                           <p className="p-2.5 bg-gray-50 rounded border border-gray-100 text-gray-700 leading-relaxed">
                             {previewItem.description || dictMeta.description}
@@ -6757,12 +6736,46 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                   {(() => {
                     const currentDictMeta = getDictCategoryMeta(formDictCategory);
                     const isRejectReasonForm = formDictCategory === 'reject_reason';
+                    const handleDictCategoryChange = (nextCat: string) => {
+                      const meta = getDictCategoryMeta(nextCat);
+                      const count =
+                        (dataStore.data_dict || []).filter(
+                          i => (i.dictCategory || 'reject_reason') === nextCat && i.id !== editingItem?.id
+                        ).length + 1;
+                      setFormDictCategory(nextCat);
+                      setFormDictCategoryName(meta.label);
+                      setFormDictCode(buildDictCode(nextCat, count));
+                      setFormSortOrder(count);
+                      if (!editingItem) {
+                        setFormDesc(
+                          nextCat === 'reject_reason'
+                            ? '审核驳回时展示给审核员选择，并作为退回原因同步给上报人。'
+                            : meta.description
+                        );
+                      }
+                    };
                     return (
                       <>
+                  <div>
+                    <label className="block text-gray-700 font-medium mb-1">字典分类 *</label>
+                    <select
+                      value={formDictCategory}
+                      onChange={e => handleDictCategoryChange(e.target.value)}
+                      disabled={!!editingItem}
+                      className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white disabled:bg-gray-50 disabled:text-gray-500"
+                    >
+                      {dictCategoryTabOptions.map(option => (
+                        <option key={option.id} value={option.id}>
+                          {option.fullLabel}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-gray-700 font-medium mb-1">
-                        {isRejectReasonForm ? '驳回理由名称 *' : '字典项名称 *'}
+                        字典名称 *
                       </label>
                       <input
                         type="text"
@@ -6779,13 +6792,13 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 
                   <div>
                     <label className="block text-gray-700 font-medium mb-1">
-                      {isRejectReasonForm ? '驳回说明' : '字典说明'}
+                      提示说明
                     </label>
                     <textarea
                       rows={2}
                       value={formDesc}
                       onChange={e => setFormDesc(e.target.value)}
-                      placeholder={isRejectReasonForm ? '如: 缺乏实质性事实依据或为虚假流言，审核人选择此项将触发退回修改提示...' : '请输入该字典项的业务说明...'}
+                      placeholder={isRejectReasonForm ? '如: 缺乏实质性事实依据或为虚假流言，审核人选择此项将触发退回修改提示...' : '请输入提示说明...'}
                       className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] text-xs"
                     />
                   </div>
@@ -7851,7 +7864,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                   type="submit"
                   className="px-4 py-1.5 bg-[#1E5ABB] text-white rounded font-bold hover:bg-[#134092] cursor-pointer"
                 >
-                  保存模板配置
+                  保存
                 </button>
               </div>
             </form>

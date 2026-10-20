@@ -256,7 +256,7 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
                 type="text"
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
-                placeholder="请输入事件标题、发生地址、诉求等关键词进行检索"
+                placeholder="搜索上报标题、事件描述关键词..."
                 className="w-full pl-8 pr-8 py-2 bg-white border border-gray-300 hover:border-gray-400 focus:border-[#1E5ABB] rounded-lg text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 transition-all shadow-2xs"
               />
               <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />

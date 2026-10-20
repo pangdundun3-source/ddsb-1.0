@@ -173,12 +173,16 @@ export const NegativeDetail: React.FC<NegativeDetailProps> = ({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-              {attachments.map((att) => (
+              {attachments.map((att) => {
+                const isImage = att.type === 'image';
+                const isPdf = att.type === 'pdf' || att.name.toLowerCase().endsWith('.pdf');
+                const downloadAtt = () => alert(`正在下载附件：${att.name}`);
+                return (
                 <div
                   key={att.id}
                   className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50/50 hover:border-blue-400 hover:shadow-md transition-all group flex flex-col justify-between"
                 >
-                  {att.type === 'image' ? (
+                  {isImage ? (
                     <div
                       className="w-full h-24 bg-gray-100 overflow-hidden relative flex items-center justify-center cursor-pointer group"
                       onClick={() => setPreviewAttachment(att)}
@@ -196,16 +200,16 @@ export const NegativeDetail: React.FC<NegativeDetailProps> = ({
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                       />
                     </div>
-                  ) : att.type === 'pdf' || att.name.toLowerCase().endsWith('.pdf') ? (
+                  ) : isPdf ? (
                     <div
                       className="w-full h-24 bg-rose-50/50 flex flex-col items-center justify-center text-rose-600 relative p-3 cursor-pointer group border-b border-gray-100"
-                      onClick={() => setPreviewAttachment(att)}
-                      title="点击在线预览 PDF"
+                      onClick={downloadAtt}
+                      title="点击下载文件"
                     >
                       <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center justify-center">
                         <span className="px-2.5 py-0.5 bg-black/70 text-white rounded-full text-[11px] font-medium flex items-center space-x-1 backdrop-blur-xs">
-                          <Eye className="w-3 h-3" />
-                          <span>阅读</span>
+                          <Download className="w-3 h-3" />
+                          <span>下载</span>
                         </span>
                       </div>
                       <FileText className="w-8 h-8 text-rose-500 group-hover:scale-110 transition-transform" />
@@ -213,13 +217,13 @@ export const NegativeDetail: React.FC<NegativeDetailProps> = ({
                   ) : (
                     <div
                       className="w-full h-24 bg-blue-50/50 flex flex-col items-center justify-center text-[#1E5ABB] relative p-3 cursor-pointer group border-b border-gray-100"
-                      onClick={() => setPreviewAttachment(att)}
-                      title="点击在线预览表格"
+                      onClick={downloadAtt}
+                      title="点击下载文件"
                     >
                       <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-center justify-center">
                         <span className="px-2.5 py-0.5 bg-black/70 text-white rounded-full text-[11px] font-medium flex items-center space-x-1 backdrop-blur-xs">
-                          <Eye className="w-3 h-3" />
-                          <span>查看</span>
+                          <Download className="w-3 h-3" />
+                          <span>下载</span>
                         </span>
                       </div>
                       <FileSpreadsheet className="w-8 h-8 text-[#1E5ABB] group-hover:scale-110 transition-transform" />
@@ -232,18 +236,22 @@ export const NegativeDetail: React.FC<NegativeDetailProps> = ({
                       <p className="text-[10px] text-gray-400">{att.size}</p>
                     </div>
                     <div className="flex items-center space-x-1.5 shrink-0">
+                      {isImage && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewAttachment(att)}
+                            className="text-[#1E5ABB] hover:underline cursor-pointer flex items-center space-x-0.5 font-medium"
+                          >
+                            <Eye className="w-3 h-3" />
+                            <span>预览</span>
+                          </button>
+                          <span className="text-gray-300">|</span>
+                        </>
+                      )}
                       <button
                         type="button"
-                        onClick={() => setPreviewAttachment(att)}
-                        className="text-[#1E5ABB] hover:underline cursor-pointer flex items-center space-x-0.5 font-medium"
-                      >
-                        <Eye className="w-3 h-3" />
-                        <span>预览</span>
-                      </button>
-                      <span className="text-gray-300">|</span>
-                      <button
-                        type="button"
-                        onClick={() => alert(`正在下载附件：${att.name}`)}
+                        onClick={downloadAtt}
                         className="text-gray-500 hover:text-[#1E5ABB] hover:underline cursor-pointer flex items-center space-x-0.5 font-medium"
                       >
                         <Download className="w-3 h-3" />
@@ -252,7 +260,8 @@ export const NegativeDetail: React.FC<NegativeDetailProps> = ({
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
