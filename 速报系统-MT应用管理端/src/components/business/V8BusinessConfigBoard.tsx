@@ -5816,11 +5816,6 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                             </div>
                           </div>
                         </div>
-                        <span className="text-[11px] leading-4 text-gray-400 font-normal">
-                          {formFlowLevelDirection === 'down'
-                            ? `从总机构下一层向下取 ${formFlowDepth || 3} 级，更低层级穿透到其中最底层，再进入总机构终审。不足 ${formFlowDepth || 3} 级时按实际层级流转。`
-                            : `从上报机构向上最多 ${formFlowDepth || 3} 级，含本级初审，超出直达总机构终审。不足 ${formFlowDepth || 3} 级时按实际层级流转。`}
-                        </span>
                       </div>
                     )}
                   </div>
@@ -5990,24 +5985,21 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                 const invalidScoreCount = formScoreLevels.filter(lvl => lvl.score < 0 || lvl.score > formTotalScore).length;
                 const isDescending = formScoreLevels.every((lvl, idx) => idx === 0 || formScoreLevels[idx - 1].score >= lvl.score);
                 return (
-                  <div className="space-y-3 pt-3 border-t border-gray-200">
+                  <div className="space-y-3 pt-3">
                     {/* Score Levels Table */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between px-1 gap-3">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="font-bold text-gray-800 text-xs">等级评分</span>
-                          <span className={`px-1.5 py-0.5 rounded border text-[10px] font-bold ${
-                            invalidScoreCount > 0
-                              ? 'bg-red-50 text-red-700 border-red-200'
-                              : isDescending
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-amber-50 text-amber-800 border-amber-200'
-                          }`}>
-                            {invalidScoreCount > 0 ? `${invalidScoreCount} 项异常` : isDescending ? '互斥命中' : '建议降序'}
-                          </span>
-                          <span className="text-[11px] text-gray-400 truncate">
-                            {formTotalScore} 分满分，审核时只选一个等级
-                          </span>
+                          {(invalidScoreCount > 0 || !isDescending) && (
+                            <span className={`px-1.5 py-0.5 rounded border text-[10px] font-bold ${
+                              invalidScoreCount > 0
+                                ? 'bg-red-50 text-red-700 border-red-200'
+                                : 'bg-amber-50 text-amber-800 border-amber-200'
+                            }`}>
+                              {invalidScoreCount > 0 ? `${invalidScoreCount} 项异常` : '建议降序'}
+                            </span>
+                          )}
                         </div>
                         <button
                           type="button"
@@ -6231,10 +6223,10 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                         </div>
 
                         <div className="border border-gray-200 rounded-xl p-4 bg-white space-y-3.5 min-h-[420px]">
-                          {selectedNode?.isSubmitStage ? (
+                          {selectedNode && (selectedNode.isSubmitStage || selectedNode.nodeName === '上报人' || selectedNode.nodeName === '上报') ? (
                             <div className="flex flex-col items-center justify-center text-center min-h-[380px] px-8">
                               <p className="text-sm font-bold text-gray-800">上报阶段无需配置</p>
-                              <p className="text-xs text-gray-500 mt-2 leading-relaxed">上报功能人员暂无限制。</p>
+                              <p className="text-xs text-gray-500 mt-2 leading-relaxed">上报功能人员暂无限制，不配置节点属性。</p>
                             </div>
                           ) : selectedNode ? (
                             <>
@@ -6336,31 +6328,31 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                               </div>
 
                               <div className="border border-amber-200 bg-amber-50/30 rounded-xl p-3.5 space-y-2">
-                                <label className="block text-xs font-bold text-gray-800">无处理人处理规则</label>
-                                {selectedNode.isFinalScoreNode ? (
-                                  <select
-                                    value="block"
-                                    disabled
-                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-medium bg-gray-50 text-gray-500 cursor-not-allowed"
-                                  >
-                                    <option value="block">阻断提交</option>
-                                  </select>
-                                ) : (
-                                  <select
-                                    value={selectedNode.missingRule === 'block' ? 'block' : 'skip'}
-                                    onChange={e => handleUpdateAuditNode(selectedIndex, { missingRule: e.target.value as 'skip' | 'block' })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-medium bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                  >
-                                    <option value="skip">跳过该节点</option>
-                                    <option value="block">阻断提报</option>
-                                  </select>
-                                )}
-                                <p className="text-xs text-gray-500 mt-1">
+                                <div className="flex items-center justify-between gap-3">
+                                  <label className="text-xs font-bold text-gray-800 shrink-0">无处理人处理规则</label>
+                                  {selectedNode.isFinalScoreNode ? (
+                                    <span className="text-xs font-semibold text-amber-900 shrink-0">阻断提交</span>
+                                  ) : (
+                                    <select
+                                      value={selectedNode.missingRule === 'block' ? 'block' : 'skip'}
+                                      onChange={e =>
+                                        handleUpdateAuditNode(selectedIndex, {
+                                          missingRule: e.target.value === 'block' ? 'block' : 'skip',
+                                        })
+                                      }
+                                      className="px-2.5 py-1 border border-amber-200 rounded-lg text-xs font-semibold text-amber-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    >
+                                      <option value="skip">跳过该节点</option>
+                                      <option value="block">阻断提交</option>
+                                    </select>
+                                  )}
+                                </div>
+                                <p className="text-xs text-gray-500">
                                   {selectedNode.isFinalScoreNode
                                     ? '上报时校验终审处理人。没有处理人则阻断提交，并提示联系管理员后再提交。终审固定为阻断提交，不支持修改。'
                                     : selectedNode.missingRule === 'block'
-                                    ? '无处理人时阻断提交并提示联系管理员'
-                                    : '无处理人时跳过当前节点，流转到下一审核节点'}
+                                      ? '上报时校验该中间节点处理人。没有处理人则阻断提交，并提示联系管理员后再提交。'
+                                      : '无处理人时跳过当前节点，流转到下一审核节点。'}
                                 </p>
                               </div>
 

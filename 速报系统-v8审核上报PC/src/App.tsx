@@ -21,6 +21,7 @@ import { NegativeInfoLibrary } from './pages/NegativeInfoLibrary';
 import { NegativeDetail } from './pages/NegativeDetail';
 import { Statistics } from './pages/Statistics';
 import { PersonalInfo } from './pages/PersonalInfo';
+import { ExternalContacts } from './pages/ExternalContacts';
 import { OrgManagement } from './pages/OrgManagement';
 import { RolePermission } from './pages/RolePermission';
 import { BusinessConfig } from './pages/BusinessConfig';
@@ -37,6 +38,7 @@ export default function App() {
     activePage,
     currentOrg,
     businessConfigInitialModule,
+    externalContactsInitialModule,
     reports,
     auditRecords,
     orgs,
@@ -296,6 +298,13 @@ export default function App() {
 
         {activePage === 'report-statistics' && <Statistics key="submit" scope="submit" />}
         {activePage === 'audit-statistics' && <Statistics key="audit" scope="audit" />}
+
+        {activePage === 'external-contacts' && (
+          <ExternalContacts
+            initialModule={externalContactsInitialModule}
+            onNavigatePage={handleNavigate}
+          />
+        )}
 
         {activePage === 'personal-info' && (
           <PersonalInfo onNavigate={handleNavigate} currentUser="张三" />

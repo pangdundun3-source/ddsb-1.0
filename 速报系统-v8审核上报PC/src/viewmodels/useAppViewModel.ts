@@ -52,6 +52,7 @@ const VALID_PAGES: PageId[] = [
   'negative-info',
   'negative-detail',
   'personal-info',
+  'external-contacts',
   'org-management',
   'role-permission',
   'business-config',
@@ -118,6 +119,11 @@ export const useAppViewModel = () => {
     return hashRoute?.module || 'report_template';
   });
 
+  const [externalContactsInitialModule, setExternalContactsInitialModule] = useState<string>(() => {
+    const hashRoute = getHashRoute();
+    return hashRoute?.page === 'external-contacts' ? hashRoute.module || 'account' : 'account';
+  });
+
   // Sync hash changes (e.g. browser back/forward, manual address bar edit) with app state
   useEffect(() => {
     const syncFromHash = () => {
@@ -134,8 +140,11 @@ export const useAppViewModel = () => {
           }
           return prev;
         });
-        if (hashRoute.module) {
+        if (hashRoute.module && hashRoute.page === 'business-config') {
           setBusinessConfigInitialModule(hashRoute.module);
+        }
+        if (hashRoute.page === 'external-contacts') {
+          setExternalContactsInitialModule(hashRoute.module || 'account');
         }
       }
     };
@@ -146,7 +155,9 @@ export const useAppViewModel = () => {
       const targetHash =
         businessConfigInitialModule && activePage === 'business-config'
           ? `#/${activePage}?module=${encodeURIComponent(businessConfigInitialModule)}`
-          : `#/${activePage}`;
+          : externalContactsInitialModule && activePage === 'external-contacts'
+            ? `#/${activePage}?module=${encodeURIComponent(externalContactsInitialModule)}`
+            : `#/${activePage}`;
       window.location.hash = targetHash;
     }
 
@@ -241,10 +252,15 @@ export const useAppViewModel = () => {
     if (extraModule && page === 'business-config') {
       setBusinessConfigInitialModule(extraModule);
     }
+    if (page === 'external-contacts') {
+      setExternalContactsInitialModule(extraModule || 'account');
+    }
     const targetHash =
-      extraModule && page === 'business-config'
+      extraModule && (page === 'business-config' || page === 'external-contacts')
         ? `#/${page}?module=${encodeURIComponent(extraModule)}`
-        : `#/${page}`;
+        : page === 'external-contacts'
+          ? `#/${page}?module=account`
+          : `#/${page}`;
     if (window.location.hash !== targetHash) {
       window.location.hash = targetHash;
     }
@@ -573,6 +589,7 @@ export const useAppViewModel = () => {
     activePage,
     currentOrg,
     businessConfigInitialModule,
+    externalContactsInitialModule,
     reports,
     reportTemplates,
     auditRecords,

@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { UserProfile, UserRole, SpeedReport } from '../types';
-import { DEPARTMENT_OPTIONS } from '../data/mockData';
 import { BackNavigationBar } from './BackNavigationBar';
 import {
   User,
@@ -15,7 +14,6 @@ import {
   BarChart2,
   RotateCcw,
   Building2,
-  ChevronDown,
   ChevronRight,
   Copy,
   FileText,
@@ -28,7 +26,7 @@ import {
 interface ProfileViewProps {
   user: UserProfile;
   onChangeRole: (newRole: UserRole) => void;
-  onChangeDepartment: (newDept: string) => void;
+  onChangeDepartment?: (newDept: string) => void;
   onUpdateUser?: (patch: Partial<UserProfile>) => void;
   onLogout: () => void;
   onResetDemoData: () => void;
@@ -80,7 +78,6 @@ const maskBankCard = (value: string) => {
 export const ProfileView: React.FC<ProfileViewProps> = ({
   user,
   onChangeRole,
-  onChangeDepartment,
   onUpdateUser,
   onLogout,
   onResetDemoData,
@@ -434,15 +431,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   if (isDetailActive) {
     const detailName = isProfileEditing ? profileEditForm.name || user.name : user.name;
-    const detailAccount = user.account;
-    const currentInstitution = `${user.department}·${user.subDepartment && user.subDepartment !== '西坝区网格03' ? user.subDepartment : '西坝区环保局'}`;
-    const relatedInstitutions = user.associatedDepts && user.associatedDepts.length > 0 ? user.associatedDepts : [];
-    const institutionPills = [
-      currentInstitution,
-      ...relatedInstitutions.filter((dept) => dept !== currentInstitution),
-    ];
-    const visibleInstitutionPills = institutionPills.slice(0, 4);
-    const extraInstitutionCount = Math.max(institutionPills.length - visibleInstitutionPills.length, 0);
+    const ownedInstitution = `${user.department}-${
+      user.subDepartment && user.subDepartment !== '西坝区网格03' ? user.subDepartment : '西坝区环保局'
+    }`;
 
     return (
       <div className="relative flex-1 p-3.5 space-y-3 overflow-y-auto bg-slate-50 min-h-full">
@@ -458,41 +449,22 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-lg font-extrabold text-white leading-tight truncate">{detailName}</h2>
-                  <span className="inline-flex items-center rounded-full border border-white/25 bg-white/12 px-2 py-0.5 text-[10px] font-semibold text-sky-50 shadow-2xs">
-                    {detailAccount}
-                  </span>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
                   {renderRoleBadges()}
                 </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="px-4 py-3">
-            <div className="rounded-2xl bg-slate-50 border border-slate-200/70 px-3 py-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                  <Building2 className="w-3.5 h-3.5 text-blue-500" />
-                  <span>关联机构</span>
+                <div className="mt-2 space-y-1 text-[11px] text-sky-50/95">
+                  <p>
+                    微信号 <span className="font-mono font-semibold text-white">{user.account}</span>
+                  </p>
+                  <p>
+                    手机 <span className="font-mono font-semibold text-white">{user.phone}</span>
+                  </p>
+                  <p className="flex items-start gap-1 min-w-0">
+                    <Building2 className="w-3.5 h-3.5 shrink-0 mt-0.5 text-sky-100" />
+                    <span className="min-w-0">
+                      所属机构 <span className="font-semibold text-white break-all">{ownedInstitution}</span>
+                    </span>
+                  </p>
                 </div>
-                <span className="text-[10px] font-mono text-slate-500">{institutionPills.length} 个</span>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {visibleInstitutionPills.map((dept) => (
-                  <span
-                    key={dept}
-                    className="inline-flex max-w-full items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-700 shadow-sm"
-                    title={dept}
-                  >
-                    <span className="min-w-0 truncate">{dept}</span>
-                  </span>
-                ))}
-                {extraInstitutionCount > 0 && (
-                  <span className="inline-flex items-center rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-600">
-                    +{extraInstitutionCount}
-                  </span>
-                )}
               </div>
             </div>
           </div>
@@ -829,36 +801,14 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <div className="pt-2.5 border-t border-white/10 text-xs">
           <div className="bg-white/5 p-2.5 rounded-xl flex items-center space-x-2.5 min-w-0">
             <Building2 className="w-4 h-4 text-sky-400 shrink-0" />
-            <div className="flex-1 min-w-0 flex items-center justify-between">
-              <div>
-                <div className="text-[10px] text-slate-300">当前所在机构</div>
-                <div className="text-xs font-bold text-sky-100 truncate mt-0.5" title={user.department}>
-                  {user.department}
-                </div>
-              </div>
-              <div className="relative shrink-0 flex items-center ml-2">
-                <select
-                  value={user.department}
-                  onChange={(e) => {
-                    onChangeDepartment(e.target.value);
-                    onToast(`已切换所在机构为：${e.target.value}`);
-                  }}
-                  className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
-                  title="点击选择切换机构"
-                >
-                  {DEPARTMENT_OPTIONS.map((dept) => (
-                    <option key={dept} value={dept} className="bg-slate-900 text-white">
-                      {dept}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  className="px-2 py-1 rounded-lg bg-sky-500/30 hover:bg-sky-500/50 border border-sky-400/30 text-sky-200 text-xs font-medium flex items-center space-x-1 cursor-pointer transition-colors"
-                >
-                  <span>切换机构</span>
-                  <ChevronDown className="w-3.5 h-3.5 text-sky-300" />
-                </button>
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] text-slate-300">所属机构</div>
+              <div
+                className="text-xs font-bold text-sky-100 truncate mt-0.5"
+                title={`${user.department}-${user.subDepartment || '西坝区环保局'}`}
+              >
+                {user.department}-
+                {user.subDepartment && user.subDepartment !== '西坝区网格03' ? user.subDepartment : '西坝区环保局'}
               </div>
             </div>
           </div>

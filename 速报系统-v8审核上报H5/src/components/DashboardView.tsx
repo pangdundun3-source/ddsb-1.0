@@ -170,14 +170,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <FileText className="w-4.5 h-4.5" />
                 </div>
                 <div className="min-w-0">
-                  <div className="flex items-center space-x-2">
-                    <h3 className="text-xs font-bold text-slate-900 truncate">
-                      {tpl.name}
-                    </h3>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/80 border border-slate-200 text-slate-600 font-semibold shrink-0">
-                      {tpl.defaultType}
-                    </span>
-                  </div>
+                  <h3 className="text-xs font-bold text-slate-900 truncate">
+                    {tpl.name}
+                  </h3>
                   <p className="text-[11px] text-slate-500 mt-0.5 truncate">
                     {tpl.titlePlaceholder}
                   </p>

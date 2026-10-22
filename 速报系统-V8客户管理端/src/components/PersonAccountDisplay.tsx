@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Circle, Eye, EyeOff, User, Users } from 'lucide-react';
+import { Circle, Eye, EyeOff, User } from 'lucide-react';
 import type { PersonnelItem } from '../pages/OrgManagement';
-import { getRoleBadgeClass } from '../data/userOrgShared';
+import { getRoleBadgeClass, normalizeAccountRoles } from '../data/userOrgShared';
 
 const PERSON_AVATAR_POOL = [
   'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=128&h=128&fit=crop&crop=face',
@@ -75,14 +75,14 @@ export const StatusSwitch: React.FC<{
   const content = (
     <>
       <span className={`w-[14px] h-[14px] rounded-full shrink-0 ml-[3px] ${enabled ? 'bg-white' : 'bg-slate-300'}`} />
-      <span className="flex-1 text-center pr-1 leading-none">{enabled ? '启用' : '禁用'}</span>
+      <span className="flex-1 text-center pr-1 leading-none">{enabled ? '启用' : '停用'}</span>
     </>
   );
   if (onToggle) {
     return (
       <button
         type="button"
-        title={enabled ? '点击禁用该账号' : '点击启用该账号'}
+        title={enabled ? '点击停用该账号' : '点击启用该账号'}
         onClick={onToggle}
         className={className}
       >
@@ -91,6 +91,26 @@ export const StatusSwitch: React.FC<{
     );
   }
   return <span className={className}>{content}</span>;
+};
+
+/** 有身份证号视为已完成实名核验 */
+export const isRealNameVerified = (item: PersonnelItem) =>
+  Boolean(item.activationFields?.idCardNo?.trim());
+
+export const RealNameStatusBadge: React.FC<{ item: PersonnelItem }> = ({ item }) => {
+  const verified = isRealNameVerified(item);
+  return (
+    <span
+      className={`shrink-0 inline-flex items-center px-1.5 py-px rounded text-[10px] font-bold border ${
+        verified
+          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+          : 'bg-slate-50 text-slate-500 border-slate-200'
+      }`}
+      title={verified ? '已完成实名核验' : '尚未完成实名核验'}
+    >
+      {verified ? '已实名' : '未实名'}
+    </span>
+  );
 };
 
 export const PersonIdentityCell: React.FC<{
@@ -118,6 +138,7 @@ export const PersonIdentityCell: React.FC<{
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1 min-w-0">
           <span className="font-bold text-gray-900 leading-tight truncate" title={item.realName}>{item.realName}</span>
+          <RealNameStatusBadge item={item} />
           {nameBadge}
         </div>
         <div className="flex items-center gap-0.5 mt-0.5 min-w-0">
@@ -145,27 +166,102 @@ export const PersonOrgPathCell: React.FC<{ path: string }> = ({ path }) => {
   );
 };
 
+const ROLE_VISIBLE_LIMIT = 2;
+
 export const PersonRoleBadges: React.FC<{ roles?: string[] }> = ({ roles }) => {
-  const list = roles?.length ? roles : ['未分配'];
-  const primary = list[0];
-  const extra = list.length > 1 ? ` +${list.length - 1}` : '';
+  const [expanded, setExpanded] = useState(false);
+  const list = normalizeAccountRoles(roles);
+  const display = list.length ? list : ['未分配'];
+  const hidden = Math.max(0, display.length - ROLE_VISIBLE_LIMIT);
+  const visible = expanded ? display : display.slice(0, ROLE_VISIBLE_LIMIT);
   return (
-    <span
-      className={`inline-flex max-w-full items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-medium ${getRoleBadgeClass(primary)}`}
-      title={list.join('、')}
-    >
-      <Circle className="w-2 h-2 fill-current shrink-0" />
-      <span className="truncate">{primary}{extra}</span>
-    </span>
+    <div className="flex flex-col items-start gap-1 min-w-0 max-w-full" title={display.join('、')}>
+      {visible.map((role, index) => (
+        <span
+          key={`${role}-${index}`}
+          className={`inline-flex max-w-full items-center gap-1 px-1.5 py-0.5 rounded-none text-[11px] font-medium ${getRoleBadgeClass(role)}`}
+          title={role}
+        >
+          <Circle className="w-2 h-2 fill-current shrink-0" />
+          <span className="truncate">{role}</span>
+        </span>
+      ))}
+      {!expanded && hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="inline-flex items-center px-1.5 py-0.5 rounded-none border border-slate-200 bg-slate-50 text-slate-500 text-[11px] font-bold cursor-pointer hover:bg-slate-100"
+          title={`展开剩余 ${hidden} 个角色`}
+        >
+          +{hidden}
+        </button>
+      )}
+      {expanded && hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded(false)}
+          className="text-[10px] text-slate-400 hover:text-[#1E5ABB] cursor-pointer"
+        >
+          收起
+        </button>
+      )}
+    </div>
   );
 };
 
-export const PersonGroupCell: React.FC<{ groupName?: string }> = ({ groupName }) =>
-  groupName ? (
-    <span className="inline-flex items-center gap-1 min-w-0 max-w-full text-[#1E5ABB]" title={groupName}>
-      <Users className="w-3 h-3 shrink-0" />
-      <span className="truncate">{groupName}</span>
-    </span>
-  ) : (
-    <span className="text-gray-400">未入组</span>
+const GROUP_TAG_TONES = [
+  'bg-rose-50 text-rose-700 border-rose-200',
+  'bg-amber-50 text-amber-800 border-amber-200',
+  'bg-sky-50 text-sky-700 border-sky-200',
+  'bg-violet-50 text-violet-700 border-violet-200',
+  'bg-emerald-50 text-emerald-700 border-emerald-200'
+];
+
+const GROUP_VISIBLE_LIMIT = 2;
+
+export const PersonGroupCell: React.FC<{ groupName?: string; groupNames?: string[] }> = ({
+  groupName,
+  groupNames
+}) => {
+  const [expanded, setExpanded] = useState(false);
+  const names = (groupNames && groupNames.length ? groupNames : groupName ? [groupName] : []).filter(Boolean);
+  if (!names.length) {
+    return <span className="text-gray-400">未入组</span>;
+  }
+  const hidden = Math.max(0, names.length - GROUP_VISIBLE_LIMIT);
+  const visible = expanded ? names : names.slice(0, GROUP_VISIBLE_LIMIT);
+  return (
+    <div className="flex flex-col items-start gap-1 min-w-0 max-w-full">
+      {visible.map((name, index) => (
+        <span
+          key={`${name}-${index}`}
+          className={`inline-flex max-w-full items-center px-1.5 py-0.5 rounded-[5px] border text-[11px] font-medium truncate ${
+            GROUP_TAG_TONES[index % GROUP_TAG_TONES.length]
+          }`}
+          title={name}
+        >
+          {name}
+        </span>
+      ))}
+      {!expanded && hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="inline-flex items-center px-1.5 py-0.5 rounded-[5px] border border-slate-200 bg-slate-50 text-slate-500 text-[11px] font-bold cursor-pointer hover:bg-slate-100"
+          title={`展开剩余 ${hidden} 个群组`}
+        >
+          +{hidden}
+        </button>
+      )}
+      {expanded && hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded(false)}
+          className="text-[10px] text-slate-400 hover:text-[#1E5ABB] cursor-pointer"
+        >
+          收起
+        </button>
+      )}
+    </div>
   );
+};

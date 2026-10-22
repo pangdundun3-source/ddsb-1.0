@@ -158,6 +158,19 @@ export const INITIAL_ORG_NODES = [
     allowSubOrgCreation: false
   },
   {
+    id: 'org-2-2',
+    categoryId: 'cat-1',
+    parentId: 'org-2',
+    name: '西坝区环保局',
+    code: 'WXB-XB-HB',
+    leaderName: '张三',
+    leaderPhone: '13888889210',
+    systemVersion: '正式版',
+    expireDate: '2026-12-31',
+    sortOrder: 95,
+    allowSubOrgCreation: true
+  },
+  {
     id: 'org-3',
     categoryId: 'cat-2',
     parentId: null,

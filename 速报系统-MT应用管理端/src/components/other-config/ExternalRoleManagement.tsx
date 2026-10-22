@@ -63,6 +63,17 @@ const MODULES: ExtModule[] = [
     ],
   },
   {
+    code: 'EXT:ORG',
+    name: '组织管理',
+    desc: '查看本节点组织、维护自建子级并邀请人员入驻。',
+    permissions: [
+      { code: 'org:view', name: '查看本节点组织', desc: '查看当前所属组织节点及下级结构。' },
+      { code: 'org:child', name: '维护自建子级', desc: '新增、重命名、删除自行创建的下级节点。' },
+      { code: 'org:invite', name: '邀请人员入驻', desc: '邀请外部人员加入本节点或自建子级。' },
+      { code: 'org:personnel', name: '查看节点人员', desc: '查看本节点及下级的人员名单。' },
+    ],
+  },
+  {
     code: 'EXT:PROFILE',
     name: '个人中心',
     desc: '个人资料与账号信息维护。',
@@ -77,7 +88,7 @@ const ROLES: ExtRole[] = [
   {
     id: 'reporter',
     code: 'ROLE_EXT_REPORTER',
-    name: '上报员',
+    name: '网格员',
     desc: '外部单位信息报送人员，负责新建速报、跟踪本人报送进度与审核结果。',
   },
   {
@@ -86,19 +97,45 @@ const ROLES: ExtRole[] = [
     name: '审核员',
     desc: '外部单位审核人员，负责核查上报线索，执行通过、驳回、转办与批量审核。',
   },
+  {
+    id: 'org_leader',
+    code: 'ROLE_EXT_ORG_LEADER',
+    name: '节点负责人',
+    desc: '外部组织节点负责人，开通首页、消息中心、个人中心与组织管理，并负责本节点及自建子级维护。',
+  },
+  {
+    id: 'sys_admin',
+    code: 'ROLE_EXT_SYS_ADMIN',
+    name: '系统管理员',
+    desc: '外部系统管理员，拥有审核上报端全部功能与组织管理权限。',
+  },
 ];
 
 const COMMON_CODES = ['home:overview', 'home:notice', 'message:view', 'profile:view', 'profile:edit'];
 
+const ALL_EXT_CODES = MODULES.flatMap((module) => module.permissions.map((perm) => perm.code));
+
 const DEFAULT_GRANTS: Record<string, string[]> = {
   reporter: [...COMMON_CODES, 'report:create', 'report:summary', 'report:records', 'report:stats'],
   auditor: [...COMMON_CODES, 'audit:handle', 'audit:batch', 'audit:records', 'audit:stats'],
+  org_leader: [...COMMON_CODES, 'org:view', 'org:child', 'org:invite', 'org:personnel'],
+  sys_admin: [...ALL_EXT_CODES],
 };
 
 const readGrants = (storageKey: string): Record<string, string[]> => {
   try {
     const raw = localStorage.getItem(storageKey);
-    if (raw) return { ...DEFAULT_GRANTS, ...JSON.parse(raw) };
+    if (raw) {
+      const stored = JSON.parse(raw) as Record<string, string[]>;
+      // 固定预设角色始终用代码默认权限，避免旧缓存盖住新配置
+      return {
+        ...stored,
+        reporter: DEFAULT_GRANTS.reporter,
+        auditor: DEFAULT_GRANTS.auditor,
+        org_leader: DEFAULT_GRANTS.org_leader,
+        sys_admin: DEFAULT_GRANTS.sys_admin,
+      };
+    }
   } catch {
     // Ignore malformed storage and fall back to defaults.
   }

@@ -6,7 +6,7 @@ type InviteRole = 'common' | 'reporter' | 'auditor';
 
 const ROLE_TABS: { id: InviteRole; label: string; code: string; builtIn: boolean }[] = [
   { id: 'common', label: '通用默认', code: 'DEFAULT', builtIn: false },
-  { id: 'reporter', label: '上报员', code: 'ROLE_EXT_REPORTER', builtIn: true },
+  { id: 'reporter', label: '网格员', code: 'ROLE_EXT_REPORTER', builtIn: true },
   { id: 'auditor', label: '审核员', code: 'ROLE_EXT_AUDITOR', builtIn: true },
 ];
 

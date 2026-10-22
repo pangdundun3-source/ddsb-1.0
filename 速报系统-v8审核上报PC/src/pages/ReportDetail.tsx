@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { ReportItem, PageId, Attachment } from '../types';
 import { getFinalAuditScore } from '../auditStage';
 import { getReportAttachments, getReportDetailContent, getRejectReasonText } from '../data/reportContent';
@@ -305,16 +305,16 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
                       <div className="font-bold text-gray-900 text-xs">【同源地址】</div>
                       <div className="bg-[#F4F8FF] border border-[#D9E7FD] rounded-lg p-2.5 flex items-center justify-between gap-3 text-xs">
                         <a
-                          href={report.matchUrl || 'https://news.example.com/'}
+                          href={report.matchUrl || 'https://example.com/'}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-[#1E5ABB] font-mono truncate text-xs hover:underline"
-                          title={report.matchUrl || 'https://news.example.com/'}
+                          title={report.matchUrl || 'https://example.com/'}
                         >
-                          {report.matchUrl || 'https://news.example.com/'}
+                          {report.matchUrl || 'https://example.com/'}
                         </a>
                         <a
-                          href={report.matchUrl || 'https://news.example.com/'}
+                          href={report.matchUrl || 'https://example.com/'}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="px-2.5 py-1 bg-white hover:bg-blue-50 text-[#1E5ABB] border border-[#BFD7FE] rounded font-medium text-xs shrink-0 flex items-center space-x-1 shadow-2xs cursor-pointer transition-colors"
@@ -766,16 +766,16 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
                 <div className="font-bold text-gray-900 text-xs">【同源地址】</div>
                 <div className="bg-[#F4F8FF] border border-[#D9E7FD] rounded-lg p-3 flex items-center justify-between gap-3 text-xs">
                   <a
-                    href={report.matchUrl || 'https://news.example.com/'}
+                    href={report.matchUrl || 'https://example.com/'}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-[#1E5ABB] font-mono truncate text-xs hover:underline"
-                    title={report.matchUrl || 'https://news.example.com/'}
+                    title={report.matchUrl || 'https://example.com/'}
                   >
-                    {report.matchUrl || 'https://news.example.com/'}
+                    {report.matchUrl || 'https://example.com/'}
                   </a>
                   <a
-                    href={report.matchUrl || 'https://news.example.com/'}
+                    href={report.matchUrl || 'https://example.com/'}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-3 py-1 bg-white hover:bg-blue-50 text-[#1E5ABB] border border-[#BFD7FE] rounded-md font-medium text-xs shrink-0 flex items-center space-x-1 shadow-2xs cursor-pointer transition-colors"

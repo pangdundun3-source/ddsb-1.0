@@ -6,7 +6,7 @@ export const INITIAL_USER: UserProfile = {
   account: 'grid_zhangsan',
   role: '上报员',
   department: '台中市网信办',
-  associatedDepts: ['台中市西坝区街道办事处', '西坝区应急管理局', '西坝区网格化综合治理中心'],
+  associatedDepts: [],
   subDepartment: '西坝区环保局',
   gridCode: 'XBA-03-018',
   ticketNo: 'V8-H5-20260813-001',

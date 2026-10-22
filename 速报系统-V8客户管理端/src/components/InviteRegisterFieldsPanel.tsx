@@ -4,7 +4,7 @@ import { Check } from 'lucide-react';
 type InviteRegisterRole = 'reporter' | 'auditor';
 
 const ROLE_TABS: { id: InviteRegisterRole; label: string }[] = [
-  { id: 'reporter', label: '上报员' },
+  { id: 'reporter', label: '网格员' },
   { id: 'auditor', label: '审核员' }
 ];
 

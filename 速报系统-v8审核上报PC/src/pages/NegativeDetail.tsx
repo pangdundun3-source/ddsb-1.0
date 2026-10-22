@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { ReportItem, PageId, Attachment } from '../types';
 import {
   Info,
@@ -63,7 +63,7 @@ export const NegativeDetail: React.FC<NegativeDetailProps> = ({
     { id: 'a1', name: '微博截图1.png', size: '1.2 MB', type: 'image', thumbnailUrl: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=200&auto=format&fit=crop' },
     { id: 'a2', name: '微信群截图.jpg', size: '850 KB', type: 'image', thumbnailUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop' },
     { id: 'a3', name: '应急预案初稿.pdf', size: '2.4 MB', type: 'pdf' },
-    { id: 'a4', name: '相关舆情专题网页', size: '网址', type: 'link', url: 'https://news.example.com/topic-water' }
+    { id: 'a4', name: '相关舆情专题网页', size: '网址', type: 'link', url: 'https://example.com/topic-water' }
   ];
 
   return (

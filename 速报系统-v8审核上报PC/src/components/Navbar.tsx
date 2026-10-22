@@ -1,6 +1,6 @@
 import React from 'react';
 import { PageId } from '../types';
-import { Home, FileText, ClipboardCheck, Bell, User, LayoutGrid, type LucideIcon } from 'lucide-react';
+import { Home, FileText, ClipboardCheck, Bell, User, Users, LayoutGrid, type LucideIcon } from 'lucide-react';
 import { getSideNavGroup } from './SideSubNav';
 
 interface NavbarProps {
@@ -23,6 +23,12 @@ export const Navbar: React.FC<NavbarProps> = ({
     { page: 'report-summary', label: '报送管理', icon: FileText, active: group === 'report' },
     { page: 'report-audit', label: '审核管理', icon: ClipboardCheck, active: group === 'audit' },
     { page: 'messages', label: '消息中心', icon: Bell, active: activePage === 'messages', badge: unreadCount },
+    {
+      page: 'external-contacts',
+      label: '组织管理',
+      icon: Users,
+      active: activePage === 'external-contacts'
+    },
     { page: 'personal-info', label: '个人中心', icon: User, active: activePage === 'personal-info' }
   ];
 

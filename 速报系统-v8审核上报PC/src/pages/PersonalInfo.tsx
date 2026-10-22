@@ -2,10 +2,8 @@ import React, { useState } from 'react';
 import { PageId, UserProfileData } from '../types';
 import { loadUserProfile, saveUserProfile } from '../services/userProfileStorage';
 import {
-  Building2,
   Smartphone,
   Edit,
-  ShieldCheck,
   CheckCircle2,
   Copy,
   Eye,
@@ -65,13 +63,8 @@ export const PersonalInfo: React.FC<PersonalInfoProps> = () => {
       name: '张三',
       username: 'grid_zhangsan',
       avatarText: '张',
-      roles: ['上报员', '审核员'],
-      associatedOrgs: [
-        '台中市网信办-西坝区环保局',
-        '台中市西坝区街道办事处',
-        '西坝区应急管理局',
-        '西坝区网格化综合治理中心'
-      ],
+      roles: ['网格员', '审核员'],
+      associatedOrgs: ['西坝区环保局'],
       phone: '138****9210',
       rawPhone: '13888889210',
       realName: '张三',
@@ -217,8 +210,6 @@ export const PersonalInfo: React.FC<PersonalInfoProps> = () => {
     showToast('手机号码更换成功！');
   };
 
-  const isVerified = profile.verifiedStatus !== '未认证';
-
   return (
     <div className="space-y-5 animate-in fade-in duration-200 pb-12" id="personal-center-pc-view">
       {toastMessage && (
@@ -235,12 +226,6 @@ export const PersonalInfo: React.FC<PersonalInfoProps> = () => {
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-xl font-bold text-slate-900">{profile.realName}</h2>
-            {isVerified && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                <ShieldCheck className="w-3 h-3" />
-                已实名
-              </span>
-            )}
             {profile.roles.map((role) => (
               <span key={role} className="text-[11px] font-semibold text-[#1E5ABB] bg-blue-50 px-2 py-0.5 rounded-full">
                 {role}
@@ -249,14 +234,16 @@ export const PersonalInfo: React.FC<PersonalInfoProps> = () => {
           </div>
           <p className="text-xs text-slate-500 flex flex-wrap gap-x-4 gap-y-1">
             <span>
-              账号 <span className="font-mono text-slate-700">{profile.username}</span>
+              微信号 <span className="font-mono text-slate-700">{profile.username}</span>
             </span>
             <span>
               手机 <span className="font-mono text-slate-700">{profile.phone}</span>
             </span>
-            <span>
-              关联机构 <span className="text-slate-700">{profile.associatedOrgs.length} 个</span>
-            </span>
+            {profile.associatedOrgs[0] && (
+              <span>
+                所属机构 <span className="text-slate-700">{profile.associatedOrgs[0]}</span>
+              </span>
+            )}
           </p>
         </div>
         <div className="flex flex-col items-end gap-2 shrink-0">
@@ -314,25 +301,6 @@ export const PersonalInfo: React.FC<PersonalInfoProps> = () => {
             </InfoRow>
           )}
         </dl>
-      </SectionCard>
-
-      <SectionCard
-        icon={<Building2 className="w-4 h-4 text-[#1E5ABB]" />}
-        title={`关联机构（${profile.associatedOrgs.length}）`}
-        extra={
-          <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">权限生效中</span>
-        }
-      >
-        <ul className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 p-5">
-          {profile.associatedOrgs.map((org, i) => (
-            <li key={org} className="flex items-center gap-3 rounded-lg border border-slate-200 px-3.5 py-3">
-              <span className="w-7 h-7 rounded-md bg-blue-50 text-[#1E5ABB] text-xs font-bold flex items-center justify-center shrink-0">
-                {i + 1}
-              </span>
-              <span className="text-[13px] font-medium text-slate-800 leading-snug">{org}</span>
-            </li>
-          ))}
-        </ul>
       </SectionCard>
 
       {isEditModalOpen && (

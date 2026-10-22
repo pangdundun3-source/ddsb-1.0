@@ -98,7 +98,7 @@ export const Logo: React.FC<LogoProps> = ({
         {/* Sub-system Title - Scaled to 19px-20px font-bold */}
         <div className="flex items-center space-x-2.5">
           <h1 className="text-[19px] sm:text-[20px] font-bold text-[#1E5ABB] tracking-tight">
-            舆情速报系统
+            网络信息速报
           </h1>
           <span className="hidden sm:inline-block px-2.5 py-0.5 bg-slate-100 text-slate-700 text-xs font-medium rounded-md border border-slate-200">
             台中市网信办

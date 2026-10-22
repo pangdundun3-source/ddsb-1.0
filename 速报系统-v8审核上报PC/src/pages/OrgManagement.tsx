@@ -1338,7 +1338,7 @@ export const OrgManagement: React.FC = () => {
                           ) : (
                             <span className="inline-flex items-center space-x-1 text-gray-400 font-medium text-[11px]">
                               <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
-                              <span>禁用</span>
+                              <span>停用</span>
                             </span>
                           )}
                         </td>

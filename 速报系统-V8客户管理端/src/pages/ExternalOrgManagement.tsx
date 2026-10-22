@@ -906,7 +906,7 @@ const MembersModal: React.FC<{
             {visible.length === 0 ? (
               <tr>
                 <td colSpan={6} className="py-8 text-center text-slate-400">
-                  {members.length ? '没有匹配的组内人员' : '暂无组内成员，点击「添加人员」从外部用户数据中选择'}
+                  {members.length ? '没有匹配的组内人员' : '暂无组内成员，点击「添加人员」从外部用户管理中选择'}
                 </td>
               </tr>
             ) : (
@@ -990,7 +990,7 @@ const MemberPickerModal: React.FC<{
         <UserPlus className="w-4 h-4 text-[#1E3A8A]" />
         <h3 className="text-sm font-bold text-slate-800 truncate">选择外部人员加入「{org.name}」</h3>
         <span className="shrink-0 px-1.5 py-0.5 rounded border border-blue-200 bg-blue-50 text-[#1E5ABB] text-[10px] font-semibold">
-          数据源：外部用户数据
+          数据源：外部用户管理
         </span>
         <span className="flex-1" />
         <CloseButton onClick={onCancel} />
@@ -1009,7 +1009,7 @@ const MemberPickerModal: React.FC<{
       <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
         {visible.length === 0 ? (
           <div className="py-10 text-center text-xs text-slate-400">
-            {candidates.length ? '没有匹配的外部人员' : '外部用户数据中的人员都已在该组织内'}
+            {candidates.length ? '没有匹配的外部人员' : '外部用户管理中的人员都已在该组织内'}
           </div>
         ) : (
           visible.map((person) => {

@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, Plus, Users, UserPlus, Pencil, Trash2, X, Building2, Circle, ArrowUpDown } from 'lucide-react';
 import type { PersonnelItem } from './OrgManagement';
 import {
@@ -40,7 +40,8 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
   const [orgFilter, setOrgFilter] = useState('all');
   const [pickedIds, setPickedIds] = useState<number[]>([]);
   const [revealedPhoneIds, setRevealedPhoneIds] = useState<number[]>([]);
-  const [changeGroupTarget, setChangeGroupTarget] = useState<PersonnelItem | null>(null);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<number[]>([]);
+  const [changeGroupTargets, setChangeGroupTargets] = useState<PersonnelItem[] | null>(null);
   const [changeGroupTo, setChangeGroupTo] = useState('');
 
   const [gName, setGName] = useState('');
@@ -243,20 +244,49 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
   };
 
   const openChangeGroup = (person: PersonnelItem) => {
-    setChangeGroupTarget(person);
+    setChangeGroupTargets([person]);
     setChangeGroupTo(selectedGroup?.id || '');
   };
 
+  const openBatchChangeGroup = () => {
+    if (!selectedGroup) return;
+    if (selectedMemberIds.length === 0) {
+      triggerToast('请先勾选要调整的成员');
+      return;
+    }
+    const targets = members.filter((item) => selectedMemberIds.includes(item.id));
+    if (!targets.length) {
+      triggerToast('请先勾选要调整的成员');
+      return;
+    }
+    setChangeGroupTargets(targets);
+    setChangeGroupTo(selectedGroup.id);
+  };
+
+  const toggleSelectMember = (id: number) => {
+    setSelectedMemberIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+  };
+
+  const toggleSelectAllMembers = () => {
+    const ids = members.map((item) => item.id);
+    setSelectedMemberIds((prev) =>
+      ids.length > 0 && ids.every((id) => prev.includes(id))
+        ? prev.filter((id) => !ids.includes(id))
+        : Array.from(new Set([...prev, ...ids]))
+    );
+  };
+
   const handleChangeGroup = () => {
-    if (!changeGroupTarget || !selectedGroup) return;
+    if (!changeGroupTargets?.length || !selectedGroup) return;
     if (!changeGroupTo || changeGroupTo === selectedGroup.id) {
-      setChangeGroupTarget(null);
+      setChangeGroupTargets(null);
       return;
     }
     const targetName = getGroupName(changeGroupTo);
+    const ids = new Set(changeGroupTargets.map((item) => item.id));
     setPersonnelList((prev) =>
       prev.map((item) =>
-        item.id === changeGroupTarget.id
+        ids.has(item.id)
           ? {
               ...item,
               groupIds: Array.from(
@@ -266,9 +296,19 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
           : item
       )
     );
-    triggerToast(`已将【${changeGroupTarget.realName}】调整到「${targetName}」`);
-    setChangeGroupTarget(null);
+    triggerToast(
+      changeGroupTargets.length === 1
+        ? `已将【${changeGroupTargets[0].realName}】调整到「${targetName}」`
+        : `已将 ${changeGroupTargets.length} 人调整到「${targetName}」`
+    );
+    setSelectedMemberIds((prev) => prev.filter((id) => !ids.has(id)));
+    setChangeGroupTargets(null);
   };
+
+  useEffect(() => {
+    setSelectedMemberIds([]);
+    setChangeGroupTargets(null);
+  }, [selectedGroupId]);
 
   return (
     <div className="h-full min-h-[680px] flex min-w-0">
@@ -435,9 +475,20 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
                   <h3 className="text-sm font-bold text-gray-800 truncate">{selectedGroup.name}</h3>
                 </div>
                 <p className="text-[11px] text-gray-400 mt-1">{selectedGroup.description}</p>
-                <div className="text-[11px] text-gray-500 mt-2">共 {members.length} 名在册成员</div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={openBatchChangeGroup}
+                  className={`px-2.5 py-1 text-xs border rounded inline-flex items-center gap-1 cursor-pointer transition-colors ${
+                    selectedMemberIds.length
+                      ? 'border-blue-200 text-[#1E5ABB] bg-white hover:bg-blue-50'
+                      : 'border-gray-200 text-gray-400 bg-white hover:border-gray-300'
+                  }`}
+                >
+                  <ArrowUpDown className="w-3 h-3" />
+                  批量修改分组{selectedMemberIds.length ? ` (${selectedMemberIds.length})` : ''}
+                </button>
                 <button
                   type="button"
                   onClick={() => openEdit(selectedGroup)}
@@ -465,8 +516,15 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
               </div>
             </div>
 
-            <div className="px-5 py-3 flex items-center justify-between gap-3">
-              <span className="text-xs font-bold text-gray-800 whitespace-nowrap">分组成员花名册明细</span>
+            <div className="px-5 py-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-xs font-bold text-gray-800 whitespace-nowrap">分组成员花名册明细</span>
+                {selectedMemberIds.length > 0 && (
+                  <span className="text-[11px] text-gray-500 whitespace-nowrap">
+                    已选 <strong className="text-[#1E5ABB] font-mono">{selectedMemberIds.length}</strong> 人
+                  </span>
+                )}
+              </div>
               <div className="relative w-64">
                 <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2" />
                 <input
@@ -484,6 +542,10 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
                 orgNodes={orgNodes}
                 getGroupName={getGroupName}
                 emptyText="当前分组暂无成员，点击右上角添加"
+                selectable
+                selectedIds={selectedMemberIds}
+                onToggleSelect={toggleSelectMember}
+                onToggleSelectAll={toggleSelectAllMembers}
                 renderExtraActions={(item) => (
                   <>
                     <button
@@ -506,60 +568,68 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-sm text-gray-400">请先新建一个人员分组</div>
+          <div className="flex-1 flex items-center justify-center text-sm text-gray-400">请先新建一个用户群组</div>
         )}
       </div>
 
-      {changeGroupTarget && selectedGroup && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setChangeGroupTarget(null)}>
+      {changeGroupTargets && changeGroupTargets.length > 0 && selectedGroup && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setChangeGroupTargets(null)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md text-xs" onClick={(event) => event.stopPropagation()}>
             <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100">
-              <div className="font-bold text-gray-800 text-sm">修改分组</div>
+              <div className="font-bold text-gray-800 text-sm">
+                {changeGroupTargets.length > 1 ? '批量修改分组' : '修改分组'}
+              </div>
               <button
                 type="button"
-                onClick={() => setChangeGroupTarget(null)}
+                onClick={() => setChangeGroupTargets(null)}
                 className="w-7 h-7 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 flex items-center justify-center cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="p-4 space-y-3">
-              <div className="text-gray-500">
-                将 <b className="text-gray-800">{changeGroupTarget.realName}</b> 从「{selectedGroup.name}」调整到：
+              <div>
+                <label className="block text-gray-700 font-medium mb-1.5">调整人员</label>
+                <div className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-gray-700 leading-5 max-h-24 overflow-y-auto">
+                  {changeGroupTargets.map((item) => item.realName).join('、')}
+                </div>
               </div>
-              <div className="max-h-[300px] overflow-y-auto space-y-1.5">
-                {groups.map((group) => {
-                  const checked = changeGroupTo === group.id;
-                  const isCurrent = group.id === selectedGroup.id;
-                  const alreadyIn = !isCurrent && (changeGroupTarget.groupIds || []).includes(group.id);
-                  return (
-                    <button
-                      key={group.id}
-                      type="button"
-                      onClick={() => setChangeGroupTo(group.id)}
-                      className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-left cursor-pointer ${
-                        checked ? 'border-[#1E5ABB] bg-[#F4F8FE]' : 'border-gray-100 hover:border-gray-200'
-                      }`}
-                    >
-                      <span className="flex items-center gap-2 min-w-0">
-                        <span
-                          className={`w-3.5 h-3.5 rounded-full border shrink-0 ${
-                            checked ? 'border-[#1E5ABB] bg-[#1E5ABB] shadow-[inset_0_0_0_2px_#fff]' : 'border-gray-300'
-                          }`}
-                        />
-                        <span className={`truncate ${checked ? 'font-bold text-[#1E5ABB]' : 'text-gray-700'}`}>{group.name}</span>
-                      </span>
-                      {isCurrent && <span className="shrink-0 text-[10px] text-gray-400">当前分组</span>}
-                      {alreadyIn && <span className="shrink-0 text-[10px] text-amber-600">已在该组</span>}
-                    </button>
-                  );
-                })}
+              <div>
+                <label className="block text-gray-700 font-medium mb-1.5">
+                  目标分组
+                  <span className="ml-1.5 font-normal text-gray-400">从「{selectedGroup.name}」调整到</span>
+                </label>
+                <select
+                  value={changeGroupTo}
+                  onChange={(event) => setChangeGroupTo(event.target.value)}
+                  className="w-full h-9 px-3 rounded-lg border border-gray-300 bg-white text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] cursor-pointer"
+                >
+                  {groups.map((group) => {
+                    const isCurrent = group.id === selectedGroup.id;
+                    const alreadyInCount = changeGroupTargets.filter(
+                      (person) => !isCurrent && (person.groupIds || []).includes(group.id)
+                    ).length;
+                    const suffix = isCurrent
+                      ? '（当前分组）'
+                      : alreadyInCount > 0
+                        ? changeGroupTargets.length === 1
+                          ? '（已在该组）'
+                          : `（${alreadyInCount} 人已在该组）`
+                        : '';
+                    return (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                        {suffix}
+                      </option>
+                    );
+                  })}
+                </select>
               </div>
             </div>
             <div className="px-4 py-3 border-t border-gray-100 flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setChangeGroupTarget(null)}
+                onClick={() => setChangeGroupTargets(null)}
                 className="h-8 px-4 rounded border border-gray-200 text-gray-600 hover:bg-gray-50 cursor-pointer"
               >
                 取消
@@ -584,7 +654,7 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
             className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95"
           >
             <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-              <h3 className="text-sm font-bold text-gray-800">编辑人员分组</h3>
+              <h3 className="text-sm font-bold text-gray-800">编辑用户群组</h3>
               <button type="button" onClick={() => setIsCreateOpen(false)} className="text-gray-400 hover:text-gray-600 cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
@@ -639,7 +709,7 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
               <div>
                 <h3 className="text-sm font-bold text-gray-800">添加成员至【{selectedGroup.name}】</h3>
                 <p className="text-[11px] text-gray-400 mt-0.5">
-                  从外部用户数据中勾选人员加入本组，已在本组的成员不再显示
+                  从外部用户管理中勾选人员加入本组，已在本组的成员不再显示
                 </p>
               </div>
               <button

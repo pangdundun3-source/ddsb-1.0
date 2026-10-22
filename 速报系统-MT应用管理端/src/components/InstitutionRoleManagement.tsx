@@ -117,13 +117,14 @@ const MODULES: PermissionModule[] = [
   {
     code: 'V8_CONTACTS',
     name: '外部联系人',
-    desc: '外部用户、外部组织、外部角色与人员分组',
+    desc: '用户、组织、角色、用户群组与激活码管理',
     permissions: [
-      p('V8_CONTACT_USER_VIEW', '查看外部用户数据', '查看外部上报员、审核员名单', 'V8_CONTACT_USER'),
+      p('V8_CONTACT_USER_VIEW', '查看用户管理', '查看上报员、审核员名单', 'V8_CONTACT_USER'),
       p('V8_CONTACT_USER_EDIT', '邀请 / 编辑外部用户', '邀请注册、编辑或停用外部用户', 'V8_CONTACT_USER'),
-      p('V8_CONTACT_ORG_MANAGE', '外部组织管理', '维护外部组织架构与成员', 'V8_CONTACT_ORG'),
-      p('V8_CONTACT_ROLE_MANAGE', '外部角色管理', '配置外部角色及其 PC / H5 功能权限', 'V8_CONTACT_ROLE'),
-      p('V8_CONTACT_GROUP_MANAGE', '人员分组管理', '维护人员分组与分组成员', 'V8_CONTACT_GROUP'),
+      p('V8_CONTACT_ORG_MANAGE', '组织管理', '维护组织架构与成员', 'V8_CONTACT_ORG'),
+      p('V8_CONTACT_ROLE_MANAGE', '角色管理', '配置角色及其 PC / H5 功能权限', 'V8_CONTACT_ROLE'),
+      p('V8_CONTACT_GROUP_MANAGE', '用户群组管理', '维护用户群组与群组成员', 'V8_CONTACT_GROUP'),
+      p('V8_CONTACT_INVITE_VIEW', '激活码管理', '查看邀请码发放与激活记录', 'V8_CONTACT_INVITE'),
     ],
   },
   {
@@ -167,10 +168,11 @@ const MENU_TREE: MenuNode[] = [
     code: 'V8_CONTACTS',
     name: '外部联系人',
     children: [
-      { code: 'V8_CONTACT_USER', name: '外部用户数据' },
-      { code: 'V8_CONTACT_ORG', name: '外部组织管理' },
-      { code: 'V8_CONTACT_ROLE', name: '外部角色管理' },
-      { code: 'V8_CONTACT_GROUP', name: '人员分组管理' },
+      { code: 'V8_CONTACT_USER', name: '用户管理' },
+      { code: 'V8_CONTACT_ORG', name: '组织管理' },
+      { code: 'V8_CONTACT_ROLE', name: '角色管理' },
+      { code: 'V8_CONTACT_GROUP', name: '用户群组管理' },
+      { code: 'V8_CONTACT_INVITE', name: '激活码管理' },
     ],
   },
   {

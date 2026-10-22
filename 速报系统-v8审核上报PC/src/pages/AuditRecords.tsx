@@ -115,19 +115,18 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
         </div>
       </div>
 
-      {/* Filter Card - Aligned with ReportAudit.tsx */}
-      <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-2xs space-y-4">
-        {/* Filter items with inline label and input */}
-        <div className="flex flex-col lg:flex-row lg:flex-wrap items-stretch lg:items-center gap-4 text-xs">
-          {/* 关键字搜索 */}
-          <div className="flex-1 min-w-[240px]">
-            <div className="relative flex-1">
+      {/* Filter Card - 筛选项与操作同一行 */}
+      <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-2xs">
+        <div className="flex items-center gap-2.5 text-xs w-full min-w-0">
+          <div className="flex-1 min-w-0 max-w-[280px]">
+            <div className="relative">
               <input
                 type="text"
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
-                placeholder="请输入事件标题名称、审核人员姓名、所属机构进行检索"
-                className="w-full pl-8 pr-8 py-2 bg-white border border-gray-300 hover:border-gray-400 focus:border-[#1E5ABB] rounded-lg text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 transition-all shadow-2xs"
+                placeholder="请输入事件标题、审核人、所属机构"
+                title="请输入事件标题名称、审核人员姓名、所属机构进行检索"
+                className="w-full min-w-0 pl-8 pr-8 py-2 bg-white border border-gray-300 hover:border-gray-400 focus:border-[#1E5ABB] rounded-lg text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 transition-all shadow-2xs"
               />
               <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
               {keyword && (
@@ -143,8 +142,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
             </div>
           </div>
 
-          {/* 审核时间 */}
-          <div className="flex items-center space-x-2 shrink-0">
+          <div className="flex items-center space-x-1.5 shrink-0">
             <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">审核时间</label>
             <DateRangeField
               startValue={startDate}
@@ -154,29 +152,30 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
               title="审核时间区间"
               startTitle="审核开始日期"
               endTitle="审核结束日期"
+              inputClassName="w-[100px] flex-none"
             />
           </div>
 
-          {/* 报送机构：外部联系人组织树，默认全部，支持下钻含子级 */}
-          <div className="flex items-center space-x-2 shrink-0">
+          <div className="flex items-center space-x-1.5 shrink-0 min-w-0">
             <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">报送机构</label>
-            <OrgFilterSelect value={selectedOrgId} onChange={setSelectedOrgId} />
+            <OrgFilterSelect
+              value={selectedOrgId}
+              onChange={setSelectedOrgId}
+              triggerClassName="min-w-[120px] max-w-[160px]"
+            />
           </div>
-        </div>
 
-        {/* Action Row */}
-        <div className="flex items-center justify-end pt-1 border-t border-gray-100">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 shrink-0 ml-auto">
             <button
               onClick={() => {}}
-              className="px-4 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-semibold rounded-lg shadow-2xs flex items-center space-x-1.5 cursor-pointer transition-colors"
+              className="px-3.5 py-2 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-semibold rounded-lg shadow-2xs flex items-center space-x-1.5 cursor-pointer transition-colors"
             >
               <Search className="w-3.5 h-3.5" />
               <span>查询</span>
             </button>
             <button
               onClick={handleReset}
-              className="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium rounded-lg border border-gray-200 flex items-center space-x-1.5 cursor-pointer transition-colors"
+              className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium rounded-lg border border-gray-200 flex items-center space-x-1.5 cursor-pointer transition-colors"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>重置</span>

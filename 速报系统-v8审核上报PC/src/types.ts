@@ -13,6 +13,7 @@ export type PageId =
   | 'negative-info'
   | 'negative-detail'
   | 'personal-info'
+  | 'external-contacts'
   | 'org-management'
   | 'role-permission'
   | 'business-config'

@@ -9,7 +9,15 @@ export const OrgCascadeSelect: React.FC<{
   onChange: (path: string[]) => void;
   label?: string;
   hideHint?: boolean;
-}> = ({ orgNodes, path, onChange, label = '所属机构 *', hideHint = false }) => {
+  placeholder?: string;
+}> = ({
+  orgNodes,
+  path,
+  onChange,
+  label = '所属机构 *',
+  hideHint = false,
+  placeholder = '请选择所属机构'
+}) => {
   const [open, setOpen] = useState(false);
   const [drillPath, setDrillPath] = useState<string[]>(path);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -51,19 +59,27 @@ export const OrgCascadeSelect: React.FC<{
 
   return (
     <div ref={rootRef} className="relative">
-      <div className="flex items-center justify-between mb-1">
-        <label className="text-gray-700 font-medium">{label}</label>
-        {!hideHint && <span className="text-[10px] text-gray-400">点击后在弹出层中逐级下钻</span>}
-      </div>
+      {label ? (
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-gray-700 font-medium">{label}</label>
+          {!hideHint && <span className="text-[10px] text-gray-400">点击后在弹出层中逐级下钻</span>}
+        </div>
+      ) : null}
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="w-full px-3 py-1.5 border border-gray-300 rounded bg-white text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+        className={`w-full px-3 py-2.5 border rounded-md bg-white text-left flex items-center justify-between gap-2 cursor-pointer transition-colors focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] focus:border-[#1E5ABB] hover:border-[#1E5ABB]/50 ${
+          open ? 'border-[#1E5ABB]' : 'border-gray-300'
+        }`}
       >
         <span className={`truncate ${selectedPath ? 'text-gray-800' : 'text-gray-400'}`}>
-          {selectedPath || '请选择所属机构'}
+          {selectedPath || placeholder}
         </span>
-        <ChevronDown className={`w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown
+          className={`w-3.5 h-3.5 shrink-0 transition-transform ${
+            open ? 'rotate-180 text-[#1E5ABB]' : 'text-gray-500'
+          }`}
+        />
       </button>
       {open && (
         <div className="absolute z-40 mt-1 left-0 min-w-full max-w-[min(720px,calc(100vw-96px))] bg-white border border-gray-200 rounded-lg overflow-hidden shadow-xl">

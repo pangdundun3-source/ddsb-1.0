@@ -3823,12 +3823,6 @@ export const InstitutionBusinessRulesTab: React.FC<Props> = ({
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <h4 className="text-sm font-bold text-gray-900">等级评分</h4>
-                    <span className="px-1.5 py-0.5 rounded bg-[#f6ffed] text-[#52c41a] text-[11px] border border-[#b7eb8f] font-medium">
-                      互斥命中
-                    </span>
-                    <span className="text-xs text-gray-400">
-                      {editingScoringRuleGroup.totalScore} 分满分，审核时只选一个等级
-                    </span>
                   </div>
                   <button
                     type="button"

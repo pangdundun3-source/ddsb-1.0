@@ -3,29 +3,27 @@ import {
   Search,
   UserPlus,
   Users,
-  UserCheck,
   UserRoundCheck,
-  UserX,
   RotateCcw,
   X,
-  Send,
   Building2,
   ChevronDown,
   ChevronRight,
   Check,
-  MessageCircle,
-  MessageSquare,
-  History,
-  ShieldCheck,
-  Clock3,
-  CircleCheckBig
+  CircleCheckBig,
+  Tags,
+  Shield,
+  Download,
+  SlidersHorizontal,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { InviteRecordModal } from './InviteRecordModal';
 import { OrgCascadeSelect } from '../components/OrgCascadeSelect';
 import { ExternalUserTable, getFollowStatus } from '../components/ExternalUserTable';
-import { ReinviteModal } from '../components/ReinviteModal';
-import { InviteUserModal, resolveInviteStatus } from '../components/InviteUserModal';
+import { InviteUserModal } from '../components/InviteUserModal';
 import { Field, MultiSelectDropdown } from '../components/FormControls';
+import { PaginationBar } from '../components/PaginationBar';
 import type { OrgNode, PersonnelItem } from './OrgManagement';
 import {
   ACCOUNT_ROLE_OPTIONS,
@@ -33,24 +31,21 @@ import {
   formatPersonOrgPaths,
   getDeepestOrgId,
   getOrgChildrenOf,
-  EXTERNAL_APP,
   ORG_MAX_USER_COUNT,
   syncFollowersAfterDelete,
-  type OfficialAccountFollower,
   type UserOrgSharedState
 } from '../data/userOrgShared';
 import {
   getPersonAvatarUrl,
-  maskPhone,
   PersonAvatar
 } from '../components/PersonAccountDisplay';
 
 interface SystemAccountManagementProps {
   shared: UserOrgSharedState;
   currentOrg?: string;
+  onOpenInviteRecords?: () => void;
 }
 
-const PAGE_SIZE = 8;
 
 const createEmptyAccountQuery = () => ({
   search: '',
@@ -60,49 +55,23 @@ const createEmptyAccountQuery = () => ({
   statuses: [] as string[]
 });
 
-type AccountTab = 'activated' | 'pending';
-const ACCOUNT_TAB_STORAGE_KEY = 'v8_account_tab';
-
-const readStoredAccountTab = (): AccountTab =>
-  localStorage.getItem(ACCOUNT_TAB_STORAGE_KEY) === 'pending' ? 'pending' : 'activated';
-
-const FOLLOWER_AVATAR_COLORS = [
-  'bg-emerald-500',
-  'bg-sky-500',
-  'bg-violet-500',
-  'bg-orange-400',
-  'bg-rose-500',
-  'bg-fuchsia-500',
-  'bg-teal-500',
-  'bg-indigo-500'
-];
-
-const getFollowerAvatarColor = (id: string) => {
-  const hash = Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  return FOLLOWER_AVATAR_COLORS[hash % FOLLOWER_AVATAR_COLORS.length];
-};
-
-const FollowerLetterAvatar: React.FC<{ id: string; name: string }> = ({ id, name }) => (
-  <span
-    className={`w-10 h-10 rounded-full text-white text-sm font-bold flex items-center justify-center shrink-0 ${getFollowerAvatarColor(id)}`}
-  >
-    {(name || '用').slice(0, 1)}
-  </span>
-);
-
 const STATUS_FILTER_OPTIONS = [
-  { id: '已关注', label: '正常关注', dot: 'bg-emerald-500' },
-  { id: '已取消关注', label: '取消关注', dot: 'bg-amber-500' },
-  { id: '禁用', label: '禁用', dot: 'bg-rose-500' }
+  { id: '已关注', label: '正常', dot: 'bg-blue-500' },
+  { id: '已取消关注', label: '取消关注', dot: 'bg-orange-500' },
+  { id: '禁用', label: '已停用', dot: 'bg-red-500' }
 ] as const;
 
 const getAccountStatus = (item: PersonnelItem) => (item.status === '禁用' ? '禁用' : getFollowStatus(item));
 
-export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = ({ shared, currentOrg }) => {
-  const { orgNodes, personnelList, setPersonnelList, groups, inviteCodes, setInviteCodes, followers, setFollowers } = shared;
+export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = ({
+  shared,
+  onOpenInviteRecords
+}) => {
+  const { orgNodes, personnelList, setPersonnelList, groups, inviteCodes, setInviteCodes, setFollowers } = shared;
   const [draftQuery, setDraftQuery] = useState(createEmptyAccountQuery);
   const [appliedQuery, setAppliedQuery] = useState(createEmptyAccountQuery);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [toast, setToast] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editing, setEditing] = useState<PersonnelItem | null>(null);
@@ -113,14 +82,18 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
   const [pWechat, setPWechat] = useState('');
   const [pPhone, setPPhone] = useState('');
   const [pJobTitle, setPJobTitle] = useState('');
-  const [pRoles, setPRoles] = useState<string[]>(['上报员']);
+  const [pRoles, setPRoles] = useState<string[]>(['网格员']);
   const [orgPath, setOrgPath] = useState<string[]>([]);
   const [pGroupIds, setPGroupIds] = useState<string[]>([]);
   const [pStatus, setPStatus] = useState<'启用' | '禁用'>('启用');
-  const [accountTab, setAccountTab] = useState<AccountTab>(readStoredAccountTab);
-  const [pendingSearch, setPendingSearch] = useState('');
-  const [invitingFollower, setInvitingFollower] = useState<OfficialAccountFollower | null>(null);
   const [openFilter, setOpenFilter] = useState<'org' | 'role' | 'group' | 'status' | null>(null);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [batchModifyOpen, setBatchModifyOpen] = useState(false);
+  const [batchDeleteOpen, setBatchDeleteOpen] = useState(false);
+  const [batchChangeOrg, setBatchChangeOrg] = useState(false);
+  const [batchChangeGroup, setBatchChangeGroup] = useState(false);
+  const [batchOrgPath, setBatchOrgPath] = useState<string[]>([]);
+  const [batchGroupIds, setBatchGroupIds] = useState<string[]>([]);
 
   const triggerToast = (message: string) => {
     setToast(message);
@@ -139,10 +112,12 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
 
   const inRoster = personnelList.filter((item) => !item.recycled);
   const disabledCount = inRoster.filter((item) => item.status === '禁用').length;
-  const enabledCount = inRoster.length - disabledCount;
-  const pendingInvites = inviteCodes.filter(
-    (item) => item.channel !== 'qrcode' && item.channel !== 'link' && resolveInviteStatus(item) === '未使用'
-  );
+  const normalCount = inRoster.filter(
+    (item) => item.status !== '禁用' && getFollowStatus(item) === '已关注'
+  ).length;
+  const unfollowedCount = inRoster.filter(
+    (item) => item.status !== '禁用' && getFollowStatus(item) === '已取消关注'
+  ).length;
   const remainingSeats = Math.max(0, ORG_MAX_USER_COUNT - inRoster.length);
 
   const filteredList = useMemo(() => {
@@ -180,9 +155,9 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
     });
   }, [inRoster, appliedQuery, orgNodes]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredList.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredList.length / pageSize));
   const currentPage = Math.min(page, totalPages);
-  const pagedList = filteredList.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pagedList = filteredList.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const updateDraftQuery = (patch: Partial<ReturnType<typeof createEmptyAccountQuery>>) => {
     setDraftQuery((prev) => ({ ...prev, ...patch }));
@@ -218,6 +193,7 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
     setOpenFilter(null);
     setAppliedQuery(draftQuery);
     setPage(1);
+    setSelectedIds([]);
   };
 
   const handleResetFilters = () => {
@@ -225,6 +201,7 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
     setDraftQuery(createEmptyAccountQuery());
     setAppliedQuery(createEmptyAccountQuery());
     setPage(1);
+    setSelectedIds([]);
   };
 
   const copyText = async (text: string, success: string) => {
@@ -249,7 +226,7 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
     setPWechat(item.wechat);
     setPPhone(item.phone);
     setPJobTitle(item.jobTitle || '');
-    setPRoles(item.roles?.length ? [...item.roles] : ['上报员']);
+    setPRoles(item.roles?.length ? [...item.roles] : ['网格员']);
     syncOrgPath(buildOrgIdPath(orgNodes, getDeepestOrgId(orgNodes, item.orgIds, item.primaryOrgId)));
     setPGroupIds([...(item.groupIds || [])]);
     setPStatus(item.status);
@@ -298,53 +275,6 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
     }
   };
 
-  const invitedFollowerIds = useMemo(
-    () =>
-      new Set(
-        inviteCodes
-          .filter((item) => item.sentToFollowerId && resolveInviteStatus(item) !== '已过期')
-          .map((item) => item.sentToFollowerId as string)
-      ),
-    [inviteCodes]
-  );
-
-  const isFollowerInvited = (id: string) => invitedFollowerIds.has(id);
-
-  const findRosterPerson = (follower: OfficialAccountFollower) =>
-    personnelList.find(
-      (person) =>
-        !person.recycled &&
-        ((follower.wechatAlias && person.wechat === follower.wechatAlias) ||
-          (follower.phone && person.phone === follower.phone))
-    );
-
-  const inactiveFollowers = followers.filter((follower) => !findRosterPerson(follower));
-
-  const filteredInactiveFollowers = useMemo(() => {
-    const q = pendingSearch.trim().toLowerCase();
-    return inactiveFollowers.filter((follower) => {
-      if (!q) return true;
-      return (
-        follower.nickname.toLowerCase().includes(q) ||
-        follower.wechatAlias.toLowerCase().includes(q) ||
-        (follower.phone || '').includes(q)
-      );
-    });
-  }, [inactiveFollowers, pendingSearch]);
-
-  const switchAccountTab = (tab: AccountTab) => {
-    setAccountTab(tab);
-    localStorage.setItem(ACCOUNT_TAB_STORAGE_KEY, tab);
-  };
-
-  const inviteFollowerFromList = (follower: OfficialAccountFollower) => {
-    if (remainingSeats <= 0) {
-      triggerToast('本机构可用名额已满，无法继续邀请');
-      return;
-    }
-    setInvitingFollower(follower);
-  };
-
   const handleToggleStatus = (item: PersonnelItem) => {
     setPersonnelList((prev) =>
       prev.map((row) =>
@@ -362,217 +292,166 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
     if (!confirm(`确定删除账号【${item.realName}】吗？\n${tip}`)) return;
     setPersonnelList((prev) => prev.filter((row) => row.id !== item.id));
     syncFollowersAfterDelete(item, setFollowers);
+    setSelectedIds((prev) => prev.filter((id) => id !== item.id));
     triggerToast(stillFollowing ? `已删除【${item.realName}】，已移至已关注未激活` : `已删除【${item.realName}】`);
   };
 
+  const selectedItems = useMemo(
+    () => filteredList.filter((item) => selectedIds.includes(item.id)),
+    [filteredList, selectedIds]
+  );
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+  };
+
+  const toggleSelectAllPage = () => {
+    const pageIds = pagedList.map((item) => item.id);
+    const allOnPage = pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id));
+    setSelectedIds((prev) =>
+      allOnPage ? prev.filter((id) => !pageIds.includes(id)) : Array.from(new Set([...prev, ...pageIds]))
+    );
+  };
+
+  const openBatchModify = () => {
+    if (selectedItems.length === 0) {
+      triggerToast('请先勾选要修改的账号');
+      return;
+    }
+    setBatchChangeOrg(false);
+    setBatchChangeGroup(false);
+    setBatchOrgPath([]);
+    setBatchGroupIds([]);
+    setBatchModifyOpen(true);
+  };
+
+  const openBatchDelete = () => {
+    if (selectedItems.length === 0) {
+      triggerToast('请先勾选要删除的账号');
+      return;
+    }
+    setBatchDeleteOpen(true);
+  };
+
+  const handleBatchExport = () => {
+    const count = selectedItems.length || filteredList.length;
+    triggerToast(`已导出 ${count} 条账号（演示）`);
+  };
+
+  const handleConfirmBatchModify = () => {
+    if (!batchChangeOrg && !batchChangeGroup) {
+      triggerToast('请至少勾选一项变更内容');
+      return;
+    }
+    if (batchChangeOrg && batchOrgPath.length === 0) {
+      triggerToast('请选择目标组织节点');
+      return;
+    }
+    if (batchChangeGroup && batchGroupIds.length === 0) {
+      triggerToast('请选择目标用户群组');
+      return;
+    }
+    const leafOrgId = batchOrgPath[batchOrgPath.length - 1];
+    const ids = new Set(selectedIds);
+    setPersonnelList((prev) =>
+      prev.map((item) => {
+        if (!ids.has(item.id)) return item;
+        return {
+          ...item,
+          ...(batchChangeOrg && leafOrgId
+            ? { orgIds: [leafOrgId], primaryOrgId: leafOrgId }
+            : {}),
+          ...(batchChangeGroup ? { groupIds: [...batchGroupIds] } : {})
+        };
+      })
+    );
+    setBatchModifyOpen(false);
+    setSelectedIds([]);
+    triggerToast(`已批量修改 ${ids.size} 个账号`);
+  };
+
+  const handleConfirmBatchDelete = () => {
+    const targets = selectedItems;
+    if (targets.length === 0) return;
+    setPersonnelList((prev) => prev.filter((row) => !selectedIds.includes(row.id)));
+    targets.forEach((item) => syncFollowersAfterDelete(item, setFollowers));
+    const count = targets.length;
+    setBatchDeleteOpen(false);
+    setSelectedIds([]);
+    triggerToast(`已批量删除 ${count} 个账号，名额已退回配额池`);
+  };
+
   return (
-    <div className="h-full min-h-[680px] flex flex-col min-w-0">
+    <div className="space-y-4 min-w-0">
       {toast && (
-        <div className="mx-5 mt-4 px-3 py-2 rounded-lg bg-[#1E5ABB] text-white text-xs font-bold">{toast}</div>
+        <div className="px-3 py-2 rounded-lg bg-[#1E5ABB] text-white text-xs font-bold">{toast}</div>
       )}
 
-      <div className="px-5 pt-4 pb-3 grid grid-cols-5 gap-3">
-        <StatCard
-          title="机构关联服务号"
-          icon={<MessageSquare className="w-4 h-4" />}
-          iconClass="text-teal-600"
-          value={EXTERNAL_APP.officialAccount}
-          valueClass="text-[#1E3A8A]"
-          compact
-          footer={
-            <span className="text-slate-500 truncate" title={currentOrg}>
-              专属机构：{currentOrg || '未设置'}
-            </span>
-          }
-        />
-        <StatCard
-          title="最大平台用户数"
-          icon={<ShieldCheck className="w-4 h-4" />}
-          value={ORG_MAX_USER_COUNT}
-          footer={<span className="text-slate-400">机构授权编制上限</span>}
-        />
-        <StatCard
-          title="已激活用户"
-          icon={<UserRoundCheck className="w-4 h-4" />}
-          value={inRoster.length}
-          badge="全部"
-          footer={
-            <>
-              <MetricItem dot="bg-emerald-500" label="启用" value={enabledCount} />
-              <MetricItem dot="bg-slate-300" label="停用" value={disabledCount} />
-            </>
-          }
-        />
-        <StatCard
-          title="待激活用户数"
-          icon={<Clock3 className="w-4 h-4" />}
-          iconClass="text-amber-500"
-          value={pendingInvites.length}
-          valueClass="text-amber-600"
-          footer={
-            <button
-              type="button"
-              onClick={() => setIsInviteRecordOpen(true)}
-              className="w-full h-8 rounded-md border border-[#1E5ABB]/40 bg-white hover:bg-blue-50 text-[#1E5ABB] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <History className="w-3.5 h-3.5" />
-              查看邀请记录
-            </button>
-          }
-        />
-        <StatCard
-          title="剩余可用激活数"
-          icon={<CircleCheckBig className="w-4 h-4" />}
-          iconClass="text-emerald-600"
-          value={remainingSeats}
-          valueClass="text-emerald-700"
-          tone="border-emerald-200 bg-emerald-50/60"
-          footer={
-            <button
-              type="button"
-              onClick={openCreateModal}
-              className="w-full h-8 rounded-md bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <UserPlus className="w-3.5 h-3.5" />
-              邀请用户
-            </button>
-          }
-        />
-      </div>
-
-      <div className="mx-5 border-b border-slate-200 flex items-end gap-6">
-        {(
-          [
-            { id: 'activated', label: '已关注已激活', count: inRoster.length },
-            { id: 'pending', label: '已关注未激活', count: inactiveFollowers.length }
-          ] as const
-        ).map((tab) => {
-          const active = accountTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => switchAccountTab(tab.id)}
-              className={`relative -mb-px pb-2.5 pt-1 text-sm font-bold flex items-center gap-1.5 cursor-pointer border-b-2 transition-colors ${
-                active ? 'border-[#1E5ABB] text-[#1E5ABB]' : 'border-transparent text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              {tab.label}
-              <span
-                className={`min-w-[20px] px-1.5 py-px rounded-full text-[11px] font-bold text-center ${
-                  active ? 'bg-[#1E5ABB] text-white' : 'bg-slate-100 text-slate-500'
-                }`}
-              >
-                {tab.count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {accountTab === 'pending' ? (
-        <div className="flex-1 min-h-0 flex flex-col min-w-0">
-          <div className="px-5 py-3 flex flex-wrap items-center gap-2">
-            <div className="relative w-[220px] shrink-0">
-              <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
-              <input
-                value={pendingSearch}
-                onChange={(event) => setPendingSearch(event.target.value)}
-                placeholder="搜索微信昵称 / 微信号 / 手机号"
-                className="w-full h-8 pl-8 pr-3 text-xs border border-gray-200 rounded-full focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-gray-50/50"
-              />
+      <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs px-4 py-3.5">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3.5 flex items-center gap-3 min-w-0">
+          <span className="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center shrink-0">
+            <Users className="w-5 h-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-semibold text-slate-500">本机构外部联系人最大配额</div>
+            <div className="mt-1 flex items-baseline gap-1.5 flex-wrap">
+              <span className="text-3xl font-black text-slate-900 leading-none tracking-tight">{ORG_MAX_USER_COUNT}</span>
+              <span className="text-sm text-slate-500">人</span>
             </div>
-            <div className="ml-auto text-xs text-gray-500">
-              关注公众号但尚未激活账号的用户，可直接发起邀请
-            </div>
-          </div>
-          <div className="flex-1 min-h-0 overflow-auto px-5 pb-4">
-            <table className="w-full text-xs border border-slate-100 rounded-lg overflow-hidden">
-              <thead className="bg-slate-50 text-slate-500">
-                <tr>
-                  <th className="px-3 py-2.5 text-left font-semibold w-14">序号</th>
-                  <th className="px-3 py-2.5 text-left font-semibold">微信昵称</th>
-                  <th className="px-3 py-2.5 text-left font-semibold">微信号</th>
-                  <th className="px-3 py-2.5 text-left font-semibold">手机号</th>
-                  <th className="px-3 py-2.5 text-left font-semibold">地区</th>
-                  <th className="px-3 py-2.5 text-left font-semibold">关注时间</th>
-                  <th className="px-3 py-2.5 text-left font-semibold">邀请状态</th>
-                  <th className="px-3 py-2.5 text-right font-semibold">操作</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredInactiveFollowers.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="py-14 text-center text-slate-400">
-                      暂无已关注未激活的用户
-                    </td>
-                  </tr>
-                ) : (
-                  filteredInactiveFollowers.map((follower, index) => {
-                    const invited = isFollowerInvited(follower.id);
-                    return (
-                      <tr key={follower.id} className="hover:bg-slate-50/60">
-                        <td className="px-3 py-2.5 text-slate-400">{index + 1}</td>
-                        <td className="px-3 py-2.5">
-                          <div className="flex items-center gap-2">
-                            <FollowerLetterAvatar id={follower.id} name={follower.nickname} />
-                            <span className="font-bold text-slate-800">{follower.nickname}</span>
-                          </div>
-                        </td>
-                        <td className="px-3 py-2.5 text-slate-600">{follower.wechatAlias || '—'}</td>
-                        <td className="px-3 py-2.5 text-slate-600">
-                          {follower.phone ? follower.phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2') : '—'}
-                        </td>
-                        <td className="px-3 py-2.5 text-slate-600">{follower.city || '—'}</td>
-                        <td className="px-3 py-2.5 text-slate-500">{follower.followTime}</td>
-                        <td className="px-3 py-2.5">
-                          {invited ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-semibold">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                              已邀请待激活
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-semibold">
-                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                              未邀请
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2.5 text-right">
-                          {invited ? (
-                            <button
-                              type="button"
-                              onClick={() => setIsInviteRecordOpen(true)}
-                              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-slate-200 text-slate-600 hover:border-[#1E5ABB] hover:text-[#1E5ABB] font-semibold cursor-pointer"
-                            >
-                              <History className="w-3.5 h-3.5" />
-                              邀请记录
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => inviteFollowerFromList(follower)}
-                              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-[#1E5ABB] hover:bg-[#134092] text-white font-semibold cursor-pointer"
-                            >
-                              <Send className="w-3.5 h-3.5" />
-                              邀请激活
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-            <div className="text-[11px] text-gray-400 mt-3">共 {filteredInactiveFollowers.length} 条记录</div>
           </div>
         </div>
-      ) : (
-      <>
-      <div className="px-5 py-3 space-y-2.5 min-w-0">
+
+        <div className="rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3.5 flex items-center gap-3 min-w-0">
+          <span className="w-10 h-10 rounded-xl bg-[#E8F1FF] text-[#1E5ABB] flex items-center justify-center shrink-0">
+            <UserRoundCheck className="w-5 h-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-semibold text-slate-500">已激活用户</div>
+            <div className="mt-1 flex items-baseline gap-1.5 flex-wrap">
+              <span className="text-3xl font-black text-slate-900 leading-none tracking-tight">{inRoster.length}</span>
+              <span className="text-sm text-slate-500">人</span>
+              <div className="inline-flex items-center gap-1.5 flex-wrap">
+                <div className="px-2 py-0.5 rounded-[5px] bg-blue-50 border border-blue-100 text-[11px] font-bold text-blue-600">
+                  正常 {normalCount}
+                </div>
+                <div className="px-2 py-0.5 rounded-[5px] bg-orange-50 border border-orange-100 text-[11px] font-bold text-orange-500">
+                  取关 {unfollowedCount}
+                </div>
+                <div className="px-2 py-0.5 rounded-[5px] bg-red-50 border border-red-100 text-[11px] font-bold text-red-600">
+                  停用 {disabledCount}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3.5 flex items-center gap-3 min-w-0">
+          <span className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+            <CircleCheckBig className="w-5 h-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-semibold text-slate-500">剩余可激活数</div>
+            <div className="mt-1 flex items-baseline gap-1.5 flex-wrap">
+              <span className="text-3xl font-black text-emerald-700 leading-none tracking-tight">{remainingSeats}</span>
+              <span className="text-sm text-slate-500">人可用</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={openCreateModal}
+            className="h-9 px-3 rounded-lg bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shrink-0"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            邀请用户
+          </button>
+        </div>
+      </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs px-5 py-3 min-w-0">
         <div className="flex flex-wrap items-center gap-2 min-w-0">
-          <div className="relative w-[168px] shrink-0">
+          <div className="relative w-[200px] shrink-0">
             <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
             <input
               value={draftQuery.search}
@@ -580,8 +459,8 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
               onKeyDown={(event) => {
                 if (event.key === 'Enter') handleQuery();
               }}
-              placeholder="搜索姓名 / 手机号"
-              className="w-full h-8 pl-8 pr-7 text-xs border border-gray-200 rounded-full focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-gray-50/50"
+              placeholder="搜索姓名、手机号..."
+              className="w-full h-8 pl-8 pr-7 text-xs border border-gray-200 rounded-[5px] focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white"
             />
             {draftQuery.search && (
               <button
@@ -600,12 +479,12 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
             value={draftQuery.orgs || []}
             onChange={(orgs) => updateDraftQuery({ orgs })}
             triggerIcon={<Building2 className="w-3.5 h-3.5" />}
-            triggerText={(draftQuery.orgs || []).length ? `已选 ${draftQuery.orgs.length} 个机构` : '全部机构'}
+            triggerText={(draftQuery.orgs || []).length ? `已选 ${draftQuery.orgs.length} 个节点` : '全部组织节点'}
             active={(draftQuery.orgs || []).length > 0}
-            title="选择所属机构（可多选）"
-            footerText={(count) => `已选中 ${count} 个机构`}
+            title="选择组织节点架构（可多选）"
+            footerText={(count) => `已选中 ${count} 个节点`}
             confirmLabel="确定选择"
-            widthClass="w-[320px]"
+            widthClass="w-[340px]"
           >
             {({ pending, toggle }) => (
               <OrgFilterTree
@@ -628,7 +507,6 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
             footerText={(count) => `已选 ${count} 个角色`}
             confirmLabel="确定选择"
             widthClass="w-[280px]"
-            align="right"
           >
             {({ pending, toggle }) => (
               <FilterOptionList
@@ -648,15 +526,15 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
             onOpenChange={(open) => setOpenFilter(open ? 'group' : null)}
             value={draftQuery.groups || []}
             onChange={(groups) => updateDraftQuery({ groups })}
-            triggerIcon={<Users className="w-3.5 h-3.5" />}
-            triggerText={(draftQuery.groups || []).length ? `已选 ${draftQuery.groups.length} 个分组` : '全部分组'}
+            triggerIcon={<Tags className="w-3.5 h-3.5 text-violet-500" />}
+            triggerText={(draftQuery.groups || []).length ? `已选 ${draftQuery.groups.length} 个群组` : '全部用户群组'}
             active={(draftQuery.groups || []).length > 0}
-            title="选择人员分组（可多选）"
+            title="选择用户群组标签（可多选）"
+            titleIcon={<Tags className="w-3.5 h-3.5 text-violet-500" />}
             clearLabel="清空"
-            footerText={(count) => `已选 ${count} 个分组`}
+            footerText={(count) => `已选 ${count} 个群组`}
             confirmLabel="确定选择"
-            widthClass="w-[280px]"
-            align="right"
+            widthClass="w-[300px]"
           >
             {({ pending, toggle }) => (
               <FilterOptionList
@@ -668,6 +546,7 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
                 selected={pending}
                 onToggle={toggle}
                 shape="square"
+                countAsBadge
               />
             )}
           </AccountFilterShell>
@@ -676,19 +555,19 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
             onOpenChange={(open) => setOpenFilter(open ? 'status' : null)}
             value={draftQuery.statuses || []}
             onChange={(statuses) => updateDraftQuery({ statuses })}
+            triggerIcon={<Shield className="w-3.5 h-3.5" />}
             triggerText={
               (draftQuery.statuses || []).length === 0
-                ? '账号状态：全部状态'
+                ? '账号状态: 全部状态'
                 : draftQuery.statuses.length === 1
-                  ? `账号状态：${STATUS_FILTER_OPTIONS.find((option) => option.id === draftQuery.statuses[0])?.label || draftQuery.statuses[0]}`
-                  : `账号状态：已选 ${draftQuery.statuses.length} 项`
+                  ? `账号状态: ${STATUS_FILTER_OPTIONS.find((option) => option.id === draftQuery.statuses[0])?.label || draftQuery.statuses[0]}`
+                  : `账号状态: 已选 ${draftQuery.statuses.length} 项`
             }
             active={(draftQuery.statuses || []).length > 0}
             title="账号状态选择（多选）"
             footerText={(count) => `已选 ${count} 项`}
             confirmLabel="确定"
             widthClass="w-[240px]"
-            align="right"
           >
             {({ pending, toggle }) => (
               <FilterOptionList
@@ -699,7 +578,7 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
                 }))}
                 selected={pending}
                 onToggle={toggle}
-                shape="circle"
+                shape="square"
               />
             )}
           </AccountFilterShell>
@@ -707,7 +586,7 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
             <button
               type="button"
               onClick={handleQuery}
-              className="h-8 px-4 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-semibold rounded-lg shadow-2xs flex items-center space-x-1.5 cursor-pointer transition-colors"
+              className="h-8 px-4 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-semibold rounded-lg shadow-2xs inline-flex items-center gap-1.5 cursor-pointer transition-colors"
             >
               <Search className="w-3.5 h-3.5" />
               <span>查询</span>
@@ -715,55 +594,101 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
             <button
               type="button"
               onClick={handleResetFilters}
-              className="h-8 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium rounded-lg border border-gray-200 flex items-center space-x-1.5 cursor-pointer transition-colors"
+              className="h-8 px-3 bg-white hover:bg-gray-50 text-gray-500 text-xs font-medium rounded-[5px] border border-gray-200 inline-flex items-center gap-1 cursor-pointer transition-colors"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>重置</span>
+              重置
             </button>
           </div>
-        </div>
-        <div className="text-xs text-gray-500 font-medium">
-          共查询到 <strong className="text-[#1E5ABB] font-mono">{filteredList.length}</strong> 条账号
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-auto px-5 pb-4">
-        <ExternalUserTable
-          items={pagedList}
-          orgNodes={orgNodes}
-          getGroupName={getGroupName}
-          startIndex={(currentPage - 1) * PAGE_SIZE}
-          emptyText="暂无匹配的系统账号"
-          onAvatarClick={setViewing}
-          onToggleStatus={handleToggleStatus}
-          onEdit={openEditModal}
-          onDelete={handleDelete}
-        />
-        <div className="flex items-center justify-between text-[11px] text-gray-400 mt-3">
-          <div>共 {filteredList.length} 条记录</div>
-          <div className="flex items-center gap-1">
+      <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden min-h-[560px] flex flex-col">
+        <div className="px-5 py-2.5 flex flex-wrap items-center justify-between gap-2 bg-gray-50/70 border-b border-gray-100 text-xs">
+          <span className="text-gray-600">
+            共 <strong className="text-[#1E5ABB] font-mono">{filteredList.length}</strong> 条账号
+            {selectedIds.length > 0 && (
+              <>
+                <span className="mx-2 text-gray-300">|</span>
+                已选 <strong className="text-[#1E5ABB] font-mono">{selectedIds.length}</strong> 条
+              </>
+            )}
+          </span>
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
-              disabled={currentPage <= 1}
-              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-              className="px-2 py-0.5 border border-gray-200 rounded disabled:opacity-40 cursor-pointer"
+              onClick={openBatchModify}
+              className={`h-8 px-2.5 rounded-lg border text-xs font-medium inline-flex items-center gap-1 cursor-pointer transition-colors ${
+                selectedIds.length
+                  ? 'bg-white border-blue-200 text-[#1E5ABB] hover:bg-blue-50'
+                  : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'
+              }`}
             >
-              &lt;
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              批量修改{selectedIds.length ? ` (${selectedIds.length})` : ''}
             </button>
-            <span className="px-2 py-0.5 bg-[#1E5ABB] text-white rounded font-bold">{currentPage}</span>
             <button
               type="button"
-              disabled={currentPage >= totalPages}
-              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-              className="px-2 py-0.5 border border-gray-200 rounded disabled:opacity-40 cursor-pointer"
+              onClick={handleBatchExport}
+              className="h-8 px-2.5 rounded-lg border border-gray-200 bg-white text-emerald-600 text-xs font-medium inline-flex items-center gap-1 cursor-pointer hover:bg-emerald-50"
             >
-              &gt;
+              <Download className="w-3.5 h-3.5" />
+              导出 ({selectedIds.length || filteredList.length})
             </button>
+            <button
+              type="button"
+              onClick={openBatchDelete}
+              className={`h-8 px-2.5 rounded-lg border text-xs font-medium inline-flex items-center gap-1 cursor-pointer transition-colors ${
+                selectedIds.length
+                  ? 'bg-white border-rose-200 text-rose-600 hover:bg-rose-50'
+                  : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'
+              }`}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              批量删除{selectedIds.length ? ` (${selectedIds.length})` : ''}
+            </button>
+            {selectedIds.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedIds([])}
+                className="h-8 px-2 text-xs text-gray-400 hover:text-gray-600 cursor-pointer"
+              >
+                取消勾选
+              </button>
+            )}
           </div>
         </div>
+
+        <div className="flex-1 min-h-0 overflow-auto px-5 py-3 pb-4">
+          <ExternalUserTable
+            items={pagedList}
+            orgNodes={orgNodes}
+            getGroupName={getGroupName}
+            startIndex={(currentPage - 1) * pageSize}
+            emptyText="暂无匹配的系统账号"
+            onAvatarClick={setViewing}
+            onToggleStatus={handleToggleStatus}
+            onEdit={openEditModal}
+            onDelete={handleDelete}
+            selectable
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+            onToggleSelectAll={toggleSelectAllPage}
+          />
+        </div>
+        <div className="bg-gray-50/80 border-t border-gray-100">
+          <PaginationBar
+            total={filteredList.length}
+            page={currentPage}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
+          />
+        </div>
       </div>
-      </>
-      )}
 
       {isModalOpen && editing && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -774,7 +699,7 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
             <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
               <div>
                 <h3 className="text-sm font-bold text-gray-800">编辑系统账号</h3>
-                <p className="text-[11px] text-gray-400 mt-0.5">绑定机构、角色与人员分组，字段沿用当前人员档案</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">绑定机构、角色与用户群组，字段沿用当前人员档案</p>
               </div>
               <button type="button" onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 cursor-pointer">
                 <X className="w-4 h-4" />
@@ -798,7 +723,7 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
                   onToggle={(id) => toggleMulti(id, pRoles, setPRoles)}
                 />
                 <MultiSelectDropdown
-                  label="所属人员分组（可选）"
+                  label="所属用户群组（可选）"
                   placeholder="-- 暂不归属任何分组 --"
                   options={groups.map((group) => ({ id: group.id, label: group.name }))}
                   selected={pGroupIds}
@@ -851,27 +776,18 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
           onToast={triggerToast}
           onOpenRecords={() => {
             setIsModalOpen(false);
-            setIsInviteRecordOpen(true);
+            if (onOpenInviteRecords) onOpenInviteRecords();
+            else setIsInviteRecordOpen(true);
           }}
         />
       )}
 
-      {invitingFollower && (
-        <ReinviteModal
-          follower={invitingFollower}
-          orgNodes={orgNodes}
-          inviteCodes={inviteCodes}
-          setInviteCodes={setInviteCodes}
-          setPersonnelList={setPersonnelList}
-          onClose={() => setInvitingFollower(null)}
-          onSuccess={triggerToast}
-        />
-      )}
-
-      {isInviteRecordOpen && (
+      {!onOpenInviteRecords && isInviteRecordOpen && (
         <InviteRecordModal
           inviteCodes={inviteCodes}
+          setInviteCodes={setInviteCodes}
           orgNodes={orgNodes}
+          personnelList={personnelList}
           onClose={() => setIsInviteRecordOpen(false)}
           onCopy={copyText}
         />
@@ -898,19 +814,205 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
               <Detail label="联系电话" value={viewing.phone} />
               <Detail label="微信号" value={viewing.wechat} />
               <Detail label="角色名称" value={(viewing.roles || []).join('、')} />
-              <Detail label="账号状态" value={getFollowStatus(viewing) === '已关注' ? '正常关注' : '取消关注'} />
+              <Detail
+                label="账号状态"
+                value={
+                  viewing.status === '禁用'
+                    ? '已停用'
+                    : getFollowStatus(viewing) === '已关注'
+                      ? '正常'
+                      : '取消关注'
+                }
+              />
               <Detail label="启用状态" value={viewing.status === '启用' ? '已启用' : '已停用'} />
               <div className="col-span-2">
                 <Detail label="所属机构" value={formatPersonOrgPaths(orgNodes, viewing.orgIds, undefined, viewing.primaryOrgId)} />
               </div>
               <div className="col-span-2">
                 <Detail
-                  label="人员分组"
+                  label="用户群组"
                   value={(viewing.groupIds || []).length ? viewing.groupIds!.map(getGroupName).join('、') : '未入组'}
                 />
               </div>
               <Detail label="登记时间" value={viewing.registerDate} />
               <Detail label="标签" value={(viewing.labels || []).join('、') || '无'} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {batchModifyOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="px-5 py-3.5 border-b border-gray-100 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">批量修改外部用户信息</h3>
+                <p className="text-[11px] text-gray-400 mt-0.5">已选中 {selectedItems.length} 名账号</p>
+              </div>
+              <button type="button" onClick={() => setBatchModifyOpen(false)} className="text-gray-400 hover:text-gray-600 cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4 overflow-y-auto text-xs">
+              <div className="rounded-xl border border-blue-100 bg-blue-50/60 px-3.5 py-3">
+                <div className="text-[11px] text-slate-600 mb-2">
+                  将对以下选中的人员统一批量应用新的组织节点与群组归属：共{' '}
+                  <b className="text-[#1E5ABB]">{selectedItems.length}</b> 人
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {selectedItems.map((item) => (
+                    <span
+                      key={item.id}
+                      className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-white border border-blue-100"
+                    >
+                      <span className="w-5 h-5 rounded-full overflow-hidden shrink-0">
+                        <PersonAvatar name={item.realName} src={getPersonAvatarUrl(item)} size="sm" />
+                      </span>
+                      <span className="font-medium text-gray-700">{item.realName}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={batchChangeOrg}
+                  onChange={(event) => setBatchChangeOrg(event.target.checked)}
+                  className="mt-0.5 rounded border-gray-300 text-[#1E5ABB] focus:ring-[#1E5ABB]"
+                />
+                <span className="font-bold text-gray-800">批量变更【所在组织（组织节点）】</span>
+              </label>
+              {batchChangeOrg && (
+                <div className="pl-6 space-y-1.5">
+                  <OrgCascadeSelect
+                    orgNodes={orgNodes}
+                    path={batchOrgPath}
+                    onChange={(path) => setBatchOrgPath(path.filter(Boolean))}
+                  />
+                  <p className="text-[11px] text-gray-400">选中的所有人员将被指派到该组织节点</p>
+                </div>
+              )}
+
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={batchChangeGroup}
+                  onChange={(event) => setBatchChangeGroup(event.target.checked)}
+                  className="mt-0.5 rounded border-gray-300 text-[#1E5ABB] focus:ring-[#1E5ABB]"
+                />
+                <span className="font-bold text-gray-800">批量变更【所在群组（用户群组）】</span>
+              </label>
+              {batchChangeGroup && (
+                <div className="pl-6 space-y-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    {groups.map((group) => {
+                      const active = batchGroupIds.includes(group.id);
+                      return (
+                        <button
+                          key={group.id}
+                          type="button"
+                          onClick={() =>
+                            setBatchGroupIds((prev) =>
+                              prev.includes(group.id) ? prev.filter((id) => id !== group.id) : [...prev, group.id]
+                            )
+                          }
+                          className={`px-2.5 py-1 rounded-full border text-[11px] font-medium cursor-pointer ${
+                            active
+                              ? 'bg-[#1E5ABB] border-[#1E5ABB] text-white'
+                              : 'bg-white border-gray-200 text-gray-600 hover:border-blue-200'
+                          }`}
+                        >
+                          {active && <Check className="w-3 h-3 inline mr-0.5" />}
+                          {group.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[11px] text-gray-400">选中的所有人员将被统一归入选中的群组（多选批量绑定）</p>
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setBatchModifyOpen(false)}
+                className="px-4 py-1.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 cursor-pointer text-xs"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmBatchModify}
+                className="px-4 py-1.5 bg-[#1E5ABB] text-white rounded-lg font-bold hover:bg-[#134092] cursor-pointer text-xs inline-flex items-center gap-1.5"
+              >
+                <Check className="w-3.5 h-3.5" />
+                确认批量修改
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {batchDeleteOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-xl overflow-hidden">
+            <div className="px-5 py-4 flex items-start gap-3">
+              <span className="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </span>
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-gray-900">批量删除外部用户账号确认</h3>
+                <p className="text-xs text-rose-600 font-medium mt-0.5">
+                  本次将批量删除 {selectedItems.length} 名账号
+                </p>
+              </div>
+            </div>
+            <div className="px-5 pb-4 space-y-3 text-xs">
+              <div className="rounded-xl border border-gray-200 bg-slate-50/80 px-3.5 py-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-gray-500">待删除的人员名单：</span>
+                  <span className="text-gray-400">共 {selectedItems.length} 人</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
+                  {selectedItems.map((item) => (
+                    <span
+                      key={item.id}
+                      className="px-2 py-1 rounded-md border border-gray-200 bg-white text-gray-700"
+                    >
+                      {item.realName} ({(item.phone || '').replace(/\D/g, '').slice(-4) || '—'})
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3 text-rose-700">
+                <div className="font-bold inline-flex items-center gap-1.5 mb-1">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  重要提示与免责声明
+                </div>
+                <ul className="list-disc pl-4 space-y-0.5 text-[11px] leading-relaxed">
+                  <li>人员将从系统台账、分组列表中移除。</li>
+                  <li>删除后占用的激活名额将退回机构配额池。</li>
+                  <li>此操作不可撤销，请确认是否执行？</li>
+                </ul>
+              </div>
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setBatchDeleteOpen(false)}
+                className="px-4 py-1.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 cursor-pointer text-xs"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmBatchDelete}
+                className="px-4 py-1.5 bg-rose-600 text-white rounded-lg font-bold hover:bg-rose-700 cursor-pointer text-xs inline-flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                确认批量删除 ({selectedItems.length})
+              </button>
             </div>
           </div>
         </div>
@@ -1021,6 +1123,7 @@ const AccountFilterShell: React.FC<{
   triggerText: string;
   active: boolean;
   title: string;
+  titleIcon?: React.ReactNode;
   clearLabel?: string;
   footerText: (count: number) => string;
   confirmLabel?: string;
@@ -1040,6 +1143,7 @@ const AccountFilterShell: React.FC<{
   triggerText,
   active,
   title,
+  titleIcon,
   clearLabel = '清空已选',
   footerText,
   confirmLabel = '确定选择',
@@ -1074,7 +1178,7 @@ const AccountFilterShell: React.FC<{
       <button
         type="button"
         onClick={() => onOpenChange(!open)}
-        className={`inline-flex items-center gap-1.5 max-w-full h-8 px-3 rounded-full border text-xs font-medium cursor-pointer transition-colors ${
+        className={`inline-flex items-center gap-1.5 max-w-full h-8 px-3 rounded-[5px] border text-xs font-medium cursor-pointer transition-colors ${
           active || open
             ? 'bg-blue-50 border-blue-200 text-[#1E5ABB]'
             : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
@@ -1089,7 +1193,10 @@ const AccountFilterShell: React.FC<{
           className={`absolute z-40 mt-1.5 ${align === 'right' ? 'right-0' : 'left-0'} ${widthClass} max-w-[min(320px,calc(100vw-48px))] bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden`}
         >
           <div className="px-3 pt-3 pb-2 flex items-center justify-between gap-2">
-            <div className="text-xs font-bold text-gray-800 truncate">{title}</div>
+            <div className="text-xs font-bold text-gray-800 truncate inline-flex items-center gap-1.5 min-w-0">
+              {titleIcon}
+              <span className="truncate">{title}</span>
+            </div>
             <button
               type="button"
               onClick={() => setPending([])}
@@ -1123,7 +1230,8 @@ const FilterOptionList: React.FC<{
   selected: string[];
   onToggle: (id: string) => void;
   shape?: 'circle' | 'square';
-}> = ({ options, selected, onToggle, shape = 'square' }) => (
+  countAsBadge?: boolean;
+}> = ({ options, selected, onToggle, shape = 'square', countAsBadge = false }) => (
   <div className="space-y-0.5">
     {options.map((option) => {
       const checked = selected.includes(option.id);
@@ -1139,11 +1247,16 @@ const FilterOptionList: React.FC<{
           <CircleCheck checked={checked} shape={shape} />
           {option.dot && <span className={`w-2 h-2 rounded-full shrink-0 ${option.dot}`} />}
           <span className="flex-1 min-w-0 truncate text-xs font-medium">{option.label}</span>
-          {option.countLabel && (
-            <span className={`text-[11px] shrink-0 ${checked ? 'text-[#1E5ABB]/70' : 'text-gray-400'}`}>
-              {option.countLabel}
-            </span>
-          )}
+          {option.countLabel &&
+            (countAsBadge ? (
+              <span className="px-1.5 py-0.5 rounded-full bg-slate-100 text-[10px] font-bold text-slate-500 shrink-0">
+                {option.countLabel}
+              </span>
+            ) : (
+              <span className={`text-[11px] shrink-0 ${checked ? 'text-[#1E5ABB]/70' : 'text-gray-400'}`}>
+                {option.countLabel}
+              </span>
+            ))}
         </button>
       );
     })}
@@ -1171,6 +1284,8 @@ const OrgFilterTree: React.FC<{
     const hasChildren = children.length > 0;
     const isExpanded = expanded.includes(node.id);
     const checked = selected.includes(node.id);
+    const used = counts[node.id] || 0;
+    const quota = node.quota;
     return (
       <div key={node.id}>
         <div
@@ -1193,10 +1308,11 @@ const OrgFilterTree: React.FC<{
             onClick={() => onToggle(node.id)}
             className="flex-1 min-w-0 flex items-center gap-2 py-1.5 pr-2 cursor-pointer"
           >
-            <CircleCheck checked={checked} shape="circle" />
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${node.disabled ? 'bg-orange-400' : 'bg-emerald-500'}`} />
+            <CircleCheck checked={checked} shape="square" />
             <span className="flex-1 min-w-0 truncate text-xs font-medium">{node.name}</span>
-            <span className={`text-[11px] shrink-0 ${checked ? 'text-[#1E5ABB]/70' : 'text-gray-400'}`}>
-              {counts[node.id] || 0} 人
+            <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-[10px] font-bold text-slate-500 shrink-0 tabular-nums">
+              {quota !== undefined ? `${used} | ${quota}` : `${used} 人`}
             </span>
           </button>
         </div>

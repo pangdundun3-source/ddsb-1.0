@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Edit3, Lock, ChevronDown, ChevronUp, Check, Trash2, Info, X } from 'lucide-react';
+import { Edit3, Lock, ChevronDown, ChevronUp, Check, Trash2, X } from 'lucide-react';
 
 interface RoleItem {
   id: number;
@@ -26,7 +26,7 @@ interface PermissionGroup {
   children: PermissionSubModule[];
 }
 
-/** 外部角色权限：对应审核上报 PC 端（H5 同步）的功能点 */
+/** 外部角色权限：对应审核上报 PC 端导航与组织管理子模块（H5 同步） */
 const permissionGroups: PermissionGroup[] = [
   {
     id: 'home',
@@ -38,7 +38,7 @@ const permissionGroups: PermissionGroup[] = [
         actions: [
           { key: 'view', label: '查看工作台' },
           { key: 'todo', label: '查看待办' },
-          { key: 'notice', label: '查看公告通知' },
+          { key: 'add', label: '新建报送' },
           { key: 'detail', label: '跳转详情' },
         ],
       },
@@ -52,12 +52,10 @@ const permissionGroups: PermissionGroup[] = [
         id: 'report_mine',
         label: '我的报送',
         actions: [
-          { key: 'view', label: '查看' },
+          { key: 'view', label: '查看列表' },
           { key: 'detail', label: '查看详情' },
           { key: 'add', label: '新建速报' },
-          { key: 'draft', label: '编辑草稿' },
-          { key: 'resubmit', label: '修改补充并重新提交' },
-          { key: 'withdraw', label: '撤回报送' },
+          { key: 'resubmit', label: '驳回后修改并重新提交' },
           { key: 'delete', label: '删除报送' },
         ],
       },
@@ -65,11 +63,9 @@ const permissionGroups: PermissionGroup[] = [
         id: 'report_records',
         label: '报送记录',
         actions: [
-          { key: 'view', label: '查看' },
+          { key: 'view', label: '查看台账' },
           { key: 'filter', label: '查询筛选' },
           { key: 'detail', label: '查看详情' },
-          { key: 'edit', label: '编辑' },
-          { key: 'delete', label: '删除' },
           { key: 'export', label: '导出台账' },
         ],
       },
@@ -77,7 +73,7 @@ const permissionGroups: PermissionGroup[] = [
         id: 'report_statistics',
         label: '报送统计',
         actions: [
-          { key: 'view', label: '查看' },
+          { key: 'view', label: '查看统计' },
           { key: 'export', label: '导出统计报表' },
         ],
       },
@@ -91,11 +87,11 @@ const permissionGroups: PermissionGroup[] = [
         id: 'audit_mine',
         label: '我的审核',
         actions: [
-          { key: 'view', label: '查看' },
-          { key: 'detail', label: '查看详情' },
+          { key: 'view', label: '查看列表' },
+          { key: 'filter', label: '查询筛选' },
+          { key: 'detail', label: '进入审核详情' },
           { key: 'approve', label: '审核通过' },
           { key: 'reject', label: '审核驳回' },
-          { key: 'score', label: '终审评分' },
           { key: 'batch', label: '批量审核' },
           { key: 'flow', label: '查看流转记录' },
         ],
@@ -104,7 +100,7 @@ const permissionGroups: PermissionGroup[] = [
         id: 'audit_records',
         label: '审核记录',
         actions: [
-          { key: 'view', label: '查看' },
+          { key: 'view', label: '查看台账' },
           { key: 'filter', label: '查询筛选' },
           { key: 'detail', label: '查看详情' },
           { key: 'flow', label: '查看流转记录' },
@@ -114,8 +110,68 @@ const permissionGroups: PermissionGroup[] = [
         id: 'audit_statistics',
         label: '审核统计',
         actions: [
-          { key: 'view', label: '查看' },
+          { key: 'view', label: '查看统计' },
           { key: 'export', label: '导出统计报表' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'org',
+    label: '组织管理',
+    children: [
+      {
+        id: 'org_account',
+        label: '用户管理',
+        actions: [
+          { key: 'view', label: '查看用户列表' },
+          { key: 'invite', label: '邀请用户' },
+          { key: 'edit', label: '编辑用户' },
+          { key: 'status', label: '启用 / 停用' },
+          { key: 'batch', label: '批量修改' },
+          { key: 'export', label: '导出账号' },
+          { key: 'delete', label: '删除账号' },
+        ],
+      },
+      {
+        id: 'org_nodes',
+        label: '组织节点管理',
+        actions: [
+          { key: 'view', label: '查看本节点组织' },
+          { key: 'child', label: '维护自建子级' },
+          { key: 'invite', label: '邀请人员入驻' },
+          { key: 'personnel', label: '管理节点人员' },
+        ],
+      },
+      {
+        id: 'org_role',
+        label: '角色管理',
+        actions: [
+          { key: 'view', label: '查看角色与权限' },
+          { key: 'custom', label: '维护自定义角色' },
+          { key: 'perm', label: '配置功能权限' },
+        ],
+      },
+      {
+        id: 'org_group',
+        label: '用户群组管理',
+        actions: [
+          { key: 'view', label: '查看群组与成员' },
+          { key: 'add', label: '人员入组' },
+          { key: 'change', label: '修改分组' },
+          { key: 'remove', label: '移出成员' },
+        ],
+      },
+      {
+        id: 'org_invite',
+        label: '激活码管理',
+        actions: [
+          { key: 'view', label: '查看邀请批次' },
+          { key: 'filter', label: '按状态筛选' },
+          { key: 'detail', label: '查看凭证详情' },
+          { key: 'invalidate', label: '立即失效' },
+          { key: 'copy', label: '复制链接 / 激活码' },
+          { key: 'export', label: '导出激活码' },
         ],
       },
     ],
@@ -129,8 +185,9 @@ const permissionGroups: PermissionGroup[] = [
         label: '消息通知',
         actions: [
           { key: 'view', label: '查看消息' },
-          { key: 'search', label: '搜索消息' },
+          { key: 'filter', label: '未读 / 已读切换' },
           { key: 'read', label: '标为已读' },
+          { key: 'jump', label: '跳转关联业务' },
         ],
       },
     ],
@@ -144,6 +201,7 @@ const permissionGroups: PermissionGroup[] = [
         label: '个人信息',
         actions: [
           { key: 'view', label: '查看资料' },
+          { key: 'edit', label: '编辑基础信息' },
           { key: 'phone', label: '更换绑定手机号' },
           { key: 'logout', label: '退出登录' },
         ],
@@ -154,8 +212,10 @@ const permissionGroups: PermissionGroup[] = [
 
 /** 系统默认角色固定拥有的功能分组 */
 const DEFAULT_ROLE_GROUPS: Record<string, string[]> = {
-  上报员: ['home', 'report', 'message', 'personal'],
+  网格员: ['home', 'report', 'message', 'personal'],
   审核员: ['home', 'audit', 'message', 'personal'],
+  节点负责人: ['home', 'org', 'message', 'personal'],
+  系统管理员: ['home', 'report', 'audit', 'org', 'message', 'personal'],
 };
 
 const createRolePresetPermissions = (roleName: string) => {
@@ -191,8 +251,10 @@ const createCheckedPermissions = (checked: boolean) =>
 
 export const RolePermission: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const [roles, setRoles] = useState<RoleItem[]>([
-    { id: 3, name: '上报员', isDefault: true, description: '负责基础事件、信息与数据的填报与提交' },
-    { id: 4, name: '审核员', isDefault: true, description: '负责上报信息的核查、归档与退回评估' }
+    { id: 3, name: '网格员', isDefault: true, description: '负责基础事件、信息与数据的填报与提交' },
+    { id: 4, name: '审核员', isDefault: true, description: '负责上报信息的核查、归档与退回评估' },
+    { id: 5, name: '节点负责人', isDefault: true, description: '组织节点负责人，开通首页、消息中心、个人中心与组织管理（用户 / 节点 / 角色 / 群组 / 激活码）' },
+    { id: 6, name: '系统管理员', isDefault: true, description: '外部系统管理员，拥有审核上报端全部功能与组织管理权限' },
   ]);
 
   const [selectedRole, setSelectedRole] = useState<RoleItem>(roles[0]);
@@ -202,7 +264,8 @@ export const RolePermission: React.FC<{ embedded?: boolean }> = ({ embedded = fa
     home: true,
     report: true,
     audit: true,
-    message: false,
+    org: true,
+    message: true,
     personal: false
   });
 
@@ -447,8 +510,8 @@ export const RolePermission: React.FC<{ embedded?: boolean }> = ({ embedded = fa
       )}
       {!embedded && (
         <div>
-          <h2 className="text-xl font-bold text-gray-800 tracking-tight">外部角色管理</h2>
-          <p className="text-xs text-gray-400 mt-0.5">外部人员在审核上报 PC / H5 端的角色与功能权限，上报员、审核员为系统默认角色，不可修改</p>
+          <h2 className="text-xl font-bold text-gray-800 tracking-tight">角色管理</h2>
+          <p className="text-xs text-gray-400 mt-0.5">人员在审核上报 PC / H5 端的角色与功能权限，网格员、审核员、节点负责人、系统管理员为系统默认角色，不可修改</p>
         </div>
       )}
 
@@ -458,7 +521,7 @@ export const RolePermission: React.FC<{ embedded?: boolean }> = ({ embedded = fa
           ? 'w-[260px] shrink-0 border-r border-slate-100 p-3 flex flex-col gap-3 min-h-0 bg-slate-50/30'
           : 'w-full lg:w-80 bg-white rounded-lg border border-gray-200/80 shadow-2xs p-4 flex flex-col space-y-3 shrink-0'}>
           <div className="border-b border-gray-100 pb-2.5">
-            <div className="text-xs font-bold text-gray-800">外部角色</div>
+            <div className="text-xs font-bold text-gray-800">角色列表</div>
             <div className="mt-1 text-[11px] text-gray-400 flex items-center space-x-1">
               <Lock className="w-3 h-3 text-gray-400 shrink-0" />
               <span>固定为系统默认角色，权限仅供查看</span>
@@ -603,15 +666,7 @@ export const RolePermission: React.FC<{ embedded?: boolean }> = ({ embedded = fa
               )}
             </div>
 
-            {/* Readonly Alert Banner for System Default Roles */}
-            {selectedRole.isDefault ? (
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs text-gray-600 flex items-center space-x-2">
-                <Info className="w-4 h-4 text-gray-400 shrink-0" />
-                <span>
-                  『<strong>{selectedRole.name}</strong>』为系统默认角色，以下为该角色在审核上报 PC 端的功能权限，已固化保护，只供查看。
-                </span>
-              </div>
-            ) : (
+            {!selectedRole.isDefault && (
               <div className="bg-blue-50/60 border border-blue-100 rounded-lg p-3 text-xs text-blue-900 flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <Edit3 className="w-4 h-4 text-blue-600 shrink-0" />

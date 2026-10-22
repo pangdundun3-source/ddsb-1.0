@@ -47,12 +47,10 @@ import {
   RotateCcw,
   Sliders,
   SlidersHorizontal,
-  UserPlus,
   Workflow,
   X as WinCloseIcon
 } from 'lucide-react';
 import { TemplateOtherConfigPanel } from '../components/TemplateOtherConfigPanel';
-import { InviteRegisterFieldsPanel } from '../components/InviteRegisterFieldsPanel';
 
 export type FieldType = 'text' | 'number' | 'date' | 'file' | 'link' | 'select' | 'phone' | 'gender' | 'id_card' | 'bank_card' | 'email' | 'address' | 'identity';
 
@@ -550,12 +548,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       label: '数据字典管理',
       icon: ListFilter,
       desc: '驳回原由/信息分类/来源渠道'
-    },
-    {
-      id: 'invite_fields',
-      label: '邀请注册字段',
-      icon: UserPlus,
-      desc: '上报员/审核员邀请注册填写项'
     },
     {
       id: 'value_added',
@@ -1771,11 +1763,19 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     depth: number,
     direction: 'up' | 'down' = 'up'
   ): AuditNode[] => {
-    const mapped = rawNodes.map(node => ({
-      ...node,
-      assigneeSource: node.assigneeSource || 'role',
-      rejectStrategy: node.rejectStrategy || 'return_submitter',
-    }));
+    const mapped = rawNodes.map(node => {
+      const isSubmitStage =
+        Boolean(node.isSubmitStage) || node.nodeName === '上报人' || node.nodeName === '上报';
+      return {
+        ...node,
+        assigneeSource: isSubmitStage ? node.assigneeSource : node.assigneeSource || 'role',
+        rejectStrategy: node.rejectStrategy || 'return_submitter',
+        isSubmitStage: isSubmitStage || undefined,
+        enableTimeout: isSubmitStage ? false : node.enableTimeout,
+        approverRole: isSubmitStage ? '上报功能人员暂无限制' : node.approverRole,
+        dynamicMechanism: isSubmitStage ? '上报功能人员暂无限制' : node.dynamicMechanism,
+      };
+    });
     const normalized = mode === 'max_n_steps'
       ? mapped.flatMap(node => {
           const name = node.nodeName || '';
@@ -3514,10 +3514,22 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       const maxNDepth = formMaxIntermediateNodes || formFlowDepth || 3;
       const direction = formFlowLevelDirection === 'down' ? 'down' : 'up';
       let effectiveNodes: AuditNode[] = formAuditNodes.length >= 2
-        ? formAuditNodes.map((n, idx) => ({
-            ...n,
-            isUnifiedFinalNode: idx === formAuditNodes.length - 1 ? true : n.isUnifiedFinalNode
-          }))
+        ? formAuditNodes.map((n, idx) => {
+            const isFinal = idx === formAuditNodes.length - 1 || Boolean(n.isUnifiedFinalNode);
+            const isSubmit = Boolean(n.isSubmitStage) || n.nodeName === '上报人' || n.nodeName === '上报';
+            return {
+              ...n,
+              isUnifiedFinalNode: isFinal ? true : n.isUnifiedFinalNode,
+              missingRule: isFinal ? 'block' : isSubmit ? 'skip' : n.missingRule === 'block' ? 'block' : 'skip',
+              ownerMissingStrategy: isFinal
+                ? 'block_submit'
+                : isSubmit
+                  ? 'skip_to_next'
+                  : n.missingRule === 'block' || n.ownerMissingStrategy === 'block_submit'
+                    ? 'block_submit'
+                    : 'skip_to_next',
+            };
+          })
         : buildDefaultFlowNodes(formAuditFlowMode, maxNDepth, direction);
 
       if (formAuditFlowMode === 'max_n_steps') {
@@ -3604,8 +3616,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
   const currentModuleDesc =
     activeModule === 'report_template'
       ? '管理各业务报送模版与动态表单字段'
-      : activeModule === 'invite_fields'
-      ? '预览上报员、审核员邀请注册时需填写的字段及是否必填、校验规则（仅供查看）'
       : activeModule === 'audit_flow'
       ? '可视化设计多级审核流程链路、审批节点、责任人缺失兜底与适用机构范围'
       : activeModule === 'audit_score'
@@ -3717,7 +3727,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
           <div className="space-y-4">
             {/* Action Bar / Search & Add Toolbar for Modules (hidden when editing/viewing template detail page) */}
             {!isTemplateDetailPageOpen && (
-              activeModule === 'report_template' || activeModule === 'invite_fields' ? null : activeModule === 'audit_flow' ? null : activeModule === 'audit_score' ? null : activeModule === 'data_dict' ? (
+              activeModule === 'report_template' ? null : activeModule === 'audit_flow' ? null : activeModule === 'audit_score' ? null : activeModule === 'data_dict' ? (
                 <div className="pb-1">
                   {/* Sub-category Tabs */}
                   <div className="inline-flex items-center gap-1 p-1 bg-gray-100 border border-gray-200 rounded-lg flex-wrap">
@@ -3779,9 +3789,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
             ))}
 
             {/* Content Display Area (Stats Metric Builder / Value Added Cards / Standard Table) */}
-            {activeModule === 'invite_fields' ? (
-              <InviteRegisterFieldsPanel />
-            ) : activeModule === 'stats_metric' ? (
+            {activeModule === 'stats_metric' ? (
               <div className="space-y-3">
                 <div className="border border-gray-100 rounded-lg bg-gray-50/50 px-4 py-3">
                   <div className="flex flex-wrap items-end gap-3">
@@ -6722,11 +6730,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                             </div>
                           </div>
                         </div>
-                        <span className="text-[11px] leading-4 text-gray-400 font-normal">
-                          {formFlowLevelDirection === 'down'
-                            ? `从总机构下一层向下取 ${formMaxIntermediateNodes || 3} 级，更低层级穿透到其中最底层，再进入总机构终审。不足 ${formMaxIntermediateNodes || 3} 级时按实际层级流转。`
-                            : `从上报机构向上最多 ${formMaxIntermediateNodes || 3} 级，含本级初审，超出直达总机构终审。不足 ${formMaxIntermediateNodes || 3} 级时按实际层级流转。`}
-                        </span>
                       </div>
                     )}
                   </div>
@@ -6895,24 +6898,21 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                 const invalidScoreCount = formScoreLevels.filter(lvl => lvl.score < 0 || lvl.score > formTotalScore).length;
                 const isDescending = formScoreLevels.every((lvl, idx) => idx === 0 || formScoreLevels[idx - 1].score >= lvl.score);
                 return (
-                  <div className="space-y-3 pt-3 border-t border-gray-200">
+                  <div className="space-y-3 pt-3">
                     {/* Score Levels Table */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between px-1 gap-3">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="font-bold text-gray-800 text-xs">等级评分</span>
-                          <span className={`px-1.5 py-0.5 rounded border text-[10px] font-bold ${
-                            invalidScoreCount > 0
-                              ? 'bg-red-50 text-red-700 border-red-200'
-                              : isDescending
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-amber-50 text-amber-800 border-amber-200'
-                          }`}>
-                            {invalidScoreCount > 0 ? `${invalidScoreCount} 项异常` : isDescending ? '互斥命中' : '建议降序'}
-                          </span>
-                          <span className="text-[11px] text-gray-400 truncate">
-                            {formTotalScore} 分满分，审核时只选一个等级
-                          </span>
+                          {(invalidScoreCount > 0 || !isDescending) && (
+                            <span className={`px-1.5 py-0.5 rounded border text-[10px] font-bold ${
+                              invalidScoreCount > 0
+                                ? 'bg-red-50 text-red-700 border-red-200'
+                                : 'bg-amber-50 text-amber-800 border-amber-200'
+                            }`}>
+                              {invalidScoreCount > 0 ? `${invalidScoreCount} 项异常` : '建议降序'}
+                            </span>
+                          )}
                         </div>
                         <button
                           type="button"
@@ -6994,6 +6994,12 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                   formAuditNodes.findIndex(node => node.id === selectedAuditNodeId)
                 );
                 const selectedNode = formAuditNodes[selectedIndex] || formAuditNodes[0];
+                const isSubmitNode = (node?: AuditNode | null) =>
+                  Boolean(
+                    node?.isSubmitStage ||
+                      node?.nodeName === '上报人' ||
+                      node?.nodeName === '上报'
+                  );
                 return (
                   <div className="space-y-4 pt-3 border-t border-gray-200">
                     {/* 节点配置与流转主区域：左右平衡响应式双列布局 (50% : 50%) */}
@@ -7017,15 +7023,19 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch">
                             {formAuditNodes.map((node, index) => {
                               const isSelected = selectedNode?.id === node.id;
-                              const isFinalNode = Boolean(node.isUnifiedFinalNode || index === formAuditNodes.length - 1);
+                              const isSubmitStage = isSubmitNode(node);
+                              const isFinalNode = Boolean(
+                                !isSubmitStage && (node.isUnifiedFinalNode || index === formAuditNodes.length - 1)
+                              );
                               return (
                                 <div
                                   key={node.id || index}
-                                  draggable={!isFinalNode}
+                                  draggable={!isFinalNode && !isSubmitStage}
                                   onDragStart={e => e.dataTransfer.setData('text/plain', String(index))}
                                   onDragOver={e => e.preventDefault()}
                                   onDrop={e => {
                                     e.preventDefault();
+                                    if (isSubmitStage) return;
                                     handleDragAuditNode(Number(e.dataTransfer.getData('text/plain')), index);
                                   }}
                                   onClick={() => setSelectedAuditNodeId(node.id)}
@@ -7093,7 +7103,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                         {node.nodeName}
                                       </div>
                                       <div className="text-[10px] text-gray-500 mt-0.5 truncate">
-                                        {getAuditAssigneeSourceLabel(node.assigneeSource)}
+                                        {isSubmitStage ? '不限固定角色' : getAuditAssigneeSourceLabel(node.assigneeSource)}
                                       </div>
                                     </div>
 
@@ -7102,7 +7112,9 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                         ? 'bg-amber-100/50 border-amber-200/80 text-amber-900 font-bold'
                                         : 'bg-gray-50 border-gray-100 text-gray-600'
                                     }`}>
-                                      {node.assigneeSource === 'org_owner'
+                                      {isSubmitStage
+                                        ? '上报功能人员暂无限制'
+                                        : node.assigneeSource === 'org_owner'
                                         ? '归属机构负责人'
                                         : node.assigneeSource === 'user'
                                         ? node.assigneeUserName || node.approverRole
@@ -7110,21 +7122,23 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                     </div>
                                   </div>
 
-                                  <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-2">
-                                    {node.enableTimeout !== false && (node.timeLimitMinutes ?? 0) > 0 ? (
-                                      <span className="text-[10px] text-blue-600 font-mono flex items-center gap-1 font-medium" title={`超时提醒时限：${node.timeLimitMinutes}分钟`}>
-                                        <Clock className="w-2.5 h-2.5 text-blue-600" />
-                                        {node.timeLimitMinutes >= 60 && node.timeLimitMinutes % 60 === 0
-                                          ? `${node.timeLimitMinutes / 60}小时`
-                                          : `${node.timeLimitMinutes}分`}
-                                      </span>
-                                    ) : (
-                                      <span className="text-[10px] text-gray-400 flex items-center gap-1" title="未开启超时提醒">
-                                        <Clock className="w-2.5 h-2.5 text-gray-300" />
-                                        无提醒
-                                      </span>
-                                    )}
-                                  </div>
+                                  {!isSubmitStage && (
+                                    <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-2">
+                                      {node.enableTimeout !== false && (node.timeLimitMinutes ?? 0) > 0 ? (
+                                        <span className="text-[10px] text-blue-600 font-mono flex items-center gap-1 font-medium" title={`超时提醒时限：${node.timeLimitMinutes}分钟`}>
+                                          <Clock className="w-2.5 h-2.5 text-blue-600" />
+                                          {node.timeLimitMinutes >= 60 && node.timeLimitMinutes % 60 === 0
+                                            ? `${node.timeLimitMinutes / 60}小时`
+                                            : `${node.timeLimitMinutes}分`}
+                                        </span>
+                                      ) : (
+                                        <span className="text-[10px] text-gray-400 flex items-center gap-1" title="未开启超时提醒">
+                                          <Clock className="w-2.5 h-2.5 text-gray-300" />
+                                          无提醒
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}
@@ -7147,7 +7161,12 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                           )}
                         </div>
 
-                        {selectedNode ? (
+                        {selectedNode && isSubmitNode(selectedNode) ? (
+                          <div className="flex flex-col items-center justify-center text-center min-h-[320px] px-8">
+                            <p className="text-sm font-bold text-gray-800">上报阶段无需配置</p>
+                            <p className="text-xs text-gray-500 mt-2 leading-relaxed">上报功能人员暂无限制，不配置节点属性。</p>
+                          </div>
+                        ) : selectedNode ? (
                           <div className="space-y-3">
                             {(selectedNode.isUnifiedFinalNode || selectedIndex === formAuditNodes.length - 1) && (
                               <div className="p-2 rounded bg-amber-50 border border-amber-200 text-[11px] text-amber-800 flex items-center gap-1.5">
@@ -7240,67 +7259,40 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               </div>
                             </div>
 
-                            {/* Row 3: 无负责人处理规则 (紧凑双列结构) */}
+                            {/* Row 3: 无处理人处理规则 — 中间节点可选跳过/阻断，终审固定阻断 */}
                             <div className="rounded-lg border border-amber-200/80 bg-amber-50/30 p-2.5 space-y-2">
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-start">
-                                <div>
-                                  <label className="block text-[11px] text-amber-900 font-bold mb-1">无负责人处理规则</label>
+                              <div className="flex items-center justify-between gap-3">
+                                <label className="text-[11px] text-amber-900 font-bold shrink-0">无处理人处理规则</label>
+                                {(selectedNode.isUnifiedFinalNode || selectedIndex === formAuditNodes.length - 1) ? (
+                                  <span className="text-xs font-semibold text-amber-900">阻断提交</span>
+                                ) : (
                                   <select
-                                    value={selectedNode.ownerMissingStrategy || formOwnerMissingStrategy}
+                                    value={
+                                      selectedNode.missingRule === 'block' ||
+                                      selectedNode.ownerMissingStrategy === 'block_submit'
+                                        ? 'block'
+                                        : 'skip'
+                                    }
                                     onChange={e => {
-                                      const strat = e.target.value as AuditOwnerMissingStrategy;
-                                      handleUpdateAuditNode(selectedIndex, { ownerMissingStrategy: strat });
-                                      setFormOwnerMissingStrategy(strat);
+                                      const block = e.target.value === 'block';
+                                      handleUpdateAuditNode(selectedIndex, {
+                                        missingRule: block ? 'block' : 'skip',
+                                        ownerMissingStrategy: block ? 'block_submit' : 'skip_to_next',
+                                      });
                                     }}
-                                    className="w-full px-2.5 py-1.5 border border-amber-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                                    className="px-2.5 py-1.5 border border-amber-200 rounded-lg text-xs font-semibold text-amber-900 bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
                                   >
-                                    {ownerMissingStrategyOptions.map(option => (
-                                      <option key={option.id} value={option.id}>{option.label}</option>
-                                    ))}
+                                    <option value="skip">跳过该节点</option>
+                                    <option value="block">阻断提交</option>
                                   </select>
-                                </div>
-
-                                {(selectedNode.ownerMissingStrategy || formOwnerMissingStrategy) === 'fallback_role' && (
-                                  <div>
-                                    <label className="block text-[11px] text-gray-700 font-medium mb-1">指定兜底角色 *</label>
-                                    <select
-                                      value={selectedNode.ownerMissingFallbackRole || formOwnerMissingFallbackRole}
-                                      onChange={e => {
-                                        const role = e.target.value;
-                                        handleUpdateAuditNode(selectedIndex, { ownerMissingFallbackRole: role });
-                                        setFormOwnerMissingFallbackRole(role);
-                                      }}
-                                      className="w-full px-2.5 py-1.5 border border-amber-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                                    >
-                                      {auditRoleOptions.map(role => (
-                                        <option key={role} value={role}>{role}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                )}
-
-                                {(selectedNode.ownerMissingStrategy || formOwnerMissingStrategy) === 'fallback_user' && (
-                                  <div>
-                                    <label className="block text-[11px] text-gray-700 font-medium mb-1">指定兜底人员 *</label>
-                                    <select
-                                      value={selectedNode.ownerMissingFallbackUserName || formOwnerMissingFallbackUserName}
-                                      onChange={e => {
-                                        const user = e.target.value;
-                                        handleUpdateAuditNode(selectedIndex, { ownerMissingFallbackUserName: user });
-                                        setFormOwnerMissingFallbackUserName(user);
-                                      }}
-                                      className="w-full px-2.5 py-1.5 border border-amber-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                                    >
-                                      <option value="">请选择人员</option>
-                                      {auditUserOptions.map(user => (
-                                        <option key={user} value={user}>{user}</option>
-                                      ))}
-                                    </select>
-                                  </div>
                                 )}
                               </div>
                               <p className="text-[10px] text-gray-500 leading-tight">
-                                {ownerMissingStrategyOptions.find(option => option.id === (selectedNode.ownerMissingStrategy || formOwnerMissingStrategy))?.description}
+                                {(selectedNode.isUnifiedFinalNode || selectedIndex === formAuditNodes.length - 1)
+                                  ? '上报时校验终审处理人。没有处理人则阻断提交。终审固定为阻断提交，不支持修改。'
+                                  : selectedNode.missingRule === 'block' || selectedNode.ownerMissingStrategy === 'block_submit'
+                                    ? '上报时校验该中间节点处理人。没有处理人则阻断提交，并提示联系管理员后再提交。'
+                                    : '无处理人时跳过当前节点，流转到下一审核节点。'}
                               </p>
                             </div>
 

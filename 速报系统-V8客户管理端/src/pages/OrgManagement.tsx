@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Search,
@@ -64,6 +64,7 @@ import {
 import { ExternalUserTable, FollowStatusBadges } from '../components/ExternalUserTable';
 import { OrgCascadeSelect } from '../components/OrgCascadeSelect';
 import { InviteUserModal } from '../components/InviteUserModal';
+import { PaginationBar } from '../components/PaginationBar';
 import { InviteRecordModal } from './InviteRecordModal';
 
 export interface CategoryItem {
@@ -90,6 +91,8 @@ export interface OrgNode {
   duty?: string;
   /** 人员配额，含下级节点；未设置时共享上级配额 */
   quota?: number;
+  /** 本节点邀请时可勾选的角色；未设置时向上继承 / 默认网格员+上报员 */
+  inviteRoles?: string[];
   disabled?: boolean;
 }
 
@@ -144,11 +147,11 @@ interface OrgManagementProps {
 
 const PERSONNEL_LABEL_OPTIONS: Array<{
   name: string;
-  group: '上报员' | '审核员';
+  group: '网格员' | '审核员';
 }> = [
-  { name: '骨干上报员', group: '上报员' },
-  { name: '普通上报员', group: '上报员' },
-  { name: '核心上报员', group: '上报员' },
+  { name: '骨干网格员', group: '网格员' },
+  { name: '普通网格员', group: '网格员' },
+  { name: '核心网格员', group: '网格员' },
   { name: '一级审核员', group: '审核员' },
   { name: '二级审核员', group: '审核员' },
   { name: '三级审核员', group: '审核员' },
@@ -156,8 +159,10 @@ const PERSONNEL_LABEL_OPTIONS: Array<{
 
 const EXTERNAL_QUOTA_LIMIT = 500;
 
-const getPersonnelLabelOptionsByRoles = (roles: string[] = []) =>
-  PERSONNEL_LABEL_OPTIONS.filter((option) => roles.includes(option.group));
+const getPersonnelLabelOptionsByRoles = (roles: string[] = []) => {
+  const normalized = roles.map((role) => (role === '上报员' ? '网格员' : role));
+  return PERSONNEL_LABEL_OPTIONS.filter((option) => normalized.includes(option.group));
+};
 
 const getPersonnelDisplayLabels = (person: PersonnelItem) => {
   const allowedNames = new Set(getPersonnelLabelOptionsByRoles(person.roles).map((option) => option.name));
@@ -202,6 +207,8 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
 
   const [treeSearch, setTreeSearch] = useState('');
   const [personnelSearch, setPersonnelSearch] = useState('');
+  const [personnelPage, setPersonnelPage] = useState(1);
+  const [personnelPageSize, setPersonnelPageSize] = useState(10);
   const [revealedPhoneIds, setRevealedPhoneIds] = useState<number[]>([]);
   const [viewingPersonnelId, setViewingPersonnelId] = useState<number | null>(null);
 
@@ -246,13 +253,12 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
   const [leaderModalOrgId, setLeaderModalOrgId] = useState<string | null>(null);
   const [leaderDraftIds, setLeaderDraftIds] = useState<number[]>([]);
   const [leaderModalSearch, setLeaderModalSearch] = useState('');
-  const [leaderModalScope, setLeaderModalScope] = useState<'org' | 'all'>('org');
   const [editingPersonnel, setEditingPersonnel] = useState<PersonnelItem | null>(null);
   const [pUsername, setPUsername] = useState('');
   const [pRealName, setPRealName] = useState('');
   const [pWechat, setPWechat] = useState('');
   const [pPhone, setPPhone] = useState('');
-  const [pRoles, setPRoles] = useState<string[]>(['上报员']);
+  const [pRoles, setPRoles] = useState<string[]>(['网格员']);
   const [pOrgIds, setPOrgIds] = useState<string[]>([]);
   const [pPrimaryOrgId, setPPrimaryOrgId] = useState<string>('');
   const [pLeaderOrgIds, setPLeaderOrgIds] = useState<string[]>([]);
@@ -983,7 +989,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
     setPRealName('');
     setPWechat('');
     setPPhone('');
-    setPRoles(['上报员']);
+    setPRoles(['网格员']);
     setPOrgIds([currentOrg.id]); // Default to selected org
     setPPrimaryOrgId(currentOrg.id);
     setPLeaderOrgIds([]);
@@ -1095,7 +1101,6 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
     setLeaderModalOrgId(node.id);
     setLeaderDraftIds(getCurrentLeaderIds(node).slice(0, 1));
     setLeaderModalSearch('');
-    setLeaderModalScope('org');
   };
 
   const closeLeaderModal = () => setLeaderModalOrgId(null);
@@ -1173,7 +1178,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
 
   const handleTogglePersonnelLeader = (person: PersonnelItem) => {
     if (isRootSelected) {
-      triggerToast('平台根节点不支持直接设置负责人');
+      triggerToast('平台根节点不支持直接设置组织联系人');
       return;
     }
 
@@ -1215,7 +1220,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
     setPRealName(item.realName);
     setPWechat(item.wechat);
     setPPhone(item.phone);
-    setPRoles(item.roles && item.roles.length > 0 ? item.roles.filter((role) => ['管理员', '审核员', '上报员'].includes(role)) : []);
+    setPRoles(item.roles && item.roles.length > 0 ? item.roles.filter((role) => ['管理员', ...ACCOUNT_ROLE_OPTIONS].includes(role)) : []);
     const initialOrgId = getDeepestOrgId(orgNodes, item.orgIds, item.primaryOrgId) || item.orgIds[0] || '';
     setPOrgIds(initialOrgId ? [initialOrgId] : []);
     setPPrimaryOrgId(initialOrgId);
@@ -1238,7 +1243,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
   };
 
   const toggleRoleSelectionForPerson = (role: string) => {
-    if (!['管理员', '审核员', '上报员'].includes(role)) return;
+    if (!['管理员', ...ACCOUNT_ROLE_OPTIONS].includes(role)) return;
     setPRoles((prev) =>
       prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]
     );
@@ -1355,7 +1360,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
 
   const handleRemoveFromOrg = (person: PersonnelItem) => {
     const nodeName = isRootSelected ? '全部组织节点' : orgNodes.find((node) => node.id === selectedOrgId)?.name || '当前节点';
-    if (!confirm(`确定将【${person.realName}】移出「${nodeName}」吗？账号本身保留，可在外部用户数据中重新分配。`)) return;
+    if (!confirm(`确定将【${person.realName}】移出「${nodeName}」吗？账号本身保留，可在外部用户管理中重新分配。`)) return;
     reassignPersonOrg(person);
     triggerToast(`已将【${person.realName}】移出「${nodeName}」`);
   };
@@ -1437,15 +1442,27 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
     setIsPickPersonOpen(false);
   };
 
+  /** 无归属机构的人员挂到一级根节点（优先「台中市网信办」） */
+  const unassignedHomeRootId =
+    orgNodes.find((node) => !node.parentId && node.name === '台中市网信办')?.id ||
+    orgNodes.find((node) => !node.parentId)?.id;
+
+  const isPersonUnassigned = (person: PersonnelItem) =>
+    !getDeepestOrgId(orgNodes, person.orgIds, person.primaryOrgId);
+
   // Personnel Filtered for Selected Org or Root Platform
   const filteredPersonnel = personnelList.filter((p) => {
     if (p.recycled) return false;
     if (!isRootSelected) {
       const personOrgId = getDeepestOrgId(orgNodes, p.orgIds, p.primaryOrgId);
-      if (!personOrgId) return false;
-      const belongsToSelected =
-        personOrgId === selectedOrgId || getOrgAncestorIds(personOrgId).includes(selectedOrgId);
-      if (!belongsToSelected) return false;
+      if (!personOrgId) {
+        // 无组织节点人员归在根节点下
+        if (selectedOrgId !== unassignedHomeRootId) return false;
+      } else {
+        const belongsToSelected =
+          personOrgId === selectedOrgId || getOrgAncestorIds(personOrgId).includes(selectedOrgId);
+        if (!belongsToSelected) return false;
+      }
     }
 
     if (personnelSearch) {
@@ -1489,10 +1506,6 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
     (currentOrgLeaderSelectorPage - 1) * orgLeaderSelectorPageSize,
     currentOrgLeaderSelectorPage * orgLeaderSelectorPageSize
   );
-
-  const activatedExternalCount = personnelList.filter((person) => !person.recycled && !person.wechatUnbound).length;
-  const externalQuotaRemaining = Math.max(0, EXTERNAL_QUOTA_LIMIT - activatedExternalCount);
-  const externalQuotaRate = (activatedExternalCount / EXTERNAL_QUOTA_LIMIT) * 100;
 
   const getNodeCapacity = (orgId: string | null | undefined): number => {
     if (!orgId) return EXTERNAL_QUOTA_LIMIT;
@@ -1538,9 +1551,15 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
       }
       nextQuota = value;
     }
-    setOrgNodes((prev) => prev.map((item) => (item.id === node.id ? { ...item, quota: nextQuota } : item)));
+    setOrgNodes((prev) =>
+      prev.map((item) => (item.id === node.id ? { ...item, quota: nextQuota } : item))
+    );
     setQuotaModalOrgId(null);
-    triggerToast(nextQuota === undefined ? `「${node.name}」已改为共享上级配额` : `已将「${node.name}」人员配额设为 ${nextQuota} 人`);
+    triggerToast(
+      nextQuota === undefined
+        ? `「${node.name}」已改为共享上级配额`
+        : `已将「${node.name}」人员配额设为 ${nextQuota} 人`
+    );
   };
 
   const toggleOrgDisabled = (node: OrgNode) => {
@@ -1581,7 +1600,12 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
   const orgHeadcount = personnelList.reduce<Record<string, number>>((acc, person) => {
     if (person.recycled) return acc;
     const personOrgId = getDeepestOrgId(orgNodes, person.orgIds, person.primaryOrgId);
-    if (!personOrgId) return acc;
+    if (!personOrgId) {
+      if (unassignedHomeRootId) {
+        acc[unassignedHomeRootId] = (acc[unassignedHomeRootId] || 0) + 1;
+      }
+      return acc;
+    }
     getOrgAncestorIds(personOrgId).forEach((id) => {
       acc[id] = (acc[id] || 0) + 1;
     });
@@ -1737,7 +1761,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                       {nodeLeaderNames.length > 0 && (
                         <span
                           className={`${isSelected ? 'hidden' : 'inline-flex group-hover/org:hidden'} shrink-[3] min-w-[22px] items-center gap-0.5 max-w-[64px] px-1 rounded bg-amber-50 border border-amber-100 text-[10px] font-normal text-amber-700`}
-                          title={`负责人：${nodeLeaderNames.join('、')}`}
+                          title={`组织联系人：${nodeLeaderNames.join('、')}`}
                         >
                           <UserCheck className="w-2.5 h-2.5 shrink-0" />
                           <span className="truncate min-w-0">
@@ -1754,7 +1778,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                   <button
                     type="button"
                     onClick={(e) => openLeaderModal(node, e)}
-                    title="设置节点负责人"
+                    title="设置组织联系人"
                     className="p-0.5 hover:bg-amber-100 text-amber-600 rounded cursor-pointer"
                   >
                     <UserCheck className="w-3 h-3" />
@@ -2085,78 +2109,6 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                   <span>邀请用户</span>
                 </button>
               </div>
-
-              {/* Platform Basic Info Stat Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
-                {/* 负责人 */}
-                <div className="bg-gradient-to-br from-amber-50/60 to-orange-50/30 p-3 rounded-lg border border-amber-100/90 space-y-1">
-                  <div className="text-xs text-gray-500 flex items-center space-x-1">
-                    <UserCheck className="w-3.5 h-3.5 text-amber-600" />
-                    <span>负责人</span>
-                  </div>
-                  <div className="text-sm font-bold text-gray-900 pt-0.5">张三</div>
-                  <div className="text-[11px] text-gray-500 font-mono flex items-center space-x-1">
-                    <Phone className="w-3 h-3 text-gray-400" />
-                    <span>13800138000</span>
-                  </div>
-                </div>
-
-                {/* 4. 外部配额使用统计 */}
-                <div className="md:col-span-2 bg-white p-3 rounded-lg border border-gray-200/90 space-y-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-gray-800">
-                      <Users className="w-3.5 h-3.5 text-[#1E5ABB]" />
-                      <span>外部配额使用统计</span>
-                    </div>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                      受配额管控
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <div className="text-[11px] text-gray-400">已激活外部人员</div>
-                      <div className="flex items-baseline gap-0.5 pt-0.5">
-                        <span className="text-lg font-bold text-gray-800 font-mono">{activatedExternalCount}</span>
-                        <span className="text-xs text-gray-500">人</span>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[11px] text-gray-400">外部上限配额</div>
-                      <div className="flex items-baseline gap-0.5 pt-0.5">
-                        <span className="text-lg font-bold text-emerald-700 font-mono">{EXTERNAL_QUOTA_LIMIT}</span>
-                        <span className="text-xs text-emerald-700">人</span>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[11px] text-gray-400">剩余可用名额</div>
-                      <div className="flex items-baseline gap-0.5 pt-0.5">
-                        <span className="text-lg font-bold text-[#1E5ABB] font-mono">{externalQuotaRemaining}</span>
-                        <span className="text-xs text-[#1E5ABB]">人</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between text-[11px] text-gray-400">
-                      <span>
-                        配额使用率
-                        <span className="ml-2 text-gray-500">
-                          已分配给一级节点 <b className="font-mono text-gray-700">{getAllocatedQuota(null)}</b> 人，未分配{' '}
-                          <b className="font-mono text-gray-700">{Math.max(0, EXTERNAL_QUOTA_LIMIT - getAllocatedQuota(null))}</b> 人
-                        </span>
-                      </span>
-                      <span className="font-mono">{externalQuotaRate.toFixed(1)}%</span>
-                    </div>
-                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                      <div
-                        className={`h-1.5 rounded-full transition-all duration-300 ${
-                          externalQuotaRate >= 90 ? 'bg-rose-500' : externalQuotaRate >= 70 ? 'bg-amber-500' : 'bg-emerald-500'
-                        }`}
-                        style={{ width: `${Math.min(100, Math.max(1, externalQuotaRate))}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
           ) : (
             /* Selected Org Node Detail Header Card */
@@ -2193,9 +2145,14 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                     {currentOrg.disabled ? '已停用' : '上级已停用'}
                   </span>
                 )}
-                <span className="inline-flex items-center gap-1 text-xs font-normal text-gray-500 pl-2 ml-1 border-l border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => openLeaderModal(currentOrg)}
+                  title="点击更换组织联系人"
+                  className="inline-flex items-center gap-1 text-xs font-normal text-gray-500 pl-2 ml-1 border-l border-gray-200 hover:text-amber-700 cursor-pointer"
+                >
                   <UserCheck className="w-3.5 h-3.5 text-amber-500" />
-                  负责人：
+                  组织联系人：
                   {getOrgLeaderNames(currentOrg).length > 0 ? (
                     <span className="text-gray-800 font-bold" title={getOrgLeaderPhoneSummary(currentOrg)}>
                       {getOrgLeaderNames(currentOrg).join('、')}
@@ -2203,24 +2160,24 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                   ) : (
                     <span className="text-gray-400">未设置</span>
                   )}
-                </span>
+                </button>
                 {(() => {
                   const used = orgHeadcount[currentOrg.id] || 0;
                   const capacity = getNodeCapacity(currentOrg.id);
                   const full = used >= capacity;
+                  const isShared = currentOrg.quota === undefined;
                   return (
                     <button
                       type="button"
                       onClick={() => openQuotaModal(currentOrg)}
-                      title="设置人员配额"
+                      title={isShared ? '共享上级配额，点击设置' : '单独配额，点击调整'}
                       className="inline-flex items-center gap-1.5 text-xs font-normal text-gray-500 pl-2 ml-1 border-l border-gray-200 hover:text-[#1E5ABB] cursor-pointer"
                     >
                       <Users className="w-3.5 h-3.5 text-[#1E5ABB]" />
-                      人员配额：
+                      {isShared ? '共享配额：' : '单独配额：'}
                       <span className={`font-bold font-mono ${full ? 'text-rose-600' : 'text-gray-800'}`}>
                         {used} / {capacity}
                       </span>
-                      {currentOrg.quota === undefined && <span className="text-[10px] text-gray-400">共享上级</span>}
                       <Edit3 className="w-3 h-3" />
                     </button>
                   );
@@ -2235,10 +2192,10 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                 <button
                   onClick={() => openLeaderModal(currentOrg)}
                   className="px-3 py-1.5 text-xs bg-amber-50 text-amber-700 border border-amber-200 rounded hover:bg-amber-100 font-bold flex items-center space-x-1 cursor-pointer transition-colors"
-                  title="设置当前节点的负责人"
+                  title="设置当前节点的组织联系人"
                 >
                   <UserCheck className="w-3.5 h-3.5" />
-                  <span>设置负责人</span>
+                  <span>设置组织联系人</span>
                 </button>
                 <button
                   type="button"
@@ -2268,11 +2225,6 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                     {filteredPersonnel.length} 人
                   </span>
                 </h3>
-                <p className="text-[11px] text-gray-400 mt-0.5">
-                  {isRootSelected
-                    ? '（全平台人员汇总列表，每人仅归属一个机构）'
-                    : '（展示本机构及下级机构人员，每人仅归属一个机构节点）'}
-                </p>
               </div>
 
               <div className="flex items-center space-x-2 shrink-0 whitespace-nowrap">
@@ -2300,39 +2252,17 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                 renderNameBadge={(item) => {
                   const ledOrgs = getLedOrgs(item);
                   if (ledOrgs.length === 0) return null;
-                  const leadsCurrent = !isRootSelected && ledOrgs.some((node) => node.id === currentOrg.id);
                   return (
                     <span
-                      className={`shrink-0 inline-flex items-center gap-0.5 h-4 px-1 rounded text-[10px] font-bold leading-none ${
-                        leadsCurrent
-                          ? 'bg-amber-500 text-white'
-                          : 'bg-amber-50 text-amber-700 border border-amber-200'
-                      }`}
-                      title={`负责人：${ledOrgs.map((node) => getOrgPath(node.id).map((n) => n.name).join(' / ')).join('；')}`}
+                      className="shrink-0 inline-flex items-center justify-center text-amber-500"
+                      title={`组织联系人：${ledOrgs.map((node) => getOrgPath(node.id).map((n) => n.name).join(' / ')).join('；')}`}
                     >
-                      <UserCheck className="w-2.5 h-2.5" />
-                      {leadsCurrent ? '本节点负责人' : `${ledOrgs[0].name}负责人`}
+                      <UserCheck className="w-3.5 h-3.5" />
                     </span>
                   );
                 }}
-                renderExtraActions={(item) => {
-                  const ownOrg = getLeaderActionOrg(item);
-                  const leadsOwn = ownOrg ? isPersonLeaderOfOrg(ownOrg, item) : false;
-                  return (
+                renderExtraActions={(item) => (
                   <>
-                    <button
-                      type="button"
-                      onClick={() => toggleLeaderInOwnOrg(item)}
-                      disabled={!ownOrg}
-                      title={ownOrg ? `${leadsOwn ? '取消' : '设为'}「${ownOrg.name}」负责人` : '未归属组织节点'}
-                      className={`h-6 px-2 rounded border text-[11px] font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                        leadsOwn
-                          ? 'border-gray-200 text-gray-500 hover:bg-gray-50'
-                          : 'border-amber-200 text-amber-700 hover:bg-amber-50'
-                      }`}
-                    >
-                      {leadsOwn ? '取消负责人' : '设为负责人'}
-                    </button>
                     <button
                       type="button"
                       onClick={() => openMoveOrg(item)}
@@ -2348,8 +2278,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                       移出
                     </button>
                   </>
-                  );
-                }}
+                )}
               />
             </div>
 
@@ -2383,7 +2312,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
         const parentName = node.parentId ? orgNodes.find((item) => item.id === node.parentId)?.name : '根节点';
         return (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setQuotaModalOrgId(null)}>
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-md text-xs" onClick={(event) => event.stopPropagation()}>
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-lg text-xs" onClick={(event) => event.stopPropagation()}>
               <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
                 <div>
                   <div className="font-bold text-gray-800 text-sm flex items-center gap-1.5">
@@ -2494,6 +2423,10 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
           onToast={triggerToast}
           onOpenRecords={() => {
             setInviteTarget(null);
+            if (onNavigate) {
+              onNavigate('user-org-management', 'invite');
+              return;
+            }
             setIsInviteRecordOpen(true);
           }}
         />
@@ -2502,7 +2435,9 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
       {isInviteRecordOpen && (
         <InviteRecordModal
           inviteCodes={inviteCodes}
+          setInviteCodes={setInviteCodes}
           orgNodes={orgNodes}
+          personnelList={personnelList}
           onClose={() => setIsInviteRecordOpen(false)}
           onCopy={async (text, message) => {
             try {
@@ -2522,7 +2457,10 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
         const query = leaderModalSearch.trim().toLowerCase();
         const candidates = personnelList.filter((person) => {
           if (person.recycled) return false;
-          if (leaderModalScope === 'org' && !person.orgIds.some((id) => scopeOrgIds.has(id))) return false;
+          const inSubtree = person.orgIds.some((id) => scopeOrgIds.has(id));
+          const unassignedUnderRoot =
+            target.id === unassignedHomeRootId && isPersonUnassigned(person);
+          if (!inSubtree && !unassignedUnderRoot) return false;
           if (!query) return true;
           return person.realName.toLowerCase().includes(query) || person.phone.includes(query);
         });
@@ -2544,10 +2482,10 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                 <div>
                   <div className="font-bold text-gray-800 text-sm flex items-center gap-1.5">
                     <UserCheck className="w-4 h-4 text-amber-500" />
-                    设置节点负责人
+                    设置组织联系人
                   </div>
                   <div className="text-[11px] text-gray-400 mt-0.5 truncate">
-                    {getOrgPath(target.id).map((node) => node.name).join(' / ')}，每个节点仅一名负责人
+                    {getOrgPath(target.id).map((node) => node.name).join(' / ')}，仅可选本节点及下级人员，每个节点仅一名
                   </div>
                 </div>
                 <button
@@ -2561,7 +2499,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
 
               <div className="px-5 py-3 border-b border-gray-50 space-y-2.5">
                 <div className="flex items-start gap-2">
-                  <span className="text-gray-500 shrink-0 pt-1">选定负责人</span>
+                  <span className="text-gray-500 shrink-0 pt-1">选定组织联系人</span>
                   <div className="flex flex-wrap gap-1.5 min-h-[26px]">
                     {draftPeople.length === 0 ? (
                       <span className="text-gray-400 pt-1">暂未选择，确认后将清空该节点负责人</span>
@@ -2591,42 +2529,21 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                     原负责人「{unlinkedLeaderNames.join('、')}」未关联人员账号，确认后将以本次选择为准
                   </div>
                 )}
-                <div className="flex items-center gap-2">
-                  <div className="inline-flex rounded border border-gray-200 p-0.5 bg-gray-50">
-                    {([
-                      { id: 'org', label: '本节点及下级人员' },
-                      { id: 'all', label: '全部人员' },
-                    ] as const).map((tab) => (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => setLeaderModalScope(tab.id)}
-                        className={`px-2.5 py-1 rounded font-bold cursor-pointer ${
-                          leaderModalScope === tab.id ? 'bg-white text-[#1E5ABB] shadow-2xs' : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                      >
-                        {tab.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="relative flex-1">
-                    <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2" />
-                    <input
-                      type="text"
-                      value={leaderModalSearch}
-                      onChange={(e) => setLeaderModalSearch(e.target.value)}
-                      placeholder="搜索姓名 / 手机号"
-                      className="w-full pl-8 pr-3 py-1.5 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                    />
-                  </div>
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2" />
+                  <input
+                    type="text"
+                    value={leaderModalSearch}
+                    onChange={(e) => setLeaderModalSearch(e.target.value)}
+                    placeholder="在本节点及下级人员中搜索姓名 / 手机号"
+                    className="w-full pl-8 pr-3 py-1.5 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                  />
                 </div>
               </div>
 
               <div className="flex-1 min-h-[240px] overflow-y-auto px-3 py-2">
                 {candidates.length === 0 ? (
-                  <div className="py-12 text-center text-gray-400">
-                    {leaderModalScope === 'org' ? '本节点暂无可选人员，可切换到「全部人员」选择' : '没有匹配的人员'}
-                  </div>
+                  <div className="py-12 text-center text-gray-400">本节点及下级暂无可选人员</div>
                 ) : (
                   candidates.map((person) => {
                     const checked = leaderDraftIds.includes(person.id);
@@ -2674,7 +2591,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                   disabled={leaderDraftIds.length === 0}
                   className="text-rose-600 font-bold hover:underline disabled:text-gray-300 disabled:no-underline cursor-pointer disabled:cursor-not-allowed"
                 >
-                  清空负责人
+                  清空组织联系人
                 </button>
                 <div className="flex items-center gap-2">
                   <button
@@ -2708,7 +2625,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
               <div>
                 <div className="font-bold text-gray-800 text-sm">新增人员至【{currentOrg.name}】</div>
                 <div className="text-[11px] text-gray-400 mt-0.5">
-                  从外部用户数据中勾选人员加入本节点；每人仅归属一个机构节点，已在本节点及下级的人员不再展示
+                  从外部用户管理中勾选人员加入本节点；每人仅归属一个机构节点，已在本节点及下级的人员不再展示
                 </div>
               </div>
               <button
@@ -2907,7 +2824,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
         const pickerPerson = personnelList.find((person) => person.id === personnelLabelPickerPersonId);
         if (!pickerPerson) return null;
         const selectedLabels = getPersonnelDisplayLabels(pickerPerson);
-        const labelGroups = (['上报员', '审核员'] as Array<'上报员' | '审核员'>).filter((group) =>
+        const labelGroups = (['网格员', '审核员'] as Array<'网格员' | '审核员'>).filter((group) =>
           pickerPerson.roles.includes(group)
         );
 
@@ -2969,7 +2886,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                   );
                 }) : (
                   <div className="rounded border border-gray-100 bg-gray-50 px-3 py-4 text-center text-xs text-gray-400">
-                    当前账号角色未包含上报员或审核员
+                    当前账号角色未包含网格员或审核员
                   </div>
                 )}
               </div>
@@ -3511,7 +3428,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                   系统角色 * (可多选角色)
                 </label>
                 <div className="flex flex-wrap gap-2 pt-1">
-                  {['管理员', '审核员', '上报员'].map((role) => {
+                  {['管理员', ...ACCOUNT_ROLE_OPTIONS].map((role) => {
                     const isSelected = pRoles.includes(role);
                     return (
                       <button

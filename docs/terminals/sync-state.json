@@ -1,26 +1,34 @@
 {
   "v8-client": {
     "PRD": {
-      "lastSyncedAt": "2026-10-20T13:40:12+08:00"
+      "lastSyncedAt": "2026-10-20T16:30:00+08:00"
     },
     "CHANGELOG": {
-      "lastSyncedAt": "2026-10-20T13:40:12+08:00"
+      "lastSyncedAt": "2026-10-20T16:30:00+08:00"
     }
   },
   "mt-app": {
     "PRD": {
-      "lastSyncedAt": "2026-10-20T11:38:00+08:00"
+      "lastSyncedAt": "2026-10-20T16:20:00+08:00"
     },
     "CHANGELOG": {
-      "lastSyncedAt": "2026-10-20T11:38:00+08:00"
+      "lastSyncedAt": "2026-10-20T16:20:00+08:00"
     }
   },
   "v8-audit-pc": {
     "PRD": {
-      "lastSyncedAt": "2026-10-20T13:40:12+08:00"
+      "lastSyncedAt": "2026-10-20T16:20:00+08:00"
     },
     "CHANGELOG": {
-      "lastSyncedAt": "2026-10-20T13:40:12+08:00"
+      "lastSyncedAt": "2026-10-20T16:20:00+08:00"
+    }
+  },
+  "v8-audit-h5": {
+    "PRD": {
+      "lastSyncedAt": "2026-10-20T16:20:00+08:00"
+    },
+    "CHANGELOG": {
+      "lastSyncedAt": "2026-10-20T16:20:00+08:00"
     }
   }
 }

@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Copy, Download, History, KeyRound, Link2, QrCode, RefreshCw, X } from 'lucide-react';
 import type { OrgNode } from '../pages/OrgManagement';
 import {
   ACCOUNT_ROLE_OPTIONS,
+  getOrgInviteRoles,
   buildOrgIdPath,
   EXTERNAL_APP,
   formatPersonOrgPaths,
@@ -12,25 +13,20 @@ import {
 } from '../data/userOrgShared';
 import { maskPhone } from './PersonAccountDisplay';
 import { OrgCascadeSelect } from './OrgCascadeSelect';
-import { ShareInvitePanel } from './ShareInvitePanel';
-import { Field, MultiSelectDropdown } from './FormControls';
+import { ShareInvitePanel, type InviteValidityPresetId } from './ShareInvitePanel';
 
-const INVITE_VALIDITY_OPTIONS = [
-  { id: '1d', label: '24小时', hours: 24 },
-  { id: '7d', label: '7天', hours: 168 },
-  { id: '30d', label: '30天', hours: 720 },
-  { id: 'custom', label: '自定义' }
-] as const;
+const INVITE_VALIDITY_OPTIONS: Array<{ id: InviteValidityPresetId; label: string; hours: number }> = [
+  { id: '24h', label: '24 小时', hours: 24 },
+  { id: '3d', label: '3 天', hours: 72 },
+  { id: '7d', label: '7 天', hours: 168 }
+];
 
-type InviteValidityId = (typeof INVITE_VALIDITY_OPTIONS)[number]['id'];
-type InviteListFilter = 'all' | '未使用' | '已使用' | '已过期';
+type InviteListFilter = 'all' | '待激活' | '已激活' | '已失效';
 type InviteMode = 'qrcode' | 'code' | 'link';
-
-const INVITE_COUNT_OPTIONS = [1, 5, 10, 20, 50] as const;
 
 const INVITE_MODE_TABS: Array<{ id: InviteMode; label: string; desc: string }> = [
   { id: 'qrcode', label: '二维码邀请', desc: '线下面对面扫码 / 微信群公开加入' },
-  { id: 'code', label: '激活码邀请', desc: '批量发放专属激活码 / 一码一人' },
+  { id: 'code', label: '激活码邀请', desc: '发放专属激活码 / 一码一人' },
   { id: 'link', label: '链接邀请', desc: '复制邀请链接 / 发送到微信群或私聊' }
 ];
 
@@ -50,9 +46,15 @@ const formatYmd = (date: Date) => `${date.getFullYear()}${padTime(date.getMonth(
 const defaultInviteBatchName = () => `邀请批次-${formatYmd(new Date())}`;
 
 export const resolveInviteStatus = (item: InviteCode) => {
-  if (item.status === '已使用') return '已使用' as const;
-  if (item.expiresAt && new Date(item.expiresAt).getTime() <= Date.now()) return '已过期' as const;
-  return '未使用' as const;
+  if (item.status === '已使用') return '已激活' as const;
+  if (
+    item.status === '已过期' ||
+    !!item.invalidatedAt ||
+    (!!item.expiresAt && new Date(item.expiresAt).getTime() <= Date.now())
+  ) {
+    return '已失效' as const;
+  }
+  return '待激活' as const;
 };
 
 interface InviteUserModalProps {
@@ -82,13 +84,13 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
   const initialOrgName = initialOrgId ? orgNodes.find((node) => node.id === initialOrgId)?.name : undefined;
   const [inviteMode, setInviteMode] = useState<InviteMode>(readStoredInviteMode);
   const [orgPath, setOrgPath] = useState<string[]>(initialOrgPath);
-  const [pRoles, setPRoles] = useState<string[]>(['上报员']);
+  const [pRoles, setPRoles] = useState<string[]>(['网格员']);
   const [inviteBatchName, setInviteBatchName] = useState(defaultInviteBatchName);
   const [inviteCount, setInviteCount] = useState(10);
-  const [inviteValidity, setInviteValidity] = useState<InviteValidityId>('7d');
-  const [inviteExpiry, setInviteExpiry] = useState(() => addHoursLocal(168));
+  const [validityId, setValidityId] = useState<InviteValidityPresetId>('24h');
   const [inviteListFilter, setInviteListFilter] = useState<InviteListFilter>('all');
   const [freshCodeIds, setFreshCodeIds] = useState<string[]>([]);
+  const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
 
   const remainingSeats = Math.max(0, ORG_MAX_USER_COUNT - activatedCount);
   const selectedLeafOrgId = orgPath[orgPath.length - 1];
@@ -113,37 +115,37 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
 
   const switchInviteMode = (mode: InviteMode) => {
     setInviteMode(mode);
-    if (!pRoles.length) setPRoles(['上报员']);
+    if (!pRoles.length) setPRoles(['网格员']);
     localStorage.setItem(INVITE_MODE_STORAGE_KEY, mode);
   };
 
-  const applyValidityPreset = (id: InviteValidityId) => {
-    setInviteValidity(id);
-    if (id === 'custom') return;
-    const option = INVITE_VALIDITY_OPTIONS.find((item) => item.id === id);
-    const hours = option && 'hours' in option ? option.hours : 168;
-    setInviteExpiry(addHoursLocal(hours));
-  };
-
   const toggleRole = (role: string) => {
-    setPRoles((prev) => (prev.includes(role) ? prev.filter((item) => item !== role) : [...prev, role]));
+    setPRoles((prev) => {
+      if (prev.includes(role)) {
+        if (prev.length === 1) return prev;
+        return prev.filter((item) => item !== role);
+      }
+      return [...prev, role];
+    });
   };
 
   const handleGenerateBatch = () => {
+    const validity = INVITE_VALIDITY_OPTIONS.find((item) => item.id === validityId) || INVITE_VALIDITY_OPTIONS[0];
+    const inviteExpiry = addHoursLocal(validity.hours);
     if (orgPath.length === 0) {
-      onToast('请选择激活码所属机构');
+      onToast('请选择组织节点');
       return;
     }
     if (pRoles.length === 0) {
-      onToast('请选择激活码所属角色');
+      onToast('请至少选择一个加入后角色');
       return;
     }
-    if (!inviteExpiry) {
-      onToast('请设置激活码有效时间');
+    if (!inviteCount || inviteCount < 1) {
+      onToast('生成数量需大于 0');
       return;
     }
-    if (new Date(inviteExpiry).getTime() <= Date.now()) {
-      onToast('有效时间必须晚于当前时间');
+    if (inviteCount > remainingSeats) {
+      onToast(`生成数量不能超过机构剩余可用名额（剩余 ${remainingSeats} 人）`);
       return;
     }
 
@@ -175,37 +177,88 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
 
     setInviteCodes((prev) => [...created, ...prev]);
     setFreshCodeIds(created.map((item) => item.id));
+    setActiveBatchId(batchId);
     setInviteListFilter('all');
     onToast(`已生成 ${created.length} 个激活码，有效期至 ${formatDateTimeLabel(inviteExpiry)}`);
   };
 
+  const roleChip = (active: boolean) =>
+    `h-7 px-2.5 rounded-full text-[11px] cursor-pointer ${
+      active ? 'bg-[#1E5ABB] text-white' : 'bg-white text-gray-600 border border-gray-200 hover:border-[#1E5ABB]/40'
+    }`;
+
   const codeInviteRecords = inviteCodes.filter(
     (item) =>
+      (item.channel === 'activation_code' || (!item.channel && !item.sentToFollowerId)) &&
       item.channel !== 'qrcode' &&
       item.channel !== 'link' &&
+      item.channel !== 'official_account' &&
       (!initialOrgId || (item.orgIds || []).includes(initialOrgId))
   );
-  const unusedInviteCodes = codeInviteRecords.filter((item) => resolveInviteStatus(item) === '未使用');
-  const visibleInviteCodes = codeInviteRecords.filter((item) => {
+
+  const codeBatches = useMemo(() => {
+    const groups = new Map<string, InviteCode[]>();
+    codeInviteRecords.forEach((item) => {
+      const list = groups.get(item.batchId) || [];
+      list.push(item);
+      groups.set(item.batchId, list);
+    });
+    return Array.from(groups.entries())
+      .map(([batchId, codes]) => {
+        const sorted = [...codes].sort((a, b) => a.code.localeCompare(b.code));
+        const sample = sorted[0];
+        const activated = sorted.filter((item) => resolveInviteStatus(item) === '已激活').length;
+        const pending = sorted.filter((item) => resolveInviteStatus(item) === '待激活').length;
+        let status: '待激活' | '已激活' | '已失效' = '待激活';
+        if (pending === 0 && activated === sorted.length) status = '已激活';
+        else if (pending === 0) status = '已失效';
+        return {
+          batchId,
+          codes: sorted,
+          sample,
+          total: sorted.length,
+          activated,
+          pending,
+          status,
+          createdAt: sample.createdAt
+        };
+      })
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  }, [codeInviteRecords]);
+
+  useEffect(() => {
+    if (!codeBatches.length) {
+      setActiveBatchId(null);
+      return;
+    }
+    if (!activeBatchId || !codeBatches.some((batch) => batch.batchId === activeBatchId)) {
+      setActiveBatchId(codeBatches[0].batchId);
+    }
+  }, [codeBatches, activeBatchId]);
+
+  const activeBatch = codeBatches.find((batch) => batch.batchId === activeBatchId) || codeBatches[0] || null;
+  const activeBatchCodes = activeBatch?.codes || [];
+  const unusedInviteCodes = activeBatchCodes.filter((item) => resolveInviteStatus(item) === '待激活');
+  const visibleInviteCodes = activeBatchCodes.filter((item) => {
     if (inviteListFilter === 'all') return true;
     return resolveInviteStatus(item) === inviteListFilter;
   });
 
   const copyUnusedCodes = () => {
     if (!unusedInviteCodes.length) {
-      onToast('当前没有未使用的激活码');
+      onToast('当前批次没有待激活的激活码');
       return;
     }
-    copyText(unusedInviteCodes.map((item) => item.code).join('\n'), `已复制 ${unusedInviteCodes.length} 个未使用激活码`);
+    copyText(unusedInviteCodes.map((item) => item.code).join('\n'), `已复制 ${unusedInviteCodes.length} 个待激活激活码`);
   };
 
   const exportInviteCodes = () => {
-    if (!inviteCodes.length) {
-      onToast('暂无激活码可导出');
+    if (!activeBatchCodes.length) {
+      onToast('当前批次暂无激活码可导出');
       return;
     }
-    const header = ['批次名称', '激活码', '状态', '所属机构', '角色', '有效期至', '使用人', '手机号'];
-    const rows = inviteCodes.map((item) => [
+    const header = ['批次名称', '激活码', '状态', '组织节点', '角色', '有效期至', '使用人', '手机号'];
+    const rows = activeBatchCodes.map((item) => [
       item.batchName,
       item.code,
       resolveInviteStatus(item),
@@ -222,7 +275,7 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `激活码_${inviteBatchName || '批次'}_${formatYmd(new Date())}.csv`;
+    link.download = `激活码_${activeBatch?.sample.batchName || inviteBatchName || '批次'}_${formatYmd(new Date())}.csv`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -289,62 +342,78 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
             <div className="rounded-lg border border-blue-100 bg-[#F4F8FE] p-4 space-y-3 overflow-visible relative z-20">
               <div className="flex items-center gap-1.5 text-[#1E5ABB] font-bold">
                 <KeyRound className="w-3.5 h-3.5" />
-                激活码批次设置
+                激活码设置
               </div>
-              <OrgCascadeSelect orgNodes={orgNodes} path={orgPath} onChange={(path) => setOrgPath(path.filter(Boolean))} />
-              <MultiSelectDropdown
-                label="所属角色 *"
-                placeholder="请选择激活后归属的角色"
-                options={ACCOUNT_ROLE_OPTIONS.map((role) => ({ id: role, label: role }))}
-                selected={pRoles}
-                onToggle={toggleRole}
-              />
-              <Field
-                label="批次名称"
-                value={inviteBatchName}
-                onChange={setInviteBatchName}
-                placeholder="如：办公室邀请-20260917"
+              <div>
+                <label className="block text-gray-700 font-medium mb-1.5">邀请名称 *</label>
+                <input
+                  value={inviteBatchName}
+                  onChange={(event) => setInviteBatchName(event.target.value)}
+                  placeholder="如：办公室邀请-20260917"
+                  className="w-full px-3 py-1.5 border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                />
+              </div>
+              <OrgCascadeSelect
+                orgNodes={orgNodes}
+                path={orgPath}
+                onChange={(path) => setOrgPath(path.filter(Boolean))}
+                label="组织节点 *"
+                placeholder="请选择用户所在组织节点"
               />
               <div>
-                <label className="block text-gray-700 font-medium mb-1.5">单次生成数量</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-gray-700 font-medium">加入后角色 *</label>
+                  <span className="text-[11px] text-gray-400">可多选</span>
+                </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {INVITE_COUNT_OPTIONS.map((count) => (
+                  {ACCOUNT_ROLE_OPTIONS.map((role) => (
                     <button
-                      key={count}
+                      key={role}
                       type="button"
-                      onClick={() => setInviteCount(count)}
-                      className={`h-7 px-2.5 rounded-full text-[11px] cursor-pointer ${
-                        inviteCount === count
-                          ? 'bg-[#1E5ABB] text-white'
-                          : 'bg-white text-gray-600 border border-gray-200 hover:border-[#1E5ABB]/40'
-                      }`}
+                      onClick={() => toggleRole(role)}
+                      className={roleChip(pRoles.includes(role))}
                     >
-                      {count}个
+                      {role}
                     </button>
                   ))}
                 </div>
               </div>
               <div>
-                <label className="block text-gray-700 font-medium mb-1.5">有效期至 *</label>
+                <label className="block text-gray-700 font-medium mb-1.5">生成数量 *</label>
                 <input
-                  type="datetime-local"
-                  value={inviteExpiry}
-                  onChange={(event) => {
-                    setInviteExpiry(event.target.value);
-                    setInviteValidity('custom');
+                  type="number"
+                  min={1}
+                  max={Math.max(1, remainingSeats)}
+                  value={inviteCount || ''}
+                  onChange={(event) => setInviteCount(Math.max(0, Number(event.target.value) || 0))}
+                  onBlur={() => {
+                    if (inviteCount > remainingSeats) {
+                      setInviteCount(remainingSeats);
+                      onToast(`生成数量不能超过机构剩余可用名额（剩余 ${remainingSeats} 人）`);
+                    }
                   }}
+                  placeholder="请输入生成数量"
                   className="w-full px-3 py-1.5 border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
                 />
-                <div className="flex flex-wrap gap-1.5 mt-1.5">
-                  {INVITE_VALIDITY_OPTIONS.filter((option) => option.id !== 'custom').map((option) => (
+                <div className="mt-1 text-[11px] text-gray-400">
+                  本机构剩余可用名额 {remainingSeats} 人，数量不可超过该额度
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-gray-700 font-medium">邀请凭证有效期 *</label>
+                  <span className="text-[11px] text-gray-400">默认 24 小时，最长 7 天</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {INVITE_VALIDITY_OPTIONS.map((option) => (
                     <button
                       key={option.id}
                       type="button"
-                      onClick={() => applyValidityPreset(option.id)}
-                      className={`h-7 px-2.5 rounded-full text-[11px] cursor-pointer ${
-                        inviteValidity === option.id
-                          ? 'bg-[#1E5ABB] text-white'
-                          : 'bg-white text-gray-600 border border-gray-200 hover:border-[#1E5ABB]/40'
+                      onClick={() => setValidityId(option.id)}
+                      className={`h-9 rounded-md border text-xs font-bold cursor-pointer ${
+                        validityId === option.id
+                          ? 'border-[#1E5ABB] bg-[#1E5ABB] text-white'
+                          : 'border-gray-200 text-gray-600 hover:border-[#1E5ABB]/40 bg-white'
                       }`}
                     >
                       {option.label}
@@ -358,121 +427,186 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
                 className="w-full h-9 rounded bg-[#1E5ABB] text-white font-bold hover:bg-[#134092] cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                生成激活码批次
+                生成激活码
               </button>
             </div>
           )}
 
           {inviteMode === 'code' ? (
-            <div className="rounded-lg border border-gray-200 bg-white flex flex-col min-h-[420px] min-w-0 overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
-                <div className="font-bold text-gray-800">
-                  激活码列表
-                  <span className="ml-1.5 font-normal text-gray-400">
-                    （共 {visibleInviteCodes.length} 条
-                    {inviteListFilter === 'all' ? `，未使用 ${unusedInviteCodes.length}` : ''}）
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={copyUnusedCodes}
-                    className="h-7 px-2.5 rounded border border-blue-100 bg-blue-50 text-[#1E5ABB] font-medium hover:bg-blue-100 cursor-pointer inline-flex items-center gap-1"
-                  >
-                    <Copy className="w-3 h-3" />
-                    一键复制未用码
-                  </button>
-                  <button
-                    type="button"
-                    onClick={exportInviteCodes}
-                    className="h-7 px-2.5 rounded border border-gray-200 text-gray-600 hover:border-[#1E5ABB]/40 hover:text-[#1E5ABB] cursor-pointer inline-flex items-center gap-1"
-                  >
-                    <Download className="w-3 h-3" />
-                    导出表格
-                  </button>
-                </div>
-              </div>
-              <div className="px-4 py-2 border-b border-gray-50 flex flex-wrap gap-1.5">
-                {([
-                  { id: 'all', label: '全部' },
-                  { id: '未使用', label: '未使用' },
-                  { id: '已使用', label: '已使用' },
-                  { id: '已过期', label: '已过期' }
-                ] as const).map((option) => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => setInviteListFilter(option.id)}
-                    className={`h-6 px-2 rounded-full text-[11px] cursor-pointer ${
-                      inviteListFilter === option.id
-                        ? 'bg-[#1E5ABB] text-white'
-                        : 'bg-gray-50 text-gray-500 hover:text-[#1E5ABB]'
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-              <div className="flex-1 overflow-y-auto px-2 py-1">
-                {visibleInviteCodes.length === 0 ? (
-                  <div className="h-full min-h-[200px] flex items-center justify-center text-gray-400">
-                    尚未生成激活码，请在左侧完成批次设置后生成
+            <div className="rounded-lg border border-gray-200 bg-white min-h-[420px] min-w-0 overflow-hidden grid grid-cols-[minmax(0,1fr)_240px]">
+              <div className="flex flex-col min-h-0 min-w-0 border-r border-gray-100">
+                <div className="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
+                  <div className="font-bold text-gray-800 min-w-0">
+                    {activeBatch ? (
+                      <>
+                        <span className="truncate">{activeBatch.sample.batchName}</span>
+                        <span className="ml-1.5 font-normal text-gray-400">
+                          （共 {visibleInviteCodes.length} 条
+                          {inviteListFilter === 'all' ? `，待激活 ${unusedInviteCodes.length}` : ''}）
+                        </span>
+                      </>
+                    ) : (
+                      '激活码列表'
+                    )}
                   </div>
-                ) : (
-                  visibleInviteCodes.map((item, index) => {
-                    const status = resolveInviteStatus(item);
-                    const unused = status === '未使用';
-                    return (
-                      <div
-                        key={item.id}
-                        className={`flex items-center gap-3 px-2 py-2.5 rounded-lg ${
-                          freshCodeIds.includes(item.id) ? 'bg-blue-50/80' : 'hover:bg-slate-50'
-                        }`}
-                      >
-                        <span className="w-5 text-right text-gray-400 shrink-0">{index + 1}.</span>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="font-mono font-bold text-gray-800 tracking-wide">{item.code}</span>
-                            {unused ? (
-                              <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-[#1E5ABB]">
-                                未使用
-                              </span>
-                            ) : status === '已过期' ? (
-                              <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">已过期</span>
-                            ) : (
-                              <span className="text-[11px] text-gray-400 truncate">
-                                已使用
-                                {item.usedByName
-                                  ? `：${item.usedByName}${item.usedByPhone ? `（${maskPhone(item.usedByPhone)}）` : ''}`
-                                  : ''}
-                              </span>
-                            )}
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={copyUnusedCodes}
+                      className="h-7 px-2.5 rounded border border-blue-100 bg-blue-50 text-[#1E5ABB] font-medium hover:bg-blue-100 cursor-pointer inline-flex items-center gap-1"
+                    >
+                      <Copy className="w-3 h-3" />
+                      一键复制
+                    </button>
+                    <button
+                      type="button"
+                      onClick={exportInviteCodes}
+                      className="h-7 px-2.5 rounded border border-gray-200 text-gray-600 hover:border-[#1E5ABB]/40 hover:text-[#1E5ABB] cursor-pointer inline-flex items-center gap-1"
+                    >
+                      <Download className="w-3 h-3" />
+                      导出表格
+                    </button>
+                  </div>
+                </div>
+                <div className="px-4 py-2 border-b border-gray-50 flex flex-wrap gap-1.5">
+                  {([
+                    { id: 'all', label: '全部' },
+                    { id: '待激活', label: '待激活' },
+                    { id: '已激活', label: '已激活' },
+                    { id: '已失效', label: '已失效' }
+                  ] as const).map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => setInviteListFilter(option.id)}
+                      className={`h-6 px-2 rounded-full text-[11px] cursor-pointer ${
+                        inviteListFilter === option.id
+                          ? 'bg-[#1E5ABB] text-white'
+                          : 'bg-gray-50 text-gray-500 hover:text-[#1E5ABB]'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex-1 overflow-y-auto px-2 py-1">
+                  {visibleInviteCodes.length === 0 ? (
+                    <div className="h-full min-h-[200px] flex items-center justify-center text-gray-400">
+                      {codeBatches.length ? '当前批次暂无匹配激活码' : '尚未生成激活码，请在左侧完成设置后生成'}
+                    </div>
+                  ) : (
+                    visibleInviteCodes.map((item, index) => {
+                      const status = resolveInviteStatus(item);
+                      const pending = status === '待激活';
+                      return (
+                        <div
+                          key={item.id}
+                          className={`flex items-center gap-3 px-2 py-2.5 rounded-lg ${
+                            freshCodeIds.includes(item.id) ? 'bg-blue-50/80' : 'hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="w-5 text-right text-gray-400 shrink-0">{index + 1}.</span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="font-mono font-bold text-gray-800 tracking-wide">{item.code}</span>
+                              {pending ? (
+                                <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700">
+                                  待激活
+                                </span>
+                              ) : status === '已失效' ? (
+                                <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">已失效</span>
+                              ) : (
+                                <span className="text-[11px] text-gray-400 truncate">
+                                  已激活
+                                  {item.usedByName
+                                    ? `：${item.usedByName}${item.usedByPhone ? `（${maskPhone(item.usedByPhone)}）` : ''}`
+                                    : ''}
+                                </span>
+                              )}
+                            </div>
+                            <div
+                              className="mt-0.5 text-[10px] text-gray-400 truncate"
+                              title={`${formatPersonOrgPaths(orgNodes, item.orgIds)} · ${(item.roles || []).join('、')} · 至 ${formatDateTimeLabel(item.expiresAt)}`}
+                            >
+                              {formatPersonOrgPaths(orgNodes, item.orgIds)} · {(item.roles || []).join('、')} · 至{' '}
+                              {formatDateTimeLabel(item.expiresAt)}
+                            </div>
                           </div>
-                          <div
-                            className="mt-0.5 text-[10px] text-gray-400 truncate"
-                            title={`${formatPersonOrgPaths(orgNodes, item.orgIds)} · ${(item.roles || []).join('、')} · 至 ${formatDateTimeLabel(item.expiresAt)}`}
-                          >
-                            {formatPersonOrgPaths(orgNodes, item.orgIds)} · {(item.roles || []).join('、')} · 至{' '}
-                            {formatDateTimeLabel(item.expiresAt)}
-                          </div>
+                          {pending && (
+                            <button
+                              type="button"
+                              title="复制激活码"
+                              onClick={() => copyText(item.code, '激活码已复制')}
+                              className="w-7 h-7 rounded text-gray-400 hover:text-[#1E5ABB] hover:bg-white flex items-center justify-center cursor-pointer shrink-0"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
-                        {unused && (
-                          <button
-                            type="button"
-                            title="复制激活码"
-                            onClick={() => copyText(item.code, '激活码已复制')}
-                            className="w-7 h-7 rounded text-gray-400 hover:text-[#1E5ABB] hover:bg-white flex items-center justify-center cursor-pointer shrink-0"
-                          >
-                            <Copy className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
+                      );
+                    })
+                  )}
+                </div>
+                <div className="px-4 py-3 bg-amber-50/70 border-t border-amber-100 text-[11px] text-amber-800/90 leading-relaxed">
+                  激活码规则为一码一人。用户在登录/注册时选择「激活码绑定」，输入任意未过期激活码后，将自动归属该码绑定的机构与角色。
+                </div>
               </div>
-              <div className="px-4 py-3 bg-amber-50/70 border-t border-amber-100 text-[11px] text-amber-800/90 leading-relaxed">
-                激活码规则为一码一人。用户在登录/注册时选择「激活码绑定」，输入任意未过期激活码后，将自动归属该码绑定的机构与角色。
+              <div className="flex flex-col min-h-0 bg-slate-50/40">
+                <div className="px-3 py-2.5 border-b border-gray-100 font-bold text-gray-800">
+                  已生成激活码
+                  <span className="ml-1 font-normal text-gray-400">({codeBatches.length})</span>
+                </div>
+                <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
+                  {codeBatches.length === 0 ? (
+                    <div className="py-10 text-center text-gray-400">暂无记录</div>
+                  ) : (
+                    codeBatches.map((batch) => {
+                      const selected = activeBatch?.batchId === batch.batchId;
+                      return (
+                        <button
+                          key={batch.batchId}
+                          type="button"
+                          onClick={() => {
+                            setActiveBatchId(batch.batchId);
+                            setInviteListFilter('all');
+                          }}
+                          className={`w-full text-left rounded-lg border px-2.5 py-2 cursor-pointer ${
+                            selected ? 'border-[#1E5ABB] bg-[#F4F8FE]' : 'border-gray-100 bg-white hover:border-gray-200'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-gray-800 truncate">{batch.sample.batchName}</span>
+                            <span
+                              className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded ${
+                                batch.status === '待激活'
+                                  ? 'bg-emerald-50 text-emerald-700'
+                                  : batch.status === '已激活'
+                                    ? 'bg-blue-50 text-[#1E5ABB]'
+                                    : 'bg-slate-100 text-slate-500'
+                              }`}
+                            >
+                              {batch.status}
+                            </span>
+                          </div>
+                          <div className="mt-1 h-1 rounded-full bg-slate-100 overflow-hidden">
+                            <div
+                              className="h-full bg-[#1E5ABB]"
+                              style={{
+                                width: `${batch.total ? Math.min(100, (batch.activated / batch.total) * 100) : 0}%`
+                              }}
+                            />
+                          </div>
+                          <div className="mt-1 flex items-center justify-between text-[10px] text-gray-400">
+                            <span>
+                              已激活 {batch.activated} / {batch.total}
+                            </span>
+                            <span>至 {formatDateTimeLabel(batch.sample.expiresAt).slice(0, 10)}</span>
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             </div>
           ) : (
@@ -483,7 +617,16 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
               inviteCodes={inviteCodes}
               setInviteCodes={setInviteCodes}
               remainingSeats={remainingSeats}
-              initialOrgPath={initialOrgPath}
+              orgPath={orgPath}
+              onOrgPathChange={setOrgPath}
+              roles={pRoles}
+              onRolesChange={setPRoles}
+              batchName={inviteBatchName}
+              onBatchNameChange={setInviteBatchName}
+              limit={inviteCount}
+              onLimitChange={setInviteCount}
+              validityId={validityId}
+              onValidityIdChange={setValidityId}
               onToast={onToast}
               onCopy={copyText}
             />
@@ -501,7 +644,7 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
               className="inline-flex items-center gap-1 text-[#1E5ABB] hover:underline cursor-pointer"
             >
               <History className="w-3.5 h-3.5" />
-              查看邀请记录
+              激活码管理
             </button>
           </div>
           <button

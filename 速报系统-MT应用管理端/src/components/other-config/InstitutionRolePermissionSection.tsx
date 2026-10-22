@@ -68,7 +68,7 @@ const INTERNAL_MODULES: PermissionModule[] = [
   {
     id: 'contact_user',
     group: '外部联系人',
-    label: '外部用户数据',
+    label: '用户管理',
     actions: [
       { key: 'view', label: '查看' },
       { key: 'invite', label: '邀请用户' },
@@ -79,7 +79,7 @@ const INTERNAL_MODULES: PermissionModule[] = [
   {
     id: 'contact_org',
     group: '外部联系人',
-    label: '外部组织管理',
+    label: '组织管理',
     actions: [
       { key: 'view', label: '查看' },
       { key: 'edit', label: '维护组织' },
@@ -88,7 +88,7 @@ const INTERNAL_MODULES: PermissionModule[] = [
   {
     id: 'contact_role',
     group: '外部联系人',
-    label: '外部角色管理',
+    label: '角色管理',
     actions: [
       { key: 'view', label: '查看' },
       { key: 'edit', label: '配置权限' },
@@ -97,10 +97,18 @@ const INTERNAL_MODULES: PermissionModule[] = [
   {
     id: 'contact_group',
     group: '外部联系人',
-    label: '人员分组管理',
+    label: '用户群组管理',
     actions: [
       { key: 'view', label: '查看' },
       { key: 'edit', label: '维护分组' },
+    ],
+  },
+  {
+    id: 'contact_invite',
+    group: '外部联系人',
+    label: '激活码管理',
+    actions: [
+      { key: 'view', label: '查看' },
     ],
   },
   {
@@ -135,9 +143,7 @@ const EXTERNAL_MODULES: PermissionModule[] = [
       { key: 'view', label: '查看' },
       { key: 'detail', label: '查看详情' },
       { key: 'add', label: '新建速报' },
-      { key: 'draft', label: '编辑草稿' },
       { key: 'resubmit', label: '修改补充并重新提交' },
-      { key: 'withdraw', label: '撤回报送' },
       { key: 'delete', label: '删除报送' },
     ],
   },
@@ -172,7 +178,6 @@ const EXTERNAL_MODULES: PermissionModule[] = [
       { key: 'detail', label: '查看详情' },
       { key: 'approve', label: '审核通过' },
       { key: 'reject', label: '审核驳回' },
-      { key: 'score', label: '终审评分' },
       { key: 'batch', label: '批量审核' },
       { key: 'flow', label: '查看流转记录' },
     ],
@@ -195,6 +200,17 @@ const EXTERNAL_MODULES: PermissionModule[] = [
     actions: [
       { key: 'view', label: '查看' },
       { key: 'export', label: '导出统计报表' },
+    ],
+  },
+  {
+    id: 'org_manage',
+    group: '组织管理',
+    label: '组织节点管理',
+    actions: [
+      { key: 'view', label: '查看本节点组织' },
+      { key: 'child', label: '维护自建子级' },
+      { key: 'invite', label: '邀请人员入驻' },
+      { key: 'personnel', label: '查看节点人员' },
     ],
   },
   {
@@ -287,10 +303,10 @@ const INTERNAL_CATALOG = createCatalog(INTERNAL_MODULES, (pick, allKeys) => [
   },
 ]);
 
-const EXTERNAL_CATALOG = createCatalog(EXTERNAL_MODULES, (pick) => [
+const EXTERNAL_CATALOG = createCatalog(EXTERNAL_MODULES, (pick, allKeys) => [
   {
     id: 'reporter',
-    name: '上报员',
+    name: '网格员',
     description: '负责基础事件、信息与数据的填报与提交',
     preset: true,
     permissions: pick(['home_dashboard', 'report_mine', 'report_records', 'report_statistics', 'message_center', 'personal_info']),
@@ -301,6 +317,20 @@ const EXTERNAL_CATALOG = createCatalog(EXTERNAL_MODULES, (pick) => [
     description: '负责上报信息的核查、归档与退回评估',
     preset: true,
     permissions: pick(['home_dashboard', 'audit_mine', 'audit_records', 'audit_statistics', 'message_center', 'personal_info']),
+  },
+  {
+    id: 'org_leader',
+    name: '节点负责人',
+    description: '组织节点负责人，开通首页、消息中心、个人中心与组织管理，并负责本节点及自建子级维护',
+    preset: true,
+    permissions: pick(['home_dashboard', 'org_manage', 'message_center', 'personal_info']),
+  },
+  {
+    id: 'sys_admin',
+    name: '系统管理员',
+    description: '外部系统管理员，拥有审核上报端全部功能与组织管理权限',
+    preset: true,
+    permissions: [...allKeys],
   },
 ]);
 
@@ -319,11 +349,39 @@ const ROLE_SCOPES: { key: RoleScope; label: string; icon: string; hint: string; 
     key: 'external',
     label: '外部角色权限',
     icon: 'group',
-    hint: '外部人员（上报员、审核员等）在审核上报 PC / H5 端的角色及功能权限',
+    hint: '外部人员（网格员、审核员、节点负责人、系统管理员等）在审核上报 PC / H5 端的角色及功能权限',
     catalog: EXTERNAL_CATALOG,
     storageSuffix: '_external',
   },
 ];
+
+const mergeWithPresetRoles = (catalog: PermissionCatalog, stored: InstitutionRole[]): InstitutionRole[] => {
+  const defaults = catalog.buildDefaults();
+  const storedById = new Map(stored.map((role) => [role.id, role]));
+  const defaultIds = new Set(defaults.map((role) => role.id));
+  const merged = [
+    ...defaults.map((def) => {
+      const storedRole = storedById.get(def.id);
+      if (!storedRole) return def;
+      return {
+        ...storedRole,
+        name: def.name,
+        description: def.description,
+        preset: def.preset,
+        locked: def.locked,
+        // 系统预设角色权限以代码默认为准；自定义角色保留本地已存权限
+        permissions: def.locked || def.preset
+          ? [...def.permissions]
+          : (storedRole.permissions || []).filter((key) => catalog.allKeys.includes(key)),
+      };
+    }),
+    ...stored.filter((role) => !defaultIds.has(role.id)),
+  ];
+  return merged.map((role) => ({
+    ...role,
+    permissions: role.locked ? [...catalog.allKeys] : (role.permissions || []).filter((key) => catalog.allKeys.includes(key)),
+  }));
+};
 
 const readStoredRoles = (catalog: PermissionCatalog, storageKey: string, fallbackKey?: string): InstitutionRole[] => {
   for (const key of [storageKey, fallbackKey]) {
@@ -333,10 +391,7 @@ const readStoredRoles = (catalog: PermissionCatalog, storageKey: string, fallbac
       if (!raw) continue;
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return (parsed as InstitutionRole[]).map((role) => ({
-          ...role,
-          permissions: role.locked ? [...catalog.allKeys] : role.permissions.filter((key) => catalog.allKeys.includes(key)),
-        }));
+        return mergeWithPresetRoles(catalog, parsed as InstitutionRole[]);
       }
     } catch {
       // Ignore malformed storage and fall back to defaults.

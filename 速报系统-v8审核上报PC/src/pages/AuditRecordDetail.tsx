@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { AuditRecordItem, ReportItem, PageId, Attachment, TimelineNode, OriginTypeLabel } from '../types';
 import {
   Info,
@@ -95,7 +95,7 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
           auditStatus: record.auditResult === '已通过' ? '已采纳' : '已驳回',
           originLabel: baseOrigin,
           ...(record.score !== undefined ? { score: record.score } : {}),
-          matchUrl: 'https://news.example.com/',
+          matchUrl: 'https://example.com/',
           detailContent: {
             summary: `${record.title}的相关情况核查与市民诉求反馈。`,
             coreDemands: '建议优化相关流程，加强联动响应与便民服务。',
@@ -418,14 +418,14 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
           <div className="font-bold text-gray-900 text-xs">【同源地址】</div>
           <div className="bg-[#F8F9FA] border border-gray-100 rounded-xl p-3.5 flex items-center justify-between gap-3 text-xs">
             <a
-              href={report.matchUrl || 'https://news.example.com/'}
+              href={report.matchUrl || 'https://example.com/'}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center space-x-1 text-xs font-mono text-[#1E5ABB] hover:text-[#134092] transition-colors truncate min-w-0 max-w-[460px] group cursor-pointer"
-              title={report.matchUrl || 'https://news.example.com/'}
+              title={report.matchUrl || 'https://example.com/'}
             >
               <span className="truncate underline underline-offset-2 decoration-blue-300 group-hover:decoration-blue-600">
-                {report.matchUrl || 'https://news.example.com/'}
+                {report.matchUrl || 'https://example.com/'}
               </span>
               <ExternalLink className="w-3.5 h-3.5 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity" />
             </a>

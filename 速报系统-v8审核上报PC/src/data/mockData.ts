@@ -1,28 +1,28 @@
-import { ReportItem, AuditRecordItem, OrgItem, OrgUser, OrgNode, TemplateItem, LogItem, ReportTemplateDef } from '../types';
+﻿import { ReportItem, AuditRecordItem, OrgItem, OrgUser, OrgNode, TemplateItem, LogItem, ReportTemplateDef } from '../types';
 import type { OrgAccount } from '../types';
 
 export const AVAILABLE_ORGS: OrgAccount[] = [
   {
     id: '0',
     name: '禁用-测试机构 (台湾省)',
-    role: '上报员 · 审核员',
-    roles: ['上报员', '审核员'],
+    role: '网格员 · 审核员',
+    roles: ['网格员', '审核员'],
     code: 'TEST-000',
     type: '测试机构'
   },
   {
     id: '1',
     name: '台中市网信办',
-    role: '上报员 · 审核员',
-    roles: ['上报员', '审核员'],
+    role: '网格员 · 审核员',
+    roles: ['网格员', '审核员'],
     code: 'WX-001',
     type: '网安指挥'
   },
   {
     id: '2',
     name: '西区网络网信局',
-    role: '上报员 · 审核员',
-    roles: ['上报员', '审核员'],
+    role: '网格员 · 审核员',
+    roles: ['网格员', '审核员'],
     code: 'XQ-002',
     type: '区县机构'
   }
@@ -152,7 +152,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     score: '--',
     originLabel: '疑似首发',
     originReason: '系统智能比对：自动比对不良信息库与在审历史库，未发现重合线索，初判为首发报送。',
-    matchUrl: 'https://news.example.com/water-outage',
+    matchUrl: 'https://example.com/water-outage',
     detailContent: {
       summary: '今日（10月24日）上午8时许，多名网民在微博、微信群反映XX区XX街道辖区内多个大型居民小区突发停水。经初步核查，受影响范围包括阳光花园、明月居等5个小区，涉及居民约3万人。',
       coreDemands: '网民普遍反映未接到停水通知，早高峰期间停水严重影响正常生活，部分网民情绪急躁，质疑供水部门应急处置能力。',
@@ -167,7 +167,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
       { id: 'a1', name: '微博截图1.png', size: '1.2 MB', type: 'image', thumbnailUrl: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=200&auto=format&fit=crop' },
       { id: 'a2', name: '微信群截图.jpg', size: '850 KB', type: 'image', thumbnailUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop' },
       { id: 'a3', name: '应急预案初稿.pdf', size: '2.4 MB', type: 'pdf' },
-      { id: 'a4', name: '相关舆情专题网页', size: '网址', type: 'link', url: 'https://news.example.com/topic-water' }
+      { id: 'a4', name: '相关舆情专题网页', size: '网址', type: 'link', url: 'https://example.com/topic-water' }
     ],
     timeline: [
       { title: '提交上报', operator: '张三·市委宣传部舆情科', time: '2023-10-24 09:30', status: 'completed' },
@@ -188,7 +188,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     score: 85,
     originLabel: '首发',
     originReason: '系统定标：秋季文旅首次报送，已正式定标入库。',
-    matchUrl: 'https://news.example.com/tour-autumn',
+    matchUrl: 'https://example.com/tour-autumn',
     detailContent: {
       summary: '全网各主渠道对台中市秋季赏枫与特色文旅路线进行大篇幅报道，整体口碑向好。',
       coreDemands: '提升景区交通接驳便利性，建议增加临时班次。',
@@ -1066,7 +1066,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     submitTime: '2023-10-24 14:30',
     auditStatus: '审核中',
     auditStage: '复核',
-    matchUrl: 'https://news.example.com/',
+    matchUrl: 'https://example.com/',
     detailContent: {
       summary: '今日（10月24日）上午8时许，多名网民在微博、微信群反映XX区XX街道辖区内多个大型居民小区突发停水。经初步核查，受影响范围包括阳光花园、明月居等5个小区，涉及居民约3万人。',
       coreDemands: '网民普遍反映未接到停水通知，早高峰期间停水严重影响正常生活，部分网民情绪急躁，质疑供水部门应急处置能力。',
@@ -1081,7 +1081,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
       { id: 'a1', name: '微博截图1.png', size: '1.2 MB', type: 'image' },
       { id: 'a2', name: '微信群截图.jpg', size: '850 KB', type: 'image' },
       { id: 'a3', name: '应急预案初稿.pdf', size: '2.4 MB', type: 'pdf' },
-      { id: 'a4', name: '相关舆情专题网页', size: '网址', type: 'link', url: 'https://news.example.com/topic-water' }
+      { id: 'a4', name: '相关舆情专题网页', size: '网址', type: 'link', url: 'https://example.com/topic-water' }
     ],
     timeline: [
       { title: '提交上报', operator: '张三·市委宣传部舆情科', time: '2023-10-24 09:30', status: 'completed' },
@@ -1103,7 +1103,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     auditStatus: '待审核',
     originLabel: '疑似重复',
     originReason: '系统智能比对：检测到与《台中市秋季旅游推广媒体传播分析》存在完全一致的线索来源URL，初判为重复报送。',
-    matchUrl: 'https://news.example.com/'
+    matchUrl: 'https://example.com/'
   },
   {
     id: 103,
@@ -1117,7 +1117,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     auditStatus: '被驳回',
     originLabel: '疑似重复',
     originReason: '系统智能比对：与已通过记录存在同源URL。',
-    matchUrl: 'https://news.example.com/'
+    matchUrl: 'https://example.com/'
   },
   {
     id: 104,
@@ -1131,7 +1131,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     auditStatus: '待审核',
     originLabel: '疑似首发',
     originReason: '系统智能比对：自动比对不良信息库与在审历史库，未发现重合线索，初判为首发报送。',
-    matchUrl: 'https://news.example.com/'
+    matchUrl: 'https://example.com/'
   },
   {
     id: 105,
@@ -1145,7 +1145,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     auditStatus: '待审核',
     originLabel: '识别中',
     originReason: '系统智能比对中：正在自动比对不良信息库与在审历史库，识别首发/重复状态...',
-    matchUrl: 'https://news.example.com/'
+    matchUrl: 'https://example.com/'
   },
   {
     id: 106,
@@ -1366,7 +1366,7 @@ export const INITIAL_NEGATIVE_INFO: ReportItem[] = [
       { id: 'a1', name: '微博截图1.png', size: '1.2 MB', type: 'image' },
       { id: 'a2', name: '微信群截图.jpg', size: '850 KB', type: 'image' },
       { id: 'a3', name: '应急预案初稿.pdf', size: '2.4 MB', type: 'pdf' },
-      { id: 'a4', name: '相关舆情专题网页', size: '网址', type: 'link', url: 'https://news.example.com/topic-water' }
+      { id: 'a4', name: '相关舆情专题网页', size: '网址', type: 'link', url: 'https://example.com/topic-water' }
     ],
     timeline: [
       { title: '提交上报', operator: '张三·市委宣传部舆情科', time: '2023-10-24 09:30', status: 'completed' },
