@@ -36,7 +36,6 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
-  const [selectedResult, setSelectedResult] = useState('通过');
 
   const baseFiltered = records.filter((rec) => {
     if (keyword.trim()) {
@@ -65,20 +64,14 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
     return true;
   });
 
-  const resultTabs = [
-    { value: '通过', label: '已通过', count: baseFiltered.filter((rec) => rec.auditResult === '已通过').length },
-    { value: '驳回', label: '已驳回', count: baseFiltered.filter((rec) => rec.auditResult === '被驳回').length }
-  ];
-  const filtered = baseFiltered.filter((rec) =>
-    selectedResult === '驳回' ? rec.auditResult === '被驳回' : rec.auditResult === '已通过'
-  );
+  /** 审核记录仅展示已采纳（已通过）数据 */
+  const filtered = baseFiltered.filter((rec) => rec.auditResult === '已通过');
 
   const handleReset = () => {
     setKeyword('');
     setStartDate('');
     setEndDate('');
     setSelectedOrgId(null);
-    setSelectedResult('通过');
   };
 
   // Pagination (页码管理 + 每页条数设置)
@@ -87,7 +80,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [keyword, selectedOrgId, selectedResult, startDate, endDate]);
+  }, [keyword, selectedOrgId, startDate, endDate]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
@@ -186,30 +179,8 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
 
       {/* Data Table */}
       <div className="bg-white rounded-xl border border-gray-200/80 shadow-2xs overflow-hidden">
-        <div className="px-5 flex items-center gap-6 border-b border-gray-100 text-sm">
-          {resultTabs.map((tab) => {
-            const active = selectedResult === tab.value;
-            return (
-              <button
-                key={tab.value}
-                type="button"
-                onClick={() => setSelectedResult(tab.value)}
-                className={`relative py-3 flex items-center gap-1.5 cursor-pointer transition-colors ${
-                  active ? 'text-[#1E5ABB] font-bold' : 'text-gray-500 hover:text-gray-800'
-                }`}
-              >
-                {tab.label}
-                <span
-                  className={`min-w-[20px] px-1.5 rounded-full text-[11px] font-mono leading-[18px] text-center ${
-                    active ? 'bg-[#1E5ABB] text-white' : 'bg-gray-100 text-gray-500'
-                  }`}
-                >
-                  {tab.count}
-                </span>
-                {active && <span className="absolute left-0 right-0 -bottom-px h-0.5 rounded-full bg-[#1E5ABB]" />}
-              </button>
-            );
-          })}
+        <div className="px-5 py-2.5 bg-gray-50/70 border-b border-gray-100 text-xs text-gray-600">
+          共 <strong className="text-[#1E5ABB] font-mono">{filtered.length}</strong> 条审核记录
         </div>
         <div className="divide-y divide-gray-100">
           {pagedReports.length === 0 && <div className="py-12 text-center text-xs text-gray-400">暂无审核记录</div>}

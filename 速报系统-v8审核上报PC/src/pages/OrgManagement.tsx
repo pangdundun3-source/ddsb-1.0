@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Search,
   Plus,
@@ -33,6 +33,7 @@ import {
   Folder,
   KeyRound
 } from 'lucide-react';
+import { PaginationBar } from '../components/PaginationBar';
 
 export interface CategoryItem {
   id: string;
@@ -185,6 +186,8 @@ export const OrgManagement: React.FC = () => {
 
   const [treeSearch, setTreeSearch] = useState('');
   const [personnelSearch, setPersonnelSearch] = useState('');
+  const [personnelPageSize, setPersonnelPageSize] = useState(10);
+  const [personnelPage, setPersonnelPage] = useState(1);
 
   // Personnel List (Support multiple org assignment & multiple roles)
   const [personnelList, setPersonnelList] = useState<PersonnelItem[]>([
@@ -673,6 +676,17 @@ export const OrgManagement: React.FC = () => {
     }
     return true;
   });
+
+  useEffect(() => {
+    setPersonnelPage(1);
+  }, [selectedOrgId, personnelSearch, isRootSelected]);
+
+  const personnelTotalPages = Math.max(1, Math.ceil(filteredPersonnel.length / personnelPageSize));
+  const safePersonnelPage = Math.min(personnelPage, personnelTotalPages);
+  const pagedPersonnel = filteredPersonnel.slice(
+    (safePersonnelPage - 1) * personnelPageSize,
+    safePersonnelPage * personnelPageSize
+  );
 
   const getRoleBadge = (role: string) => {
     switch (role) {
@@ -1272,10 +1286,10 @@ export const OrgManagement: React.FC = () => {
                       </td>
                     </tr>
                   ) : (
-                    filteredPersonnel.map((item, index) => (
+                    pagedPersonnel.map((item, index) => (
                       <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
                         <td className="py-2.5 px-3 text-center text-gray-400 font-mono">
-                          {index + 1}
+                          {(safePersonnelPage - 1) * personnelPageSize + index + 1}
                         </td>
                         <td className="py-2.5 px-3 font-mono text-gray-800 font-medium">
                           {item.username}
@@ -1390,17 +1404,17 @@ export const OrgManagement: React.FC = () => {
             </div>
 
             {/* Pagination Footer */}
-            <div className="pt-2 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500 gap-2 border-t border-gray-100">
-              <div>共 {filteredPersonnel.length} 条记录</div>
-              <div className="flex items-center space-x-1">
-                <button className="px-2 py-0.5 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50 text-gray-400">
-                  &lt;
-                </button>
-                <button className="px-2.5 py-0.5 bg-[#1E5ABB] text-white font-bold rounded">1</button>
-                <button className="px-2 py-0.5 border border-gray-200 rounded hover:bg-gray-50 text-gray-600">
-                  &gt;
-                </button>
-              </div>
+            <div className="border-t border-gray-100">
+              <PaginationBar
+                total={filteredPersonnel.length}
+                page={safePersonnelPage}
+                pageSize={personnelPageSize}
+                onPageChange={setPersonnelPage}
+                onPageSizeChange={(size) => {
+                  setPersonnelPageSize(size);
+                  setPersonnelPage(1);
+                }}
+              />
             </div>
           </div>
         </div>

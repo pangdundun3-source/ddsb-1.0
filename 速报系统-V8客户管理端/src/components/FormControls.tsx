@@ -6,15 +6,23 @@ export const Field: React.FC<{
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
-}> = ({ label, value, onChange, placeholder }) => (
+  disabled?: boolean;
+  hint?: string;
+}> = ({ label, value, onChange, placeholder, disabled, hint }) => (
   <div>
     <label className="block text-gray-700 font-medium mb-1">{label}</label>
     <input
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+      disabled={disabled}
+      readOnly={disabled}
+      title={disabled ? '账号名称不支持修改' : undefined}
+      className={`w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] ${
+        disabled ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : 'bg-white'
+      }`}
     />
+    {hint && <div className="mt-1 text-[10px] text-gray-400">{hint}</div>}
   </div>
 );
 

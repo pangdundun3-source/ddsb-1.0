@@ -4,10 +4,9 @@ import { useGlobalConfigViewModel } from '../viewmodels/useGlobalConfigViewModel
 
 interface GlobalConfigProps {
   onShowToast?: (msg: string, type?: 'success' | 'warning' | 'info') => void;
-  institutionIds?: Array<string | number>;
 }
 
-export const GlobalConfig: React.FC<GlobalConfigProps> = ({ onShowToast, institutionIds = [] }) => {
+export const GlobalConfig: React.FC<GlobalConfigProps> = ({ onShowToast }) => {
   const { state, actions } = useGlobalConfigViewModel(onShowToast);
   const { internalToast } = state;
   const { handleSaveGlobalRules, showToast } = actions;
@@ -49,7 +48,6 @@ export const GlobalConfig: React.FC<GlobalConfigProps> = ({ onShowToast, institu
         <InstitutionBusinessRulesTab
           isGlobalScope={true}
           navPosition="top"
-          existingInstitutionIds={institutionIds}
           onSaveRules={handleSaveGlobalRules}
           showToast={showToast}
         />

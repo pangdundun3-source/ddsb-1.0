@@ -573,7 +573,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
             </div>
           ) : (
             /* 流转状态 Timeline View */
-            <AuditFlowTimeline report={report} headerNote="实时 · 整体流程" />
+            <AuditFlowTimeline report={report} />
           )}
         </div>
 

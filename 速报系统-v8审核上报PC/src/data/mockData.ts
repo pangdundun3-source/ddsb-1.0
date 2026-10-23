@@ -1,4 +1,4 @@
-﻿import { ReportItem, AuditRecordItem, OrgItem, OrgUser, OrgNode, TemplateItem, LogItem, ReportTemplateDef } from '../types';
+import { ReportItem, AuditRecordItem, OrgItem, OrgUser, OrgNode, TemplateItem, LogItem, ReportTemplateDef } from '../types';
 import type { OrgAccount } from '../types';
 
 export const AVAILABLE_ORGS: OrgAccount[] = [

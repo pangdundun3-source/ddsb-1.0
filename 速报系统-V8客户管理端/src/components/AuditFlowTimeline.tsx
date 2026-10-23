@@ -5,8 +5,15 @@ import { getOrganizationPathText } from './OrgPathDisplay';
 
 type FlowCardState = 'completed' | 'current' | 'pending' | 'rejected';
 
+interface FlowPerson {
+  name: string;
+  org?: string;
+  time?: string;
+}
+
 interface FlowCard {
   operator: string;
+  people?: FlowPerson[];
   statusText: string;
   state: FlowCardState;
   score?: number | string;
@@ -36,6 +43,89 @@ interface AuditFlowTimelineProps {
 
 const formatSubmitter = (report: ReportItem) =>
   `${report.author} · ${getOrganizationPathText(report.organization)} · ${report.submitTime}`;
+
+const AVATAR_COLORS = ['bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-violet-500', 'bg-rose-500', 'bg-cyan-600'];
+
+const isSpecialOperatorLabel = (name: string) =>
+  /流程结束|等待|审核员$|未开始/.test(name) || name.includes('等待上报');
+
+const parseSinglePerson = (chunk: string): FlowPerson => {
+  const parts = chunk.split(/\s*·\s*/).map(part => part.trim()).filter(Boolean);
+  if (parts.length === 0) return { name: chunk };
+  const name = parts[0];
+  let org: string | undefined;
+  let time: string | undefined;
+  parts.slice(1).forEach(part => {
+    if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(part) || /^\d{1,2}:\d{2}/.test(part)) {
+      time = part;
+    } else {
+      org = org ? `${org} · ${part}` : part;
+    }
+  });
+  return { name, org, time };
+};
+
+const parseOperatorPeople = (operator: string): FlowPerson[] => {
+  if (!operator.trim()) return [];
+  return operator
+    .split(/[、；;]/)
+    .map(chunk => chunk.trim())
+    .filter(Boolean)
+    .map(parseSinglePerson);
+};
+
+const getCardPeople = (card: FlowCard): FlowPerson[] =>
+  card.people?.length ? card.people : parseOperatorPeople(card.operator);
+
+const PersonAvatar: React.FC<{ name: string }> = ({ name }) => {
+  const color = AVATAR_COLORS[Math.abs(name.charCodeAt(0) || 0) % AVATAR_COLORS.length];
+  return (
+    <span
+      className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${color}`}
+      title={name}
+    >
+      {name.slice(0, 1)}
+    </span>
+  );
+};
+
+const PersonListDisplay: React.FC<{
+  people: FlowPerson[];
+  mode: 'pending' | 'done';
+}> = ({ people, mode }) => {
+  if (people.length === 0) return <span className="text-gray-400">—</span>;
+  return (
+    <div className={`flex min-w-0 flex-1 ${mode === 'pending' ? 'flex-wrap items-center gap-x-3 gap-y-1.5' : 'flex-col gap-1.5'}`}>
+      {people.map((person, index) => {
+        if (isSpecialOperatorLabel(person.name)) {
+          return (
+            <span key={`${person.name}-${index}`} className="truncate text-gray-700 font-medium">
+              {[person.name, person.org, person.time].filter(Boolean).join(' · ')}
+            </span>
+          );
+        }
+        if (mode === 'pending') {
+          return (
+            <span key={`${person.name}-${index}`} className="inline-flex items-center gap-1.5 max-w-full">
+              <PersonAvatar name={person.name} />
+              <span className="truncate text-gray-800 font-medium">{person.name}</span>
+            </span>
+          );
+        }
+        return (
+          <span key={`${person.name}-${index}`} className="inline-flex items-center gap-1.5 min-w-0 max-w-full">
+            <PersonAvatar name={person.name} />
+            <span className="truncate text-gray-700">
+              <span className="font-medium text-gray-800">{person.name}</span>
+              {person.org ? <span className="text-gray-500"> · {person.org}</span> : null}
+              {person.time ? <span className="text-gray-400"> · {person.time}</span> : null}
+            </span>
+          </span>
+        );
+      })}
+    </div>
+  );
+};
 
 const getAggregatedStepState = (cards: FlowCard[]): FlowCardState => {
   const latestCard = cards[cards.length - 1];
@@ -114,7 +204,11 @@ const buildFallbackTimeline = (
         title: '审核处理',
         state: 'current',
         cards: [{
-          operator: '王主任 · 市委宣传部舆情科',
+          operator: '王主任 · 市委宣传部舆情科、李审核 · 市委宣传部舆情科',
+          people: [
+            { name: '王主任', org: '市委宣传部舆情科' },
+            { name: '李审核', org: '市委宣传部舆情科' }
+          ],
           statusText: '待审核',
           state: 'current'
         }]
@@ -122,12 +216,28 @@ const buildFallbackTimeline = (
       {
         title: '审核处理',
         state: 'pending',
-        cards: [{ operator: '李明 · 市网信办复核组', statusText: '等待处理', state: 'pending' }]
+        cards: [{
+          operator: '李明 · 市网信办复核组、周复核 · 市网信办复核组',
+          people: [
+            { name: '李明', org: '市网信办复核组' },
+            { name: '周复核', org: '市网信办复核组' }
+          ],
+          statusText: '等待处理',
+          state: 'pending'
+        }]
       },
       {
         title: '审核处理',
         state: 'pending',
-        cards: [{ operator: '赵宁 · 市网信办终审组', statusText: '等待处理', state: 'pending' }]
+        cards: [{
+          operator: '赵宁 · 市网信办终审组、陈终审 · 市网信办终审组',
+          people: [
+            { name: '赵宁', org: '市网信办终审组' },
+            { name: '陈终审', org: '市网信办终审组' }
+          ],
+          statusText: '等待处理',
+          state: 'pending'
+        }]
       },
       {
         title: '结束',
@@ -177,7 +287,7 @@ const buildFallbackTimeline = (
         title: '审核处理',
         state: 'completed',
         cards: [{
-          operator: '王主任 · 市委宣传部舆情科',
+          operator: `王主任 · 市委宣传部舆情科 · ${report.auditTime || '2026-08-12 16:30'}`,
           statusText: '已通过',
           state: 'completed'
         }]
@@ -185,9 +295,29 @@ const buildFallbackTimeline = (
       {
         title: '审核处理',
         state: 'current',
-        cards: [{ operator: '李明 · 市网信办复核组', statusText: '待审核', state: 'current' }]
+        cards: [{
+          operator: '李明 · 市网信办复核组、周复核 · 市网信办复核组',
+          people: [
+            { name: '李明', org: '市网信办复核组' },
+            { name: '周复核', org: '市网信办复核组' }
+          ],
+          statusText: '待审核',
+          state: 'current'
+        }]
       },
-      { title: '审核处理', state: 'pending', cards: [{ operator: '赵宁 · 市网信办终审组', statusText: '等待处理', state: 'pending' }] },
+      {
+        title: '审核处理',
+        state: 'pending',
+        cards: [{
+          operator: '赵宁 · 市网信办终审组、陈终审 · 市网信办终审组',
+          people: [
+            { name: '赵宁', org: '市网信办终审组' },
+            { name: '陈终审', org: '市网信办终审组' }
+          ],
+          statusText: '等待处理',
+          state: 'pending'
+        }]
+      },
       { title: '结束', state: 'pending', cards: [{ operator: '流程结束', statusText: '', state: 'pending' }] }
     ];
   }
@@ -198,17 +328,25 @@ const buildFallbackTimeline = (
     {
       title: '审核处理',
       state: 'completed',
-      cards: [{ operator: '王主任 · 市委宣传部舆情科', statusText: '已通过', state: 'completed' }]
+      cards: [{ operator: '王主任 · 市委宣传部舆情科 · 2026-08-12 16:30', statusText: '已通过', state: 'completed' }]
     },
     {
       title: '审核处理',
       state: 'completed',
-      cards: [{ operator: '李明 · 市网信办复核组', statusText: '已通过', state: 'completed' }]
+      cards: [{ operator: '李明 · 市网信办复核组 · 2026-08-12 17:10', statusText: '已通过', state: 'completed' }]
     },
     {
       title: '审核处理',
       state: 'current',
-      cards: [{ operator: '赵宁 · 市网信办终审组', statusText: '待审核', state: 'current' }]
+      cards: [{
+        operator: '赵宁 · 市网信办终审组、陈终审 · 市网信办终审组',
+        people: [
+          { name: '赵宁', org: '市网信办终审组' },
+          { name: '陈终审', org: '市网信办终审组' }
+        ],
+        statusText: '待审核',
+        state: 'current'
+      }]
     },
     { title: '结束', state: 'pending', cards: [{ operator: '流程结束', statusText: '', state: 'pending' }] }
   ];
@@ -231,7 +369,7 @@ const getStatusClass = (state: FlowCardState) => {
 export const AuditFlowTimeline: React.FC<AuditFlowTimelineProps> = ({
   report,
   compact = false,
-  headerNote = '完整审核链路',
+  headerNote,
   rejectedLabel = '被驳回',
   hideCardWrapper = false,
   myRejectedNode = null
@@ -249,7 +387,9 @@ export const AuditFlowTimeline: React.FC<AuditFlowTimelineProps> = ({
             <History className="h-4 w-4 text-[#1E5ABB]" />
             <h3 className="text-sm font-bold text-gray-900">流转状态</h3>
           </div>
-          <span className="text-xs font-normal text-gray-400">{headerNote}</span>
+          {headerNote ? (
+            <span className="text-xs font-normal text-gray-400">{headerNote}</span>
+          ) : null}
         </div>
       )}
 
@@ -278,8 +418,25 @@ export const AuditFlowTimeline: React.FC<AuditFlowTimelineProps> = ({
               <div className="space-y-1.5">
                 <div className="font-bold text-gray-900 text-xs">{step.title}</div>
                 {step.cards.map((card, cardIndex) => {
+                  const people = getCardPeople(card);
+                  const isPendingLike =
+                    card.state === 'pending' ||
+                    card.state === 'current' ||
+                    card.statusText === '等待处理' ||
+                    card.statusText === '待审核' ||
+                    card.statusText === '审核中';
+                  const personMode: 'pending' | 'done' =
+                    isPendingLike && card.state !== 'rejected' && card.state !== 'completed' ? 'pending' : 'done';
                   const hasComplexNote = card.note && card.state !== 'completed';
                   const hasScore = card.score !== undefined;
+                  const statusClass =
+                    card.state === 'completed'
+                      ? 'text-emerald-600'
+                      : card.state === 'current'
+                        ? 'text-amber-600'
+                        : card.state === 'rejected'
+                          ? 'text-rose-600'
+                          : 'text-gray-400 font-normal';
 
                   if (!hasComplexNote && !hasScore) {
                     return (
@@ -287,19 +444,9 @@ export const AuditFlowTimeline: React.FC<AuditFlowTimelineProps> = ({
                         key={`${card.operator}-${cardIndex}`}
                         className="bg-[#F8FAFC] border border-[#F1F5F9] rounded-xl p-3.5 flex items-center justify-between text-xs gap-2"
                       >
-                        <span className="text-gray-700 font-medium truncate">{card.operator}</span>
+                        <PersonListDisplay people={people} mode={personMode} />
                         {card.statusText && (
-                          <span
-                            className={`shrink-0 font-bold ${
-                              card.state === 'completed'
-                                ? 'text-emerald-600'
-                                : card.state === 'current'
-                                ? 'text-amber-600'
-                                : card.state === 'rejected'
-                                ? 'text-rose-600'
-                                : 'text-gray-400 font-normal'
-                            }`}
-                          >
+                          <span className={`shrink-0 font-bold ${statusClass}`}>
                             {card.statusText}
                           </span>
                         )}
@@ -312,20 +459,10 @@ export const AuditFlowTimeline: React.FC<AuditFlowTimelineProps> = ({
                       key={`${card.operator}-${cardIndex}`}
                       className={`${compact ? 'px-3 py-2' : 'p-3.5'} space-y-2 rounded-xl border border-[#F1F5F9] bg-[#F8FAFC]`}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-gray-700 font-medium">{card.operator}</span>
+                      <div className="flex items-start justify-between gap-2">
+                        <PersonListDisplay people={people} mode={personMode} />
                         {card.statusText && (
-                          <span
-                            className={`shrink-0 font-bold ${
-                              card.state === 'completed'
-                                ? 'text-emerald-600'
-                                : card.state === 'current'
-                                ? 'text-amber-600'
-                                : card.state === 'rejected'
-                                ? 'text-rose-600'
-                                : 'text-gray-400 font-normal'
-                            }`}
-                          >
+                          <span className={`shrink-0 font-bold ${statusClass}`}>
                             {card.statusText}
                           </span>
                         )}

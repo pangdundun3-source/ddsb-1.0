@@ -39,10 +39,15 @@ import {
   X,
   ArrowRight,
   Settings2,
-  ChevronDown
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 export type FieldType = 'text' | 'number' | 'date' | 'file' | 'link' | 'select' | 'phone' | 'gender' | 'id_card' | 'bank_card' | 'email' | 'address' | 'identity';
+
+const AUDIT_LIST_PAGE_SIZE = 6;
+const DICT_LIST_PAGE_SIZE = 10;
 
 export interface TemplateField {
   id: string;
@@ -64,8 +69,14 @@ export interface AuditNode {
   id: string;
   nodeName: string;
   approverRole: string;
+  /** 处理角色多选 */
+  approverRoles?: string[];
   assigneeSource?: 'role' | 'user' | 'org_owner' | 'direct_admin';
   assigneeUserName?: string;
+  /** 外部组织人员所属组织节点（单选兼容） */
+  assigneeOrgId?: string;
+  /** 外部组织人员多选 */
+  assigneeUsers?: Array<{ orgId: string; userName: string }>;
   rejectStrategy?: 'return_submitter' | 'return_previous' | 'cancel_report';
   timeLimitMinutes?: number;
   dynamicMechanism?: string;
@@ -764,7 +775,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
         ownerMissingStrategy: 'skip_to_next',
         auditNodes: [
           { id: 'an0', nodeName: '上报人', approverRole: '上报功能人员暂无限制', rejectStrategy: 'return_submitter', timeLimitMinutes: 10, dynamicMechanism: '上报功能人员暂无限制', missingRule: 'skip', timeoutReminderEnabled: false, isSubmitStage: true },
-          { id: 'an2', nodeName: '机构逐级审核', approverRole: '归属机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_submitter', timeLimitMinutes: 30, dynamicMechanism: '自上报机构逐级向上审核', missingRule: 'skip', timeoutReminderEnabled: true },
+          { id: 'an2', nodeName: '机构逐级审核', approverRole: '审核员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 30, dynamicMechanism: '自上报机构逐级向上审核', missingRule: 'skip', timeoutReminderEnabled: true },
           { id: 'an3', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, dynamicMechanism: '固定总机构管理员终审+评分', missingRule: 'block', isFinalScoreNode: true, timeoutReminderEnabled: true }
         ],
         orgSettings: [
@@ -791,7 +802,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
         ownerMissingStrategy: 'skip_to_next',
         auditNodes: [
           { id: 'an200', nodeName: '上报人', approverRole: '上报功能人员暂无限制', rejectStrategy: 'return_submitter', timeLimitMinutes: 10, dynamicMechanism: '上报功能人员暂无限制', missingRule: 'skip', timeoutReminderEnabled: false, isSubmitStage: true },
-          { id: 'an202', nodeName: '中间机构流转 (最多3级，含本级初审)', approverRole: '归属机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_previous', timeLimitMinutes: 20, dynamicMechanism: '含本级初审，最多经过设定级数，超出直达总机构', missingRule: 'skip', timeoutReminderEnabled: true },
+          { id: 'an202', nodeName: '中间机构流转', approverRole: '审核员', assigneeSource: 'role', rejectStrategy: 'return_previous', timeLimitMinutes: 20, dynamicMechanism: '含本级初审，最多经过设定级数，超出直达总机构', missingRule: 'skip', timeoutReminderEnabled: true },
           { id: 'an203', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, dynamicMechanism: '固定总机构管理员终审+评分', missingRule: 'block', isFinalScoreNode: true, timeoutReminderEnabled: true }
         ],
         orgSettings: [
@@ -905,6 +916,8 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
   };
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [auditListPage, setAuditListPage] = useState(1);
+  const [dictListPage, setDictListPage] = useState(1);
   const [templateTypeFilter, setTemplateTypeFilter] = useState<'all' | '报送' | '激活'>('报送');
   const [metricNameInput, setMetricNameInput] = useState('');
   const [metricNameQuery, setMetricNameQuery] = useState('');
@@ -958,6 +971,12 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
   const orgPickerAnchorRef = useRef<HTMLDivElement | null>(null);
   const orgPickerPanelRef = useRef<HTMLDivElement | null>(null);
   const [newCustomOrgName, setNewCustomOrgName] = useState<string>('');
+  /** 外部组织人员选择器：当前选中的组织节点 / 是否展开下拉 */
+  const [externalPersonPickerOrgId, setExternalPersonPickerOrgId] = useState<string | null>(null);
+  const [isExternalPersonPickerOpen, setIsExternalPersonPickerOpen] = useState(false);
+  const externalPersonPickerRef = useRef<HTMLDivElement | null>(null);
+  const [isRolePickerOpen, setIsRolePickerOpen] = useState(false);
+  const rolePickerRef = useRef<HTMLDivElement | null>(null);
 
   // Evaluation Rule Modal States
   const [formEvalDimension, setFormEvalDimension] = useState<'category' | 'org' | 'person' | 'comprehensive'>('category');
@@ -1322,27 +1341,138 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
   // 终审节点取内部机构/角色/人员，其余节点取外部机构/角色/人员
   const internalAuditRoleOptions = ['总机构管理员', '审核主管', '值班审核员', '评分专员'];
   const internalAuditUserOptions = ['陈主任', '王飞飞', '刘审核', '周值班'];
-  const externalAuditRoleOptions = ['初审员', '网格员', '值班员', '科室负责人', '舆情专员', '主管领导'];
+  const externalAuditRoleOptions = ['审核员', '系统管理员'];
   const externalAuditUserOptions = ['张三', '李娜', '王强', '赵敏'];
+  type OrgPersonTreeNode = {
+    id: string;
+    name: string;
+    parentId: string | null;
+    people: Array<{ id: string; name: string }>;
+  };
+  /** 外部组织树 + 各节点人员 */
+  const externalOrgPersonTree: OrgPersonTreeNode[] = [
+    { id: 'org1', name: '市委宣传部', parentId: null, people: [{ id: 'u1-1', name: '张三' }, { id: 'u1-2', name: '李娜' }] },
+    { id: 'org1-a', name: '办公室', parentId: 'org1', people: [{ id: 'u1a-1', name: '周文秘' }] },
+    { id: 'org1-b', name: '网信指导处', parentId: 'org1', people: [{ id: 'u1b-1', name: '刘指导' }] },
+    { id: 'org2', name: '市公安局网安支队', parentId: null, people: [{ id: 'u2-1', name: '王强' }, { id: 'u2-2', name: '赵敏' }] },
+    { id: 'org2-a', name: '网安直属一大队', parentId: 'org2', people: [{ id: 'u2a-1', name: '孙警官' }] },
+    { id: 'org3', name: '市应急管理局', parentId: null, people: [{ id: 'u3-1', name: '钱工' }] },
+    { id: 'org3-a', name: '应急值班处', parentId: 'org3', people: [{ id: 'u3a-1', name: '冯值班' }] },
+    { id: 'org4', name: '区县级网信中心', parentId: null, people: [{ id: 'u4-1', name: '陈审核' }] },
+    { id: 'org4-a', name: '街道工作站', parentId: 'org4', people: [{ id: 'u4a-1', name: '吴网格' }] },
+    { id: 'org5', name: '市场监督管理局', parentId: null, people: [{ id: 'u5-1', name: '郑专员' }] },
+    { id: 'org6', name: '卫健委应急办', parentId: null, people: [{ id: 'u6-1', name: '何专员' }] }
+  ];
+  /** 内部机构树（总机构及下级）+ 各节点人员 */
+  const internalOrgPersonTree: OrgPersonTreeNode[] = [
+    {
+      id: 'hq',
+      name: '台中市网信办（总机构）',
+      parentId: null,
+      people: [
+        { id: 'i-1', name: '陈主任' },
+        { id: 'i-2', name: '王飞飞' }
+      ]
+    },
+    { id: 'hq-audit', name: '审核中心', parentId: 'hq', people: [{ id: 'i-3', name: '刘审核' }, { id: 'i-5', name: '高专员' }] },
+    { id: 'hq-duty', name: '值班室', parentId: 'hq', people: [{ id: 'i-4', name: '周值班' }] },
+    { id: 'hq-score', name: '评分组', parentId: 'hq-audit', people: [{ id: 'i-6', name: '林评分' }] }
+  ];
+  const flattenOrgPersonTree = (
+    tree: OrgPersonTreeNode[],
+    parentId: string | null = null,
+    depth = 0
+  ): Array<OrgPersonTreeNode & { depth: number }> =>
+    tree
+      .filter(node => node.parentId === parentId)
+      .flatMap(node => [{ ...node, depth }, ...flattenOrgPersonTree(tree, node.id, depth + 1)]);
+  const flatExternalOrgPersonNodes = flattenOrgPersonTree(externalOrgPersonTree);
+  const flatInternalOrgPersonNodes = flattenOrgPersonTree(internalOrgPersonTree);
+  const getOrgPersonTreeName = (orgId?: string, internal = false) =>
+    (internal ? internalOrgPersonTree : externalOrgPersonTree).find(item => item.id === orgId)?.name ||
+    internalOrgPersonTree.find(item => item.id === orgId)?.name ||
+    externalOrgPersonTree.find(item => item.id === orgId)?.name ||
+    '';
+  const getAssigneeUsers = (node?: AuditNode | null): Array<{ orgId: string; userName: string }> => {
+    if (!node) return [];
+    if (node.assigneeUsers?.length) return node.assigneeUsers;
+    if (node.assigneeUserName) {
+      return node.assigneeUserName.split('、').filter(Boolean).map((userName, index) => ({
+        orgId: index === 0 ? (node.assigneeOrgId || '') : '',
+        userName: userName.trim()
+      }));
+    }
+    return [];
+  };
+  const formatAssigneeUsersLabel = (node?: AuditNode | null, internal = false) => {
+    const users = getAssigneeUsers(node);
+    if (users.length === 0) return '';
+    const fallback = internal ? '内部机构' : '外部组织';
+    return users
+      .map(user => `${getOrgPersonTreeName(user.orgId, internal) || fallback} / ${user.userName}`)
+      .join('、');
+  };
+  const buildAssigneeUserUpdates = (users: Array<{ orgId: string; userName: string }>) => ({
+    assigneeUsers: users,
+    assigneeUserName: users.map(user => user.userName).join('、'),
+    assigneeOrgId: users[0]?.orgId,
+    approverRole: users.map(user => user.userName).join('、')
+  });
   const getNodeRoleOptions = (node?: AuditNode | null) =>
     node?.isFinalScoreNode ? internalAuditRoleOptions : externalAuditRoleOptions;
   const getNodeUserOptions = (node?: AuditNode | null) =>
     node?.isFinalScoreNode ? internalAuditUserOptions : externalAuditUserOptions;
-  const getNodeSourceOptions = (node?: AuditNode | null) =>
-    node?.isFinalScoreNode
-      ? [
-          { id: 'org_owner' as const, label: '内部机构负责人', hint: '由总机构内部负责人处理' },
-          { id: 'role' as const, label: '内部角色', hint: '在总机构内部按角色匹配处理人员' },
-          { id: 'user' as const, label: '指定内部人员', hint: '固定由总机构内部的某个人员处理' },
-        ]
-      : [
-          { id: 'org_owner' as const, label: '归属外部机构负责人', hint: '仅在上报人归属的外部机构内匹配负责人' },
-          { id: 'role' as const, label: '归属外部机构角色', hint: '仅在上报人归属的外部机构内匹配该外部角色人员' },
-          { id: 'user' as const, label: '指定外部人员（可跨机构）', hint: '指定外部人员可跨机构选择，不受上报人归属机构限制' },
-        ];
+  const getApproverRoles = (node?: AuditNode | null, options?: string[]): string[] => {
+    if (!node) return [];
+    const available = options || getNodeRoleOptions(node);
+    if (node.approverRoles?.length) {
+      return node.approverRoles.filter(role => available.includes(role));
+    }
+    if (node.approverRole) {
+      return node.approverRole
+        .split('、')
+        .map(role => role.trim())
+        .filter(role => available.includes(role));
+    }
+    return [];
+  };
+  const buildApproverRoleUpdates = (roles: string[]) => ({
+    approverRoles: roles,
+    approverRole: roles.join('、')
+  });
+  /** 模式一/二第 2 阶段（机构逐级/中间流转）不提供「归属外部机构负责人」 */
+  const isMode12IntermediateNode = (node?: AuditNode | null) =>
+    (formFlowMode === 'adaptive' || formFlowMode === 'max_n') &&
+    !!node &&
+    !node.isSubmitStage &&
+    !node.isFinalScoreNode &&
+    node.nodeName !== '上报人' &&
+    node.nodeName !== '上报';
+
+  const getNodeSourceOptions = (node?: AuditNode | null) => {
+    if (node?.isFinalScoreNode) {
+      // 总机构终审评分节点：仅内部机构角色、内部机构人员
+      return [
+        { id: 'role' as const, label: '内部机构角色', hint: '在总机构内部按角色匹配处理人员' },
+        { id: 'user' as const, label: '内部机构人员', hint: '固定由总机构内部的某个人员处理' },
+      ];
+    }
+    // 模式一/二第 2 阶段：仅外部组织角色、外部组织人员
+    if (isMode12IntermediateNode(node)) {
+      return [
+        { id: 'role' as const, label: '外部组织角色', hint: '仅在上报人归属的外部组织内按角色匹配处理人员' },
+        { id: 'user' as const, label: '外部组织人员', hint: '指定外部组织人员，可跨机构选择' },
+      ];
+    }
+    return [
+      { id: 'org_owner' as const, label: '归属外部机构负责人', hint: '仅在上报人归属的外部机构内匹配负责人' },
+      { id: 'role' as const, label: '归属外部机构角色', hint: '仅在上报人归属的外部机构内匹配该外部角色人员' },
+      { id: 'user' as const, label: '指定外部人员（可跨机构）', hint: '指定外部人员可跨机构选择，不受上报人归属机构限制' },
+    ];
+  };
   const getNodeSourceOption = (node?: AuditNode | null) => {
     const options = getNodeSourceOptions(node);
-    return options.find(o => o.id === (node?.assigneeSource || 'role')) || options[1];
+    return options.find(o => o.id === (node?.assigneeSource || 'role')) || options[0];
   };
   const auditTemplateApplyOptions: Array<{ id: AuditTemplateApplyMode; label: string; description: string }> = [
     { id: 'single_template', label: '指定模板', description: '仅绑定一个上报模板，适合专项流程' },
@@ -1537,10 +1667,8 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
     });
   };
 
-  const maxNMiddleNodeName = (depth: number, direction: 'up' | 'down' = 'up') =>
-    direction === 'down'
-      ? `中间机构流转 (最多${depth}级，从总机构向下)`
-      : `中间机构流转 (最多${depth}级，含本级初审)`;
+  const maxNMiddleNodeName = (_depth?: number, _direction: 'up' | 'down' = 'up') =>
+    '中间机构流转';
 
   const maxNMiddleNodeMechanism = (direction: 'up' | 'down' = 'up') =>
     direction === 'down'
@@ -1551,21 +1679,21 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
     if (mode === 'adaptive') {
       return [
         { id: 'an_0', nodeName: '上报人', approverRole: '上报功能人员暂无限制', rejectStrategy: 'return_submitter', timeLimitMinutes: 10, dynamicMechanism: '上报功能人员暂无限制', missingRule: 'skip', timeoutReminderEnabled: false, isSubmitStage: true },
-        { id: 'an_2', nodeName: adaptiveStepName, approverRole: '归属机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_submitter', timeLimitMinutes: 30, dynamicMechanism: adaptiveStepMechanism, missingRule: 'skip', timeoutReminderEnabled: false },
-        { id: 'an_3', nodeName: '总机构终审并评分', approverRole: '内部机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, dynamicMechanism: '动态匹配总机构内部负责人', missingRule: 'block', isFinalScoreNode: true, timeoutReminderEnabled: false }
+        { id: 'an_2', nodeName: adaptiveStepName, approverRole: '审核员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 30, dynamicMechanism: adaptiveStepMechanism, missingRule: 'skip', timeoutReminderEnabled: false },
+        { id: 'an_3', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, dynamicMechanism: '固定总机构管理员终审+评分', missingRule: 'block', isFinalScoreNode: true, timeoutReminderEnabled: false }
       ];
     }
     if (mode === 'max_n') {
       const level = depth || 3;
       return [
         { id: 'an_200', nodeName: '上报人', approverRole: '上报功能人员暂无限制', rejectStrategy: 'return_submitter', timeLimitMinutes: 10, dynamicMechanism: '上报功能人员暂无限制', missingRule: 'skip', timeoutReminderEnabled: false, isSubmitStage: true },
-        { id: 'an_202', nodeName: maxNMiddleNodeName(level, direction), approverRole: '归属机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_submitter', timeLimitMinutes: 30, dynamicMechanism: maxNMiddleNodeMechanism(direction), missingRule: 'skip', timeoutReminderEnabled: false },
-        { id: 'an_203', nodeName: '总机构终审并评分', approverRole: '内部机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, dynamicMechanism: '动态匹配总机构内部负责人', missingRule: 'block', isFinalScoreNode: true, timeoutReminderEnabled: false }
+        { id: 'an_202', nodeName: maxNMiddleNodeName(level, direction), approverRole: '审核员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 30, dynamicMechanism: maxNMiddleNodeMechanism(direction), missingRule: 'skip', timeoutReminderEnabled: false },
+        { id: 'an_203', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, dynamicMechanism: '固定总机构管理员终审+评分', missingRule: 'block', isFinalScoreNode: true, timeoutReminderEnabled: false }
       ];
     }
     return [
       { id: 'an_301', nodeName: '上报', approverRole: '上报功能人员暂无限制', rejectStrategy: 'return_submitter', timeLimitMinutes: 10, dynamicMechanism: '上报功能人员暂无限制', missingRule: 'skip', timeoutReminderEnabled: false, isSubmitStage: true },
-      { id: 'an_302', nodeName: '总机构终审并评分', approverRole: '内部机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, dynamicMechanism: '总机构直审并打分一体化', missingRule: 'block', isFinalScoreNode: true, timeoutReminderEnabled: false }
+      { id: 'an_302', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, dynamicMechanism: '总机构直审并打分一体化', missingRule: 'block', isFinalScoreNode: true, timeoutReminderEnabled: false }
     ];
   };
 
@@ -1718,8 +1846,8 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
   const createDefaultAuditNode = (level: number): AuditNode => ({
     id: 'an_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
     nodeName: level === 1 ? '一级初审' : level === 2 ? '二级复核' : `${level}级签发`,
-    approverRole: level === 1 ? '初审员' : level === 2 ? '科室负责人' : '主管领导',
-    assigneeSource: level === 2 ? 'org_owner' : 'role',
+    approverRole: level === 1 ? '审核员' : level === 2 ? '审核员' : '系统管理员',
+    assigneeSource: 'role',
     assigneeUserName: '',
     rejectStrategy: 'return_submitter',
     timeLimitMinutes: level === 1 ? 15 : level === 2 ? 30 : 45
@@ -1747,6 +1875,60 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
   const handleUpdateAuditNode = (index: number, updates: Partial<AuditNode>) => {
     setFormAuditNodes(prev => prev.map((node, i) => (i === index ? { ...node, ...updates } : node)));
   };
+
+  // 模式一/二中间阶段、以及终审节点：纠正处理人来源与外部组织角色可选值
+  useEffect(() => {
+    setFormAuditNodes(prev => {
+      let changed = false;
+      const next = prev.map(node => {
+        const isSubmit = Boolean(node.isSubmitStage || node.nodeName === '上报人' || node.nodeName === '上报');
+        if (isSubmit) return node;
+
+        // 终审：内部机构负责人 → 内部机构角色
+        if (node.isFinalScoreNode && node.assigneeSource === 'org_owner') {
+          changed = true;
+          return {
+            ...node,
+            assigneeSource: 'role' as const,
+            approverRole: internalAuditRoleOptions.includes(node.approverRole || '')
+              ? node.approverRole
+              : internalAuditRoleOptions[0],
+            dynamicMechanism: '固定总机构管理员终审+评分'
+          };
+        }
+
+        const isMode12Intermediate =
+          (formFlowMode === 'adaptive' || formFlowMode === 'max_n') &&
+          !node.isFinalScoreNode &&
+          node.nodeName !== '上报人' &&
+          node.nodeName !== '上报';
+        if (!isMode12Intermediate) return node;
+
+        let nextNode = node;
+        if (node.assigneeSource === 'org_owner') {
+          changed = true;
+          nextNode = {
+            ...nextNode,
+            assigneeSource: 'role' as const,
+            approverRole: externalAuditRoleOptions[0]
+          };
+        } else if (node.assigneeSource === 'role' || !node.assigneeSource) {
+          const validRoles = getApproverRoles(node, externalAuditRoleOptions);
+          if (validRoles.length === 0) {
+            changed = true;
+            nextNode = { ...nextNode, ...buildApproverRoleUpdates([externalAuditRoleOptions[0]]) };
+          } else if (
+            (node.approverRoles?.join('、') || node.approverRole) !== validRoles.join('、')
+          ) {
+            changed = true;
+            nextNode = { ...nextNode, ...buildApproverRoleUpdates(validRoles) };
+          }
+        }
+        return nextNode;
+      });
+      return changed ? next : prev;
+    });
+  }, [formFlowMode, formAuditNodes.length]);
 
   const handleAddAuditNode = () => {
     const nextLevel = formAuditNodes.length + 1;
@@ -1842,6 +2024,36 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       document.removeEventListener('touchstart', handlePointerDown, true);
     };
   }, [isOrgPickerOpen]);
+
+  useEffect(() => {
+    if (!isExternalPersonPickerOpen) return;
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node;
+      if (externalPersonPickerRef.current?.contains(target)) return;
+      setIsExternalPersonPickerOpen(false);
+    };
+    document.addEventListener('mousedown', handlePointerDown, true);
+    document.addEventListener('touchstart', handlePointerDown, true);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown, true);
+      document.removeEventListener('touchstart', handlePointerDown, true);
+    };
+  }, [isExternalPersonPickerOpen]);
+
+  useEffect(() => {
+    if (!isRolePickerOpen) return;
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node;
+      if (rolePickerRef.current?.contains(target)) return;
+      setIsRolePickerOpen(false);
+    };
+    document.addEventListener('mousedown', handlePointerDown, true);
+    document.addEventListener('touchstart', handlePointerDown, true);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown, true);
+      document.removeEventListener('touchstart', handlePointerDown, true);
+    };
+  }, [isRolePickerOpen]);
 
   const selectedOrgSettings = formOrgSettings.filter(org => org.enabled);
   const orgPickerQuery = orgPickerSearch.trim().toLowerCase();
@@ -2088,12 +2300,12 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       return false;
     }
 
+    const normalizedSearchQuery = searchQuery.trim().toLowerCase();
     const matchesQuery =
-      ['audit_score', 'data_dict', 'audit_flow'].includes(activeModule)
-        ? true
-        : item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-          (item.dictCode && item.dictCode.toLowerCase().includes(searchQuery.toLowerCase()));
+      !normalizedSearchQuery ||
+      item.name.toLowerCase().includes(normalizedSearchQuery) ||
+      (item.description && item.description.toLowerCase().includes(normalizedSearchQuery)) ||
+      (item.dictCode && item.dictCode.toLowerCase().includes(normalizedSearchQuery));
 
     if (activeModule === 'data_dict' && dictSubCategoryFilter !== 'all') {
       const cat = item.dictCategory || 'reject_reason';
@@ -2101,6 +2313,67 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
     }
     return matchesQuery;
   });
+
+  const auditListTotalPages = Math.max(1, Math.ceil(filteredList.length / AUDIT_LIST_PAGE_SIZE));
+  const safeAuditListPage = Math.min(auditListPage, auditListTotalPages);
+  const dictListTotalPages = Math.max(1, Math.ceil(filteredList.length / DICT_LIST_PAGE_SIZE));
+  const safeDictListPage = Math.min(dictListPage, dictListTotalPages);
+  const pagedAuditList = filteredList.slice(
+    (safeAuditListPage - 1) * AUDIT_LIST_PAGE_SIZE,
+    safeAuditListPage * AUDIT_LIST_PAGE_SIZE
+  );
+
+  useEffect(() => {
+    setAuditListPage(1);
+    setDictListPage(1);
+  }, [activeModule, searchQuery]);
+
+  useEffect(() => {
+    setDictListPage(1);
+  }, [dictSubCategoryFilter]);
+
+  useEffect(() => {
+    setAuditListPage(prev => Math.min(prev, auditListTotalPages));
+  }, [auditListTotalPages]);
+
+  useEffect(() => {
+    setDictListPage(prev => Math.min(prev, dictListTotalPages));
+  }, [dictListTotalPages]);
+
+  /** 简易分页：上一页 / 当前页 / 下一页，紧凑右对齐 */
+  const renderListPagination = (
+    page: number,
+    totalPages: number,
+    onPageChange: (nextPage: number) => void
+  ) => (
+    <div className="pt-1 flex items-center justify-end">
+      <div className="inline-flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => onPageChange(Math.max(1, page - 1))}
+          disabled={page <= 1}
+          aria-label="上一页"
+          title="上一页"
+          className="w-7 h-7 rounded-md border border-gray-200 bg-white flex items-center justify-center text-gray-500 hover:text-[#1890ff] hover:border-blue-200 hover:bg-blue-50 disabled:text-gray-300 disabled:border-gray-100 disabled:bg-gray-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <span className="min-w-[3.25rem] px-1 text-center text-[11px] font-mono text-gray-500 tabular-nums">
+          {page} / {totalPages}
+        </span>
+        <button
+          type="button"
+          onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+          disabled={page >= totalPages}
+          aria-label="下一页"
+          title="下一页"
+          className="w-7 h-7 rounded-md border border-gray-200 bg-white flex items-center justify-center text-gray-500 hover:text-[#1890ff] hover:border-blue-200 hover:bg-blue-50 disabled:text-gray-300 disabled:border-gray-100 disabled:bg-gray-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
 
   const statsMetrics = (dataStore.stats_metric || []).filter(item => {
     if (metricCategoryFilter !== 'all' && item.metricCategory !== metricCategoryFilter) return false;
@@ -2652,7 +2925,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
             missingRule: node.isFinalScoreNode ? 'block' : node.missingRule === 'transfer_admin' ? 'skip' : node.missingRule
           }))
         : [
-            { id: 'an_2', nodeName: '机构逐级审核', approverRole: '归属机构负责人', assigneeSource: 'org_owner' as const, rejectStrategy: 'return_submitter' as const, timeLimitMinutes: 30, dynamicMechanism: '自上报机构逐级向上审核', missingRule: 'skip' as const, timeoutReminderEnabled: true },
+            { id: 'an_2', nodeName: '机构逐级审核', approverRole: '审核员', assigneeSource: 'role' as const, rejectStrategy: 'return_submitter' as const, timeLimitMinutes: 30, dynamicMechanism: '自上报机构逐级向上审核', missingRule: 'skip' as const, timeoutReminderEnabled: true },
             { id: 'an_3', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role' as const, rejectStrategy: 'return_submitter' as const, timeLimitMinutes: 60, dynamicMechanism: '固定总机构管理员终审+评分', missingRule: 'block' as const, isFinalScoreNode: true, timeoutReminderEnabled: true }
           ];
       const maxNDepth = item.flowDepth || 3;
@@ -3075,6 +3348,8 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                   onClick={() => {
                     setActiveModule(mod.id);
                     setSearchQuery('');
+                    setAuditListPage(1);
+                    setDictListPage(1);
                   }}
                   className={`w-full text-left px-3.5 py-2.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
                     isActive
@@ -3131,22 +3406,55 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
 
                 <div className="flex items-center space-x-3">
                   {headerExtra}
-                  {/* Search input (Hidden in value_added, stats_metric, login_method, audit_score, data_dict, audit_flow) */}
+                  {/* Search input (Hidden in value_added, stats_metric, login_method) */}
                   {activeModule !== 'value_added' &&
                     activeModule !== 'stats_metric' &&
-                    activeModule !== 'login_method' &&
-                    activeModule !== 'audit_score' &&
-                    activeModule !== 'data_dict' &&
-                    activeModule !== 'audit_flow' && (
+                    activeModule !== 'login_method' && (
                     <div className="relative">
                       <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
                       <input
                         type="text"
                         value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                        placeholder={`搜索${currentModuleLabel}名称/编码/描述...`}
-                        className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-md w-52 sm:w-64 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-gray-50/50 text-gray-700 placeholder:text-gray-400"
+                        onChange={e => {
+                          setSearchQuery(e.target.value);
+                          setAuditListPage(1);
+                          setDictListPage(1);
+                        }}
+                        aria-label={
+                          activeModule === 'data_dict'
+                            ? '搜索字典名称、编码或描述'
+                            : activeModule === 'audit_flow'
+                            ? '搜索审核流程名称或描述'
+                            : activeModule === 'audit_score'
+                              ? '搜索审核打分规则名称或描述'
+                              : `搜索${currentModuleLabel}名称、编码或描述`
+                        }
+                        placeholder={
+                          activeModule === 'data_dict'
+                            ? '搜索字典名称、编码或描述...'
+                            : activeModule === 'audit_flow'
+                            ? '搜索审核流程名称或描述...'
+                            : activeModule === 'audit_score'
+                              ? '搜索审核打分规则名称或描述...'
+                              : `搜索${currentModuleLabel}名称/编码/描述...`
+                        }
+                        className="pl-8 pr-8 py-1.5 text-xs border border-gray-200 rounded-md w-52 sm:w-64 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-gray-50/50 text-gray-700 placeholder:text-gray-400"
                       />
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSearchQuery('');
+                            setAuditListPage(1);
+                            setDictListPage(1);
+                          }}
+                          aria-label="清空列表搜索"
+                          title="清空搜索"
+                          className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
                     </div>
                   )}
 
@@ -3190,7 +3498,10 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                     return (
                       <button
                         key={tab.id}
-                        onClick={() => setDictSubCategoryFilter(tab.id)}
+                        onClick={() => {
+                          setDictSubCategoryFilter(tab.id);
+                          setDictListPage(1);
+                        }}
                         className={`px-3 py-2.5 -mb-px border-b-2 text-xs font-bold cursor-pointer transition-colors flex items-center space-x-1.5 ${
                           isActive
                             ? 'border-[#1E5ABB] text-[#1E5ABB]'
@@ -3362,6 +3673,10 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                     if (aCat !== bCat) return aCat.localeCompare(bCat);
                     return (a.sortOrder || 999) - (b.sortOrder || 999);
                   });
+                  const pagedDictList = sortedDictList.slice(
+                    (safeDictListPage - 1) * DICT_LIST_PAGE_SIZE,
+                    safeDictListPage * DICT_LIST_PAGE_SIZE
+                  );
 
                   return (
                     <>
@@ -3389,13 +3704,13 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                 </td>
                               </tr>
                             ) : (
-                              sortedDictList.map((item, index) => {
+                              pagedDictList.map((item, index) => {
                                 const itemCategory = item.dictCategory || 'reject_reason';
                                 const itemMeta = getDictCategoryMeta(itemCategory);
                                 return (
                                   <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
                                     <td className="py-3 px-4 align-top whitespace-nowrap text-gray-500 font-mono">
-                                      {index + 1}
+                                      {(safeDictListPage - 1) * DICT_LIST_PAGE_SIZE + index + 1}
                                     </td>
                                     <td className="py-3 px-4 align-top max-w-44">
                                       <div className="flex flex-col gap-1 min-w-0">
@@ -3489,6 +3804,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                           </tbody>
                         </table>
                       </div>
+                      {renderListPagination(safeDictListPage, dictListTotalPages, setDictListPage)}
                     </>
                   );
                 })()}
@@ -3501,7 +3817,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredList.map(item => {
+                    {pagedAuditList.map(item => {
                       const isEnabled = item.status === '启用';
                       const levels = item.scoreLevels || [];
                       return (
@@ -3630,6 +3946,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                     })}
                   </div>
                 )}
+                {renderListPagination(safeAuditListPage, auditListTotalPages, setAuditListPage)}
               </div>
             ) : activeModule === 'report_template' ? (
               <TemplateConfigBoard
@@ -3767,7 +4084,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredList.map(item => {
+                    {pagedAuditList.map(item => {
                       const isSelected = selectedAuditFlowId === item.id;
                       const isEnabled = item.status === '启用';
 
@@ -3926,6 +4243,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                     })}
                   </div>
                 )}
+                {renderListPagination(safeAuditListPage, auditListTotalPages, setAuditListPage)}
               </div>
             ) : activeModule === 'login_method' ? (
               <div className="space-y-3">
@@ -6191,7 +6509,11 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                         ? adaptiveStepMechanism
                                         : isFinalScore
                                         ? (node.approverRole || '总机构管理员')
-                                        : (node.assigneeSource === 'org_owner' ? '归属机构负责人' : node.approverRole || '机构管理员')}
+                                        : node.assigneeSource === 'org_owner'
+                                        ? '归属机构负责人'
+                                        : node.assigneeSource === 'user' && getAssigneeUsers(node).length > 0
+                                        ? formatAssigneeUsersLabel(node, Boolean(isFinalScore))
+                                        : (node.approverRole || '机构管理员')}
                                     </div>
                                   </div>
 
@@ -6239,32 +6561,44 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
 
                               <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                  <label className="block text-xs font-bold text-gray-800 mb-1">节点名称 *</label>
+                                  <label className="block text-xs font-bold text-gray-800 mb-1">节点名称</label>
                                   <input
                                     type="text"
-                                    required
+                                    readOnly
                                     value={selectedNode.nodeName}
-                                    onChange={e => handleUpdateAuditNode(selectedIndex, { nodeName: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-medium bg-gray-50 text-gray-700 cursor-not-allowed"
                                   />
                                 </div>
 
                                 <div>
                                   <label className="block text-xs font-bold text-gray-800 mb-1">处理人来源 *</label>
                                   <select
-                                    value={selectedNode.assigneeSource || 'role'}
+                                    value={getNodeSourceOption(selectedNode).id}
                                     onChange={e => {
                                       const source = e.target.value as AuditNode['assigneeSource'];
                                       handleUpdateAuditNode(selectedIndex, {
                                         assigneeSource: source,
                                         assigneeUserName: source === 'user' ? '' : selectedNode.assigneeUserName,
-                                        approverRole:
-                                          source === 'org_owner'
-                                            ? (selectedNode.isFinalScoreNode ? '内部机构负责人' : '归属机构负责人')
-                                            : source === 'role'
-                                            ? getNodeRoleOptions(selectedNode)[0]
-                                            : ''
+                                        assigneeOrgId: source === 'user' ? undefined : selectedNode.assigneeOrgId,
+                                        assigneeUsers: source === 'user' ? [] : selectedNode.assigneeUsers,
+                                        ...(source === 'org_owner'
+                                          ? {
+                                              approverRole: selectedNode.isFinalScoreNode ? '内部机构负责人' : '归属机构负责人',
+                                              approverRoles: undefined
+                                            }
+                                          : source === 'role'
+                                            ? buildApproverRoleUpdates([getNodeRoleOptions(selectedNode)[0]])
+                                            : { approverRole: '', approverRoles: [] })
                                       });
+                                      if (source === 'user') {
+                                        const tree = selectedNode.isFinalScoreNode
+                                          ? flatInternalOrgPersonNodes
+                                          : flatExternalOrgPersonNodes;
+                                        setExternalPersonPickerOrgId(
+                                          selectedNode.assigneeOrgId || tree[0]?.id || null
+                                        );
+                                      }
+                                      if (source !== 'role') setIsRolePickerOpen(false);
                                     }}
                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-medium bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                                   >
@@ -6278,47 +6612,223 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                               {/* Row 2: 动态处理机制 / 角色 / 人员 */}
                               <div>
                                 <div>
-                                  {selectedNode.assigneeSource === 'org_owner' ? (
+                                  {getNodeSourceOption(selectedNode).id === 'org_owner' ? (
                                     <>
                                       <label className="block text-xs font-bold text-gray-800 mb-1">动态处理机制</label>
                                       <div className="bg-emerald-50/70 border border-emerald-200 text-emerald-700 font-medium text-xs px-3 py-2 rounded-lg truncate">
                                         {selectedNode.isFinalScoreNode ? '动态匹配总机构内部负责人' : '动态匹配归属外部机构负责人'}
                                       </div>
                                     </>
-                                  ) : selectedNode.assigneeSource === 'user' ? (
+                                  ) : getNodeSourceOption(selectedNode).id === 'user' ? (
                                     <>
                                       <label className="block text-xs font-bold text-gray-800 mb-1">
-                                        {selectedNode.isFinalScoreNode ? '指定内部人员 *' : '指定外部人员 *'}
+                                        {selectedNode.isFinalScoreNode
+                                          ? '内部机构人员 *'
+                                          : isMode12IntermediateNode(selectedNode)
+                                            ? '外部组织人员 *'
+                                            : '指定外部人员 *'}
                                       </label>
-                                      <select
-                                        value={selectedNode.assigneeUserName || ''}
-                                        onChange={e => handleUpdateAuditNode(selectedIndex, { assigneeUserName: e.target.value, approverRole: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-medium bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                      >
-                                        <option value="">请选择人员</option>
-                                        {getNodeUserOptions(selectedNode).map(user => (
-                                          <option key={user} value={user}>{user}</option>
-                                        ))}
-                                      </select>
+                                      {(() => {
+                                        const isInternal = Boolean(selectedNode.isFinalScoreNode);
+                                        const personTree = isInternal ? internalOrgPersonTree : externalOrgPersonTree;
+                                        const flatOrgs = isInternal ? flatInternalOrgPersonNodes : flatExternalOrgPersonNodes;
+                                        const selectedUsers = getAssigneeUsers(selectedNode);
+                                        return (
+                                        <div className="relative" ref={externalPersonPickerRef}>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setExternalPersonPickerOrgId(
+                                                selectedUsers[0]?.orgId ||
+                                                  selectedNode.assigneeOrgId ||
+                                                  flatOrgs[0]?.id ||
+                                                  null
+                                              );
+                                              setIsExternalPersonPickerOpen(open => !open);
+                                            }}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-medium bg-white text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                          >
+                                            <span className={`truncate ${selectedUsers.length ? 'text-gray-800' : 'text-gray-400'}`}>
+                                              {selectedUsers.length
+                                                ? formatAssigneeUsersLabel(selectedNode, isInternal)
+                                                : '请选择人员（可多选）'}
+                                            </span>
+                                            <ChevronDown className={`w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform ${isExternalPersonPickerOpen ? 'rotate-180' : ''}`} />
+                                          </button>
+                                          {isExternalPersonPickerOpen && (
+                                            <div className="absolute left-0 right-0 top-full mt-1 z-30 border border-gray-200 rounded-lg overflow-hidden bg-white shadow-lg">
+                                              <div className="grid grid-cols-2 h-44 text-xs">
+                                                <div className="border-r border-gray-100 overflow-y-auto bg-slate-50/80">
+                                                  <div className="px-2 py-1.5 text-[10px] font-bold text-gray-500 sticky top-0 bg-slate-50 border-b border-gray-100">
+                                                    {isInternal ? '内部机构节点' : '外部组织节点'}
+                                                  </div>
+                                                  {flatOrgs.map(org => {
+                                                    const active =
+                                                      (externalPersonPickerOrgId ||
+                                                        selectedUsers[0]?.orgId ||
+                                                        flatOrgs[0]?.id) === org.id;
+                                                    const selectedCount = selectedUsers.filter(
+                                                      user => user.orgId === org.id
+                                                    ).length;
+                                                    return (
+                                                      <button
+                                                        key={org.id}
+                                                        type="button"
+                                                        onClick={() => setExternalPersonPickerOrgId(org.id)}
+                                                        className={`w-full text-left px-2 py-1.5 border-b border-gray-50 transition-colors ${
+                                                          active ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-700 hover:bg-white'
+                                                        }`}
+                                                        style={{ paddingLeft: `${8 + org.depth * 12}px` }}
+                                                      >
+                                                        <span className="truncate">{org.name}</span>
+                                                        {selectedCount > 0 && (
+                                                          <span className="ml-1 text-[10px] text-blue-500">({selectedCount})</span>
+                                                        )}
+                                                      </button>
+                                                    );
+                                                  })}
+                                                </div>
+                                                <div className="overflow-y-auto">
+                                                  <div className="px-2 py-1.5 text-[10px] font-bold text-gray-500 sticky top-0 bg-white border-b border-gray-100">
+                                                    节点人员（多选）
+                                                  </div>
+                                                  {(() => {
+                                                    const orgId =
+                                                      externalPersonPickerOrgId ||
+                                                      selectedUsers[0]?.orgId ||
+                                                      flatOrgs[0]?.id;
+                                                    const people =
+                                                      personTree.find(item => item.id === orgId)?.people || [];
+                                                    if (people.length === 0) {
+                                                      return (
+                                                        <div className="px-2 py-3 text-gray-400 text-[11px]">该组织节点暂无人员</div>
+                                                      );
+                                                    }
+                                                    return people.map(person => {
+                                                      const selected = selectedUsers.some(
+                                                        user => user.orgId === orgId && user.userName === person.name
+                                                      );
+                                                      return (
+                                                        <button
+                                                          key={person.id}
+                                                          type="button"
+                                                          onClick={() => {
+                                                            const nextUsers = selected
+                                                              ? selectedUsers.filter(
+                                                                  user => !(user.orgId === orgId && user.userName === person.name)
+                                                                )
+                                                              : [...selectedUsers, { orgId: orgId || '', userName: person.name }];
+                                                            setExternalPersonPickerOrgId(orgId || null);
+                                                            handleUpdateAuditNode(
+                                                              selectedIndex,
+                                                              buildAssigneeUserUpdates(nextUsers)
+                                                            );
+                                                          }}
+                                                          className={`w-full text-left px-2 py-1.5 border-b border-gray-50 transition-colors flex items-center gap-1.5 ${
+                                                            selected ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-700 hover:bg-slate-50'
+                                                          }`}
+                                                        >
+                                                          {selected ? (
+                                                            <CheckSquare className="w-3.5 h-3.5 shrink-0 text-blue-600" />
+                                                          ) : (
+                                                            <Square className="w-3.5 h-3.5 shrink-0 text-gray-300" />
+                                                          )}
+                                                          <span className="truncate">{person.name}</span>
+                                                        </button>
+                                                      );
+                                                    });
+                                                  })()}
+                                                </div>
+                                              </div>
+                                              <div className="px-2.5 py-1.5 border-t border-gray-100 bg-gray-50 text-[11px] text-gray-600 flex items-center justify-between gap-2">
+                                                <span className="truncate">
+                                                  已选 {selectedUsers.length} 人（{isInternal ? '内部机构' : '可跨机构'}多选）
+                                                </span>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setIsExternalPersonPickerOpen(false)}
+                                                  className="shrink-0 px-2 py-0.5 rounded bg-blue-600 text-white text-[11px] font-medium hover:bg-blue-700"
+                                                >
+                                                  确定
+                                                </button>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                        );
+                                      })()}
                                     </>
                                   ) : (
                                     <>
                                       <label className="block text-xs font-bold text-gray-800 mb-1">
-                                        {selectedNode.isFinalScoreNode ? '内部处理角色 *' : '外部处理角色 *'}
+                                        {selectedNode.isFinalScoreNode
+                                          ? '内部机构角色 *'
+                                          : isMode12IntermediateNode(selectedNode)
+                                            ? '外部组织角色 *'
+                                            : '外部处理角色 *'}
                                       </label>
-                                      <select
-                                        value={
-                                          getNodeRoleOptions(selectedNode).includes(selectedNode.approverRole || '')
-                                            ? selectedNode.approverRole
-                                            : getNodeRoleOptions(selectedNode)[0]
-                                        }
-                                        onChange={e => handleUpdateAuditNode(selectedIndex, { approverRole: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-medium bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                      >
-                                        {getNodeRoleOptions(selectedNode).map(role => (
-                                          <option key={role} value={role}>{role}</option>
-                                        ))}
-                                      </select>
+                                      {(() => {
+                                        const roleOptions = getNodeRoleOptions(selectedNode);
+                                        const selectedRoles = getApproverRoles(selectedNode, roleOptions);
+                                        return (
+                                          <div className="relative" ref={rolePickerRef}>
+                                            <button
+                                              type="button"
+                                              onClick={() => setIsRolePickerOpen(open => !open)}
+                                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-medium bg-white text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                            >
+                                              <span className={`truncate ${selectedRoles.length ? 'text-gray-800' : 'text-gray-400'}`}>
+                                                {selectedRoles.length ? selectedRoles.join('、') : '请选择角色（可多选）'}
+                                              </span>
+                                              <ChevronDown className={`w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform ${isRolePickerOpen ? 'rotate-180' : ''}`} />
+                                            </button>
+                                            {isRolePickerOpen && (
+                                              <div className="absolute left-0 right-0 top-full mt-1 z-30 border border-gray-200 rounded-lg overflow-hidden bg-white shadow-lg">
+                                                <div className="max-h-44 overflow-y-auto text-xs">
+                                                  {roleOptions.map(role => {
+                                                    const selected = selectedRoles.includes(role);
+                                                    return (
+                                                      <button
+                                                        key={role}
+                                                        type="button"
+                                                        onClick={() => {
+                                                          const nextRoles = selected
+                                                            ? selectedRoles.filter(item => item !== role)
+                                                            : [...selectedRoles, role];
+                                                          handleUpdateAuditNode(
+                                                            selectedIndex,
+                                                            buildApproverRoleUpdates(nextRoles)
+                                                          );
+                                                        }}
+                                                        className={`w-full text-left px-3 py-2 border-b border-gray-50 transition-colors flex items-center gap-1.5 ${
+                                                          selected ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-700 hover:bg-slate-50'
+                                                        }`}
+                                                      >
+                                                        {selected ? (
+                                                          <CheckSquare className="w-3.5 h-3.5 shrink-0 text-blue-600" />
+                                                        ) : (
+                                                          <Square className="w-3.5 h-3.5 shrink-0 text-gray-300" />
+                                                        )}
+                                                        <span>{role}</span>
+                                                      </button>
+                                                    );
+                                                  })}
+                                                </div>
+                                                <div className="px-2.5 py-1.5 border-t border-gray-100 bg-gray-50 text-[11px] text-gray-600 flex items-center justify-between gap-2">
+                                                  <span>已选 {selectedRoles.length} 个角色</span>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setIsRolePickerOpen(false)}
+                                                    className="shrink-0 px-2 py-0.5 rounded bg-blue-600 text-white text-[11px] font-medium hover:bg-blue-700"
+                                                  >
+                                                    确定
+                                                  </button>
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
                                     </>
                                   )}
                                 </div>

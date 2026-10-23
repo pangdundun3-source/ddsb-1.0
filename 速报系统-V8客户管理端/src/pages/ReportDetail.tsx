@@ -424,7 +424,7 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
             </div>
           ) : (
             /* 流转状态 Timeline View */
-            <AuditFlowTimeline report={report} headerNote="实时 · 整体流程" />
+            <AuditFlowTimeline report={report} />
           )}
         </div>
 

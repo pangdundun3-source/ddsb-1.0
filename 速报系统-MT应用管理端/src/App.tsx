@@ -200,7 +200,7 @@ export default function App() {
                   />
                 )}
 
-                {activeTab === 'config' && <GlobalConfig onShowToast={showToast} institutionIds={institutions.map((inst) => inst.id)} />}
+                {activeTab === 'config' && <GlobalConfig onShowToast={showToast} />}
 
                 {activeTab === 'org_config' && (
                   <InstitutionBusinessConfig

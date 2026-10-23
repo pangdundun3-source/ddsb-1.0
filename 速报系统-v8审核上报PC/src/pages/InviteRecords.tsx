@@ -2,8 +2,6 @@ import React, { useMemo, useState } from 'react';
 import {
   Ban,
   Building2,
-  ChevronLeft,
-  ChevronRight,
   Copy,
   Download,
   FileText,
@@ -25,11 +23,10 @@ import {
 import { maskPhone } from '../components/PersonAccountDisplay';
 import { InviteQrCode, downloadQrCardImage } from '../components/InviteQrCode';
 import { buildShareInviteLink } from '../components/ShareInvitePanel';
+import { PaginationBar } from '../components/PaginationBar';
 
 type StatusTab = 'pending' | 'activated' | 'expired';
 type ChannelType = 'activation_code' | 'official_account' | 'qrcode' | 'link';
-
-const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
 
 const isInviteExpired = (item: InviteCode) =>
   item.status === '已过期' ||
@@ -168,7 +165,7 @@ export const InviteRecords: React.FC<InviteRecordsProps> = ({ shared }) => {
   const [keyword, setKeyword] = useState('');
   const [appliedKeyword, setAppliedKeyword] = useState('');
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(10);
+  const [pageSize, setPageSize] = useState(10);
   const [toast, setToast] = useState('');
   const [viewInvite, setViewInvite] = useState<InviteCode | null>(null);
   const [detailRow, setDetailRow] = useState<BatchRow | null>(null);
@@ -561,47 +558,17 @@ export const InviteRecords: React.FC<InviteRecordsProps> = ({ shared }) => {
           </table>
       </div>
 
-      <div className="px-5 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-[11px] text-gray-500">
-        <div className="flex items-center gap-2">
-          <span>共 {listLength} 条</span>
-          <select
-            value={pageSize}
-            onChange={(e) => {
-              setPageSize(Number(e.target.value) as (typeof PAGE_SIZE_OPTIONS)[number]);
-              setPage(1);
-            }}
-            className="h-7 px-2 border border-gray-200 rounded bg-white text-xs cursor-pointer"
-          >
-            {PAGE_SIZE_OPTIONS.map((size) => (
-              <option key={size} value={size}>
-                每页 {size} 条
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            disabled={currentPage <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            className="h-7 px-2.5 rounded border border-gray-200 inline-flex items-center gap-0.5 disabled:opacity-40 cursor-pointer hover:bg-slate-50"
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-            上一页
-          </button>
-          <span className="min-w-[28px] h-7 px-2 rounded bg-[#1E5ABB] text-white font-bold inline-flex items-center justify-center">
-            {currentPage}
-          </span>
-          <button
-            type="button"
-            disabled={currentPage >= totalPages}
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            className="h-7 px-2.5 rounded border border-gray-200 inline-flex items-center gap-0.5 disabled:opacity-40 cursor-pointer hover:bg-slate-50"
-          >
-            下一页
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
+      <div className="bg-gray-50/80 border-t border-gray-100">
+        <PaginationBar
+          total={listLength}
+          page={currentPage}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setPage(1);
+          }}
+        />
       </div>
 
       {detailRow && (

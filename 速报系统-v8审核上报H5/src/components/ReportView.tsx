@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SpeedReport, ReportTemplate, UserProfile, ReportStatus, ReportType, ReportSource, IdentificationTag } from '../types';
 import { REPORT_TEMPLATES, DISTRICT_OPTIONS, TYPE_OPTIONS, SOURCE_OPTIONS } from '../data/mockData';
-import { Plus, Save, Send, ChevronRight, X, Sparkles, Filter, Link, FileText, Trash2, CheckCircle2, Clock, AlertCircle, PencilLine } from 'lucide-react';
+import { Plus, Save, Send, ChevronRight, X, Sparkles, Filter, Link, FileText, Trash2, CheckCircle2, Clock, AlertCircle, PencilLine, Search } from 'lucide-react';
 import { BackNavigationBar } from './BackNavigationBar';
 import { IdentificationBadge } from './IdentificationBadge';
 import { calculatePreJudgment } from '../utils/identification';
@@ -45,6 +45,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
   onCloseForm,
 }) => {
   const [activeFilter, setActiveFilter] = useState<string>('pending');
+  const [searchKeyword, setSearchKeyword] = useState('');
   const [isCreating, setIsCreating] = useState<boolean>(!!initialEditReport || !!isCreatingNew);
   const [selectedTemplate, setSelectedTemplate] = useState<ReportTemplate>(REPORT_TEMPLATES[0]);
 
@@ -66,8 +67,8 @@ export const ReportView: React.FC<ReportViewProps> = ({
     ? [
         { key: 'pending', label: '待审核' },
         { key: 'auditing', label: '审核中' },
-        { key: 'approved', label: '已采纳' },
         { key: 'rejected', label: '被驳回' },
+        { key: 'approved', label: '已采纳' },
       ]
     : [{ key: 'pending', label: '待审核' }];
   const reportSourceOptions = SOURCE_OPTIONS.filter((source) => source !== '部门转办');
@@ -235,6 +236,15 @@ export const ReportView: React.FC<ReportViewProps> = ({
     if (activeFilter === 'auditing' && r.status !== 'auditing') return false;
     if (activeFilter === 'approved' && r.status !== 'approved') return false;
     if (activeFilter === 'rejected' && r.status !== 'rejected') return false;
+
+    const normalizedKeyword = searchKeyword.trim().toLowerCase();
+    if (
+      normalizedKeyword &&
+      !r.title.toLowerCase().includes(normalizedKeyword) &&
+      !r.summary.toLowerCase().includes(normalizedKeyword)
+    ) {
+      return false;
+    }
 
     return true;
   });
@@ -509,6 +519,29 @@ export const ReportView: React.FC<ReportViewProps> = ({
               })}
             </div>
           )}
+
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              placeholder="搜索上报标题或描述关键词进行检索"
+              aria-label="搜索上报标题或描述关键词"
+              className="w-full pl-9 pr-9 py-2.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-blue-500 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/15 transition-all shadow-2xs"
+            />
+            {searchKeyword && (
+              <button
+                type="button"
+                onClick={() => setSearchKeyword('')}
+                aria-label="清空搜索"
+                title="清空搜索"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-md cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
 
           {/* List of Reports */}
           <div className="space-y-2.5 pb-4">

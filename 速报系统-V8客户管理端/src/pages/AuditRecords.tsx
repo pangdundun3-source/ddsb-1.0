@@ -30,7 +30,6 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
-  const [selectedResult, setSelectedResult] = useState('通过');
   const [selectedIdent, setSelectedIdent] = useState('全部');
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>(loadWarehouses);
   const [assignmentVersion, setAssignmentVersion] = useState(0);
@@ -90,21 +89,14 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
     return true;
   });
 
-  const resultTabs = [
-    { value: '通过', label: '已采纳', count: baseFiltered.filter((rec) => rec.auditResult === '已通过').length },
-    { value: '驳回', label: '已驳回', count: baseFiltered.filter((rec) => rec.auditResult === '被驳回').length }
-  ];
-  const rejectedTab = selectedResult === '驳回';
-  const filtered = baseFiltered.filter((rec) => {
-    return selectedResult === '驳回' ? rec.auditResult === '被驳回' : rec.auditResult === '已通过';
-  });
+  /** 审核记录仅展示已采纳（已通过）数据 */
+  const filtered = baseFiltered.filter((rec) => rec.auditResult === '已通过');
 
   const handleReset = () => {
     setKeyword('');
     setStartDate('');
     setEndDate('');
     setSelectedOrgId(null);
-    setSelectedResult('通过');
     setSelectedIdent('全部');
   };
 
@@ -114,7 +106,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [keyword, selectedOrgId, selectedResult, selectedIdent, startDate, endDate]);
+  }, [keyword, selectedOrgId, selectedIdent, startDate, endDate]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
@@ -219,7 +211,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
           </div>
 
           <div className="flex items-center space-x-1.5 shrink-0">
-            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">研判打标</label>
+            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">标识</label>
             <select
               value={selectedIdent}
               onChange={(e) => setSelectedIdent(e.target.value)}
@@ -252,35 +244,6 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
 
       {/* Data Table */}
       <div className="bg-white rounded-xl border border-gray-200/80 shadow-2xs overflow-hidden">
-        <div className="px-5 flex items-center gap-6 border-b border-gray-100 text-sm">
-          {resultTabs.map((tab) => {
-            const active = selectedResult === tab.value;
-            return (
-              <button
-                key={tab.value}
-                type="button"
-                onClick={() => {
-                  setSelectedResult(tab.value);
-                  setSelectedIds([]);
-                }}
-                className={`relative py-3 flex items-center gap-1.5 cursor-pointer transition-colors ${
-                  active ? 'text-[#1E5ABB] font-bold' : 'text-gray-500 hover:text-gray-800'
-                }`}
-              >
-                {tab.label}
-                <span
-                  className={`min-w-[20px] px-1.5 rounded-full text-[11px] font-mono leading-[18px] text-center ${
-                    active ? 'bg-[#1E5ABB] text-white' : 'bg-gray-100 text-gray-500'
-                  }`}
-                >
-                  {tab.count}
-                </span>
-                {active && <span className="absolute left-0 right-0 -bottom-px h-0.5 rounded-full bg-[#1E5ABB]" />}
-              </button>
-            );
-          })}
-        </div>
-        {!rejectedTab && (
         <div className="px-5 py-2.5 flex flex-wrap items-center justify-between gap-2 bg-gray-50/70 border-b border-gray-100 text-xs">
           <label className="inline-flex items-center gap-2 text-gray-600 cursor-pointer select-none">
             <input
@@ -309,7 +272,6 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
             批量加入仓库
           </button>
         </div>
-        )}
         <div className="divide-y divide-gray-100">
           {pagedReports.length === 0 && <div className="py-12 text-center text-xs text-gray-400">暂无审核记录</div>}
           {pagedReports.map((item, index) => {
@@ -330,19 +292,17 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
             const checked = selectedIds.includes(item.id);
             return (
               <div key={item.id} className={`px-5 py-3.5 flex gap-3 transition-colors ${checked ? 'bg-blue-50/50' : 'hover:bg-gray-50/70'}`}>
-                {!rejectedTab && (
-                  <span className="w-[17px] shrink-0">
-                    {joinable && (
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleSelect(item.id)}
-                        aria-label={`选择${item.title}`}
-                        className="mt-1 accent-[#1E5ABB] cursor-pointer"
-                      />
-                    )}
-                  </span>
-                )}
+                <span className="w-[17px] shrink-0">
+                  {joinable && (
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleSelect(item.id)}
+                      aria-label={`选择${item.title}`}
+                      className="mt-1 accent-[#1E5ABB] cursor-pointer"
+                    />
+                  )}
+                </span>
                 <span className="w-6 shrink-0 text-center font-mono text-xs text-gray-400 mt-0.5">{(safePage - 1) * pageSize + index + 1}</span>
                 <div className="flex-1 min-w-0 space-y-1">
                   <div className="flex items-center justify-between gap-4">

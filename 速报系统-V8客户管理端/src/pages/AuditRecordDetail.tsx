@@ -542,7 +542,6 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
             /* 流转状态 Timeline View */
             <AuditFlowTimeline
               report={flowReport}
-              headerNote="实时 · 整体流程"
               rejectedLabel="已驳回"
               myRejectedNode={
                 record.auditResult === '被驳回'

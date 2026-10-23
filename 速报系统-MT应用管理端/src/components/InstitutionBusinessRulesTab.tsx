@@ -27,15 +27,6 @@ import {
 } from './business/V8BusinessConfigBoard';
 import { QrQuotaSection } from './other-config/QrQuotaSection';
 import { DictRegistryConfig } from './other-config/DictRegistryConfig';
-import {
-  type ClientEditApplyScope,
-  type ClientEditMap,
-  readGlobalClientEditDefaults,
-  readInstitutionClientEdit,
-  resolveClientEditEnabled,
-  updateGlobalClientEditDefault,
-  writeInstitutionClientEdit,
-} from '../services/clientEditStorage';
 import { GlobalQrDefaultsSection } from './other-config/GlobalQrDefaultsSection';
 import { GlobalOtherConfigDefaultsSection } from './other-config/GlobalOtherConfigDefaultsSection';
 import { InviteFieldsConfigSection } from './other-config/InviteFieldsConfigSection';
@@ -1063,8 +1054,6 @@ interface Props {
   initialNav?: BusinessRuleNavKey;
   hideSubNav?: boolean;
   navPosition?: 'left' | 'top';
-  /** 全局业务配置修改客户端编辑默认值时，用于同步或冻结已创建机构的设置 */
-  existingInstitutionIds?: Array<string | number>;
   onSaveRules: (rules: InstitutionBusinessRules) => void;
   showToast: (msg: string, type?: 'success' | 'warning' | 'info') => void;
 }
@@ -1076,7 +1065,6 @@ export const InstitutionBusinessRulesTab: React.FC<Props> = ({
   initialNav,
   hideSubNav = false,
   navPosition = 'left',
-  existingInstitutionIds = [],
   onSaveRules,
   showToast,
 }) => {
@@ -1190,85 +1178,6 @@ export const InstitutionBusinessRulesTab: React.FC<Props> = ({
   const showDictRegistry = isGlobalScope && activeNav === 'dictionary';
   const activeV8Module = showDictRegistry ? undefined : V8_NAV_TO_MODULE[activeNav];
 
-  // 客户端编辑开关：机构业务配置按模块控制客户管理端是否允许增删改；全局业务配置设置新建机构时的默认值
-  const CLIENT_EDIT_NAVS: BusinessRuleNavKey[] = ['templates', 'workflow', 'scoring', 'dictionary'];
-  const showClientEditSwitch = navPosition === 'top' && CLIENT_EDIT_NAVS.includes(activeNav);
-  const activeNavLabel = RULE_NAV_ITEMS.find((item) => item.key === activeNav)?.label ?? '';
-  const [clientEditMap, setClientEditMap] = React.useState<ClientEditMap>(() =>
-    isGlobalScope ? readGlobalClientEditDefaults() : readInstitutionClientEdit(institution?.id ?? 'new'),
-  );
-  const clientEditEnabled = isGlobalScope
-    ? clientEditMap[activeNav] ?? true
-    : resolveClientEditEnabled(clientEditMap, activeNav);
-  const [pendingDefaultChange, setPendingDefaultChange] = React.useState<boolean | null>(null);
-  const [defaultApplyScope, setDefaultApplyScope] = React.useState<ClientEditApplyScope>('new_only');
-
-  const toggleClientEdit = () => {
-    if (isGlobalScope) {
-      setDefaultApplyScope('new_only');
-      setPendingDefaultChange(!clientEditEnabled);
-      return;
-    }
-    const next = { ...clientEditMap, [activeNav]: !clientEditEnabled };
-    setClientEditMap(next);
-    writeInstitutionClientEdit(institution?.id ?? 'new', next);
-    showToast(
-      next[activeNav] ? `客户端${activeNavLabel}已支持编辑` : `客户端${activeNavLabel}仅支持预览`,
-      next[activeNav] ? 'success' : 'info',
-    );
-  };
-
-  const confirmDefaultChange = () => {
-    if (pendingDefaultChange === null) return;
-    updateGlobalClientEditDefault(
-      activeNav,
-      pendingDefaultChange,
-      defaultApplyScope,
-      existingInstitutionIds,
-    );
-    setClientEditMap(readGlobalClientEditDefaults());
-    setPendingDefaultChange(null);
-    const stateText = pendingDefaultChange ? '支持编辑' : '仅支持预览';
-    showToast(
-      defaultApplyScope === 'all'
-        ? `${activeNavLabel}客户端默认已改为${stateText}，并已同步到 ${existingInstitutionIds.length} 家已创建机构`
-        : `${activeNavLabel}客户端默认已改为${stateText}，仅对后续新增机构生效`,
-      'success',
-    );
-  };
-
-  const clientEditSwitch = showClientEditSwitch ? (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={clientEditEnabled}
-      onClick={toggleClientEdit}
-      title={
-        isGlobalScope
-          ? '新建机构时，该模块客户端编辑开关的默认状态'
-          : clientEditEnabled
-            ? '客户管理端支持新增、编辑、删除'
-            : '客户管理端仅支持预览，不能新增、编辑、删除'
-      }
-      className="h-[26px] pl-2.5 pr-1.5 flex items-center gap-2 rounded border border-gray-200 bg-gray-50 hover:bg-gray-100 whitespace-nowrap cursor-pointer transition-colors"
-    >
-      <span className="text-xs text-gray-600">客户端</span>
-      <span className={`text-[11px] ${clientEditEnabled ? 'text-[#1890ff]' : 'text-gray-400'}`}>
-        {clientEditEnabled ? '支持编辑' : '仅支持预览'}
-      </span>
-      <span
-        className={`relative w-8 h-[18px] rounded-full transition-colors ${
-          clientEditEnabled ? 'bg-[#1890ff]' : 'bg-gray-300'
-        }`}
-      >
-        <span
-          className={`absolute top-0.5 left-0.5 w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-transform ${
-            clientEditEnabled ? 'translate-x-3.5' : ''
-          }`}
-        />
-      </span>
-    </button>
-  ) : null;
   const [showValueAddedBanner, setShowValueAddedBanner] = React.useState(true);
   const [draggingFieldIdx, setDraggingFieldIdx] = React.useState<number | null>(null);
   const [draggingLevelIdx, setDraggingLevelIdx] = React.useState<number | null>(null);
@@ -1421,75 +1330,6 @@ export const InstitutionBusinessRulesTab: React.FC<Props> = ({
         <div className={hideSubNav || navPosition === 'top' ? 'space-y-6 w-full' : 'flex-1 min-w-0 space-y-6'}>
           {showDictRegistry && <DictRegistryConfig showToast={showToast} />}
 
-          {pendingDefaultChange !== null && (
-            <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6">
-              <div className="w-full max-w-[460px] bg-white rounded-xl shadow-2xl overflow-hidden">
-                <div className="px-5 py-4 border-b border-gray-100">
-                  <div className="text-sm font-bold text-gray-900">修改机构默认设置</div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    将「{activeNavLabel}」新建机构时的客户端默认设置改为
-                    <span className={pendingDefaultChange ? 'text-[#1890ff] font-medium' : 'text-gray-700 font-medium'}>
-                      「{pendingDefaultChange ? '支持编辑' : '仅支持预览'}」
-                    </span>
-                    ，请选择生效范围：
-                  </div>
-                </div>
-                <div className="p-5 space-y-2.5">
-                  {([
-                    {
-                      value: 'new_only',
-                      title: '仅对后续新增的机构生效',
-                      desc: `已创建的 ${existingInstitutionIds.length} 家机构保持现有设置不变`,
-                    },
-                    {
-                      value: 'all',
-                      title: '同时应用到已创建的机构',
-                      desc: `覆盖已创建的 ${existingInstitutionIds.length} 家机构在该模块的现有设置`,
-                    },
-                  ] as const).map((option) => {
-                    const checked = defaultApplyScope === option.value;
-                    return (
-                      <label
-                        key={option.value}
-                        className={`flex items-start gap-2.5 p-3 rounded-lg border cursor-pointer transition-colors ${
-                          checked ? 'border-[#1890ff] bg-blue-50/50' : 'border-gray-200 hover:border-blue-200'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="client-edit-apply-scope"
-                          checked={checked}
-                          onChange={() => setDefaultApplyScope(option.value)}
-                          className="mt-0.5 accent-[#1890ff] cursor-pointer"
-                        />
-                        <span className="min-w-0">
-                          <span className="block text-xs font-bold text-gray-800">{option.title}</span>
-                          <span className="block text-[11px] text-gray-500 mt-0.5">{option.desc}</span>
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-                <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPendingDefaultChange(null)}
-                    className="h-8 px-4 border border-gray-200 rounded text-xs text-gray-600 hover:bg-gray-50 cursor-pointer"
-                  >
-                    取消
-                  </button>
-                  <button
-                    type="button"
-                    onClick={confirmDefaultChange}
-                    className="h-8 px-4 bg-[#1890ff] hover:bg-blue-600 rounded text-xs font-bold text-white cursor-pointer"
-                  >
-                    确认修改
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* 与 V8 业务配置维护 1:1 对齐的模块右侧内容（模板配置/审核打分/字典/审核流程/增值业务） */}
           {activeV8Module && (
             <V8BusinessConfigBoard
@@ -1500,7 +1340,6 @@ export const InstitutionBusinessRulesTab: React.FC<Props> = ({
               fallbackStorageKey={v8FallbackStorageKey}
               valueAddedAllOperable
               templateTitleMode={navPosition === 'top' ? 'inline' : 'card'}
-              headerExtra={clientEditSwitch}
               hideValueAddedStatusBadge={isGlobalScope}
               isGlobalScope={isGlobalScope}
               onModuleChange={(mod) => {

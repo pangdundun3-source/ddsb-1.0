@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuditRecordItem, ReportItem, PageId, Attachment, TimelineNode, OriginTypeLabel } from '../types';
 import {
   Info,
@@ -747,7 +747,6 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
               <div className="space-y-4 animate-in fade-in duration-150 pb-2">
                 <AuditFlowTimeline
                   report={flowReport}
-                  headerNote="实时 · 整体流程"
                   rejectedLabel="已驳回"
                   myRejectedNode={
                     record?.auditResult === '被驳回'
@@ -876,7 +875,6 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
           {/* 2. 实时整体流转状态 */}
           <AuditFlowTimeline
             report={flowReport}
-            headerNote="实时 · 整体流程"
             rejectedLabel="已驳回"
             myRejectedNode={
               record?.auditResult === '被驳回'

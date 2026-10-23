@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { ReportItem, PageId, Attachment } from '../types';
 import { getFinalAuditScore } from '../auditStage';
 import { getReportAttachments, getReportDetailContent, getRejectReasonText } from '../data/reportContent';
@@ -413,7 +413,7 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
               </div>
             ) : (
               <div className="space-y-4 animate-in fade-in duration-150 pb-2">
-                <AuditFlowTimeline report={report} headerNote="实时 · 整体流程" />
+                <AuditFlowTimeline report={report} />
               </div>
             )}
           </div>

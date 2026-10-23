@@ -37,6 +37,8 @@ import {
   CheckSquare,
   Square,
   GripVertical,
+  ArrowUpDown,
+  ChevronLeft,
   ChevronRight,
   ChevronDown,
   Smartphone,
@@ -44,15 +46,42 @@ import {
   ArrowRight,
   Copy,
   MoreHorizontal,
+  MoveHorizontal,
   RotateCcw,
   Sliders,
   SlidersHorizontal,
-  Workflow,
+  Wand2,
+  Camera,
   X as WinCloseIcon
 } from 'lucide-react';
 import { TemplateOtherConfigPanel } from '../components/TemplateOtherConfigPanel';
+import { confirmDialog } from '../components/common/ConfirmDialog';
+import { INITIAL_ORG_NODES, INITIAL_PERSONNEL } from '../data/userOrgShared';
 
-export type FieldType = 'text' | 'number' | 'date' | 'file' | 'link' | 'select' | 'phone' | 'gender' | 'id_card' | 'bank_card' | 'email' | 'address' | 'identity';
+export type FieldType =
+  | 'text'
+  | 'number'
+  | 'date'
+  | 'file'
+  | 'link'
+  | 'select'
+  | 'multi_select'
+  | 'radio'
+  | 'checkbox'
+  | 'static_text'
+  | 'phone'
+  | 'gender'
+  | 'id_card'
+  | 'bank_card'
+  | 'email'
+  | 'address'
+  | 'identity';
+
+const CONFIG_LIST_PAGE_SIZE = 6;
+const TEMPLATE_LIST_PAGE_SIZE = 10;
+
+export type PcFieldWidth = 'full' | 'half';
+export type FieldControl = FieldType | 'textarea';
 
 export interface TemplateField {
   id: string;
@@ -67,6 +96,8 @@ export interface TemplateField {
   multiline?: boolean;
   /** 单行 / 多行文本字数上限 */
   maxLength?: number;
+  /** PC 端手动指定宽度；未设置时按字段类型自动排布 */
+  pcWidth?: PcFieldWidth;
 }
 
 export interface ScoreLevel {
@@ -82,8 +113,14 @@ export interface AuditNode {
   id: string;
   nodeName: string;
   approverRole: string;
+  /** 处理角色多选 */
+  approverRoles?: string[];
   assigneeSource?: 'role' | 'user' | 'org_owner';
   assigneeUserName?: string;
+  /** 外部组织人员所属组织节点（单选兼容） */
+  assigneeOrgId?: string;
+  /** 外部组织人员多选 */
+  assigneeUsers?: Array<{ orgId: string; userName: string }>;
   rejectStrategy?: 'return_submitter' | 'return_previous';
   timeLimitMinutes?: number;
   enableTimeout?: boolean;
@@ -250,6 +287,10 @@ interface ConfigModuleItem {
   verifyIdCard?: boolean;
   verifyBankCard?: boolean;
   adaptedRoles?: string[];
+  relatedScoreRuleId?: string;
+  relatedFlowId?: string;
+  scoreTiming?: 'first_audit' | 'final_audit';
+  syncToPerformance?: boolean;
 }
 
 const getFieldTypeMeta = (type: FieldType) => {
@@ -265,7 +306,15 @@ const getFieldTypeMeta = (type: FieldType) => {
     case 'link':
       return { label: '链接字段', icon: LinkIcon, color: 'text-indigo-600 bg-indigo-50 border-indigo-200' };
     case 'select':
-      return { label: '选择字段', icon: ListFilter, color: 'text-rose-600 bg-rose-50 border-rose-200' };
+      return { label: '下拉单选', icon: ListFilter, color: 'text-rose-600 bg-rose-50 border-rose-200' };
+    case 'multi_select':
+      return { label: '下拉多选', icon: ListFilter, color: 'text-fuchsia-600 bg-fuchsia-50 border-fuchsia-200' };
+    case 'radio':
+      return { label: '单选框组', icon: CheckSquare, color: 'text-sky-600 bg-sky-50 border-sky-200' };
+    case 'checkbox':
+      return { label: '多选框组', icon: CheckSquare, color: 'text-teal-600 bg-teal-50 border-teal-200' };
+    case 'static_text':
+      return { label: '静态提示文本', icon: Info, color: 'text-slate-600 bg-slate-50 border-slate-200' };
     case 'phone':
       return { label: '手机号', icon: Type, color: 'text-emerald-600 bg-emerald-50 border-emerald-200' };
     case 'gender':
@@ -285,9 +334,33 @@ const getFieldTypeMeta = (type: FieldType) => {
   }
 };
 
-const reportFieldTypeOptions: FieldType[] = ['text', 'number', 'date', 'file', 'link', 'select'];
-const activationFieldTypeOptions: FieldType[] = ['text', 'identity', 'phone', 'gender', 'id_card', 'bank_card', 'email', 'address', 'date', 'file', 'select'];
+const reportFieldTypeOptions: FieldType[] = [
+  'text',
+  'number',
+  'date',
+  'radio',
+  'checkbox',
+  'select',
+  'multi_select',
+  'link',
+  'file',
+  'static_text'
+];
+const activationFieldTypeOptions: FieldType[] = [
+  'text',
+  'identity',
+  'phone',
+  'gender',
+  'id_card',
+  'bank_card',
+  'email',
+  'address',
+  'date',
+  'file',
+  'select'
+];
 const systemRoleOptions = ['超级管理员', '机构管理员', '上报员', '审核员', '运营管理员', '临时审核员'];
+const OPTION_FIELD_TYPES: FieldType[] = ['radio', 'checkbox', 'select', 'multi_select'];
 
 const getDefaultFieldPlaceholder = (type: FieldType) => {
   switch (type) {
@@ -312,7 +385,12 @@ const getDefaultFieldPlaceholder = (type: FieldType) => {
     case 'link':
       return '请输入链接地址';
     case 'select':
+    case 'multi_select':
+    case 'radio':
+    case 'checkbox':
       return '请选择选项';
+    case 'static_text':
+      return '请输入展示给填报人的提示文案';
     default:
       return '请输入相关信息';
   }
@@ -322,6 +400,20 @@ const TITLE_FIELD_ID = 'fixed_event_title';
 const DETAIL_FIELD_ID = 'fixed_event_detail';
 const TEXT_MAX_LENGTH_DEFAULT = 20;
 const TEXTAREA_MAX_LENGTH_DEFAULT = 500;
+const TEXT_MAX_LENGTH_LIMIT = 5000;
+
+const defaultMaxLengthOf = (multiline?: boolean) =>
+  multiline ? TEXTAREA_MAX_LENGTH_DEFAULT : TEXT_MAX_LENGTH_DEFAULT;
+
+/** 单行 / 多行互切时，仍为原默认值的上限随之切换；自定义值保留 */
+const switchMaxLength = (current: number | undefined, fromMultiline: boolean, toMultiline: boolean) =>
+  current === defaultMaxLengthOf(fromMultiline) ? defaultMaxLengthOf(toMultiline) : current;
+
+const isValidMaxLength = (value?: number) =>
+  value === undefined || (Number.isInteger(value) && value >= 1 && value <= TEXT_MAX_LENGTH_LIMIT);
+
+const parseMaxLengthInput = (raw: string): number | undefined =>
+  raw.trim() === '' ? undefined : Number(raw);
 
 const fixedReportFields: TemplateField[] = [
   {
@@ -348,6 +440,109 @@ const fixedReportFields: TemplateField[] = [
 const isFixedReportField = (id?: string) => fixedReportFields.some(f => f.id === id);
 const isLockedField = (field?: TemplateField) => !!field && (field.locked ?? isFixedReportField(field.id));
 const isRequiredLockedField = (field?: TemplateField) => !!field && field.id === TITLE_FIELD_ID;
+
+const isAutoWideOnPc = (field: TemplateField) =>
+  isLockedField(field) ||
+  !!field.multiline ||
+  ['file', 'identity', 'address', 'link', 'radio', 'checkbox', 'multi_select', 'static_text'].includes(field.type) ||
+  (field.type === 'text' && /内容|摘要|简述|说明|情况|描述|详情/.test(field.name));
+
+/** 与 MT 共用存储键：机构端可消费平台下发的固定字段规则 */
+const FIXED_FIELD_RULE_STORAGE_KEY = 'mt_global_fixed_report_field_rule';
+const institutionFixedFieldRuleKey = (institutionId: string | number) =>
+  `mt_inst_fixed_field_rule_${institutionId}`;
+
+type StoredRuleField = Omit<TemplateField, 'maxLength'> & { maxLength?: number | null };
+
+const fromStoredRule = (list: StoredRuleField[]): TemplateField[] =>
+  normalizeFixedFieldConstraints(
+    list.map(f => ({
+      ...f,
+      locked: true,
+      required: f.id === DETAIL_FIELD_ID ? true : f.required,
+      maxLength: f.maxLength === undefined ? defaultMaxLengthOf(f.multiline) : f.maxLength ?? undefined
+    }))
+  );
+
+const readFixedFieldRule = (): TemplateField[] => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(FIXED_FIELD_RULE_STORAGE_KEY) || 'null');
+    if (Array.isArray(parsed) && parsed.some((f: TemplateField) => f.id === TITLE_FIELD_ID)) {
+      return fromStoredRule(parsed);
+    }
+  } catch {
+    // ignore
+  }
+  return fixedReportFields.map(f => ({ ...f }));
+};
+
+const readInstitutionFixedFieldRule = (institutionId?: string | number): TemplateField[] | null => {
+  if (institutionId === undefined || institutionId === '') return null;
+  try {
+    const parsed = JSON.parse(localStorage.getItem(institutionFixedFieldRuleKey(institutionId)) || 'null');
+    if (Array.isArray(parsed) && parsed.some((f: TemplateField) => f.id === TITLE_FIELD_ID)) {
+      return fromStoredRule(parsed);
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+};
+
+const readEffectiveFixedFieldRule = (institutionId?: string | number): TemplateField[] =>
+  readInstitutionFixedFieldRule(institutionId) ?? readFixedFieldRule();
+
+const withPcWidthFrom = (fields: TemplateField[], ruleField: TemplateField): TemplateField => {
+  const pcWidth = fields.find(f => f.id === ruleField.id)?.pcWidth;
+  return pcWidth ? { ...ruleField, pcWidth } : ruleField;
+};
+
+/** 新建报送模板时按规则重排前置固定字段 */
+const applyFixedFieldRule = (fields: TemplateField[], institutionId?: string | number): TemplateField[] => {
+  const rule = readEffectiveFixedFieldRule(institutionId);
+  const ruleIds = new Set(rule.map(f => f.id));
+  const ruleNames = new Set([...rule, ...readFixedFieldRule()].map(f => f.name));
+  return normalizeFixedFieldConstraints([
+    ...rule.map(f => withPcWidthFrom(fields, { ...f, locked: true })),
+    ...fields.filter(
+      f =>
+        !ruleIds.has(f.id) &&
+        !isFixedReportField(f.id) &&
+        !isLockedField(f) &&
+        !ruleNames.has(f.name) &&
+        !/事件标题|事件详情|上报标题|上报内容描述/.test(f.name)
+    )
+  ]);
+};
+
+const fieldControlOf = (field: TemplateField): FieldControl =>
+  field.type === 'text' && field.multiline ? 'textarea' : field.type;
+
+const changeFieldControl = (field: TemplateField, control: FieldControl): TemplateField => {
+  const type: FieldType = control === 'textarea' ? 'text' : control;
+  return {
+    ...field,
+    type,
+    multiline: control === 'textarea' ? true : undefined,
+    maxLength:
+      type !== 'text'
+        ? undefined
+        : field.type === 'text'
+          ? switchMaxLength(field.maxLength, !!field.multiline, control === 'textarea')
+          : defaultMaxLengthOf(control === 'textarea'),
+    options: OPTION_FIELD_TYPES.includes(type)
+      ? field.options?.length
+        ? field.options
+        : ['选项一', '选项二', '选项三']
+      : type === 'identity'
+        ? field.options || ['超级管理员', '机构管理员', '上报员', '审核员']
+        : undefined,
+    ...(type === 'static_text' ? { required: false } : {}),
+    ...((type === 'static_text') !== (field.type === 'static_text')
+      ? { placeholder: '', name: type === 'static_text' ? '' : field.name || '自定义字段' }
+      : {})
+  };
+};
 
 const normalizeFixedFieldConstraints = (fields: TemplateField[]): TemplateField[] =>
   fields.map(f => {
@@ -681,12 +876,12 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       { id: '304', name: '跨管辖范围报送', dictCategory: 'reject_reason', dictCategoryName: '拒绝理由', dictCode: 'REJECT_004', sortOrder: 4, isDefault: false, status: '启用', updateTime: '2023-11-02 11:10:00', description: '不属于本辖区或本部门职责处理范畴，需退回重拟' },
       { id: '305', name: '凭证图片模糊不符', dictCategory: 'reject_reason', dictCategoryName: '拒绝理由', dictCode: 'REJECT_005', sortOrder: 5, isDefault: false, status: '启用', updateTime: '2023-11-05 14:00:00', description: '上传的现场截图或说明文件无法有效佐证主张' },
 
-      { id: 'd201', name: '工作提示', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_001', sortOrder: 1, isDefault: true, status: '启用', updateTime: '2023-10-01 08:00:00', description: '日常工作安排、注意事项等提示类公告' },
-      { id: 'd202', name: '紧急通知', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_002', sortOrder: 2, isDefault: true, status: '启用', updateTime: '2023-10-01 08:00:00', description: '需要立即知悉或处置的紧急事项通知' },
-      { id: 'd203', name: '业务通报', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_003', sortOrder: 3, isDefault: false, status: '启用', updateTime: '2023-10-10 10:00:00', description: '报送情况、典型案例等业务通报' },
-      { id: 'd204', name: '政策下达', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_004', sortOrder: 4, isDefault: false, status: '启用', updateTime: '2023-10-12 09:00:00', description: '上级政策文件、制度规范的转发与传达' },
-      { id: 'd205', name: '系统通知', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_005', sortOrder: 5, isDefault: false, status: '启用', updateTime: '2023-10-12 09:00:00', description: '系统升级、维护及功能变更通知' },
-      { id: 'd206', name: '考核公示', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_006', sortOrder: 6, isDefault: false, status: '启用', updateTime: '2023-10-12 09:00:00', description: '考核排名、积分结果等公示信息' },
+      { id: 'd201', name: '通知公告', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_001', sortOrder: 1, isDefault: true, status: '启用', updateTime: '2023-10-01 08:00:00', description: '工作安排、会议通知等日常通知类公告' },
+      { id: 'd202', name: '工作动态', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_002', sortOrder: 2, isDefault: false, status: '启用', updateTime: '2023-10-01 08:00:00', description: '机构工作进展与重要活动动态' },
+      { id: 'd203', name: '政策解读', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_003', sortOrder: 3, isDefault: false, status: '启用', updateTime: '2023-10-10 10:00:00', description: '上级政策文件发布与解读说明' },
+      { id: 'd204', name: '培训通知', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_004', sortOrder: 4, isDefault: false, status: '启用', updateTime: '2023-10-12 09:00:00', description: '上报员、审核员业务培训安排' },
+      { id: 'd205', name: '表彰通报', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_005', sortOrder: 5, isDefault: false, status: '启用', updateTime: '2023-10-12 09:00:00', description: '优秀报送表彰与考核结果通报' },
+      { id: 'd206', name: '系统公告', dictCategory: 'info_category', dictCategoryName: '公告分类', dictCode: 'NOTICE_006', sortOrder: 6, isDefault: false, status: '启用', updateTime: '2023-10-12 09:00:00', description: '系统升级、维护停机等平台公告' },
 
       { id: 'd301', name: '网格员现场提报', dictCategory: 'source_channel', dictCategoryName: '来源渠道', dictCode: 'CHANNEL_001', sortOrder: 1, isDefault: true, status: '启用', updateTime: '2023-10-01 08:00:00', description: '基层网格人员实地巡查采集上报' },
       { id: 'd302', name: '全网自动化爬虫捕获', dictCategory: 'source_channel', dictCategoryName: '来源渠道', dictCode: 'CHANNEL_002', sortOrder: 2, isDefault: false, status: '启用', updateTime: '2023-10-05 11:30:00', description: '舆情监测系统自动预警推送' },
@@ -808,7 +1003,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         ownerMissingStrategy: 'skip_to_next',
         auditNodes: [
           { id: 'an0', nodeName: '上报人', approverRole: '上报功能人员暂无限制', rejectStrategy: 'return_submitter', timeLimitMinutes: 10, dynamicMechanism: '上报功能人员暂无限制', isSubmitStage: true, enableTimeout: false },
-          { id: 'an2', nodeName: '机构逐级审核', approverRole: '归属机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_submitter', timeLimitMinutes: 30, dynamicMechanism: '自上报机构逐级向上审核' },
+          { id: 'an2', nodeName: '机构逐级审核', approverRole: '审核员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 30, dynamicMechanism: '自上报机构逐级向上审核' },
           { id: 'an3', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, dynamicMechanism: '固定总机构管理员终审+评分', isUnifiedFinalNode: true }
         ],
         orgSettings: [
@@ -838,7 +1033,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         ownerMissingStrategy: 'skip_to_next',
         auditNodes: [
           { id: 'an200', nodeName: '上报人', approverRole: '上报功能人员暂无限制', rejectStrategy: 'return_submitter', timeLimitMinutes: 10, dynamicMechanism: '上报功能人员暂无限制', isSubmitStage: true, enableTimeout: false },
-          { id: 'an202', nodeName: '中间机构流转 (最多3级，含本级初审)', approverRole: '归属机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_previous', timeLimitMinutes: 20, dynamicMechanism: '含本级初审，从上报机构向上最多经过设定级数，超出直达总机构' },
+          { id: 'an202', nodeName: '中间机构流转', approverRole: '审核员', assigneeSource: 'role', rejectStrategy: 'return_previous', timeLimitMinutes: 20, dynamicMechanism: '含本级初审，从上报机构向上最多经过设定级数，超出直达总机构' },
           { id: 'an203', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, dynamicMechanism: '固定总机构管理员终审+评分', isUnifiedFinalNode: true }
         ],
         orgSettings: [
@@ -934,6 +1129,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
   });
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [configListPage, setConfigListPage] = useState(1);
   const [templateTypeFilter] = useState<'报送' | '激活'>('报送');  const [auditFlowModeFilter, setAuditFlowModeFilter] = useState<'all' | 'step_by_step' | 'direct_headquarters' | 'max_n_steps'>('all');
   const [auditScoreStatusFilter, setAuditScoreStatusFilter] = useState<'all' | 'active' | 'backup'>('all');
   const [metricNameInput, setMetricNameInput] = useState('');
@@ -987,6 +1183,19 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
   const orgPickerAnchorRef = useRef<HTMLDivElement | null>(null);
   const orgPickerPanelRef = useRef<HTMLDivElement | null>(null);
   const [newCustomOrgName, setNewCustomOrgName] = useState<string>('');
+  const [externalPersonPickerOrgId, setExternalPersonPickerOrgId] = useState<string | null>(null);
+  const [isExternalPersonPickerOpen, setIsExternalPersonPickerOpen] = useState(false);
+  const externalPersonPickerRef = useRef<HTMLDivElement | null>(null);
+  const [isRolePickerOpen, setIsRolePickerOpen] = useState(false);
+  const rolePickerRef = useRef<HTMLDivElement | null>(null);
+  type AuditFlowModeDraft = {
+    nodes: AuditNode[];
+    selectedId: string | null;
+    depth: number;
+    direction?: 'up' | 'down';
+  };
+  const flowModeDraftsRef = useRef<Partial<Record<AuditFlowMode, AuditFlowModeDraft>>>({});
+  const auditFlowBaselineRef = useRef<string | null>(null);
 
   // Audit Flow Hierarchy Enhanced States
   const [formAuditFlowMode, setFormAuditFlowMode] = useState<AuditFlowMode>('step_by_step');
@@ -1172,7 +1381,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       fullLabel: '公告分类',
       codePrefix: 'NOTICE_',
       tone: 'purple',
-      description: '发布公告时选择的分类，用于公告列表筛选与展示。'
+      description: '发布公告时选择所属分类，便于公告筛选与统计。'
     },
     {
       id: 'source_channel',
@@ -1580,11 +1789,44 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     };
   };
 
-  const auditAssigneeSourceOptions = [
-    { id: 'role', label: '按角色', description: '从人员角色中匹配可审核人员' },
-    { id: 'user', label: '指定人员', description: '固定由某个具体人员处理' },
-    { id: 'org_owner', label: '归属机构负责人', description: '按上报人归属机构自动匹配负责人' }
-  ] as const;
+  /** 终审节点取内部机构角色/人员，其余节点取外部组织角色/人员（与 MT 对齐） */
+  const internalAuditRoleOptions = ['总机构管理员', '审核主管', '值班审核员', '评分专员'];
+  /** 模式一/二外部组织角色可选 */
+  const externalOrgRoleOptions = ['审核员', '系统管理员'];
+
+  /** 模式一/二中间阶段、以及终审节点不提供「归属外部机构负责人」 */
+  const getAuditAssigneeSourceOptionsForNode = (node?: AuditNode | null, index = 0) => {
+    const isSubmit = Boolean(node?.isSubmitStage || node?.nodeName === '上报人' || node?.nodeName === '上报');
+    const isFinal = Boolean(node?.isUnifiedFinalNode || (!isSubmit && index === formAuditNodes.length - 1));
+    const isMode12Intermediate =
+      (formAuditFlowMode === 'step_by_step' || formAuditFlowMode === 'max_n_steps') && !isSubmit && !isFinal;
+    if (isFinal) {
+      return [
+        { id: 'role' as const, label: '内部机构角色', hint: '在总机构内部按角色匹配处理人员' },
+        { id: 'user' as const, label: '内部机构人员', hint: '固定由总机构内部的某个人员处理' }
+      ];
+    }
+    if (isMode12Intermediate) {
+      return [
+        { id: 'role' as const, label: '外部组织角色', hint: '仅在上报人归属的外部组织内按角色匹配处理人员' },
+        { id: 'user' as const, label: '外部组织人员', hint: '指定外部组织人员，可跨机构选择' }
+      ];
+    }
+    return [
+      { id: 'org_owner' as const, label: '归属外部机构负责人', hint: '仅在上报人归属的外部机构内匹配负责人' },
+      { id: 'role' as const, label: '归属外部机构角色', hint: '仅在上报人归属的外部机构内匹配该外部角色人员' },
+      { id: 'user' as const, label: '指定外部人员（可跨机构）', hint: '指定外部人员可跨机构选择，不受上报人归属机构限制' }
+    ];
+  };
+  const getNodeSourceOption = (node?: AuditNode | null, index = 0) => {
+    const options = getAuditAssigneeSourceOptionsForNode(node, index);
+    return options.find(o => o.id === (node?.assigneeSource || 'role')) || options[0];
+  };
+  const getNodeRoleOptions = (node?: AuditNode | null, index = 0) => {
+    const isSubmit = Boolean(node?.isSubmitStage || node?.nodeName === '上报人' || node?.nodeName === '上报');
+    const isFinal = Boolean(node?.isUnifiedFinalNode || (!isSubmit && index === formAuditNodes.length - 1));
+    return isFinal ? internalAuditRoleOptions : externalOrgRoleOptions;
+  };
 
   const auditFlowModeOptions: Array<{
     id: AuditFlowMode;
@@ -1643,8 +1885,114 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     }
   ];
 
-  const auditRoleOptions = ['初审员', '网格员', '值班员', '科室负责人', '舆情专员', '主管领导', '平台管理员'];
-  const auditUserOptions = ['张三', '李娜', '王强', '赵敏', '陈主任'];
+  /** 总机构（内部）根节点 */
+  const INTERNAL_HQ_ROOT_ID = 'org-2';
+  const collectOrgSubtreeIds = (rootId: string) => {
+    const ids = new Set<string>([rootId]);
+    let growing = true;
+    while (growing) {
+      growing = false;
+      INITIAL_ORG_NODES.forEach(node => {
+        if (node.parentId && ids.has(node.parentId) && !ids.has(node.id)) {
+          ids.add(node.id);
+          growing = true;
+        }
+      });
+    }
+    return ids;
+  };
+  const internalOrgIdSet = collectOrgSubtreeIds(INTERNAL_HQ_ROOT_ID);
+  const flattenOrgNodesByFilter = (
+    allow: (id: string) => boolean,
+    parentId: string | null = null,
+    depth = 0
+  ): Array<{ id: string; name: string; depth: number }> =>
+    INITIAL_ORG_NODES.filter(
+      node => (node.parentId ?? null) === parentId && allow(node.id)
+    )
+      .sort((a, b) => (b.sortOrder || 0) - (a.sortOrder || 0))
+      .flatMap(node => [
+        { id: node.id, name: node.name, depth },
+        ...flattenOrgNodesByFilter(allow, node.id, depth + 1)
+      ]);
+  /** 外部组织：非总机构子树 */
+  const flatExternalOrgNodes = flattenOrgNodesByFilter(id => !internalOrgIdSet.has(id));
+  /** 内部机构：总机构及其下级 */
+  const flatInternalOrgNodes = (() => {
+    const root = INITIAL_ORG_NODES.find(node => node.id === INTERNAL_HQ_ROOT_ID);
+    if (!root) return [] as Array<{ id: string; name: string; depth: number }>;
+    return [
+      { id: root.id, name: root.name, depth: 0 },
+      ...flattenOrgNodesByFilter(id => internalOrgIdSet.has(id) && id !== INTERNAL_HQ_ROOT_ID, INTERNAL_HQ_ROOT_ID, 1)
+    ];
+  })();
+  const getOrgNameById = (orgId?: string) =>
+    INITIAL_ORG_NODES.find(item => item.id === orgId)?.name || '';
+  const getPeopleByOrgId = (orgId?: string | null) =>
+    INITIAL_PERSONNEL.filter(
+      person =>
+        person.status === '启用' &&
+        !person.recycled &&
+        (person.primaryOrgId === orgId || person.orgIds.includes(orgId || ''))
+    );
+  /** 内部机构补充演示人员（总机构树人员较少时） */
+  const internalDemoPeopleByOrg: Record<string, string[]> = {
+    'org-2': ['陈主任', '王飞飞'],
+    'org-2-1': ['刘审核', '周值班']
+  };
+  const getInternalPeopleByOrgId = (orgId?: string | null) => {
+    const fromShared = getPeopleByOrgId(orgId).map(person => ({
+      id: String(person.id),
+      name: person.realName
+    }));
+    const demo = (internalDemoPeopleByOrg[orgId || ''] || []).map((name, index) => ({
+      id: `demo-${orgId}-${index}`,
+      name
+    }));
+    const names = new Set(fromShared.map(item => item.name));
+    return [...fromShared, ...demo.filter(item => !names.has(item.name))];
+  };
+  const getAssigneeUsers = (node?: AuditNode | null): Array<{ orgId: string; userName: string }> => {
+    if (!node) return [];
+    if (node.assigneeUsers?.length) return node.assigneeUsers;
+    if (node.assigneeUserName) {
+      return node.assigneeUserName.split('、').filter(Boolean).map((userName, index) => ({
+        orgId: index === 0 ? (node.assigneeOrgId || '') : '',
+        userName: userName.trim()
+      }));
+    }
+    return [];
+  };
+  const formatAssigneeUsersLabel = (node?: AuditNode | null, internal = false) => {
+    const users = getAssigneeUsers(node);
+    if (users.length === 0) return '';
+    const fallback = internal ? '内部机构' : '外部组织';
+    return users
+      .map(user => `${getOrgNameById(user.orgId) || fallback} / ${user.userName}`)
+      .join('、');
+  };
+  const buildAssigneeUserUpdates = (users: Array<{ orgId: string; userName: string }>) => ({
+    assigneeUsers: users,
+    assigneeUserName: users.map(user => user.userName).join('、'),
+    assigneeOrgId: users[0]?.orgId,
+    approverRole: users.map(user => user.userName).join('、')
+  });
+  const getApproverRoles = (node?: AuditNode | null, options?: string[]): string[] => {
+    if (!node) return [];
+    const available = options || [];
+    if (node.approverRoles?.length) {
+      return available.length ? node.approverRoles.filter(role => available.includes(role)) : node.approverRoles;
+    }
+    if (node.approverRole) {
+      const parts = node.approverRole.split('、').map(role => role.trim()).filter(Boolean);
+      return available.length ? parts.filter(role => available.includes(role)) : parts;
+    }
+    return [];
+  };
+  const buildApproverRoleUpdates = (roles: string[]) => ({
+    approverRoles: roles,
+    approverRole: roles.join('、')
+  });
   const auditTemplateApplyOptions: Array<{ id: AuditTemplateApplyMode; label: string; description: string }> = [
     { id: 'single_template', label: '指定模板', description: '仅绑定一个上报模板，适合专项流程' },
     { id: 'all_report_templates', label: '全部报送模板通用', description: '所有报送类模板统一使用该审核流程' }
@@ -1656,8 +2004,8 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     { id: 'fallback_user', label: '转交指定人员', description: '自动分配给固定人员临时代办' }
   ];
 
-  const getAuditAssigneeSourceLabel = (source?: AuditNode['assigneeSource']) =>
-    auditAssigneeSourceOptions.find(item => item.id === source)?.label || '按角色';
+  const getAuditAssigneeSourceLabel = (node?: AuditNode | null, index = 0) =>
+    getNodeSourceOption(node, index)?.label || '外部组织角色';
 
   const getAuditTemplateScopeText = (item: ConfigModuleItem) => {
     if (item.templateApplyMode === 'all_report_templates' || item.relatedTemplateId === 'all_report_templates') return '全部报送模板通用';
@@ -1725,10 +2073,8 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     });
   };
 
-  const maxNMiddleNodeName = (depth: number, direction: 'up' | 'down' = 'up') =>
-    direction === 'down'
-      ? `中间机构流转 (最多${depth}级，从总机构向下)`
-      : `中间机构流转 (最多${depth}级，含本级初审)`;
+  const maxNMiddleNodeName = (_depth?: number, _direction: 'up' | 'down' = 'up') =>
+    '中间机构流转';
 
   const maxNMiddleNodeMechanism = (direction: 'up' | 'down' = 'up') =>
     direction === 'down'
@@ -1739,7 +2085,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     if (mode === 'step_by_step') {
       return [
         { id: 'an_0', nodeName: '上报人', approverRole: '上报功能人员暂无限制', rejectStrategy: 'return_submitter', timeLimitMinutes: 10, dynamicMechanism: '上报功能人员暂无限制', missingRule: 'skip', isSubmitStage: true, enableTimeout: false },
-        { id: 'an_2', nodeName: adaptiveStepName, approverRole: '归属机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_submitter', timeLimitMinutes: 30, dynamicMechanism: adaptiveStepMechanism, missingRule: 'skip', enableTimeout: false },
+        { id: 'an_2', nodeName: adaptiveStepName, approverRole: '审核员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 30, dynamicMechanism: adaptiveStepMechanism, missingRule: 'skip', enableTimeout: false },
         { id: 'an_3', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, dynamicMechanism: '固定总机构管理员终审+评分', missingRule: 'block', isUnifiedFinalNode: true, enableTimeout: false }
       ];
     }
@@ -1747,7 +2093,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       const level = depth || 3;
       return [
         { id: 'an_200', nodeName: '上报人', approverRole: '上报功能人员暂无限制', rejectStrategy: 'return_submitter', timeLimitMinutes: 10, dynamicMechanism: '上报功能人员暂无限制', missingRule: 'skip', isSubmitStage: true, enableTimeout: false },
-        { id: 'an_202', nodeName: maxNMiddleNodeName(level, direction), approverRole: '归属机构负责人', assigneeSource: 'org_owner', rejectStrategy: 'return_submitter', timeLimitMinutes: 30, dynamicMechanism: maxNMiddleNodeMechanism(direction), missingRule: 'skip', enableTimeout: false },
+        { id: 'an_202', nodeName: maxNMiddleNodeName(level, direction), approverRole: '审核员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 30, dynamicMechanism: maxNMiddleNodeMechanism(direction), missingRule: 'skip', enableTimeout: false },
         { id: 'an_203', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, dynamicMechanism: '固定总机构管理员终审+评分', missingRule: 'block', isUnifiedFinalNode: true, enableTimeout: false }
       ];
     }
@@ -1807,7 +2153,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     return normalized;
   };
 
-  const buildAuditFlowLinearPreviewData = (item: ConfigModuleItem, preferredStepsPerRow = 4, singleRowLimit = 5) => {
+  const buildAuditFlowLinearPreviewData = (item: ConfigModuleItem, _preferredStepsPerRow = 6, _singleRowLimit = 6) => {
     const mode = resolveAuditFlowMode(item);
     const direction = item.flowLevelDirection === 'down' ? 'down' : 'up';
     const depth = item.flowDepth || item.maxIntermediateNodes || 3;
@@ -1822,95 +2168,76 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
             ? collapseAdaptiveMiddleNodes(rawNodes)
             : buildDefaultFlowNodes(mode, depth, direction));
 
-    let flowSteps: Array<{
-      id: string;
-      type: 'start' | 'node' | 'end';
-      title: string;
-      description: string;
-      ruleDescription?: string;
-      isFinalNode?: boolean;
-      enableTimeout?: boolean;
-      timeLimitMinutes?: number;
-      assigneeSource?: string;
-      approverRole?: string;
-      assigneeUserName?: string;
-      ownerMissingStrategy?: string;
-      rejectStrategy?: string;
-    }> = [
+    const needsSubmitStage =
+      mode !== 'direct_headquarters' && !nodes.some(node => node.isSubmitStage);
+    const previewNodes = needsSubmitStage
+      ? [
+          {
+            id: 'submit-stage',
+            nodeName: '上报人',
+            approverRole: '上报功能人员暂无限制',
+            isSubmitStage: true,
+            timeLimitMinutes: 0,
+          } as AuditNode,
+          ...nodes,
+        ]
+      : nodes;
+
+    const flowSteps = [
       { id: 'start', type: 'start' as const, title: '开始', description: '发起上报' },
-      ...nodes.map((node, index) => {
-        const isFinalNode = Boolean(node.isUnifiedFinalNode || (!node.isSubmitStage && index === nodes.length - 1));
+      ...previewNodes.map((node, index) => {
+        const isFinalScoreNode = Boolean(
+          node.isUnifiedFinalNode || (!node.isSubmitStage && index === previewNodes.length - 1)
+        );
         const roleText = node.isSubmitStage
           ? '上报功能人员暂无限制'
           : node.nodeName === adaptiveStepName
             ? adaptiveStepMechanism
-            : node.assigneeSource === 'org_owner'
-              ? '归属机构负责人'
-              : node.assigneeSource === 'user'
-                ? (node.assigneeUserName || '指定人员')
-                : (node.approverRole || '审核员');
-
-        const isTimeoutOn = node.enableTimeout !== false && (node.timeLimitMinutes ?? 0) > 0 && !node.isSubmitStage;
-        const timeoutText = isTimeoutOn
-          ? (node.timeLimitMinutes! >= 60 && node.timeLimitMinutes! % 60 === 0
-              ? `限时${node.timeLimitMinutes! / 60}小时`
-              : `限时${node.timeLimitMinutes}分`)
-          : '';
-
-        const rejectText = node.isSubmitStage
-          ? ''
-          : (node.rejectStrategy === 'return_previous' ? '退回上一节点' : '退回上报人');
-
+            : node.approverRole ||
+              (node.assigneeSource === 'org_owner' ? '归属机构负责人' : '指定角色');
+        const timeText = node.timeLimitMinutes
+          ? node.timeLimitMinutes >= 60
+            ? `${node.timeLimitMinutes / 60}小时`
+            : `${node.timeLimitMinutes}分`
+          : '15分';
         return {
-          id: node.id || `node_${index}`,
+          id: node.id || `node-${index}`,
           type: 'node' as const,
-          title: node.nodeName,
-          description: roleText,
-          ruleDescription: [timeoutText, rejectText].filter(Boolean).join(' · ') || (node.dynamicMechanism || ''),
-          isFinalNode,
-          enableTimeout: isTimeoutOn,
-          timeLimitMinutes: node.timeLimitMinutes,
-          assigneeSource: node.assigneeSource,
-          approverRole: node.approverRole,
-          assigneeUserName: node.assigneeUserName,
-          ownerMissingStrategy: node.ownerMissingStrategy,
-          rejectStrategy: node.rejectStrategy
+          isFinalScoreNode,
+          title: node.nodeName || `审核节点 ${index + 1}`,
+          description: node.isSubmitStage ? roleText : `${roleText}；限时${timeText}`,
+          ruleDescription: '',
         };
       }),
-      { id: 'end', type: 'end' as const, title: '结束', description: '审核+评分+流程全完成' }
+      { id: 'end', type: 'end' as const, title: '结束', description: '审核+评分+流程全完成' },
     ];
+    const stepsPerRow = flowSteps.length;
+    const flowRows = [flowSteps];
+    const panelWidth = Math.min(960, Math.max(680, flowSteps.length * 150 + 60));
 
-    const stepsPerRow = flowSteps.length <= singleRowLimit ? flowSteps.length : preferredStepsPerRow;
-    const flowRows = flowSteps.reduce<Array<typeof flowSteps>>((rows, step, index) => {
-      if (index % stepsPerRow === 0) rows.push([]);
-      rows[rows.length - 1].push(step);
-      return rows;
-    }, []);
-    const longestRowLength = Math.max(...flowRows.map(row => row.length), 1);
-    const panelWidth = Math.min(960, Math.max(560, longestRowLength * 135 + (longestRowLength - 1) * 44 + 40));
+    const modeText =
+      mode === 'direct_headquarters'
+        ? '模式三：直达总机构审核（极速直达）'
+        : mode === 'max_n_steps'
+          ? '模式二：最多N级审核（上限截断）'
+          : '模式一：逐级审核（组织树自适应）';
 
-    const modeLabel = mode === 'step_by_step'
-      ? '模式一：逐级审核（组织树自适应）'
-      : mode === 'max_n_steps'
-        ? `模式二：最多${depth}级审核`
-        : '模式三：直达总机构审核（极速直达）';
+    const stageText =
+      mode === 'direct_headquarters'
+        ? '2 级阶段（标准固定）'
+        : mode === 'max_n_steps'
+          ? `3 级阶段（上限${depth}级截断）`
+          : `${previewNodes.length} 级阶段（组织树自适应）`;
 
-    const stageText = mode === 'direct_headquarters'
-      ? '2 级阶段（标准固定）'
-      : mode === 'max_n_steps'
-        ? `3 级阶段（上限${depth}级截断）`
-        : `${nodes.length} 级阶段（组织树自适应）`;
+    const missingText =
+      item.auditNodes?.[0]?.missingRule === 'block' ||
+      item.auditNodes?.[0]?.ownerMissingStrategy === 'block_submit'
+        ? '阻断提报'
+        : getOwnerMissingStrategyText(item) || '跳过该节点';
 
-    const enabledTimeoutCount = nodes.filter(n => !n.isSubmitStage && n.enableTimeout !== false && (n.timeLimitMinutes ?? 0) > 0).length;
-    const totalNodesCount = nodes.length;
-
-    const timeoutSummary = totalNodesCount > 0
-      ? enabledTimeoutCount === 0
-        ? '全节点关停超时提醒'
-        : enabledTimeoutCount === totalNodesCount
-          ? `全部节点开启提醒 (${enabledTimeoutCount}个)`
-          : `${enabledTimeoutCount}/${totalNodesCount} 节点开启提醒`
-      : '按节点规则配置';
+    const enabledTimeoutCount = previewNodes.filter(
+      n => !n.isSubmitStage && n.enableTimeout !== false && (n.timeLimitMinutes ?? 0) > 0
+    ).length;
 
     return {
       flowSteps,
@@ -1918,117 +2245,84 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       stepsPerRow,
       panelWidth,
       summaryItems: [
-        { label: '流程模式', value: modeLabel },
+        { label: '流程模式', value: modeText },
         { label: '启用状态', value: item.status || '启用' },
         { label: '审批阶段', value: stageText },
         { label: '终审评分机制', value: '总机构终审并评分（一体化统一节点）' },
-        { label: '超时提醒配置', value: timeoutSummary },
-        { label: '无负责人策略', value: getOwnerMissingStrategyText(item) },
+        {
+          label: '超时提醒配置',
+          value: `全部节点开启提醒（${enabledTimeoutCount || previewNodes.length} 个）`,
+        },
+        { label: '无负责人策略', value: missingText },
       ],
     };
   };
 
   const renderAuditFlowLinearRows = (
     flowSteps: ReturnType<typeof buildAuditFlowLinearPreviewData>['flowSteps'],
-    flowRows: ReturnType<typeof buildAuditFlowLinearPreviewData>['flowRows'],
-    stepsPerRow: number,
-    compact = false
+    _flowRows: ReturnType<typeof buildAuditFlowLinearPreviewData>['flowRows'],
+    _stepsPerRow: number,
+    _compact = false
   ) => {
-    const stepWidthClass = compact ? 'w-[110px]' : 'w-[130px]';
-    const connectorWidthClass = compact ? 'w-6' : 'w-10';
-
     return (
-    <div className="space-y-5 max-w-full overflow-hidden">
-      {flowRows.map((row, rowIndex) => {
-        const isReversedRow = flowRows.length > 1 && rowIndex % 2 === 1;
-        const displayRow = isReversedRow ? [...row].reverse() : row;
+      <div className="w-full bg-white rounded-xl border border-gray-200/80 px-3 py-5 overflow-hidden">
+        <div className="flex items-start w-full">
+          {flowSteps.map((step, index) => {
+            const isStart = step.type === 'start';
+            const isEnd = step.type === 'end';
+            const isFinal =
+              ('isFinalScoreNode' in step && Boolean(step.isFinalScoreNode)) ||
+              step.title.includes('终审并评分');
 
-        return (
-        <React.Fragment key={`row-${rowIndex}`}>
-          <div className="flex items-start justify-center max-w-full">
-            {displayRow.map((step, stepIndex) => {
-              const absoluteIndex = flowSteps.findIndex(item => item.id === step.id);
-              const isStart = step.type === 'start';
-              const isEnd = step.type === 'end';
-              const isFinalNode = ('isFinalNode' in step && step.isFinalNode) || step.title.includes('终审并评分');
-
-              const circleClassName = isStart
-                ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                : isEnd
-                  ? 'bg-gray-100 border-gray-300 text-gray-600'
-                  : isFinalNode
-                    ? 'bg-amber-50 border-amber-400 text-amber-900 ring-2 ring-amber-400/30 font-bold'
-                    : 'bg-blue-50 border-blue-200 text-[#1E5ABB]';
-              const dotClassName = isStart
-                ? 'bg-emerald-500'
-                : isEnd
-                  ? 'bg-gray-400'
-                  : isFinalNode
-                    ? 'bg-amber-500'
-                    : 'bg-[#1E5ABB]';
-              const detailText = [
-                step.description,
-                'ruleDescription' in step ? step.ruleDescription : '',
-              ].filter(Boolean).join('；');
-
-              return (
-                <React.Fragment key={step.id}>
-                  <div className={`${stepWidthClass} shrink-0 text-center`}>
-                    <div className={`mx-auto w-9 h-9 rounded-full border flex items-center justify-center ${circleClassName}`}>
-                      {isStart ? (
-                        <CheckCircle2 className="w-4 h-4" />
-                      ) : isEnd ? (
-                        <Check className="w-4 h-4" />
-                      ) : isFinalNode ? (
-                        <Award className="w-4 h-4 text-amber-600" />
-                      ) : (
-                        <span className="text-xs font-bold">{absoluteIndex}</span>
-                      )}
+            return (
+              <React.Fragment key={step.id}>
+                <div className="flex flex-col items-center text-center min-w-0 flex-1">
+                  {isStart ? (
+                    <div className="w-9 h-9 rounded-full bg-[#f6ffed] border border-[#b7eb8f] text-[#52c41a] flex items-center justify-center shadow-2xs shrink-0">
+                      <Check className="w-5 h-5 stroke-[2.5]" />
                     </div>
-                    {isFinalNode && (
-                      <span className="inline-block mt-1 px-1.5 py-0.2 text-[9px] font-bold bg-amber-100 text-amber-800 rounded border border-amber-200">
+                  ) : isEnd ? (
+                    <div className="w-9 h-9 rounded-full bg-gray-100 border border-gray-300 text-gray-500 flex items-center justify-center shadow-2xs shrink-0">
+                      <Check className="w-5 h-5 stroke-[2.5]" />
+                    </div>
+                  ) : isFinal ? (
+                    <div className="relative flex flex-col items-center">
+                      <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-amber-100 text-amber-800 text-[9px] font-bold px-1.5 py-0.5 rounded border border-amber-300 whitespace-nowrap shadow-2xs z-10">
                         终审+评分一体
                       </span>
-                    )}
-                    <div className="mt-1.5 text-xs font-bold text-gray-900 truncate" title={step.title}>
-                      {step.title}
+                      <div className="w-9 h-9 rounded-full bg-amber-50 border border-amber-300 text-amber-600 flex items-center justify-center shadow-2xs">
+                        <Award className="w-5 h-5" />
+                      </div>
                     </div>
-                    <div className="mt-1 text-[10px] text-gray-500 leading-relaxed break-words line-clamp-2" title={detailText}>
-                      {detailText}
-                    </div>
-                  </div>
-                  {stepIndex < displayRow.length - 1 && (
-                    <div className={`${connectorWidthClass} shrink-0 pt-[18px] flex items-center`}>
-                      <div className="h-px bg-gray-200 flex-1 rounded-full" />
-                      <div className={`w-1.5 h-1.5 rounded-full ${dotClassName}`} />
-                      <div className="h-px bg-gray-200 flex-1 rounded-full" />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-blue-50 border border-blue-200 text-[#1890ff] flex items-center justify-center font-bold text-xs shadow-2xs shrink-0">
+                      {index}
                     </div>
                   )}
-                </React.Fragment>
-              );
-            })}
-          </div>
-          {rowIndex < flowRows.length - 1 && (
-            <div
-              className={`mx-auto h-7 w-24 border-b border-gray-200 ${
-                rowIndex % 2 === 0
-                  ? 'border-r rounded-br-3xl'
-                  : 'border-l rounded-bl-3xl'
-              }`}
-            />
-          )}
-        </React.Fragment>
-        );
-      })}
-    </div>
+
+                  <div className="mt-2 w-full text-xs font-bold text-gray-900 leading-snug break-words">
+                    {step.title}
+                  </div>
+                  <div className="mt-1 w-full text-[11px] text-gray-500 leading-normal break-words">
+                    {step.description}
+                  </div>
+                </div>
+                {index < flowSteps.length - 1 && (
+                  <div className="w-4 shrink-0 h-[2px] bg-gray-200 mt-[17px] rounded-full" />
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      </div>
     );
   };
 
   const createDefaultAuditNode = (level: number): AuditNode => ({
     id: 'an_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
     nodeName: level === 1 ? '一级初审' : level === 2 ? '二级复核' : `${level}级签发`,
-    approverRole: level === 1 ? '初审员' : level === 2 ? '科室负责人' : '主管领导',
-    assigneeSource: level === 2 ? 'org_owner' : 'role',
+    approverRole: level === 1 ? '审核员' : level === 2 ? '审核员' : '系统管理员',
+    assigneeSource: 'role',
     assigneeUserName: '',
     rejectStrategy: 'return_submitter',
     timeLimitMinutes: level === 1 ? 15 : level === 2 ? 30 : 45
@@ -2057,6 +2351,60 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     setFormAuditNodes(prev => prev.map((node, i) => (i === index ? { ...node, ...updates } : node)));
   };
 
+  // 模式一/二中间阶段、以及终审节点：纠正处理人来源与角色可选值（与 MT 对齐）
+  useEffect(() => {
+    setFormAuditNodes(prev => {
+      let changed = false;
+      const next = prev.map((node, index) => {
+        const isSubmit = Boolean(node.isSubmitStage || node.nodeName === '上报人' || node.nodeName === '上报');
+        if (isSubmit) return node;
+        const isFinal = Boolean(node.isUnifiedFinalNode || index === prev.length - 1);
+
+        // 终审：内部机构负责人 → 内部机构角色
+        if (isFinal && node.assigneeSource === 'org_owner') {
+          changed = true;
+          return {
+            ...node,
+            assigneeSource: 'role' as const,
+            ...buildApproverRoleUpdates([
+              internalAuditRoleOptions.includes(node.approverRole || '')
+                ? (node.approverRole as string)
+                : internalAuditRoleOptions[0]
+            ]),
+            dynamicMechanism: '固定总机构管理员终审+评分'
+          };
+        }
+
+        const isMode12Intermediate =
+          (formAuditFlowMode === 'step_by_step' || formAuditFlowMode === 'max_n_steps') && !isFinal;
+        if (!isMode12Intermediate) return node;
+
+        let nextNode = node;
+        if (node.assigneeSource === 'org_owner') {
+          changed = true;
+          nextNode = {
+            ...nextNode,
+            assigneeSource: 'role' as const,
+            ...buildApproverRoleUpdates([externalOrgRoleOptions[0]])
+          };
+        } else if (node.assigneeSource === 'role' || !node.assigneeSource) {
+          const validRoles = getApproverRoles(node, externalOrgRoleOptions);
+          if (validRoles.length === 0) {
+            changed = true;
+            nextNode = { ...nextNode, ...buildApproverRoleUpdates([externalOrgRoleOptions[0]]) };
+          } else if (
+            (node.approverRoles?.join('、') || node.approverRole) !== validRoles.join('、')
+          ) {
+            changed = true;
+            nextNode = { ...nextNode, ...buildApproverRoleUpdates(validRoles) };
+          }
+        }
+        return nextNode;
+      });
+      return changed ? next : prev;
+    });
+  }, [formAuditFlowMode, formAuditNodes.length]);
+
   const handleAddAuditNode = () => {
     const nextLevel = formAuditNodes.length + 1;
     const newNode = createDefaultAuditNode(nextLevel);
@@ -2076,28 +2424,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       return next;
     });
     setFormFlowDepth(prev => prev - 1);
-  };
-
-  const handleMoveAuditNode = (index: number, direction: 'up' | 'down') => {
-    const target = direction === 'up' ? index - 1 : index + 1;
-    if (target < 0 || target >= formAuditNodes.length) return;
-    setFormAuditNodes(prev => {
-      const next = [...prev];
-      const current = next[index];
-      next[index] = next[target];
-      next[target] = current;
-      return next;
-    });
-  };
-
-  const handleDragAuditNode = (fromIndex: number, toIndex: number) => {
-    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
-    setFormAuditNodes(prev => {
-      const next = [...prev];
-      const [moved] = next.splice(fromIndex, 1);
-      next.splice(toIndex, 0, moved);
-      return next;
-    });
   };
 
   const handleToggleOrgSetting = (orgId: string) => {
@@ -2151,6 +2477,36 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       document.removeEventListener('touchstart', handlePointerDown, true);
     };
   }, [isOrgPickerOpen]);
+
+  useEffect(() => {
+    if (!isExternalPersonPickerOpen) return;
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node;
+      if (externalPersonPickerRef.current?.contains(target)) return;
+      setIsExternalPersonPickerOpen(false);
+    };
+    document.addEventListener('mousedown', handlePointerDown, true);
+    document.addEventListener('touchstart', handlePointerDown, true);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown, true);
+      document.removeEventListener('touchstart', handlePointerDown, true);
+    };
+  }, [isExternalPersonPickerOpen]);
+
+  useEffect(() => {
+    if (!isRolePickerOpen) return;
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node;
+      if (rolePickerRef.current?.contains(target)) return;
+      setIsRolePickerOpen(false);
+    };
+    document.addEventListener('mousedown', handlePointerDown, true);
+    document.addEventListener('touchstart', handlePointerDown, true);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown, true);
+      document.removeEventListener('touchstart', handlePointerDown, true);
+    };
+  }, [isRolePickerOpen]);
 
   const selectedOrgSettings = formOrgSettings.filter(org => org.enabled);
   const orgPickerQuery = orgPickerSearch.trim().toLowerCase();
@@ -2259,20 +2615,36 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     setFormLevelCount(prev => prev - 1);
   };
 
+  const [draggingScoreLevelIndex, setDraggingScoreLevelIndex] = useState<number | null>(null);
+  const handleDropScoreLevel = (targetIndex: number) => {
+    if (draggingScoreLevelIndex === null || draggingScoreLevelIndex === targetIndex) {
+      setDraggingScoreLevelIndex(null);
+      return;
+    }
+    setFormScoreLevels(prev => {
+      const next = [...prev];
+      const [moved] = next.splice(draggingScoreLevelIndex, 1);
+      next.splice(targetIndex, 0, moved);
+      return next;
+    });
+    setDraggingScoreLevelIndex(null);
+  };
+
   // Field element handlers
   const handleAddField = (type: FieldType = 'text') => {
     const meta = getFieldTypeMeta(type);
     const newField: TemplateField = {
       id: 'f_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-      name: `${meta.label}${formFields.length + 1}`,
-      type: type,
-      required: true,
+      name: type === 'static_text' ? '' : `${meta.label}${formFields.length + 1}`,
+      type,
+      required: type !== 'static_text',
       placeholder: getDefaultFieldPlaceholder(type),
+      maxLength: type === 'text' ? TEXT_MAX_LENGTH_DEFAULT : undefined,
       options: type === 'identity'
         ? [...systemRoleOptions]
-        : type === 'select'
-        ? ['选项一', '选项二', '选项三']
-        : undefined
+        : OPTION_FIELD_TYPES.includes(type)
+          ? ['选项一', '选项二', '选项三']
+          : undefined
     };
     setFormFields(prev => [...prev, newField]);
     setFieldAddNotice(`${meta.label}添加成功`);
@@ -2317,6 +2689,11 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
   const openPreviewItem = (item: ConfigModuleItem) => {
     // 增值业务不提供详情弹窗，仅卡片展示与开通/启禁
     if (activeModule === 'value_added') return;
+    // 审核流程走专用详情弹窗（与 MT 一致）
+    if (activeModule === 'audit_flow') {
+      setSelectedAuditFlowId(item.id);
+      return;
+    }
     setPreviewValues({});
     setPreviewItem(item);
   };
@@ -2340,10 +2717,16 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
   };
 
   const handleLoadStandardPreset = () => {
-    setFormFields((formTemplateType === '激活' ? standardActivationFields : standardReportFields).map(field => ({
-      ...field,
-      options: field.options ? [...field.options] : undefined
-    })));
+    const seed =
+      formTemplateType === '激活'
+        ? standardActivationFields
+        : applyFixedFieldRule(standardReportFields);
+    setFormFields(
+      seed.map(field => ({
+        ...field,
+        options: field.options ? [...field.options] : undefined
+      }))
+    );
     setFieldAddNotice('已使用标准模板');
   };
 
@@ -2359,18 +2742,12 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       return false;
     }
 
-    if (activeModule === 'audit_flow') {
-      return true;
-    }
-
-    if (activeModule === 'audit_score') {
-      return true;
-    }
-
+    const normalizedSearchQuery = searchQuery.trim().toLowerCase();
     const matchesQuery =
-      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (item.dictCode && item.dictCode.toLowerCase().includes(searchQuery.toLowerCase()));
+      !normalizedSearchQuery ||
+      item.name.toLowerCase().includes(normalizedSearchQuery) ||
+      (item.description && item.description.toLowerCase().includes(normalizedSearchQuery)) ||
+      (item.dictCode && item.dictCode.toLowerCase().includes(normalizedSearchQuery));
 
     if (activeModule === 'data_dict' && dictSubCategoryFilter !== 'all') {
       const cat = item.dictCategory || 'reject_reason';
@@ -2378,6 +2755,62 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     }
     return matchesQuery;
   });
+
+  const sortedConfigList =
+    activeModule === 'report_template'
+      ? [...filteredList].sort((a, b) => Number(a.status !== '启用') - Number(b.status !== '启用'))
+      : activeModule === 'data_dict'
+        ? [...filteredList].sort((a, b) => {
+            const categoryCompare = (a.dictCategory || 'reject_reason').localeCompare(b.dictCategory || 'reject_reason');
+            return categoryCompare || (a.sortOrder || 999) - (b.sortOrder || 999);
+          })
+        : filteredList;
+  const configPageSize = activeModule === 'report_template' ? TEMPLATE_LIST_PAGE_SIZE : CONFIG_LIST_PAGE_SIZE;
+  const configTotalPages = Math.max(1, Math.ceil(sortedConfigList.length / configPageSize));
+  const safeConfigListPage = Math.min(configListPage, configTotalPages);
+  const pagedConfigList = sortedConfigList.slice(
+    (safeConfigListPage - 1) * configPageSize,
+    safeConfigListPage * configPageSize
+  );
+
+  useEffect(() => {
+    setConfigListPage(1);
+  }, [activeModule, searchQuery, templateTypeFilter, dictSubCategoryFilter]);
+
+  useEffect(() => {
+    setConfigListPage(prev => Math.min(prev, configTotalPages));
+  }, [configTotalPages]);
+
+  const renderConfigListPagination = (variant: 'card' | 'directory' = 'card') => (
+    <div className={variant === 'directory'
+      ? 'px-2.5 py-2 border-t border-gray-100 bg-white flex items-center justify-between shrink-0'
+      : 'px-3 py-2.5 border border-gray-100 rounded-lg bg-gray-50/60 flex items-center justify-between shrink-0'
+    }>
+      <button
+        type="button"
+        onClick={() => setConfigListPage(prev => Math.max(1, prev - 1))}
+        disabled={safeConfigListPage <= 1}
+        aria-label="上一页"
+        title="上一页"
+        className="w-7 h-7 rounded-md border border-gray-200 bg-white flex items-center justify-center text-gray-500 hover:text-[#1E5ABB] hover:border-blue-200 hover:bg-blue-50 disabled:text-gray-300 disabled:border-gray-100 disabled:bg-gray-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+      >
+        <ChevronLeft className="w-4 h-4" />
+      </button>
+      <span className="text-[11px] font-mono text-gray-500 tabular-nums">
+        {safeConfigListPage} / {configTotalPages}
+      </span>
+      <button
+        type="button"
+        onClick={() => setConfigListPage(prev => Math.min(configTotalPages, prev + 1))}
+        disabled={safeConfigListPage >= configTotalPages}
+        aria-label="下一页"
+        title="下一页"
+        className="w-7 h-7 rounded-md border border-gray-200 bg-white flex items-center justify-center text-gray-500 hover:text-[#1E5ABB] hover:border-blue-200 hover:bg-blue-50 disabled:text-gray-300 disabled:border-gray-100 disabled:bg-gray-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+      >
+        <ChevronRight className="w-4 h-4" />
+      </button>
+    </div>
+  );
 
   const statsMetrics = (dataStore.stats_metric || []).filter(item => {
     if (metricCategoryFilter !== 'all' && item.metricCategory !== metricCategoryFilter) return false;
@@ -2414,10 +2847,12 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     templateType: ConfigModuleItem['templateType'] = formTemplateType,
     variant: 'compact' | 'full' = 'compact',
     customTitle?: string,
-    device: 'h5' | 'pc' = 'h5'
+    device: 'h5' | 'pc' = 'h5',
+    onChangePcWidth?: (fieldId: string, width: PcFieldWidth | undefined) => void
   ) => {
-    const titleText = customTitle || (templateType === '激活' ? '账号激活' : '标准图文报送模板');
+    const titleText = customTitle || (templateType === '激活' ? '账号激活' : '快速上报');
     const isPc = device === 'pc';
+    const fieldBox = isPc ? 'py-2 bg-white rounded-lg text-xs' : 'py-2.5 bg-white rounded-xl text-[13px]';
 
     const panel = (
       <div
@@ -2431,9 +2866,15 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
           <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between gap-3 select-none">
             <div className="min-w-0 flex items-center gap-2">
               <span className="text-sm font-bold text-gray-800 truncate">{titleText}</span>
-              <span className="text-[11px] text-gray-400 shrink-0">
-                带 <span className="text-rose-500">*</span> 为必填项
-              </span>
+              {onChangePcWidth ? (
+                <span className="px-1.5 py-0.5 rounded bg-blue-50 text-[11px] text-[#1E5ABB] shrink-0">
+                  鼠标悬停字段，可切换整行 / 半行布局
+                </span>
+              ) : (
+                <span className="text-[11px] text-gray-400 shrink-0">
+                  带 <span className="text-rose-500">*</span> 为必填项
+                </span>
+              )}
             </div>
             <span className="w-6 h-6 rounded flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
               <WinCloseIcon className="w-4 h-4" />
@@ -2448,7 +2889,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         <div
           className={
             isPc
-              ? 'p-6 grid grid-cols-2 gap-x-5 gap-y-4'
+              ? 'p-6 grid grid-cols-2 gap-x-5 gap-y-4 bg-white'
               : `p-3.5 sm:p-4 ${variant === 'full' ? 'space-y-3' : 'space-y-2.5'}`
           }
         >
@@ -2464,54 +2905,109 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
               const isLongText = field.type === 'text' && (
                 !!field.multiline || /内容|摘要|简述|说明|情况|描述|详情/.test(field.name)
               );
-              const isWideOnPc = isLongText || isLockedField(field) || ['address', 'file', 'identity'].includes(field.type);
+              const autoWideOnPc = isAutoWideOnPc(field);
+              const isWideOnPc = field.pcWidth ? field.pcWidth === 'full' : autoWideOnPc;
+              const canSetPcWidth = isPc && !!onChangePcWidth;
               const selectOptions = field.options && field.options.length > 0
                 ? field.options.filter(option => option.trim())
                 : ['突发敏感事件', '网络舆情动态', '民生诉求建议'];
+              const textLimit = field.type === 'text' && isValidMaxLength(field.maxLength) ? field.maxLength : undefined;
 
               return (
                 <div
                   key={field.id || idx}
                   className={
                     isPc
-                      ? `space-y-1.5 min-w-0 ${isWideOnPc ? 'col-span-2' : ''}`
+                      ? `space-y-1.5 min-w-0 ${isWideOnPc ? 'col-span-2' : ''} ${
+                          canSetPcWidth
+                            ? 'relative group/pcw rounded-md outline-1 outline-dashed outline-offset-4 outline-transparent hover:outline-blue-300 transition-[outline-color]'
+                            : ''
+                        }`
                       : 'bg-white rounded-xl border border-gray-200/80 p-3 sm:p-3.5 space-y-2 shadow-2xs'
                   }
                 >
-                  <label className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-bold text-gray-800 flex items-center gap-1.5 min-w-0">
-                      {field.type === 'text' ? (
-                        <span className="w-4 h-4 text-blue-600 font-bold font-serif text-sm flex items-center justify-center shrink-0">T</span>
-                      ) : field.type === 'number' ? (
-                        <span className="w-4 h-4 text-[#1E5ABB] font-bold text-sm flex items-center justify-center shrink-0">#</span>
-                      ) : (
-                        <IconComp className="w-3.5 h-3.5 text-[#1E5ABB] shrink-0" />
+                  {canSetPcWidth && (
+                    <div className="absolute -top-1 right-0 z-10 flex items-center gap-1 opacity-0 pointer-events-none group-hover/pcw:opacity-100 group-hover/pcw:pointer-events-auto transition-opacity">
+                      {field.pcWidth && (
+                        <button
+                          type="button"
+                          onClick={() => onChangePcWidth(field.id, undefined)}
+                          title="恢复按字段类型自动排布"
+                          className="h-5 px-1.5 flex items-center gap-0.5 rounded border border-gray-200 bg-white text-[11px] text-gray-500 hover:text-[#1E5ABB] hover:border-blue-200 cursor-pointer"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          恢复自动
+                        </button>
                       )}
-                      <span className="truncate">{field.name}</span>
-                      {field.required && <span className="text-rose-500 font-bold ml-0.5 shrink-0">*</span>}
-                    </span>
-                  </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextWide = !isWideOnPc;
+                          onChangePcWidth(field.id, nextWide === autoWideOnPc ? undefined : nextWide ? 'full' : 'half');
+                        }}
+                        title="切换该字段在 PC 端占整行或半行，H5 端不受影响"
+                        className="h-5 px-1.5 flex items-center gap-0.5 rounded border border-blue-200 bg-blue-50 text-[11px] font-medium text-[#1E5ABB] hover:bg-blue-100 cursor-pointer"
+                      >
+                        <MoveHorizontal className="w-3 h-3" />
+                        {isWideOnPc ? '改为半行' : '改为整行'}
+                      </button>
+                    </div>
+                  )}
+
+                  {field.type !== 'static_text' && (
+                    <label className="flex items-center justify-between gap-2">
+                      <span className={`font-bold text-slate-800 flex items-center gap-1.5 min-w-0 ${isPc ? 'text-xs' : 'text-xs'}`}>
+                        {field.type === 'text' ? (
+                          <span className="w-4 h-4 text-blue-600 font-bold font-serif text-sm flex items-center justify-center shrink-0">T</span>
+                        ) : field.type === 'number' ? (
+                          <span className="w-4 h-4 text-[#1E5ABB] font-bold text-sm flex items-center justify-center shrink-0">#</span>
+                        ) : (
+                          <IconComp className="w-3.5 h-3.5 text-[#1E5ABB] shrink-0" />
+                        )}
+                        <span className="truncate">{field.name}</span>
+                        {field.required && <span className="text-rose-500 font-bold ml-0.5 shrink-0">*</span>}
+                      </span>
+                    </label>
+                  )}
+
+                  {field.type === 'static_text' && (
+                    <div className="flex items-start gap-1.5 px-3 py-2 rounded-lg bg-blue-50/70 border border-blue-100 text-xs leading-5 text-[#1E5ABB]">
+                      <Info className="w-3.5 h-3.5 mt-[3px] shrink-0" />
+                      <span className="whitespace-pre-wrap break-words min-w-0">{field.placeholder || '提示文本内容'}</span>
+                    </div>
+                  )}
 
                   {field.type === 'text' && (
-                    isLongText ? (
-                      <textarea
-                        rows={4}
-                        maxLength={field.maxLength}
-                        value={fieldValue}
-                        onChange={(e) => handlePreviewValueChange(field.id, e.target.value)}
-                        placeholder={field.placeholder || '请输入相关内容'}
-                        className="w-full px-3 py-2 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] resize-none bg-white placeholder:text-gray-400"
-                      />
-                    ) : (
-                      <input
-                        type="text"
-                        maxLength={field.maxLength}
-                        value={fieldValue}
-                        onChange={(e) => handlePreviewValueChange(field.id, e.target.value)}
-                        placeholder={field.placeholder || '请输入相关内容'}
-                        className="w-full px-3 py-2 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white placeholder:text-gray-400"
-                      />
-                    )
+                    <div className="relative">
+                      {isLongText ? (
+                        <textarea
+                          rows={3}
+                          maxLength={textLimit}
+                          value={fieldValue}
+                          onChange={(e) => handlePreviewValueChange(field.id, e.target.value)}
+                          placeholder={field.placeholder || '请输入上报内容描述'}
+                          className={`w-full px-3 ${textLimit !== undefined ? 'pb-6' : ''} ${fieldBox} border border-slate-200 text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-[#1E5ABB] resize-none`}
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          maxLength={textLimit}
+                          value={fieldValue}
+                          onChange={(e) => handlePreviewValueChange(field.id, e.target.value)}
+                          placeholder={field.placeholder || `请输入${field.name}`}
+                          className={`w-full pl-3 ${textLimit !== undefined ? 'pr-16' : 'pr-3'} ${fieldBox} border border-slate-200 text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-[#1E5ABB]`}
+                        />
+                      )}
+                      {textLimit !== undefined && (
+                        <span
+                          className={`pointer-events-none absolute right-3 text-[11px] ${
+                            isLongText ? 'bottom-2' : 'top-1/2 -translate-y-1/2'
+                          } ${fieldValue.length >= textLimit ? 'text-rose-500' : 'text-slate-400'}`}
+                        >
+                          {fieldValue.length}/{textLimit}
+                        </span>
+                      )}
+                    </div>
                   )}
 
                   {field.type === 'number' && (
@@ -2520,7 +3016,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                       value={fieldValue}
                       onChange={(e) => handlePreviewValueChange(field.id, e.target.value)}
                       placeholder={field.placeholder || '请输入数值'}
-                      className="w-full px-3 py-2 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white placeholder:text-gray-400"
+                      className={`w-full px-3 ${fieldBox} border border-slate-200 text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-[#1E5ABB]`}
                     />
                   )}
 
@@ -2530,7 +3026,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                       value={fieldValue}
                       onChange={(e) => handlePreviewValueChange(field.id, e.target.value)}
                       placeholder={field.placeholder || getDefaultFieldPlaceholder(field.type)}
-                      className="w-full px-3 py-2 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white placeholder:text-gray-400"
+                      className={`w-full px-3 ${fieldBox} border border-slate-200 text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-[#1E5ABB]`}
                     />
                   )}
 
@@ -2540,7 +3036,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                       value={fieldValue}
                       onChange={(e) => handlePreviewValueChange(field.id, e.target.value)}
                       placeholder={field.placeholder || getDefaultFieldPlaceholder(field.type)}
-                      className="w-full px-3 py-2 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] resize-none bg-white placeholder:text-gray-400"
+                      className={`w-full px-3 ${fieldBox} border border-slate-200 text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-[#1E5ABB] resize-none`}
                     />
                   )}
 
@@ -2564,8 +3060,8 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                   )}
 
                   {field.type === 'date' && (
-                    <div className="relative flex items-center border border-gray-200 rounded-lg px-3 py-2 bg-white focus-within:ring-1 focus-within:ring-[#1E5ABB] focus-within:border-[#1E5ABB]">
-                      <Calendar className="w-4 h-4 text-gray-400 mr-2 shrink-0 pointer-events-none" />
+                    <div className={`relative flex items-center border border-slate-200 px-3 ${fieldBox} focus-within:border-[#1E5ABB]`}>
+                      <Calendar className="w-3.5 h-3.5 text-slate-400 mr-2 shrink-0 pointer-events-none" />
                       <input
                         type={fieldValue ? 'datetime-local' : 'text'}
                         onFocus={(e) => { e.currentTarget.type = 'datetime-local'; }}
@@ -2573,39 +3069,51 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                         value={fieldValue}
                         onChange={(e) => handlePreviewValueChange(field.id, e.target.value)}
                         placeholder={field.placeholder || '请选择事件发生或传播时间'}
-                        className="w-full text-xs text-gray-700 bg-transparent focus:outline-none placeholder:text-gray-400 cursor-pointer"
+                        className="w-full text-xs text-slate-700 bg-transparent focus:outline-none placeholder:text-slate-400 cursor-pointer"
                       />
-                      <Calendar className="w-4 h-4 text-gray-400 ml-2 shrink-0 pointer-events-none" />
+                      <Calendar className="w-3.5 h-3.5 text-slate-700 ml-2 shrink-0 pointer-events-none" />
                     </div>
                   )}
 
                   {field.type === 'file' && (
-                    <label className="block border border-dashed border-blue-200/90 rounded-xl p-5 text-center hover:border-[#1E5ABB] hover:bg-blue-50/20 transition-colors cursor-pointer bg-white">
+                    <label className="block border border-dashed border-slate-300 rounded-xl p-5 text-center hover:border-blue-400 transition-colors cursor-pointer bg-white group">
                       <input
                         type="file"
                         className="sr-only"
                         onChange={(e) => handlePreviewValueChange(field.id, e.target.files?.[0]?.name || '')}
                       />
-                      <Paperclip className="w-7 h-7 text-gray-400 mx-auto mb-1.5" />
-                      <p className="text-xs text-gray-800 font-medium break-words">
+                      <Paperclip className="w-7 h-7 text-slate-400 -rotate-45 mx-auto mb-1.5 group-hover:text-[#1E5ABB] transition-colors stroke-[1.5]" />
+                      <p className="text-xs text-slate-700 font-medium break-words">
                         {fieldValue || '上传图片、视频或证明材料'}
                       </p>
-                      <p className="text-gray-400 text-[11px] mt-0.5 leading-relaxed">
-                        {field.placeholder || '①图片：jpg、jpeg、png、bmp，单文件上限 20MB；②文档：pdf、doc、docx、xls、xlsx，单文件上限 20MB；单条上报全部附件总和上限 100MB；图片支持预览，附件仅支持下载'}
+                      <p className="text-slate-400 text-[11px] mt-0.5 leading-relaxed">
+                        {field.placeholder && field.placeholder.length < 40
+                          ? field.placeholder
+                          : '支持图片、视频、PDF证明文档'}
                       </p>
                     </label>
                   )}
 
                   {field.type === 'link' && (
-                    <div className="relative flex items-center border border-gray-200 rounded-lg px-3 py-2 bg-white focus-within:ring-1 focus-within:ring-[#1E5ABB] focus-within:border-[#1E5ABB]">
-                      <LinkIcon className="w-4 h-4 text-gray-400 mr-2 shrink-0 pointer-events-none" />
-                      <input
-                        type="url"
-                        value={fieldValue}
-                        onChange={(e) => handlePreviewValueChange(field.id, e.target.value)}
-                        placeholder={field.placeholder || 'https://...'}
-                        className="w-full text-xs text-gray-700 bg-transparent focus:outline-none placeholder:text-gray-400"
-                      />
+                    <div className="flex items-center gap-2">
+                      <div className={`relative flex-1 min-w-0 flex items-center border border-slate-200 px-3 ${fieldBox} focus-within:border-[#1E5ABB]`}>
+                        <LinkIcon className="w-3.5 h-3.5 text-slate-400 mr-2 shrink-0 pointer-events-none" />
+                        <input
+                          type="url"
+                          value={fieldValue}
+                          onChange={(e) => handlePreviewValueChange(field.id, e.target.value)}
+                          placeholder={field.placeholder || 'https://...'}
+                          className="w-full text-xs text-slate-700 bg-transparent focus:outline-none placeholder:text-slate-400"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        className="shrink-0 self-stretch px-3 flex items-center gap-1 rounded-lg border border-[#1E5ABB] text-[#1E5ABB] bg-white hover:bg-blue-50 text-xs font-medium cursor-pointer"
+                        title="模拟截取原文"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                        <span>截图</span>
+                      </button>
                     </div>
                   )}
 
@@ -2614,14 +3122,14 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                       <select
                         value={fieldValue}
                         onChange={(e) => handlePreviewValueChange(field.id, e.target.value)}
-                        className="w-full appearance-none px-3.5 py-2.5 text-xs text-gray-700 border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-[#1E5ABB] focus:ring-1 focus:ring-[#1E5ABB] cursor-pointer"
+                        className={`w-full appearance-none px-3 pr-8 ${fieldBox} border border-slate-200 text-slate-700 focus:outline-none focus:border-[#1E5ABB] cursor-pointer`}
                       >
                         <option value="">{field.placeholder || '请选择事件分类'}</option>
                         {selectOptions.map(option => (
                           <option key={option} value={option}>{option}</option>
                         ))}
                       </select>
-                      <ChevronDown className="w-4 h-4 text-gray-500 absolute right-3 top-3 pointer-events-none" />
+                      <ChevronDown className="w-4 h-4 text-slate-800 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     </div>
                   )}
 
@@ -2823,6 +3331,23 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 
       const newStatus = targetItem.status === '启用' ? '停用' : '启用';
 
+      // 报送模板启用前须关联打分规则与审核流程（与 MT 对齐）
+      if (
+        activeModule === 'report_template' &&
+        newStatus === '启用' &&
+        (targetItem.templateType || '报送') === '报送' &&
+        (!targetItem.relatedScoreRuleId || !targetItem.relatedFlowId)
+      ) {
+        const missing =
+          !targetItem.relatedScoreRuleId && !targetItem.relatedFlowId
+            ? '打分规则和审核流程'
+            : !targetItem.relatedScoreRuleId
+              ? '打分规则'
+              : '审核流程';
+        alert(`请先在右侧「其他业务配置」关联${missing}并保存，再启用该模板`);
+        return prev;
+      }
+
       if (activeModule === 'audit_score' && newStatus === '停用' && list.filter(item => item.status === '启用').length <= 1) {
         alert('至少需要保留一组启用中的审核打分规则');
         return prev;
@@ -2858,7 +3383,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
   // Handle Delete
   const handleDelete = (item: ConfigModuleItem) => {
     if (item.isDefault) {
-      alert('系统默认配置项不可删除！');
+      alert('系统默认配置项受平台全局管控，机构端不可删除！');
       return;
     }
     if (confirm(`确定要删除配置项“${item.name}”吗？`)) {
@@ -2869,6 +3394,21 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     }
   };
 
+  const isTemplateNameTaken = (name: string, type: '报送' | '激活', excludeId?: string) =>
+    (dataStore.report_template || []).some(
+      t => t.id !== excludeId && (t.templateType || '报送') === type && t.name.trim() === name
+    );
+
+  /** 「{原名} - 副本」已存在时依次追加数字：副本2、副本3… */
+  const nextCopyName = (tpl: ConfigModuleItem) => {
+    const base = `${(tpl.name || '').replace(/ - 副本\d*$/, '')} - 副本`;
+    let name = base;
+    for (let n = 2; isTemplateNameTaken(name, (tpl.templateType as '报送' | '激活') || '报送'); n++) {
+      name = `${base}${n}`;
+    }
+    return name;
+  };
+
   // Template Detail Page Handlers
   const openAddTemplatePage = () => {
     const targetType = templateTypeFilter === '激活' ? '激活' : '报送';
@@ -2876,12 +3416,18 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     setFormName('');
     setFormTemplateType(targetType);
     setFormDesc('');
-    setFormScoreStatus('启用');
+    setFormScoreStatus('停用');
     setPreviewValues({});
-    setFormFields((targetType === '激活' ? standardActivationFields : standardReportFields).map(field => ({
-      ...field,
-      options: field.options ? [...field.options] : undefined
-    })));
+    const seedFields =
+      targetType === '激活'
+        ? standardActivationFields
+        : applyFixedFieldRule(standardReportFields);
+    setFormFields(
+      seedFields.map(field => ({
+        ...field,
+        options: field.options ? [...field.options] : undefined
+      }))
+    );
     setTemplateDetailMode('create');
     setIsTemplateDetailPageOpen(true);
   };
@@ -2928,29 +3474,33 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 
   const handleDuplicateTemplate = (item: ConfigModuleItem) => {
     const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    const duplicatedFields = (item.fields || []).map(f => ({
+    const copied = (item.fields || []).map(f => ({ ...f }));
+    const duplicatedFields = (
+      (item.templateType || '报送') === '报送' ? applyFixedFieldRule(copied) : copied
+    ).map(f => ({
       ...f,
-      id: `f_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
+      id: isFixedReportField(f.id) || f.locked ? f.id : `f_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
     }));
     const newItem: ConfigModuleItem = {
       id: String(Date.now()),
-      name: `${item.name} (副本)`,
+      name: nextCopyName(item),
       templateType: item.templateType || '报送',
       isDefault: false,
-      status: '启用',
+      status: item.status || '停用',
       updateTime: nowStr,
-      description: item.description ? `${item.description} (副本)` : '基于模板复制生成',
-      fields: duplicatedFields
+      description: item.description || '',
+      fields: duplicatedFields,
+      relatedScoreRuleId: item.relatedScoreRuleId,
+      relatedFlowId: item.relatedFlowId,
+      scoreTiming: item.scoreTiming,
+      syncToPerformance: item.syncToPerformance
     };
     setDataStore(prev => ({
       ...prev,
-      report_template: [
-        ...(prev.report_template || []),
-        newItem
-      ]
+      report_template: [...(prev.report_template || []), newItem]
     }));
     setSelectedTemplateId(newItem.id);
-    showConfigToast(`已成功复制并生成新模板「${newItem.name}」`);
+    showConfigToast(`已成功复制模板「${item.name}」`);
   };
 
   const handleSaveTemplateDetailPage = (e?: React.FormEvent) => {
@@ -2963,20 +3513,45 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       alert('请至少配置一个表单字段');
       return;
     }
-    const emptyField = formFields.find(f => !f.name.trim());
+    const emptyField = formFields.find(
+      f => f.type !== 'static_text' && !f.name.trim()
+    );
     if (emptyField) {
       alert('存在未命名的表单字段，请完善字段名称');
       return;
     }
+    const emptyOptionField = formFields.find(
+      f => OPTION_FIELD_TYPES.includes(f.type) && !(f.options || []).some(o => o.trim())
+    );
+    if (emptyOptionField) {
+      alert(`字段「${emptyOptionField.name || '未命名字段'}」至少需要配置一个选项`);
+      return;
+    }
+    if (formFields.some(f => f.type === 'static_text' && !(f.placeholder || '').trim())) {
+      alert('请填写静态提示文本的内容');
+      return;
+    }
+    const badLengthField = formFields.find(f => f.type === 'text' && !isValidMaxLength(f.maxLength));
+    if (badLengthField) {
+      alert(`字段「${badLengthField.name || '未命名字段'}」的字数上限需为 1–${TEXT_MAX_LENGTH_LIMIT} 的整数`);
+      return;
+    }
+    if (
+      isTemplateNameTaken(
+        formName.trim(),
+        formTemplateType,
+        editingItem && !editingItem.isDefault ? editingItem.id : undefined
+      )
+    ) {
+      alert(`模板名称「${formName.trim()}」已存在，请更换名称`);
+      return;
+    }
 
     const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    const savedFields = formTemplateType === '报送'
-      ? normalizeFixedFieldConstraints(
-          formFields.some(f => isFixedReportField(f.id))
-            ? formFields
-            : withFixedReportFields(formFields)
-        )
-      : formFields;
+    const savedFields =
+      formTemplateType === '报送'
+        ? normalizeFixedFieldConstraints(formFields)
+        : formFields;
 
     if (editingItem && !editingItem.isDefault) {
       setDataStore(prev => ({
@@ -2995,7 +3570,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
             : item
         )
       }));
-      showConfigToast(`已成功保存模板「${formName.trim()}」`);
+      showConfigToast(`模板「${formName.trim()}」配置已成功保存！`);
     } else {
       const newItem: ConfigModuleItem = {
         id: String(Date.now()),
@@ -3009,52 +3584,189 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       };
       setDataStore(prev => ({
         ...prev,
-        report_template: [
-          ...(prev.report_template || []),
-          newItem
-        ]
+        report_template: [...(prev.report_template || []), newItem]
       }));
-      showConfigToast(`已成功创建模板「${formName.trim()}」`);
+      showConfigToast(
+        formTemplateType === '报送'
+          ? `新增模板「${formName.trim()}」已保存，当前为停用。请关联打分规则和审核流程后再启用`
+          : `新增模板「${formName.trim()}」已成功保存，当前为停用状态`
+      );
     }
     setIsTemplateDetailPageOpen(false);
     setEditingItem(null);
   };
 
-  const handleSwitchAuditFlowMode = (mode: AuditFlowMode) => {
+  const auditFlowSnapshot = (
+    name: string,
+    desc: string,
+    status: '启用' | '停用',
+    mode: AuditFlowMode,
+    depth: number,
+    nodes: AuditNode[]
+  ) => JSON.stringify({ name: name.trim(), desc, status, mode, depth, nodes });
+
+  const rememberAuditFlowBaseline = (
+    name: string,
+    desc: string,
+    status: '启用' | '停用',
+    mode: AuditFlowMode,
+    depth: number,
+    nodes: AuditNode[]
+  ) => {
+    flowModeDraftsRef.current = {};
+    auditFlowBaselineRef.current = auditFlowSnapshot(name, desc, status, mode, depth, nodes);
+  };
+
+  const auditFlowModePreset = (mode: AuditFlowMode) => {
+    if (mode === 'step_by_step') {
+      return {
+        name: '逐级审核流程（组织树自适应）',
+        desc: '本级机构提报后沿组织树逐级向上传递审核，最终由总机构终审',
+      };
+    }
+    if (mode === 'max_n_steps') {
+      return {
+        name: '最多3级快速审核流程',
+        desc: '【上限截断】下级机构提报后最多经过3个中间机构审核后直达',
+      };
+    }
+    return {
+      name: '直达总机构审核通道',
+      desc: '【扁平直审】无需下级或中间机构审核，上报人提报后直接由总',
+    };
+  };
+
+  const isAuditFlowDirty = () => {
+    if (!auditFlowBaselineRef.current) return false;
+    let baseline: {
+      name: string;
+      desc: string;
+      status: '启用' | '停用';
+      mode: AuditFlowMode;
+      depth: number;
+      nodes: AuditNode[];
+    };
+    try {
+      baseline = JSON.parse(auditFlowBaselineRef.current);
+    } catch {
+      return true;
+    }
+    const sameNodes = (left: AuditNode[], right: AuditNode[]) =>
+      JSON.stringify(left) === JSON.stringify(right);
+    const currentDepth = formMaxIntermediateNodes || formFlowDepth || 3;
+    if (formAuditFlowMode === baseline.mode) {
+      if (
+        auditFlowSnapshot(
+          formName,
+          formDesc,
+          formScoreStatus,
+          formAuditFlowMode,
+          currentDepth,
+          formAuditNodes
+        ) !== auditFlowBaselineRef.current
+      ) {
+        return true;
+      }
+    } else {
+      const preset = auditFlowModePreset(formAuditFlowMode);
+      if (
+        formName.trim() !== preset.name ||
+        formDesc !== preset.desc ||
+        formScoreStatus !== baseline.status
+      ) {
+        return true;
+      }
+      if (
+        !sameNodes(
+          formAuditNodes,
+          buildDefaultFlowNodes(formAuditFlowMode, currentDepth, formFlowLevelDirection)
+        )
+      ) {
+        return true;
+      }
+      if (
+        formAuditFlowMode === 'max_n_steps' &&
+        (currentDepth !== 3 || formFlowLevelDirection !== 'up')
+      ) {
+        return true;
+      }
+    }
+    return (
+      Object.entries(flowModeDraftsRef.current) as Array<[AuditFlowMode, AuditFlowModeDraft]>
+    ).some(([mode, draft]) => {
+      if (mode === formAuditFlowMode) return false;
+      if (mode === baseline.mode) {
+        if (!sameNodes(draft.nodes, baseline.nodes)) return true;
+        return mode === 'max_n_steps' && draft.depth !== baseline.depth;
+      }
+      if (
+        !sameNodes(
+          draft.nodes,
+          buildDefaultFlowNodes(mode, draft.depth, draft.direction || 'up')
+        )
+      ) {
+        return true;
+      }
+      return mode === 'max_n_steps' && (draft.depth !== 3 || (draft.direction || 'up') !== 'up');
+    });
+  };
+
+  const requestCloseConfigModal = async () => {
+    if (activeModule === 'audit_flow' && isAuditFlowDirty()) {
+      const confirmed = await confirmDialog(
+        editingItem
+          ? '已修改的内容尚未保存，退出后将不会保留。确认退出吗？'
+          : '当前填写的内容尚未保存，退出后将不会保留。确认退出吗？',
+        { title: '退出确认', okText: '确认退出', cancelText: '继续编辑' }
+      );
+      if (!confirmed) return;
+    }
+    flowModeDraftsRef.current = {};
+    setIsModalOpen(false);
+  };
+
+  const handleSwitchAuditFlowMode = (mode: AuditFlowMode, keepCurrentNameAndDesc = false) => {
+    if (mode === formAuditFlowMode) return;
+    flowModeDraftsRef.current[formAuditFlowMode] = {
+      nodes: formAuditNodes.map(node => ({ ...node })),
+      selectedId: selectedAuditNodeId,
+      depth: formMaxIntermediateNodes || formFlowDepth || 3,
+      direction: formFlowLevelDirection,
+    };
     setFormAuditFlowMode(mode);
     setFormSimulatorScenario('depth_5');
     setSimResultStatus('idle');
-
-    if (mode === 'direct_headquarters') {
-      if (!editingItem || formName.includes('逐级') || formName.includes('最多')) {
-        setFormName('直达总机构审核通道');
-        setFormDesc('【扁平直审】无需下级或中间机构审核，上报人提报后直接由总机构终审并评分。');
-      }
-      const directNodes = buildDefaultFlowNodes('direct_headquarters', 2);
-      setFormAuditNodes(directNodes);
-      setSelectedAuditNodeId(directNodes[0]?.id || null);
-      setFormFlowDepth(2);
-    } else if (mode === 'max_n_steps') {
-      const depth = formMaxIntermediateNodes || 3;
-      const direction = formFlowLevelDirection === 'down' ? 'down' : 'up';
-      if (!editingItem || formName.includes('逐级') || formName.includes('直接')) {
-        setFormName(`最多${depth}级快速审核流程`);
-        setFormDesc(`【上限截断】下级机构提报后最多经过${depth}个中间机构审核后直达总机构终审并评分。不足${depth}级按实际层级自适应审核，不强制补齐。`);
-      }
-      const maxNNodes = buildDefaultFlowNodes('max_n_steps', depth, direction);
-      setFormAuditNodes(maxNNodes);
-      setSelectedAuditNodeId(maxNNodes[0]?.id || null);
-      setFormFlowDepth(depth);
-    } else {
-      if (!editingItem || formName.includes('最多') || formName.includes('直接')) {
-        setFormName('逐级审核流程（组织树自适应）');
-        setFormDesc('本级机构提报后沿组织树逐级向上传递审核，最终由总机构终审并评分。系统动态解析审核路径，自动适配任意组织深度。');
-      }
-      const stepNodes = buildDefaultFlowNodes('step_by_step', 3);
-      setFormAuditNodes(stepNodes);
-      setSelectedAuditNodeId(stepNodes[0]?.id || null);
-      setFormFlowDepth(3);
+    if (!keepCurrentNameAndDesc) {
+      const preset = auditFlowModePreset(mode);
+      setFormName(preset.name);
+      setFormDesc(preset.desc);
     }
+
+    const cached = flowModeDraftsRef.current[mode];
+    if (cached) {
+      const nodes = cached.nodes.map(node => ({ ...node }));
+      setFormAuditNodes(nodes);
+      setSelectedAuditNodeId(
+        cached.selectedId && nodes.some(node => node.id === cached.selectedId)
+          ? cached.selectedId
+          : nodes[0]?.id || null
+      );
+      if (mode === 'max_n_steps') {
+        setFormMaxIntermediateNodes(cached.depth);
+        setFormFlowDepth(cached.depth);
+        setFormFlowLevelDirection(cached.direction || 'up');
+      }
+      return;
+    }
+
+    const direction = mode === 'max_n_steps' ? 'up' : formFlowLevelDirection;
+    if (mode === 'max_n_steps') setFormFlowLevelDirection('up');
+    const depth = mode === 'max_n_steps' ? formMaxIntermediateNodes || 3 : mode === 'direct_headquarters' ? 2 : 3;
+    const nodes = buildDefaultFlowNodes(mode, depth, direction);
+    setFormAuditNodes(nodes);
+    setSelectedAuditNodeId(nodes[0]?.id || null);
+    setFormFlowDepth(depth);
+    if (mode === 'max_n_steps') setFormMaxIntermediateNodes(depth);
   };
 
   const renameMaxNMiddleNode = (depth: number, direction: 'up' | 'down') => {
@@ -3120,7 +3832,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       setFormDesc('按审核结果命中一个评分等级，设为启用后替代现有打分标准');
       setFormTotalScore(100);
       setFormLevelCount(5);
-      setFormScoreStatus('停用');
+      setFormScoreStatus('启用');
       const defaultTpl = enabledReportTemplates[0];
       setFormRelatedTemplateId(defaultTpl ? defaultTpl.id : '1');
       setFormScoreLevels([
@@ -3131,8 +3843,10 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         { id: 'sl_5', levelName: '五等', score: 60, description: '基本级标准' }
       ]);
     } else if (activeModule === 'audit_flow') {
-      setFormName('逐级审核流程（组织树自适应）');
-      setFormDesc('本级机构提报后沿组织树逐级向上传递审核，最终由总机构终审并评分。系统动态解析审核路径，自动适配任意组织深度。');
+      const addName = '逐级审核流程（组织树自适应）';
+      const addDesc = '本级机构提报后沿组织树逐级向上传递审核，最终由总机构终审';
+      setFormName(addName);
+      setFormDesc(addDesc);
       setFormScoreStatus('启用');
       const defaultTpl = enabledReportTemplates[0];
       setFormRelatedTemplateId(defaultTpl ? defaultTpl.id : '1');
@@ -3152,6 +3866,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       const defaultFlowNodes = buildDefaultFlowNodes('step_by_step', 3);
       setFormAuditNodes(defaultFlowNodes);
       setSelectedAuditNodeId(defaultFlowNodes[0]?.id || null);
+      rememberAuditFlowBaseline(addName, addDesc, '启用', 'step_by_step', 3, defaultFlowNodes);
     } else if (activeModule === 'evaluation_rule') {
       setFormName('人员考核配置');
       setFormDesc('用于配置人员月度目标上报量和数量、质量评分权重，考核页面按周期自动计算人员得分、等级和排名。');
@@ -3245,6 +3960,14 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         : buildDefaultFlowNodes(mode, depth, direction);
       setFormAuditNodes(editFlowNodes);
       setSelectedAuditNodeId(editFlowNodes[0]?.id || null);
+      rememberAuditFlowBaseline(
+        item.name,
+        item.description || '',
+        item.status,
+        mode,
+        item.maxIntermediateNodes || depth || 3,
+        editFlowNodes
+      );
     } else if (activeModule === 'evaluation_rule') {
       const dim = item.evalDimension || 'category';
       setFormEvalDimension(dim);
@@ -3572,6 +4295,8 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
           audit_flow: [...(prev.audit_flow || []), flowItem]
         }));
       }
+      flowModeDraftsRef.current = {};
+      auditFlowBaselineRef.current = null;
       setIsModalOpen(false);
       return;
     }
@@ -3647,6 +4372,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                   onClick={() => {
                     setActiveModule(mod.id);
                     setSearchQuery('');
+                    setConfigListPage(1);
                     setIsTemplateDetailPageOpen(false);
                     if (onNavigatePage) {
                       onNavigatePage('business-config', mod.id);
@@ -3671,60 +4397,104 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 
         {/* Right Content Area */}
         <section className="flex-1 min-w-0 w-full space-y-4">
-          {/* Top Header */}
+          {/* Top Header — 模板新增/编辑页自带顶栏，此处隐藏以免双标题 */}
+          {!isTemplateDetailPageOpen && (
           <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <div className="flex items-center space-x-2">
                 <h2 className="text-base font-bold text-gray-800 tracking-tight">
-                  {isTemplateDetailPageOpen ? (
-                    <span className="inline-flex items-center gap-1.5">
-                      <span>{currentModuleLabel}</span>
-                      <span className="text-gray-300 font-normal">/</span>
-                      <span className="text-[#1E5ABB]">
-                        {editingItem?.id
-                          ? (editingItem.isDefault ? '查看模板详情' : '编辑模板')
-                          : (templateTypeFilter === '激活' ? '新增激活模板' : '新增报送模板')}
-                      </span>
-                    </span>
-                  ) : (
-                    currentModuleLabel
-                  )}
+                  {currentModuleLabel}
                 </h2>
                 <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-50 text-[#1E5ABB] font-medium border border-blue-100">
                   业务配置
                 </span>
               </div>
               <p className="text-xs text-gray-500 mt-0.5">
-                {isTemplateDetailPageOpen
-                  ? (templateTypeFilter === '激活'
-                      ? '配置验证激活模板字段结构、上报规则及关联流程'
-                      : '配置报送模板字段结构、移动端组件、关联审核流程与考核评分规则')
-                  : currentModuleDesc}
+                {currentModuleDesc}
               </p>
             </div>
 
-            {/* Right: Actions in Header */}
-            {(activeModule === 'audit_score' || activeModule === 'audit_flow' || activeModule === 'data_dict') && !isTemplateDetailPageOpen && (
-              <button
-                type="button"
-                onClick={openAddModal}
-                className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center space-x-1.5 cursor-pointer whitespace-nowrap self-start sm:self-auto"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>
-                  {activeModule === 'audit_flow'
-                    ? '新增审核流程'
-                    : activeModule === 'audit_score'
-                    ? '新增打分规则'
-                    : '新增'}
-                </span>
-              </button>
-            )}
+            {/* Right: Search and module actions */}
+            <div className="flex items-center gap-2.5 min-w-0 self-start sm:self-auto">
+              {['audit_flow', 'audit_score', 'data_dict'].includes(activeModule) && (
+                <div className="relative min-w-0 w-52 xl:w-64">
+                  <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={e => {
+                      setSearchQuery(e.target.value);
+                      setConfigListPage(1);
+                    }}
+                    placeholder={
+                      activeModule === 'data_dict'
+                        ? '搜索字典名称、编码或描述...'
+                        : activeModule === 'audit_flow'
+                          ? '搜索审核流程名称或描述...'
+                          : activeModule === 'audit_score'
+                            ? '搜索审核打分规则名称或描述...'
+                            : '搜索模板名称或描述...'
+                    }
+                    aria-label={
+                      activeModule === 'data_dict'
+                        ? '搜索字典名称、编码或描述'
+                        : activeModule === 'audit_flow'
+                          ? '搜索审核流程名称或描述'
+                          : activeModule === 'audit_score'
+                            ? '搜索审核打分规则名称或描述'
+                            : '搜索模板名称或描述'
+                    }
+                    className="w-full pl-8 pr-8 py-1.5 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-gray-50/50 text-gray-700 placeholder:text-gray-400"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setConfigListPage(1);
+                      }}
+                      aria-label="清空列表搜索"
+                      title="清空搜索"
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 cursor-pointer"
+                    >
+                      <WinCloseIcon className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              )}
+              {activeModule === 'report_template' ? (
+                <button
+                  type="button"
+                  onClick={openAddTemplatePage}
+                  className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0"
+                  title={templateTypeFilter === '激活' ? '新增激活模板' : '新增报送模板'}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>新增</span>
+                </button>
+              ) : (activeModule === 'audit_score' || activeModule === 'audit_flow' || activeModule === 'data_dict') && (
+                <button
+                  type="button"
+                  onClick={openAddModal}
+                  className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center space-x-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>
+                    {activeModule === 'audit_flow'
+                      ? '新增审核流程'
+                      : activeModule === 'audit_score'
+                        ? '新增打分规则'
+                        : '新增'}
+                  </span>
+                </button>
+              )}
+            </div>
           </div>
+          )}
 
           {/* Main Card: Dynamic Detail View */}
-          <div className="w-full bg-white rounded-xl border border-slate-200/90 shadow-2xs p-5 flex flex-col justify-between min-h-[460px] space-y-4">
-          <div className="space-y-4">
+          <div className={`w-full bg-white rounded-xl border border-slate-200/90 shadow-2xs p-5 flex flex-col justify-between min-h-[460px] ${isTemplateDetailPageOpen ? 'space-y-7' : 'space-y-4'}`}>
+          <div className={isTemplateDetailPageOpen ? 'space-y-7' : 'space-y-4'}>
             {/* Action Bar / Search & Add Toolbar for Modules (hidden when editing/viewing template detail page) */}
             {!isTemplateDetailPageOpen && (
               activeModule === 'report_template' ? null : activeModule === 'audit_flow' ? null : activeModule === 'audit_score' ? null : activeModule === 'data_dict' ? (
@@ -3936,27 +4706,21 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
               <div className="space-y-3">
                 {(() => {
                   const isRejectReasonView = dictSubCategoryFilter === 'reject_reason';
-                  const sortedDictList = [...filteredList].sort((a, b) => {
-                    const aCat = a.dictCategory || 'reject_reason';
-                    const bCat = b.dictCategory || 'reject_reason';
-                    if (aCat !== bCat) return aCat.localeCompare(bCat);
-                    return (a.sortOrder || 999) - (b.sortOrder || 999);
-                  });
+                  const sortedDictList = [...pagedConfigList];
 
                   return (
-                    <div className="overflow-x-auto border border-gray-200/80 rounded-lg bg-white shadow-2xs">
-                      <table className="w-full text-left border-collapse text-xs">
+                    <>
+                      <div className="overflow-x-auto border border-gray-200/80 rounded-lg bg-white shadow-2xs">
+                        <table className="w-full text-left border-collapse text-xs">
                         <thead>
                           <tr className="bg-gray-50/80 text-gray-500 border-b border-gray-200 font-medium">
                             <th className="py-2.5 px-4 font-medium whitespace-nowrap w-14 text-center">序号</th>
                             <th className="py-2.5 px-4 font-medium whitespace-nowrap min-w-36">
                               字典名称
                             </th>
-                            <th className="py-2.5 px-4 font-medium whitespace-nowrap min-w-28 font-mono">字典编码</th>
                             <th className="py-2.5 px-4 font-medium min-w-56">
                               提示说明
                             </th>
-                            <th className="py-2.5 px-4 font-medium whitespace-nowrap text-center w-16">排序号</th>
                             <th className="py-2.5 px-4 font-medium whitespace-nowrap w-24">状态</th>
                             <th className="py-2.5 px-4 font-medium whitespace-nowrap w-28">更新时间</th>
                             <th className="py-2.5 px-4 font-medium text-center whitespace-nowrap w-24">操作</th>
@@ -3965,7 +4729,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                         <tbody className="divide-y divide-gray-100 text-gray-700">
                           {sortedDictList.length === 0 ? (
                             <tr>
-                              <td colSpan={8} className="py-12 text-center text-gray-400 text-xs">
+                              <td colSpan={6} className="py-12 text-center text-gray-400 text-xs">
                                 暂无相关字典条目
                               </td>
                             </tr>
@@ -3976,7 +4740,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               return (
                                 <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
                                   <td className="py-3 px-4 align-middle text-center whitespace-nowrap text-gray-400 font-mono">
-                                    {index + 1}
+                                    {(safeConfigListPage - 1) * CONFIG_LIST_PAGE_SIZE + index + 1}
                                   </td>
                                   <td className="py-3 px-4 align-middle">
                                     <div className="flex items-center gap-2 min-w-0">
@@ -3994,16 +4758,10 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                       )}
                                     </div>
                                   </td>
-                                  <td className="py-3 px-4 align-middle whitespace-nowrap font-mono text-gray-500 text-[11px]">
-                                    {item.dictCode || buildDictCode(itemCategory, item.sortOrder || index + 1)}
-                                  </td>
                                   <td className="py-3 px-4 align-middle">
                                     <p className="text-[11px] text-gray-600 leading-relaxed line-clamp-2" title={item.description || ''}>
                                       {item.description || (isRejectReasonView ? '审核员选择该理由后，将作为本次驳回说明同步给上报人。' : itemMeta.description)}
                                     </p>
-                                  </td>
-                                  <td className="py-3 px-4 align-middle text-center whitespace-nowrap font-mono text-gray-500">
-                                    {item.sortOrder || index + 1}
                                   </td>
                                   <td className="py-3 px-4 align-middle whitespace-nowrap">
                                     <button
@@ -4060,8 +4818,10 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                             })
                           )}
                         </tbody>
-                      </table>
-                    </div>
+                        </table>
+                      </div>
+                      {renderConfigListPagination()}
+                    </>
                   );
                 })()}
               </div>
@@ -4073,7 +4833,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {filteredList.map(item => {
+                    {pagedConfigList.map(item => {
                       const isEnabled = item.status === '启用';
                       const levelCount = item.levelCount || (item.scoreLevels || []).length || 5;
                       const totalScore = item.totalScore ?? ((item.scoreLevels && item.scoreLevels[0]?.score) || 100);
@@ -4210,42 +4970,53 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                     })}
                   </div>
                 )}
+                {renderConfigListPagination()}
               </div>
             ) : activeModule === 'report_template' ? (
               isTemplateDetailPageOpen ? (
-                <div className="space-y-4 animate-in fade-in duration-200">
-                  {/* 1. Header Navigation & Breadcrumb */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-200/80">
-                    <div className="flex items-center gap-2 flex-wrap">
+                <div className="space-y-7 animate-in fade-in duration-200">
+                  {/* Top Header Bar — 对齐 MT TemplateConfigBoard 设计师页 */}
+                  <div className="flex items-center justify-between gap-4 pb-3 border-b border-gray-100">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <button
                         type="button"
                         onClick={() => {
                           setIsTemplateDetailPageOpen(false);
                           setEditingItem(null);
                         }}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-gray-600 bg-white hover:text-[#1E5ABB] hover:bg-blue-50/70 rounded-md border border-gray-200 transition-colors shadow-2xs cursor-pointer"
+                        className="flex items-center gap-1 shrink-0 text-xs text-gray-500 hover:text-[#1890ff] transition-colors cursor-pointer"
+                        title="返回模板列表"
                       >
-                        <ArrowLeft className="w-3.5 h-3.5" />
-                        <span>返回模板列表</span>
+                        <ArrowLeft className="w-4 h-4" />
+                        <span>返回</span>
                       </button>
+                      <span className="w-px h-3.5 bg-gray-200 shrink-0" />
+                      <span className="text-[15px] font-bold text-gray-900 truncate">
+                        {editingItem?.id
+                          ? (formName || (editingItem.isDefault ? '查看模板' : '编辑模板'))
+                          : '新增模板'}
+                      </span>
+                      <span className="shrink-0 px-2 py-0.5 rounded bg-blue-50 text-[#1890ff] text-[11px] font-medium">
+                        {formTemplateType === '激活' ? '激活模板' : '报送模板'}
+                      </span>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2.5 shrink-0">
                       <button
                         type="button"
                         onClick={() => {
                           setIsTemplateDetailPageOpen(false);
                           setEditingItem(null);
                         }}
-                        className="px-3 py-1.5 border border-gray-300 text-gray-600 hover:bg-gray-50 rounded text-xs font-medium cursor-pointer"
+                        className="px-4 py-1.5 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
                       >
-                        取消返回
+                        取消
                       </button>
                       {editingItem?.isDefault ? (
                         <button
                           type="button"
                           onClick={handleCloneDefaultTemplate}
-                          className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded text-xs font-bold shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                          className="flex items-center gap-1.5 px-4 py-1.5 bg-[#1890ff] hover:bg-blue-600 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors cursor-pointer"
                         >
                           <Sparkles className="w-3.5 h-3.5" />
                           <span>基于此模板新建</span>
@@ -4254,7 +5025,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                         <button
                           type="button"
                           onClick={() => handleSaveTemplateDetailPage()}
-                          className="px-4 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded text-xs font-bold shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                          className="flex items-center gap-1.5 px-4 py-1.5 bg-[#1890ff] hover:bg-blue-600 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors cursor-pointer"
                         >
                           <Save className="w-3.5 h-3.5" />
                           <span>保存模板配置</span>
@@ -4275,19 +5046,16 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                     </div>
                   )}
 
-                  {/* 2. Basic Configuration Card */}
-                  <div className="bg-white rounded-lg border border-gray-200/80 p-4 space-y-3">
-                    <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                      <div className="flex items-center gap-1.5 font-bold text-xs text-gray-800">
-                        <FileText className="w-4 h-4 text-[#1E5ABB]" />
-                        <span>基本属性设置</span>
-                      </div>
+                  {/* Section 1: 基本属性设置 */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-gray-800 font-bold text-sm">
+                      <span className="w-1 h-3.5 rounded-full bg-[#1890ff]" />
+                      <span>基本属性设置</span>
                     </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-gray-700 font-medium mb-1">
-                          模板名称 <span className="text-rose-500 font-bold">*</span>
+                        <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                          模板名称 <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="text"
@@ -4296,320 +5064,388 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                           value={formName}
                           onChange={e => setFormName(e.target.value)}
                           placeholder={formTemplateType === '激活' ? '例如：重点应急目标快速激活' : '例如：重大突发事件应急处置报送'}
-                          className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] font-bold text-gray-800 disabled:bg-gray-50 disabled:text-gray-600"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-[#1890ff] focus:ring-1 focus:ring-blue-100 bg-white disabled:bg-gray-50 disabled:text-gray-600"
                         />
                       </div>
-
                       <div>
-                        <label className="block text-gray-700 font-medium mb-1">说明描述</label>
+                        <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                          说明描述
+                        </label>
                         <input
                           type="text"
                           disabled={editingItem?.isDefault}
                           value={formDesc}
                           onChange={e => setFormDesc(e.target.value)}
                           placeholder="请输入适用业务场景与填报说明..."
-                          className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] disabled:bg-gray-50 disabled:text-gray-600"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-[#1890ff] focus:ring-1 focus:ring-blue-100 bg-white disabled:bg-gray-50 disabled:text-gray-600"
                         />
                       </div>
                     </div>
                   </div>
 
-                  {/* 3. Form Fields Designer & Interactive Live Preview */}
-                  <div className="bg-white rounded-lg border border-gray-200/80 p-4 space-y-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-gray-100">
-                      <div className="flex items-center gap-1.5 font-bold text-xs text-gray-800">
-                        <Layers className="w-4 h-4 text-[#1E5ABB]" />
-                        <span>表单字段设计与用户端交互预览</span>
-                        <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-bold border border-blue-100">
-                          共 {formFields.length} 个字段
+                  {/* Section 2: 表单字段设计与用户端交互预览 */}
+                  <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-gray-800 font-bold text-sm flex items-center gap-2">
+                          <span className="w-1 h-3.5 rounded-full bg-[#1890ff]" />
+                          <span>表单字段设计与用户端交互预览</span>
                         </span>
                       </div>
-                      <span className="text-[11px] text-gray-400">
+                      <span className="text-xs text-gray-400">
                         左侧自由调整表单字段，右侧实时体验上报用户的填报界面
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(340px,1fr)] xl:grid-cols-[minmax(0,1.3fr)_minmax(400px,1fr)] gap-5 items-start">
-                      {/* Left Column: Field Builder */}
-                      <div className="space-y-3 min-w-0">
-                        <div className="relative bg-white rounded-lg border border-gray-200 overflow-hidden">
-                          {fieldAddNotice && (
-                            <div className="absolute left-1/2 top-2 z-20 -translate-x-1/2 px-3 py-1.5 bg-gray-900/90 text-white rounded-md shadow-lg text-xs font-bold flex items-center gap-1.5 animate-in fade-in zoom-in-95 pointer-events-none">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
-                              <span>{fieldAddNotice}</span>
-                            </div>
-                          )}
-
-                          <div className="px-3 py-2 bg-gray-50/80 border-b border-gray-100 flex items-center justify-between">
-                            <span className="font-bold text-gray-800 text-xs">已配置字段列表 ({formFields.length})</span>
-                            {editingItem?.isDefault ? (
-                              <span className="text-[11px] text-gray-400">系统默认字段（只读展示）</span>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={handleLoadStandardPreset}
-                                className="px-2.5 py-1 text-xs font-bold text-[#1E5ABB] hover:text-white bg-blue-50 hover:bg-[#1E5ABB] border border-blue-200 hover:border-[#1E5ABB] rounded transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
-                              >
-                                <Sparkles className="w-3.5 h-3.5" />
-                                <span>使用标准模板</span>
-                              </button>
-                            )}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                      {/* Left: Field Editor */}
+                      <div className="lg:col-span-7 relative flex flex-col bg-gray-50 rounded-xl p-4">
+                        {fieldAddNotice && (
+                          <div className="absolute left-1/2 top-2 z-20 -translate-x-1/2 px-3 py-1.5 bg-slate-900 text-white rounded-lg shadow-xl text-xs flex items-center gap-2 animate-in fade-in slide-in-from-top-3 pointer-events-none">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                            <span>{fieldAddNotice}</span>
                           </div>
+                        )}
 
-                          {formFields.length === 0 ? (
-                            <div className="p-8 text-center bg-gray-50 text-gray-400 space-y-3">
-                              <Layers className="w-8 h-8 text-gray-300 mx-auto" />
-                              <p className="text-xs">暂未添加字段，请点击下方“添加字段”或右上角“使用标准模板”。</p>
-                              {!editingItem?.isDefault && (
-                                <div className="pt-2 flex items-center justify-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleAddField('text')}
-                                    className="w-full max-w-xs py-2 px-4 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
-                                  >
-                                    <Plus className="w-3.5 h-3.5" />
-                                    <span>添加字段</span>
-                                  </button>
-                                </div>
-                              )}
-                            </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-gray-700">
+                            <span>已配置字段</span>
+                            <span className="text-[11px] font-medium text-gray-400">{formFields.length}</span>
+                          </div>
+                          {editingItem?.isDefault ? (
+                            <span className="text-[11px] text-gray-400">系统默认字段（只读展示）</span>
                           ) : (
-                            <div className="p-3 space-y-2">
-                              {formFields.map((field, index) => {
-                                const meta = getFieldTypeMeta(field.type);
-                                const IconComp = meta.icon;
-                                const fieldLocked = isLockedField(field);
-                                const isReadOnly = Boolean(editingItem?.isDefault);
-                                const canReorder = !isReadOnly && !fieldLocked;
-                                const typeLocked = isReadOnly || fieldLocked;
-                                const requiredLocked = isReadOnly || isRequiredLockedField(field);
+                            <button
+                              type="button"
+                              onClick={handleLoadStandardPreset}
+                              className="flex items-center gap-1.5 text-xs text-[#1E5ABB] hover:bg-blue-50 font-medium px-2 py-1 rounded-md transition-colors cursor-pointer"
+                            >
+                              <Wand2 className="w-3.5 h-3.5" />
+                              <span>使用标准模板</span>
+                            </button>
+                          )}
+                        </div>
 
-                                return (
-                                  <div
-                                    key={field.id}
-                                    ref={index === formFields.length - 1 ? latestFieldRef : null}
-                                    draggable={canReorder}
-                                    onDragStart={() => canReorder && setDraggingFieldIndex(index)}
-                                    onDragOver={e => canReorder && e.preventDefault()}
-                                    onDrop={() => canReorder && handleDropField(index)}
-                                    onDragEnd={() => canReorder && setDraggingFieldIndex(null)}
-                                    className={`bg-white p-3 rounded-lg border shadow-2xs transition-colors space-y-2 ${
-                                      canReorder ? 'hover:border-blue-200 cursor-move' : ''
-                                    } ${
-                                      draggingFieldIndex === index
-                                        ? 'border-blue-300 bg-blue-50/50 opacity-70'
-                                        : fieldLocked
-                                          ? 'border-amber-200 bg-amber-50/20'
-                                          : 'border-gray-200'
-                                    }`}
-                                  >
-                                    <div className="flex items-start gap-2">
-                                      <span className="w-6 h-6 rounded bg-gray-100 text-gray-500 text-[10px] font-mono flex items-center justify-center gap-0.5 shrink-0 mt-0.5" title={canReorder ? '拖拽调整字段顺序' : fieldLocked ? '固定字段不可排序' : `第 ${index + 1} 个字段`}>
-                                        {canReorder && <GripVertical className="w-2.5 h-2.5 text-gray-300" aria-hidden="true" />}
-                                        {fieldLocked && <Lock className="w-2.5 h-2.5 text-amber-500" aria-hidden="true" />}
-                                        <span>{index + 1}</span>
-                                      </span>
-                                      <div className="flex-1 min-w-0 space-y-2">
-                                        <div className="grid grid-cols-1 sm:grid-cols-[130px_1fr] gap-2">
-                                          <div className="relative">
-                                            <select
-                                              disabled={typeLocked}
-                                              value={field.multiline ? 'textarea' : field.type}
-                                              onChange={e => {
-                                                if (fieldLocked) return;
-                                                const next = e.target.value;
-                                                if (next === 'textarea') {
-                                                  handleUpdateField(index, { type: 'text', multiline: true });
-                                                } else {
-                                                  handleUpdateField(index, { type: next as FieldType, multiline: undefined });
-                                                }
-                                              }}
-                                              className="w-full pl-7 pr-2 py-1.5 bg-gray-50 border border-gray-200 rounded text-xs text-gray-700 font-medium focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] cursor-pointer disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                            >
-                                              {field.multiline || fieldLocked ? (
-                                                <>
-                                                  <option value="text">单行文本</option>
-                                                  <option value="textarea">多行文本</option>
-                                                </>
-                                              ) : (
-                                                (formTemplateType === '激活' ? activationFieldTypeOptions : reportFieldTypeOptions).map(type => (
-                                                  <option key={type} value={type}>{getFieldTypeMeta(type).label}</option>
-                                                ))
-                                              )}
-                                            </select>
-                                            <IconComp className="w-3.5 h-3.5 text-blue-600 absolute left-2 top-2 pointer-events-none" />
-                                          </div>
+                        {formFields.length === 0 ? (
+                          <div className="mt-3 p-8 text-center text-gray-400 space-y-3 bg-white rounded-lg">
+                            <Layers className="w-8 h-8 text-gray-300 mx-auto" />
+                            <p className="text-xs">暂未添加字段，请点击下方「添加字段」或右上角「使用标准模板」。</p>
+                          </div>
+                        ) : (
+                          <div className="mt-3 space-y-2">
+                            {formFields.map((field, index) => {
+                              const meta = getFieldTypeMeta(field.type);
+                              const IconComp = meta.icon;
+                              const fieldLocked = isLockedField(field);
+                              const isReadOnly = Boolean(editingItem?.isDefault);
+                              const canReorder = !isReadOnly && !fieldLocked;
+                              const typeLocked = isReadOnly || fieldLocked;
+                              const requiredLocked = isReadOnly || isRequiredLockedField(field);
+                              const controlValue = field.multiline ? 'textarea' : field.type;
+                              const typeLabel = field.multiline
+                                ? '多行文本'
+                                : meta.label;
+
+                              return (
+                                <div
+                                  key={field.id}
+                                  ref={index === formFields.length - 1 ? latestFieldRef : null}
+                                  draggable={canReorder}
+                                  onDragStart={e => {
+                                    if (!canReorder) return;
+                                    setDraggingFieldIndex(index);
+                                    e.dataTransfer.effectAllowed = 'move';
+                                  }}
+                                  onDragOver={e => {
+                                    if (!canReorder) return;
+                                    e.preventDefault();
+                                    e.dataTransfer.dropEffect = 'move';
+                                  }}
+                                  onDrop={() => canReorder && handleDropField(index)}
+                                  onDragEnd={() => canReorder && setDraggingFieldIndex(null)}
+                                  className={`group flex items-start gap-2.5 py-3 px-3 rounded-lg transition-shadow ${
+                                    draggingFieldIndex === index ? 'bg-blue-50 opacity-60' : 'bg-white hover:shadow-sm'
+                                  }`}
+                                >
+                                  {fieldLocked ? (
+                                    <div
+                                      className="mt-1.5 w-8 h-6 flex items-center justify-center gap-0.5 rounded-md bg-gray-50 text-gray-400 font-mono text-[11px] select-none shrink-0 cursor-not-allowed"
+                                      title="固定字段，不可调整排序"
+                                    >
+                                      <Lock className="w-3 h-3" />
+                                      <span>{index + 1}</span>
+                                    </div>
+                                  ) : (
+                                    <div
+                                      className={`mt-1.5 w-8 h-6 flex items-center justify-center gap-0.5 rounded-md bg-gray-50 text-gray-400 font-mono text-[11px] select-none shrink-0 ${
+                                        canReorder
+                                          ? 'cursor-grab active:cursor-grabbing hover:text-blue-600 hover:bg-blue-50 transition-colors'
+                                          : 'cursor-default'
+                                      }`}
+                                      title={canReorder ? '按住拖拽以调整字段排序' : `第 ${index + 1} 个字段`}
+                                    >
+                                      {canReorder && <ArrowUpDown className="w-3 h-3" />}
+                                      <span>{index + 1}</span>
+                                    </div>
+                                  )}
+
+                                  <div className="flex-1 min-w-0 space-y-2">
+                                    <div className="flex items-center gap-2">
+                                      {field.type === 'static_text' ? (
+                                        <span className="flex-1 min-w-0 text-[12px] text-gray-400">仅展示下方文本内容，不显示标题</span>
+                                      ) : (
+                                        <div className="relative flex-1 min-w-0">
                                           <input
                                             type="text"
                                             required
                                             disabled={isReadOnly}
                                             value={field.name}
                                             onChange={e => handleUpdateField(index, { name: e.target.value })}
-                                            placeholder="字段名称，例如: 事件主题"
-                                            className="w-full px-2.5 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] text-xs font-medium text-gray-800 disabled:bg-gray-50 disabled:text-gray-600"
+                                            placeholder="字段标题"
+                                            className="w-full px-3 py-2 border border-gray-200 rounded-md text-[13px] font-medium focus:outline-none bg-white text-gray-800 hover:border-gray-300 focus:border-[#1890ff] disabled:bg-gray-50 disabled:text-gray-600"
                                           />
                                         </div>
+                                      )}
 
-                                        <input
-                                          type="text"
-                                          disabled={isReadOnly}
-                                          value={field.placeholder || ''}
-                                          onChange={e => handleUpdateField(index, { placeholder: e.target.value })}
-                                          placeholder="给填报人员看的填写提示，例如：请简要说明事件经过"
-                                          className="w-full px-2.5 py-1.5 text-xs bg-gray-50/60 border border-gray-200 rounded text-gray-600 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] disabled:bg-gray-100 disabled:text-gray-500"
-                                        />
-
-                                        {field.type === 'select' && (
-                                          <div className="p-2 bg-rose-50/40 border border-rose-100 rounded space-y-1.5">
-                                            <div className="text-[10px] text-rose-700 font-bold">选择项配置</div>
-                                            <div className="space-y-1.5">
-                                              {(field.options && field.options.length > 0 ? field.options : ['']).map((option, optionIndex) => (
-                                                <div key={optionIndex} className="flex items-center gap-1.5">
-                                                  <input
-                                                    type="text"
-                                                    disabled={isReadOnly}
-                                                    value={option}
-                                                    onChange={e => {
-                                                      const next = [...(field.options && field.options.length > 0 ? field.options : [''])];
-                                                      next[optionIndex] = e.target.value;
-                                                      handleUpdateField(index, { options: next });
-                                                    }}
-                                                    placeholder={`选项${optionIndex + 1}`}
-                                                    className="flex-1 px-2 py-1 text-[11px] bg-white border border-rose-100 rounded text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] disabled:bg-gray-50"
-                                                  />
-                                                  {!isReadOnly && (
-                                                    <button
-                                                      type="button"
-                                                      onClick={() => handleUpdateField(index, { options: (field.options || []).filter((_, idx) => idx !== optionIndex) })}
-                                                      className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer"
-                                                      title="删除选项"
-                                                    >
-                                                      <Trash2 className="w-3 h-3" />
-                                                    </button>
-                                                  )}
-                                                </div>
-                                              ))}
-                                            </div>
-                                            {!isReadOnly && (
-                                              <button
-                                                type="button"
-                                                onClick={() => handleUpdateField(index, { options: [...(field.options || []), `选项${(field.options || []).length + 1}`] })}
-                                                className="px-2 py-1 text-[10px] font-bold text-rose-700 bg-white border border-rose-100 rounded hover:border-rose-300 cursor-pointer"
-                                              >
-                                                + 新增选项
-                                              </button>
-                                            )}
-                                          </div>
-                                        )}
-
-                                        {field.type === 'identity' && (
-                                          <div className="p-2 bg-blue-50/50 border border-blue-100 rounded space-y-1.5">
-                                            <div className="text-[10px] text-blue-700 font-bold">角色列表（可多选）</div>
-                                            <div className="flex flex-wrap gap-1.5">
-                                              {systemRoleOptions.map(role => {
-                                                const selected = (field.options || []).includes(role);
-                                                return (
-                                                  <button
-                                                    key={role}
-                                                    type="button"
-                                                    disabled={isReadOnly}
-                                                    onClick={() => !isReadOnly && handleUpdateField(index, {
-                                                      options: selected
-                                                        ? (field.options || []).filter(option => option !== role)
-                                                        : [...(field.options || []), role]
-                                                    })}
-                                                    className={`px-2 py-1 rounded border text-[10px] font-bold transition-colors ${
-                                                      selected
-                                                        ? 'bg-[#1E5ABB] text-white border-[#1E5ABB]'
-                                                        : 'bg-white text-blue-700 border-blue-100 hover:border-blue-300'
-                                                    } ${isReadOnly ? 'cursor-default' : 'cursor-pointer'}`}
-                                                  >
-                                                    {role}
-                                                  </button>
-                                                );
-                                              })}
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-
-                                      <div className="flex flex-col items-center gap-1 shrink-0 mt-0.5">
-                                        <button
-                                          type="button"
-                                          disabled={requiredLocked}
-                                          onClick={() => !requiredLocked && handleUpdateField(index, { required: !field.required })}
-                                          className={`h-6 px-1.5 rounded text-[10px] font-bold transition-colors ${
-                                            field.required
-                                              ? 'bg-red-50 text-red-600 border border-red-200'
-                                              : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200'
-                                          } ${requiredLocked ? 'cursor-default' : 'cursor-pointer'}`}
-                                          title={requiredLocked ? '固定必填不可改' : (field.required ? '必填字段' : '选填字段')}
+                                      <div
+                                        className={`relative shrink-0 w-[142px] inline-flex items-center gap-1.5 py-2 px-2.5 rounded-md border text-[13px] font-medium transition-colors ${
+                                          typeLocked
+                                            ? 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed'
+                                            : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 focus-within:border-[#1890ff]'
+                                        }`}
+                                        title={typeLocked ? '系统固定字段，类型不可修改' : '点击切换字段类型'}
+                                      >
+                                        <span className="flex items-center [&_svg]:w-3.5 [&_svg]:h-3.5 text-[#1890ff]">
+                                          <IconComp className="w-3.5 h-3.5" />
+                                        </span>
+                                        <span className="flex-1 min-w-0 truncate">{typeLabel}</span>
+                                        {!typeLocked && <ChevronDown className="w-3 h-3 shrink-0 opacity-60" />}
+                                        <select
+                                          disabled={typeLocked}
+                                          value={controlValue}
+                                          onChange={e => {
+                                            if (fieldLocked) return;
+                                            const next = e.target.value;
+                                            if (next === 'textarea') {
+                                              handleUpdateField(index, { type: 'text', multiline: true });
+                                            } else {
+                                              handleUpdateField(index, { type: next as FieldType, multiline: undefined });
+                                            }
+                                          }}
+                                          aria-label="字段类型"
+                                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
                                         >
-                                          {field.required ? '必' : '选'}
-                                        </button>
-                                        {!isReadOnly && !fieldLocked && (
-                                          <button
-                                            type="button"
-                                            onClick={() => handleDeleteField(index)}
-                                            className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer"
-                                            title="删除字段"
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                          </button>
-                                        )}
+                                          {field.multiline || fieldLocked ? (
+                                            <>
+                                              <option value="text">单行文本</option>
+                                              <option value="textarea">多行文本</option>
+                                            </>
+                                          ) : (
+                                            (formTemplateType === '激活' ? activationFieldTypeOptions : reportFieldTypeOptions).map(type => (
+                                              <option key={type} value={type}>{getFieldTypeMeta(type).label}</option>
+                                            ))
+                                          )}
+                                        </select>
                                       </div>
                                     </div>
-                                  </div>
-                                );
-                              })}
 
-                              {!editingItem?.isDefault && (
-                                <div className="pt-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleAddField('text')}
-                                    className="w-full py-2.5 px-3 border-2 border-dashed border-[#1E5ABB]/30 hover:border-[#1E5ABB] bg-blue-50/40 hover:bg-blue-50/80 text-[#1E5ABB] hover:text-[#134092] rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs group"
-                                  >
-                                    <Plus className="w-4 h-4 transition-transform group-hover:scale-110 text-[#1E5ABB]" />
-                                    <span>添加字段</span>
-                                  </button>
+                                    {field.type === 'static_text' ? (
+                                      <textarea
+                                        rows={2}
+                                        disabled={isReadOnly}
+                                        value={field.placeholder || ''}
+                                        onChange={e => handleUpdateField(index, { placeholder: e.target.value })}
+                                        placeholder="设置展示给填报人的提示文本内容..."
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-[13px] text-gray-600 bg-gray-50/70 resize-none hover:border-gray-300 focus:outline-none focus:border-[#1890ff] focus:bg-white focus:text-gray-700 disabled:bg-gray-100 disabled:text-gray-500"
+                                      />
+                                    ) : (
+                                      <input
+                                        type="text"
+                                        disabled={isReadOnly}
+                                        value={field.placeholder || ''}
+                                        onChange={e => handleUpdateField(index, { placeholder: e.target.value })}
+                                        placeholder="设置填报提示引导词 (Placeholder)..."
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-[13px] text-gray-500 bg-gray-50/70 focus:outline-none hover:border-gray-300 focus:border-[#1890ff] focus:bg-white focus:text-gray-700 disabled:bg-gray-100 disabled:text-gray-500"
+                                      />
+                                    )}
+
+                                    {OPTION_FIELD_TYPES.includes(field.type) && (
+                                      <div className="p-3 rounded-lg bg-blue-50/50 border border-blue-100 space-y-2">
+                                        <div className="text-xs font-bold text-[#1890ff]">选择项配置</div>
+                                        <div className="space-y-2">
+                                          {(field.options && field.options.length > 0 ? field.options : ['']).map((option, optionIndex) => (
+                                            <div key={optionIndex} className="flex items-center gap-2">
+                                              <input
+                                                type="text"
+                                                disabled={isReadOnly}
+                                                value={option}
+                                                onChange={e => {
+                                                  const next = [...(field.options && field.options.length > 0 ? field.options : [''])];
+                                                  next[optionIndex] = e.target.value;
+                                                  handleUpdateField(index, { options: next });
+                                                }}
+                                                placeholder={`选项${optionIndex + 1}`}
+                                                className="flex-1 px-3 py-1.5 text-[13px] text-gray-700 border border-gray-200 rounded-md bg-white hover:border-gray-300 focus:outline-none focus:border-[#1890ff] disabled:bg-gray-50"
+                                              />
+                                              {!isReadOnly && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleUpdateField(index, { options: (field.options || []).filter((_, idx) => idx !== optionIndex) })}
+                                                  className="text-gray-400 hover:text-rose-600 p-1.5 cursor-pointer"
+                                                  title="删除该选项"
+                                                >
+                                                  <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                              )}
+                                            </div>
+                                          ))}
+                                          {!isReadOnly && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleUpdateField(index, { options: [...(field.options || []), `新选项 ${(field.options || []).length + 1}`] })}
+                                              className="px-2.5 py-1 text-xs text-[#1890ff] font-bold bg-white border border-blue-200 hover:bg-blue-50 rounded-md inline-flex items-center gap-1 cursor-pointer"
+                                            >
+                                              <Plus className="w-3 h-3" />
+                                              <span>新增选项</span>
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {field.type === 'identity' && (
+                                      <div className="pt-1 space-y-1.5">
+                                        <div className="text-[11px] font-medium text-gray-400">角色列表 (可多选)</div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {systemRoleOptions.map(role => {
+                                            const selected = (field.options || []).includes(role);
+                                            return (
+                                              <button
+                                                key={role}
+                                                type="button"
+                                                disabled={isReadOnly}
+                                                onClick={() => !isReadOnly && handleUpdateField(index, {
+                                                  options: selected
+                                                    ? (field.options || []).filter(option => option !== role)
+                                                    : [...(field.options || []), role]
+                                                })}
+                                                className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
+                                                  selected
+                                                    ? 'bg-[#1890ff] text-white'
+                                                    : 'bg-white text-gray-600 border border-gray-200 hover:border-[#1890ff] hover:text-[#1890ff]'
+                                                } ${isReadOnly ? 'cursor-default' : 'cursor-pointer'}`}
+                                              >
+                                                {role}
+                                              </button>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="flex flex-col items-center gap-2 shrink-0 pt-1">
+                                    {field.type === 'static_text' ? (
+                                      <span
+                                        className="w-7 h-7 rounded-md border border-dashed border-gray-200 text-[11px] text-gray-300 flex items-center justify-center cursor-not-allowed"
+                                        title="静态提示文本仅作展示，无需填写"
+                                      >
+                                        —
+                                      </span>
+                                    ) : requiredLocked ? (
+                                      <span
+                                        className="w-7 h-7 rounded-md border text-xs font-bold flex items-center justify-center cursor-not-allowed bg-rose-50 text-rose-400 border-rose-100"
+                                        title="固定必填不可改"
+                                      >
+                                        必
+                                      </span>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUpdateField(index, { required: !field.required })}
+                                        className={`w-7 h-7 rounded-md border text-xs font-bold transition-colors cursor-pointer ${
+                                          field.required
+                                            ? 'bg-rose-50 text-rose-500 border-rose-200 hover:bg-rose-100'
+                                            : 'bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100'
+                                        }`}
+                                        title={field.required ? '必填项 (点击改为选填)' : '选填项 (点击改为必填)'}
+                                      >
+                                        {field.required ? '必' : '选'}
+                                      </button>
+                                    )}
+                                    {fieldLocked || isReadOnly ? (
+                                      <span className="p-1 text-gray-300 cursor-not-allowed" title="固定字段不可删除">
+                                        <Trash2 className="w-4 h-4" />
+                                      </span>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteField(index)}
+                                        className="p-1 text-gray-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                        title="删除该字段"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {!editingItem?.isDefault && (
+                          <button
+                            type="button"
+                            onClick={() => handleAddField('text')}
+                            className="w-full mt-2 py-2.5 border border-dashed border-blue-300 bg-white/60 hover:bg-blue-50/60 hover:border-[#1890ff] text-[#1E5ABB] rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                          >
+                            <Plus className="w-4 h-4" />
+                            <span>添加字段</span>
+                          </button>
+                        )}
                       </div>
 
-                      {/* Right Column: Live User Preview */}
-                      <div className="bg-gray-50/80 rounded-lg border border-gray-200/80 p-4 space-y-3">
-                        <div className="w-full flex items-center justify-between gap-3 text-xs pb-1">
-                          <div className="inline-flex items-center gap-2 font-bold text-xs text-gray-800">
-                            {previewDevice === 'pc' ? (
-                              <Monitor className="w-3.5 h-3.5 text-[#1E5ABB]" />
-                            ) : (
-                              <Smartphone className="w-3.5 h-3.5 text-[#1E5ABB]" />
-                            )}
-                            <span>{previewDevice === 'pc' ? 'PC 端填报实时模拟' : '移动端填报实时模拟'}</span>
+                      {/* Right: Live Preview */}
+                      <div className="lg:col-span-5 bg-gray-50 rounded-xl p-4 lg:sticky lg:top-4">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-2 text-xs font-bold text-gray-800">
+                            <Eye className="w-3.5 h-3.5 text-[#1E5ABB]" />
+                            <span>用户填报界面实时交互预览</span>
                             {renderPreviewDeviceToggle()}
                           </div>
-                          <div className="text-xs text-gray-500 font-medium">
-                            共 {formFields.length} 个表单项 · 可直接体验输入
-                          </div>
+                          <span className="text-[11px] text-gray-400">
+                            {formTemplateType === '激活' ? '激活填报模式' : '报送填报模式'}
+                          </span>
                         </div>
 
                         <div className="flex justify-center">
-                          <div
-                            className={`${previewDevice === 'pc' ? 'w-full max-w-[880px]' : 'w-[375px]'} max-w-full bg-white rounded-lg p-3.5 border border-gray-200/70 shadow-2xs`}
-                          >
-                            {renderUserReportPreview(
+                          {previewDevice === 'pc' ? (
+                            renderUserReportPreview(
                               formFields,
-                              '请先在左侧添加表单字段，即可在此处实时体验用户填报效果',
+                              '请在左侧添加表单字段以实时预览',
                               formTemplateType,
                               'full',
-                              undefined,
-                              previewDevice
-                            )}
-                          </div>
+                              formName.trim() || '快速上报',
+                              'pc',
+                              (fieldId, width) => {
+                                setFormFields(prev =>
+                                  prev.map(f => (f.id === fieldId ? { ...f, pcWidth: width } : f))
+                                );
+                              }
+                            )
+                          ) : (
+                            <div className="w-[375px] max-w-full bg-white rounded-lg p-3.5 border border-gray-200/70 shadow-2xs">
+                              {renderUserReportPreview(
+                                formFields,
+                                '请先在左侧添加表单字段，即可在此处实时体验用户填报效果',
+                                formTemplateType,
+                                'full',
+                                formName.trim() || undefined,
+                                'h5'
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -4618,24 +5454,11 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
               ) : (
                 <div className="space-y-3">
                   {(() => {
-                    const activeSelectedTemplate = filteredList.find(item => item.id === selectedTemplateId) || filteredList[0] || null;
-
-                    if (filteredList.length === 0) {
-                      return (
-                        <div className="py-16 text-center text-gray-400 text-xs bg-white rounded-lg border border-gray-100 space-y-2">
-                          <Layers className="w-8 h-8 text-gray-300 mx-auto" />
-                          <p>暂无匹配的模板配置</p>
-                          <button
-                            type="button"
-                            onClick={openAddTemplatePage}
-                            className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded cursor-pointer"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                            <span>立即新增模板</span>
-                          </button>
-                        </div>
-                      );
-                    }
+                    const activeSelectedTemplate =
+                      filteredList.find(item => item.id === selectedTemplateId) ||
+                      pagedConfigList[0] ||
+                      filteredList[0] ||
+                      null;
 
                     return (
                       <div
@@ -4653,7 +5476,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 
                           {/* Left Master Column: Template directory with key essential information */}
                           <div className="tpl-board-col-left w-full shrink-0 border-b lg:border-b-0 flex flex-col min-h-0 bg-white">
-                            <div className="h-12 px-3.5 bg-gray-50/70 border-b border-gray-200 flex items-center justify-between shrink-0 whitespace-nowrap">
+                            <div className="h-12 px-3.5 bg-gray-50/70 border-b border-gray-200 flex items-center shrink-0 whitespace-nowrap">
                               <div className="flex items-center gap-1.5 min-w-0">
                                 <Layers className="w-3.5 h-3.5 text-[#1E5ABB] shrink-0" />
                                 <span className="font-bold text-xs text-gray-800 shrink-0">模板目录</span>
@@ -4661,20 +5484,46 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                   {filteredList.length}
                                 </span>
                               </div>
-                              <button
-                                type="button"
-                                onClick={openAddTemplatePage}
-                                className="w-6 h-6 rounded-md flex items-center justify-center text-[#1E5ABB] hover:bg-blue-50 border border-transparent hover:border-blue-200 transition-colors cursor-pointer shrink-0"
-                                title={templateTypeFilter === '激活' ? '新增激活模板' : '新增报送模板'}
-                              >
-                                <Plus className="w-4 h-4" />
-                              </button>
+                            </div>
+
+                            <div className="px-2.5 pt-2.5 shrink-0 bg-white">
+                              <div className="relative">
+                                <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                <input
+                                  type="text"
+                                  value={searchQuery}
+                                  onChange={e => {
+                                    setSearchQuery(e.target.value);
+                                    setConfigListPage(1);
+                                  }}
+                                  placeholder="搜索模板名称或描述"
+                                  aria-label="搜索模板名称或描述"
+                                  className="w-full pl-8 pr-8 py-2 bg-gray-50 border border-gray-200 hover:border-gray-300 focus:border-[#1E5ABB] rounded-lg text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/10 transition-all"
+                                />
+                                {searchQuery && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSearchQuery('');
+                                      setConfigListPage(1);
+                                    }}
+                                    aria-label="清空模板搜索"
+                                    title="清空搜索"
+                                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded cursor-pointer"
+                                  >
+                                    <WinCloseIcon className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
                             </div>
 
                             <div className="p-3 space-y-2 bg-gray-50/20 flex-1 max-h-[750px] overflow-y-auto">
-                              {[...filteredList]
-                                .sort((a, b) => Number(a.status !== '启用') - Number(b.status !== '启用'))
-                                .map(item => {
+                              {pagedConfigList.length === 0 && (
+                                <div className="py-8 text-center text-[11px] text-gray-400 border border-dashed border-gray-200 rounded-lg bg-white">
+                                  暂无匹配的模板配置
+                                </div>
+                              )}
+                              {pagedConfigList.map(item => {
                                 const isSelected = activeSelectedTemplate?.id === item.id;
                                 const isEnabled = item.status === '启用';
 
@@ -4828,6 +5677,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                 );
                               })}
                             </div>
+                            {renderConfigListPagination('directory')}
                           </div>
 
                           {/* Resize handle: left | center */}
@@ -5100,7 +5950,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {filteredList.map(item => {
+                    {pagedConfigList.map(item => {
                       const isSelected = selectedAuditFlowId === item.id;
                       const isEnabled = item.status === '启用';
 
@@ -5108,7 +5958,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                         <div
                           key={item.id}
                           onClick={() => setSelectedAuditFlowId(item.id)}
-                          className={`rounded-xl border transition-all flex flex-col justify-between overflow-hidden bg-white ${
+                          className={`group rounded-xl border transition-all flex flex-col justify-between overflow-hidden bg-white cursor-pointer ${
                             isSelected
                               ? 'border-[#1E5ABB] ring-2 ring-[#1E5ABB]/20 shadow-sm'
                               : isEnabled
@@ -5198,17 +6048,10 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 
                           {/* Footer */}
                           <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between gap-2 shrink-0">
-                            <button
-                              type="button"
-                              onClick={e => {
-                                e.stopPropagation();
-                                openPreviewItem(item);
-                              }}
-                              className="text-xs text-gray-500 hover:text-[#1E5ABB] flex items-center gap-1 cursor-pointer transition-colors whitespace-nowrap truncate"
-                            >
+                            <span className="text-xs text-gray-500 group-hover:text-[#1E5ABB] flex items-center gap-1 transition-colors whitespace-nowrap truncate">
                               <Eye className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                               <span className="truncate">查看流程节点设计 →</span>
-                            </button>
+                            </span>
 
                             <div className="flex items-center gap-2 shrink-0">
                               {item.isDefault ? (
@@ -5248,6 +6091,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                     })}
                   </div>
                 )}
+                {renderConfigListPagination()}
               </div>
             ) : activeModule === 'value_added' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -5704,7 +6548,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                   <div className="p-5 space-y-4 text-xs overflow-y-auto overflow-x-hidden">
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="text-sm font-bold text-gray-800 break-words">
-                        {selectedAuditFlow.name.replace(/【默认推荐】/g, '').replace(/默认推荐/g, '').trim()}
+                        {selectedAuditFlow.name}
                       </div>
                       {selectedAuditFlow.isDefault ? (
                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 font-bold rounded border border-gray-200 shrink-0 whitespace-nowrap">
@@ -5719,19 +6563,10 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      {previewData.summaryItems.map(item => (
-                        <div key={item.label} className="rounded-md border border-gray-100 bg-gray-50/70 px-2.5 py-2 min-w-0">
-                          <div className="text-[10px] text-gray-400 mb-0.5">{item.label}</div>
-                          <div className="text-[11px] font-bold text-gray-700 break-words" title={item.value}>{item.value}</div>
-                        </div>
-                      ))}
-                    </div>
-
                     <div className="rounded-md border border-gray-100 bg-gray-50/70 px-2.5 py-2">
                       <div className="text-[10px] text-gray-400 mb-0.5">说明描述</div>
                       <div className="text-[11px] text-gray-600 leading-relaxed break-words">
-                        {(selectedAuditFlow.description || '暂无说明描述').replace(/【默认推荐】/g, '').replace(/默认推荐/g, '').trim()}
+                        {selectedAuditFlow.description || '暂无说明描述'}
                       </div>
                     </div>
 
@@ -6515,11 +7350,17 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
             <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center shrink-0">
               <div className="flex items-center space-x-3">
                 <h3 className="text-sm font-bold text-gray-800">
-                  {editingItem ? `编辑${currentModuleLabel}` : `新增${currentModuleLabel}`}
+                  {editingItem
+                    ? activeModule === 'audit_flow'
+                      ? '编辑审核流程层级设计'
+                      : `编辑${currentModuleLabel}`
+                    : activeModule === 'audit_flow'
+                      ? '新增审核流程层级设计'
+                      : `新增${currentModuleLabel}`}
                 </h3>
               </div>
               <button
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => { void requestCloseConfigModal(); }}
                 className="text-gray-400 hover:text-gray-600 font-bold cursor-pointer"
               >
                 &times;
@@ -6596,95 +7437,105 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                 <div className="space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                      <label className="block text-gray-700 font-medium mb-1">审核流程名称 *</label>
+                      <label className="block text-gray-700 font-medium mb-1 text-xs">审核流程名称 *</label>
                       <input
                         type="text"
                         required
                         value={formName}
                         onChange={e => setFormName(e.target.value)}
                         placeholder="请输入审核流程规则名称..."
-                        className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                        className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] text-xs"
                       />
                     </div>
 
                     {renderFormStatusSegment('启用状态 *')}
 
                     <div>
-                      <label className="block text-gray-700 font-medium mb-1">说明描述</label>
+                      <label className="block text-gray-700 font-medium mb-1 text-xs">说明描述</label>
                       <input
                         type="text"
                         value={formDesc}
                         onChange={e => setFormDesc(e.target.value)}
                         placeholder="请输入适用场景与责任主体说明..."
-                        className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                        className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] text-xs"
                       />
                     </div>
                   </div>
 
-                  {/* 审核流程核心模式选择器（精简三模式卡片） */}
+                  {/* Flow Mode Selection Segment — 与 MT 应用管理端一致 */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <Workflow className="w-4 h-4 text-[#1E5ABB]" />
-                        <span className="font-bold text-gray-800 text-xs">审核流程模式 *</span>
-                      </div>
-                      <span className="text-[11px] font-bold text-[#1E5ABB] bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
-                        当前选中：{formAuditFlowMode === 'step_by_step' ? '逐级审核' : formAuditFlowMode === 'max_n_steps' ? `最多${formMaxIntermediateNodes}级审核` : '直达总机构审核'}
+                      <span className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                        <LinkIcon className="w-3.5 h-3.5 text-gray-500" />
+                        <span>审核流程模式 *</span>
+                      </span>
+                      <span className="text-xs font-semibold text-[#1677ff] bg-[#e6f4ff] px-2.5 py-0.5 rounded-full">
+                        当前选中: {formAuditFlowMode === 'step_by_step' ? '逐级审核' : formAuditFlowMode === 'max_n_steps' ? `最多${formMaxIntermediateNodes || 3}级审核` : '直达总机构审核'}
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-                      {[
-                        {
-                          id: 'step_by_step' as const,
-                          title: '模式一：逐级审核',
-                          badge: '推荐',
-                          badgeStyle: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-                          desc: '沿组织树逐级向上传递复核，最终由总机构终审并评分（自适应组织深度）。'
-                        },
-                        {
-                          id: 'max_n_steps' as const,
-                          title: '模式二：最多N级审核',
-                          badge: '上限截断',
-                          badgeStyle: 'bg-amber-50 text-amber-800 border-amber-200',
-                          desc: `下级提报后至多经过 ${formMaxIntermediateNodes} 级中间机构审核，超出部分直接穿透至总机构。`
-                        },
-                        {
-                          id: 'direct_headquarters' as const,
-                          title: '模式三：直达总机构审核',
-                          badge: '极速直达',
-                          badgeStyle: 'bg-purple-50 text-purple-700 border-purple-200',
-                          desc: '跳过所有下级中间机构，提报后直接由总机构管理员终审并评分结案。'
-                        }
-                      ].map(modeOpt => {
-                        const isSelected = formAuditFlowMode === modeOpt.id;
-                        return (
-                          <div
-                            key={modeOpt.id}
-                            onClick={() => handleSwitchAuditFlowMode(modeOpt.id)}
-                            className={`rounded-lg border p-3 cursor-pointer transition-all flex flex-col justify-between ${
-                              isSelected
-                                ? 'border-[#1E5ABB] bg-blue-50/50 shadow-2xs ring-1 ring-[#1E5ABB]'
-                                : 'border-gray-200 bg-white hover:border-blue-200 hover:bg-gray-50'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between mb-1.5">
-                              <span className={`text-xs font-bold ${isSelected ? 'text-[#1E5ABB]' : 'text-gray-800'}`}>
-                                {modeOpt.title}
-                              </span>
-                              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${modeOpt.badgeStyle}`}>
-                                {modeOpt.badge}
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-gray-500 leading-relaxed">
-                              {modeOpt.desc}
-                            </p>
-                          </div>
-                        );
-                      })}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleSwitchAuditFlowMode('step_by_step')}
+                        className={`rounded-xl p-3.5 text-left cursor-pointer transition-all flex flex-col justify-between bg-white ${
+                          formAuditFlowMode === 'step_by_step'
+                            ? 'border-2 border-[#1677ff] shadow-xs'
+                            : 'border border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-bold text-gray-900">模式一: 逐级审核</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-emerald-50 text-emerald-600 border border-emerald-200">
+                            推荐
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 leading-relaxed">
+                          沿组织树逐级向上传递复核，最终由总机构终审并评分（自适应组织深度）。
+                        </p>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSwitchAuditFlowMode('max_n_steps')}
+                        className={`rounded-xl p-3.5 text-left cursor-pointer transition-all flex flex-col justify-between bg-white ${
+                          formAuditFlowMode === 'max_n_steps'
+                            ? 'border-2 border-[#1677ff] shadow-xs'
+                            : 'border border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-bold text-gray-900">模式二: 最多N级审核</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-amber-50 text-amber-600 border border-amber-200">
+                            上限截断
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 leading-relaxed">
+                          下级提报后至多经过 {formMaxIntermediateNodes || 3} 级中间机构审核，超出部分直接穿透至总机构。
+                        </p>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSwitchAuditFlowMode('direct_headquarters')}
+                        className={`rounded-xl p-3.5 text-left cursor-pointer transition-all flex flex-col justify-between bg-white ${
+                          formAuditFlowMode === 'direct_headquarters'
+                            ? 'border-2 border-[#1677ff] shadow-xs'
+                            : 'border border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-bold text-gray-900">模式三: 直达总机构审核</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-purple-50 text-purple-600 border border-purple-200">
+                            极速直达
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 leading-relaxed">
+                          跳过所有下级中间机构，提报后直接由总机构管理员终审并评分结案。
+                        </p>
+                      </button>
                     </div>
 
-                    {/* 最多N级：中间机构上限 + 级数计算方向 */}
                     {formAuditFlowMode === 'max_n_steps' && (
                       <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 space-y-2 mt-2">
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -6987,158 +7838,143 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                 );
               })()}
 
-              {/* Audit Flow Builder */}
+              {/* Audit Flow Builder — 与 MT 应用管理端布局一致 */}
               {activeModule === 'audit_flow' && (() => {
                 const selectedIndex = Math.max(
                   0,
                   formAuditNodes.findIndex(node => node.id === selectedAuditNodeId)
                 );
                 const selectedNode = formAuditNodes[selectedIndex] || formAuditNodes[0];
+                const assigneeSourceOptions = getAuditAssigneeSourceOptionsForNode(selectedNode, selectedIndex);
+                const effectiveAssigneeSource = assigneeSourceOptions.some(
+                  option => option.id === (selectedNode?.assigneeSource || 'role')
+                )
+                  ? selectedNode?.assigneeSource || 'role'
+                  : assigneeSourceOptions[0]?.id || 'role';
                 const isSubmitNode = (node?: AuditNode | null) =>
                   Boolean(
                     node?.isSubmitStage ||
                       node?.nodeName === '上报人' ||
                       node?.nodeName === '上报'
                   );
+                const isFinalSelected = Boolean(
+                  selectedNode &&
+                    (selectedNode.isUnifiedFinalNode ||
+                      (!isSubmitNode(selectedNode) && selectedIndex === formAuditNodes.length - 1))
+                );
+                const isMode12IntermediateSelected =
+                  (formAuditFlowMode === 'step_by_step' || formAuditFlowMode === 'max_n_steps') &&
+                  selectedNode &&
+                  !isSubmitNode(selectedNode) &&
+                  !isFinalSelected;
                 return (
-                  <div className="space-y-4 pt-3 border-t border-gray-200">
-                    {/* 节点配置与流转主区域：左右平衡响应式双列布局 (50% : 50%) */}
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-                      {/* 左侧：节点链可视化 (6列) */}
-                      <div className="lg:col-span-6 min-w-0 bg-gray-50/80 p-3.5 rounded-xl border border-gray-200 space-y-3 flex flex-col">
-                        <div className="flex items-center justify-between flex-wrap gap-2">
-                          <div className="flex items-center space-x-2">
-                            <GitBranch className="w-4 h-4 text-[#1E5ABB]" />
-                            <span className="font-bold text-gray-800 text-xs">
-                              审核节点流转链（共 {formAuditNodes.length} 个阶段）
-                            </span>
-                          </div>
-                          <span className="text-[11px] text-gray-400">
+                  <div className="space-y-3 pt-2">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                            <LinkIcon className="w-3.5 h-3.5 text-gray-500" />
+                            <span>审核节点流转链（共 {formAuditNodes.length} 个阶段）</span>
+                          </span>
+                          <span className="text-xs text-gray-400 font-normal">
                             点击节点在右侧编辑
                           </span>
                         </div>
 
-                        {/* 节点卡片流转网格 */}
-                        <div className="w-full min-w-0 bg-white rounded-xl border border-gray-200/80 p-3 shadow-2xs">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch">
+                        <div className="border border-gray-200 rounded-xl p-4 bg-white min-h-[420px]">
+                          <div className="grid grid-cols-2 gap-3">
                             {formAuditNodes.map((node, index) => {
-                              const isSelected = selectedNode?.id === node.id;
+                              const isSelected = (selectedNode?.id || formAuditNodes[0]?.id) === node.id;
                               const isSubmitStage = isSubmitNode(node);
-                              const isFinalNode = Boolean(
+                              const isFinalScore = Boolean(
                                 !isSubmitStage && (node.isUnifiedFinalNode || index === formAuditNodes.length - 1)
                               );
+                              const isAdaptiveStep = node.nodeName === adaptiveStepName;
+
                               return (
                                 <div
                                   key={node.id || index}
-                                  draggable={!isFinalNode && !isSubmitStage}
-                                  onDragStart={e => e.dataTransfer.setData('text/plain', String(index))}
-                                  onDragOver={e => e.preventDefault()}
-                                  onDrop={e => {
-                                    e.preventDefault();
-                                    if (isSubmitStage) return;
-                                    handleDragAuditNode(Number(e.dataTransfer.getData('text/plain')), index);
-                                  }}
                                   onClick={() => setSelectedAuditNodeId(node.id)}
-                                  className={`relative p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between min-h-[148px] ${
-                                    isFinalNode
-                                      ? isSelected
-                                        ? 'border-amber-500 bg-gradient-to-br from-amber-50 to-orange-50/60 shadow-xs ring-2 ring-amber-400/30'
-                                        : 'border-amber-300 bg-gradient-to-br from-amber-50/40 to-yellow-50/20 hover:border-amber-400'
-                                      : isSelected
-                                      ? 'border-[#1E5ABB] bg-blue-50/70 shadow-xs ring-2 ring-[#1E5ABB]/20'
-                                      : 'border-gray-200 bg-white hover:border-blue-200 hover:bg-gray-50/80'
+                                  className={`rounded-xl p-3.5 cursor-pointer transition-all flex flex-col justify-between ${
+                                    isSelected
+                                      ? 'border-2 border-[#1677ff] bg-blue-50/20 shadow-xs'
+                                      : 'border border-gray-200 bg-white hover:border-blue-300'
                                   }`}
                                 >
-                                  <div className="space-y-2">
-                                    <div className="flex items-center justify-between gap-1.5">
-                                      <div className="flex items-center space-x-1.5">
-                                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                                          isFinalNode
-                                            ? 'bg-amber-500 text-white'
-                                            : isSelected
-                                            ? 'bg-[#1E5ABB] text-white'
-                                            : 'bg-gray-100 text-gray-700'
+                                  <div>
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center">
+                                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ${
+                                          isFinalScore ? 'bg-[#fa8c16]' : 'bg-[#1677ff]'
                                         }`}>
                                           {index + 1}
                                         </span>
-                                        {isFinalNode ? (
-                                          <span className="text-[10px] font-bold text-amber-700 bg-amber-100/80 px-1.5 py-0.2 rounded border border-amber-200 flex items-center gap-0.5">
-                                            <Award className="w-2.5 h-2.5" />
-                                            终审评分
+                                        {isFinalScore ? (
+                                          <span className="bg-amber-50 text-amber-600 border border-amber-200 text-[11px] px-1.5 py-0.5 rounded font-medium ml-1.5 flex items-center gap-0.5">
+                                            <span>🎗️</span>
+                                            <span>终审评分</span>
                                           </span>
                                         ) : (
-                                          <span className="text-[10px] text-gray-500 font-medium">
+                                          <span className="text-xs font-medium text-gray-500 ml-1.5">
                                             第 {index + 1} 阶段
                                           </span>
                                         )}
                                       </div>
 
-                                      <div className="flex items-center gap-1.5">
-                                        {!isFinalNode ? (
-                                          <span
-                                            className="w-5 h-5 flex items-center justify-center rounded-full bg-blue-50 text-[#1E5ABB] border border-blue-200"
-                                            title={`流向第 ${index + 2} 阶段：${formAuditNodes[index + 1]?.nodeName || '下级审核'}`}
-                                          >
-                                            <ArrowRight className="w-3 h-3 stroke-[2.5]" />
-                                          </span>
-                                        ) : (
-                                          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                      <div className="flex items-center space-x-1 text-gray-400">
+                                        {isFinalScore ? (
+                                          <span className="bg-gray-100 border border-gray-200 text-gray-500 text-[11px] px-1.5 py-0.5 rounded font-normal">
                                             终点
                                           </span>
+                                        ) : (
+                                          <span className="w-5 h-5 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center text-xs font-bold">
+                                            →
+                                          </span>
                                         )}
-
-                                        <span
-                                          title="流程模式标准节点已固定"
-                                          className={`p-0.5 flex items-center justify-center ${
-                                            isFinalNode ? 'text-amber-500/80' : 'text-gray-400'
-                                          }`}
-                                        >
-                                          <Lock className="w-3 h-3" />
-                                        </span>
+                                        <Lock className="w-3 h-3 text-gray-400" />
                                       </div>
                                     </div>
 
-                                    <div>
-                                      <div className="font-bold text-gray-900 text-xs truncate">
+                                    <div className="mt-2.5">
+                                      <h4 className="text-sm font-bold text-gray-900 truncate">
                                         {node.nodeName}
-                                      </div>
-                                      <div className="text-[10px] text-gray-500 mt-0.5 truncate">
-                                        {isSubmitStage ? '不限固定角色' : getAuditAssigneeSourceLabel(node.assigneeSource)}
-                                      </div>
+                                      </h4>
+                                      {!isAdaptiveStep && (
+                                        <p className="text-xs text-gray-500 mt-0.5 truncate">
+                                          {isSubmitStage ? '不限固定角色' : getAuditAssigneeSourceLabel(node, index)}
+                                        </p>
+                                      )}
                                     </div>
 
-                                    <div className={`text-[10px] p-1.5 rounded border leading-tight ${
-                                      isFinalNode
-                                        ? 'bg-amber-100/50 border-amber-200/80 text-amber-900 font-bold'
-                                        : 'bg-gray-50 border-gray-100 text-gray-600'
+                                    <div className={`rounded-lg p-2 text-xs font-medium mt-2.5 ${
+                                      isSubmitStage || isAdaptiveStep ? 'leading-relaxed' : 'truncate'
+                                    } ${
+                                      isFinalScore
+                                        ? 'bg-amber-50/70 border border-amber-200 text-amber-900'
+                                        : 'bg-gray-50 border border-gray-100 text-gray-600'
                                     }`}>
                                       {isSubmitStage
                                         ? '上报功能人员暂无限制'
+                                        : isAdaptiveStep
+                                        ? adaptiveStepMechanism
+                                        : isFinalScore
+                                        ? (node.approverRole || '总机构管理员')
                                         : node.assigneeSource === 'org_owner'
-                                        ? '归属机构负责人'
-                                        : node.assigneeSource === 'user'
-                                        ? node.assigneeUserName || node.approverRole
-                                        : node.approverRole}
+                                        ? '归属外部机构负责人'
+                                        : node.assigneeSource === 'user' && getAssigneeUsers(node).length > 0
+                                        ? formatAssigneeUsersLabel(node, Boolean(isFinalScore))
+                                        : (node.approverRole || '审核员')}
                                     </div>
                                   </div>
 
-                                  {!isSubmitStage && (
-                                    <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-2">
-                                      {node.enableTimeout !== false && (node.timeLimitMinutes ?? 0) > 0 ? (
-                                        <span className="text-[10px] text-blue-600 font-mono flex items-center gap-1 font-medium" title={`超时提醒时限：${node.timeLimitMinutes}分钟`}>
-                                          <Clock className="w-2.5 h-2.5 text-blue-600" />
-                                          {node.timeLimitMinutes >= 60 && node.timeLimitMinutes % 60 === 0
-                                            ? `${node.timeLimitMinutes / 60}小时`
-                                            : `${node.timeLimitMinutes}分`}
-                                        </span>
-                                      ) : (
-                                        <span className="text-[10px] text-gray-400 flex items-center gap-1" title="未开启超时提醒">
-                                          <Clock className="w-2.5 h-2.5 text-gray-300" />
-                                          无提醒
-                                        </span>
-                                      )}
+                                  {!isSubmitStage && (node.enableTimeout === false ? (
+                                    <div className="text-xs text-gray-400 font-medium mt-3">超时提醒关闭</div>
+                                  ) : (
+                                    <div className="text-xs text-[#1677ff] font-medium flex items-center gap-1 mt-3">
+                                      <Clock className="w-3.5 h-3.5 text-[#1677ff]" />
+                                      <span>{(node.timeLimitMinutes || 15) >= 60 ? `${(node.timeLimitMinutes || 15) / 60}小时` : `${node.timeLimitMinutes || 15}分`}</span>
                                     </div>
-                                  )}
+                                  ))}
                                 </div>
                               );
                             })}
@@ -7146,234 +7982,424 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                         </div>
                       </div>
 
-                      {/* 右侧：选中节点属性面板 (6列，宽敞紧凑) */}
-                      <div className="lg:col-span-6 min-w-0 bg-white p-3.5 rounded-xl border border-gray-200 space-y-3 shadow-2xs">
-                        <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                          <span className="font-bold text-gray-800 text-xs flex items-center gap-1.5">
-                            <Sliders className="w-3.5 h-3.5 text-[#1E5ABB]" />
-                            <span>节点属性编辑（第 {selectedIndex + 1} 阶段：{selectedNode?.nodeName}）</span>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                            <span>🎛️</span>
+                            <span>节点属性编辑 (第 {selectedIndex + 1} 阶段: {selectedNode?.nodeName})</span>
                           </span>
-                          {selectedNode && (
-                            <span className="text-[10px] text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-gray-200 font-medium flex items-center gap-1" title="流程模式标准节点已固定，不可删除">
-                              <Lock className="w-2.5 h-2.5 text-gray-400" />
-                              <span>流程固定节点</span>
-                            </span>
-                          )}
+                          <span className="text-xs text-gray-500 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded font-normal flex items-center gap-1">
+                            <Lock className="w-3 h-3 text-gray-400" />
+                            <span>流程固定节点</span>
+                          </span>
                         </div>
 
-                        {selectedNode && isSubmitNode(selectedNode) ? (
-                          <div className="flex flex-col items-center justify-center text-center min-h-[320px] px-8">
-                            <p className="text-sm font-bold text-gray-800">上报阶段无需配置</p>
-                            <p className="text-xs text-gray-500 mt-2 leading-relaxed">上报功能人员暂无限制，不配置节点属性。</p>
-                          </div>
-                        ) : selectedNode ? (
-                          <div className="space-y-3">
-                            {(selectedNode.isUnifiedFinalNode || selectedIndex === formAuditNodes.length - 1) && (
-                              <div className="p-2 rounded bg-amber-50 border border-amber-200 text-[11px] text-amber-800 flex items-center gap-1.5">
-                                <Award className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                <span>总机构终审通过并完成评分后结案入库</span>
-                              </div>
-                            )}
-
-                            {/* Row 1: 节点名称 & 处理人来源 (双列并排) */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <div>
-                                <label className="block text-[11px] text-gray-600 font-medium mb-1">节点名称 *</label>
-                                <input
-                                  type="text"
-                                  required
-                                  value={selectedNode.nodeName}
-                                  onChange={e => handleUpdateAuditNode(selectedIndex, { nodeName: e.target.value })}
-                                  className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] font-medium"
-                                />
-                              </div>
-
-                              <div>
-                                <label className="block text-[11px] text-gray-600 font-medium mb-1">处理人来源 *</label>
-                                <select
-                                  value={selectedNode.assigneeSource || 'role'}
-                                  onChange={e => {
-                                    const source = e.target.value as AuditNode['assigneeSource'];
-                                    handleUpdateAuditNode(selectedIndex, {
-                                      assigneeSource: source,
-                                      approverRole: source === 'org_owner' ? '归属机构负责人' : selectedNode.approverRole
-                                    });
-                                  }}
-                                  className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                                >
-                                  {auditAssigneeSourceOptions.map(option => (
-                                    <option key={option.id} value={option.id}>{option.label}</option>
-                                  ))}
-                                </select>
-                              </div>
+                        <div className="border border-gray-200 rounded-xl p-4 bg-white space-y-3.5 min-h-[420px]">
+                          {selectedNode && isSubmitNode(selectedNode) ? (
+                            <div className="flex flex-col items-center justify-center text-center min-h-[380px] px-8">
+                              <p className="text-sm font-bold text-gray-800">上报阶段无需配置</p>
+                              <p className="text-xs text-gray-500 mt-2 leading-relaxed">上报功能人员暂无限制，不配置节点属性。</p>
                             </div>
-
-                            {/* Row 2: 处理人角色/指定人 & 退回规则 (双列并排) */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              {selectedNode.assigneeSource === 'user' ? (
-                                <div>
-                                  <label className="block text-[11px] text-gray-600 font-medium mb-1">指定人员 *</label>
-                                  <select
-                                    value={selectedNode.assigneeUserName || ''}
-                                    onChange={e => handleUpdateAuditNode(selectedIndex, { assigneeUserName: e.target.value, approverRole: e.target.value })}
-                                    className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                                  >
-                                    <option value="">请选择人员</option>
-                                    {auditUserOptions.map(user => (
-                                      <option key={user} value={user}>{user}</option>
-                                    ))}
-                                  </select>
-                                </div>
-                              ) : selectedNode.assigneeSource === 'org_owner' ? (
-                                <div>
-                                  <label className="block text-[11px] text-gray-600 font-medium mb-1">动态处理机制</label>
-                                  <div className="px-2.5 py-1.5 rounded-lg border border-emerald-100 bg-emerald-50/50 text-[11px] text-emerald-800 flex items-center h-[34px]">
-                                    动态匹配归属机构负责人
-                                  </div>
-                                </div>
-                              ) : (
-                                <div>
-                                  <label className="block text-[11px] text-gray-600 font-medium mb-1">处理角色 *</label>
-                                  <select
-                                    value={selectedNode.approverRole}
-                                    onChange={e => handleUpdateAuditNode(selectedIndex, { approverRole: e.target.value })}
-                                    className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                                  >
-                                    {auditRoleOptions.map(role => (
-                                      <option key={role} value={role}>{role}</option>
-                                    ))}
-                                  </select>
+                          ) : selectedNode ? (
+                            <>
+                              {isFinalSelected && (
+                                <div className="bg-amber-50 border border-amber-200 text-amber-800 p-2.5 rounded-lg text-xs font-medium flex items-center gap-1.5">
+                                  <span>🎗️</span>
+                                  <span>总机构终审通过并完成评分后结案入库</span>
                                 </div>
                               )}
 
-                              <div>
-                                <label className="block text-[11px] text-gray-600 font-medium mb-1">退回规则 *</label>
-                                <select
-                                  value={selectedNode.rejectStrategy || 'return_submitter'}
-                                  onChange={e => handleUpdateAuditNode(selectedIndex, { rejectStrategy: e.target.value as AuditNode['rejectStrategy'] })}
-                                  className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                                >
-                                  <option value="return_submitter">退回上报人修改</option>
-                                  <option value="return_previous">退回上一节点</option>
-                                </select>
-                              </div>
-                            </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-xs font-bold text-gray-800 mb-1">节点名称</label>
+                                  <input
+                                    type="text"
+                                    readOnly
+                                    value={selectedNode.nodeName}
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-medium bg-gray-50 text-gray-700 cursor-not-allowed"
+                                  />
+                                </div>
 
-                            {/* Row 3: 无处理人处理规则 — 中间节点可选跳过/阻断，终审固定阻断 */}
-                            <div className="rounded-lg border border-amber-200/80 bg-amber-50/30 p-2.5 space-y-2">
-                              <div className="flex items-center justify-between gap-3">
-                                <label className="text-[11px] text-amber-900 font-bold shrink-0">无处理人处理规则</label>
-                                {(selectedNode.isUnifiedFinalNode || selectedIndex === formAuditNodes.length - 1) ? (
-                                  <span className="text-xs font-semibold text-amber-900">阻断提交</span>
-                                ) : (
+                                <div>
+                                  <label className="block text-xs font-bold text-gray-800 mb-1">处理人来源 *</label>
                                   <select
-                                    value={
-                                      selectedNode.missingRule === 'block' ||
-                                      selectedNode.ownerMissingStrategy === 'block_submit'
-                                        ? 'block'
-                                        : 'skip'
-                                    }
+                                    value={effectiveAssigneeSource}
                                     onChange={e => {
-                                      const block = e.target.value === 'block';
+                                      const source = e.target.value as AuditNode['assigneeSource'];
+                                      const roleOptions = getNodeRoleOptions(selectedNode, selectedIndex);
                                       handleUpdateAuditNode(selectedIndex, {
-                                        missingRule: block ? 'block' : 'skip',
-                                        ownerMissingStrategy: block ? 'block_submit' : 'skip_to_next',
+                                        assigneeSource: source,
+                                        assigneeUserName: source === 'user' ? '' : selectedNode.assigneeUserName,
+                                        assigneeOrgId: source === 'user' ? undefined : selectedNode.assigneeOrgId,
+                                        assigneeUsers: source === 'user' ? [] : selectedNode.assigneeUsers,
+                                        ...(source === 'org_owner'
+                                          ? {
+                                              approverRole: isFinalSelected ? '内部机构负责人' : '归属机构负责人',
+                                              approverRoles: undefined
+                                            }
+                                          : source === 'role'
+                                            ? buildApproverRoleUpdates([roleOptions[0]])
+                                            : { approverRole: '', approverRoles: [] })
+                                      });
+                                      if (source === 'user') {
+                                        const tree = isFinalSelected ? flatInternalOrgNodes : flatExternalOrgNodes;
+                                        setExternalPersonPickerOrgId(
+                                          selectedNode.assigneeOrgId || tree[0]?.id || null
+                                        );
+                                      }
+                                      if (source !== 'role') setIsRolePickerOpen(false);
+                                    }}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-medium bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  >
+                                    {assigneeSourceOptions.map(option => (
+                                      <option key={option.id} value={option.id}>{option.label}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+
+                              <div>
+                                <div>
+                                  {effectiveAssigneeSource === 'org_owner' ? (
+                                    <>
+                                      <label className="block text-xs font-bold text-gray-800 mb-1">动态处理机制</label>
+                                      <div className="bg-emerald-50/70 border border-emerald-200 text-emerald-700 font-medium text-xs px-3 py-2 rounded-lg truncate">
+                                        {isFinalSelected ? '动态匹配总机构内部负责人' : '动态匹配归属外部机构负责人'}
+                                      </div>
+                                    </>
+                                  ) : effectiveAssigneeSource === 'user' ? (
+                                    <>
+                                      <label className="block text-xs font-bold text-gray-800 mb-1">
+                                        {isFinalSelected
+                                          ? '内部机构人员 *'
+                                          : isMode12IntermediateSelected
+                                            ? '外部组织人员 *'
+                                            : '指定外部人员 *'}
+                                      </label>
+                                      {(() => {
+                                        const isInternal = isFinalSelected;
+                                        const flatOrgs = isInternal ? flatInternalOrgNodes : flatExternalOrgNodes;
+                                        const selectedUsers = getAssigneeUsers(selectedNode);
+                                        const resolvePeople = (orgId?: string | null) =>
+                                          isInternal
+                                            ? getInternalPeopleByOrgId(orgId)
+                                            : getPeopleByOrgId(orgId).map(person => ({
+                                                id: String(person.id),
+                                                name: person.realName
+                                              }));
+                                        return (
+                                        <div className="relative" ref={externalPersonPickerRef}>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setExternalPersonPickerOrgId(
+                                                selectedUsers[0]?.orgId ||
+                                                  selectedNode.assigneeOrgId ||
+                                                  flatOrgs[0]?.id ||
+                                                  null
+                                              );
+                                              setIsExternalPersonPickerOpen(open => !open);
+                                            }}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-medium bg-white text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                          >
+                                            <span className={`truncate ${selectedUsers.length ? 'text-gray-800' : 'text-gray-400'}`}>
+                                              {selectedUsers.length
+                                                ? formatAssigneeUsersLabel(selectedNode, isInternal)
+                                                : '请选择人员（可多选）'}
+                                            </span>
+                                            <ChevronDown className={`w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform ${isExternalPersonPickerOpen ? 'rotate-180' : ''}`} />
+                                          </button>
+                                          {isExternalPersonPickerOpen && (
+                                            <div className="absolute left-0 right-0 top-full mt-1 z-30 border border-gray-200 rounded-lg overflow-hidden bg-white shadow-lg">
+                                              <div className="grid grid-cols-2 h-44 text-xs">
+                                                <div className="border-r border-gray-100 overflow-y-auto bg-slate-50/80">
+                                                  <div className="px-2 py-1.5 text-[10px] font-bold text-gray-500 sticky top-0 bg-slate-50 border-b border-gray-100">
+                                                    {isInternal ? '内部机构节点' : '外部组织节点'}
+                                                  </div>
+                                                  {flatOrgs.map(org => {
+                                                    const active =
+                                                      (externalPersonPickerOrgId ||
+                                                        selectedUsers[0]?.orgId ||
+                                                        flatOrgs[0]?.id) === org.id;
+                                                    const selectedCount = selectedUsers.filter(
+                                                      user => user.orgId === org.id
+                                                    ).length;
+                                                    return (
+                                                      <button
+                                                        key={org.id}
+                                                        type="button"
+                                                        onClick={() => setExternalPersonPickerOrgId(org.id)}
+                                                        className={`w-full text-left px-2 py-1.5 border-b border-gray-50 transition-colors ${
+                                                          active ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-700 hover:bg-white'
+                                                        }`}
+                                                        style={{ paddingLeft: `${8 + org.depth * 12}px` }}
+                                                      >
+                                                        <span className="truncate">{org.name}</span>
+                                                        {selectedCount > 0 && (
+                                                          <span className="ml-1 text-[10px] text-blue-500">({selectedCount})</span>
+                                                        )}
+                                                      </button>
+                                                    );
+                                                  })}
+                                                </div>
+                                                <div className="overflow-y-auto">
+                                                  <div className="px-2 py-1.5 text-[10px] font-bold text-gray-500 sticky top-0 bg-white border-b border-gray-100">
+                                                    节点人员（多选）
+                                                  </div>
+                                                  {(() => {
+                                                    const orgId =
+                                                      externalPersonPickerOrgId ||
+                                                      selectedUsers[0]?.orgId ||
+                                                      flatOrgs[0]?.id;
+                                                    const people = resolvePeople(orgId);
+                                                    if (people.length === 0) {
+                                                      return (
+                                                        <div className="px-2 py-3 text-gray-400 text-[11px]">该组织节点暂无人员</div>
+                                                      );
+                                                    }
+                                                    return people.map(person => {
+                                                      const selected = selectedUsers.some(
+                                                        user => user.orgId === orgId && user.userName === person.name
+                                                      );
+                                                      return (
+                                                        <button
+                                                          key={person.id}
+                                                          type="button"
+                                                          onClick={() => {
+                                                            const nextUsers = selected
+                                                              ? selectedUsers.filter(
+                                                                  user => !(user.orgId === orgId && user.userName === person.name)
+                                                                )
+                                                              : [...selectedUsers, { orgId: orgId || '', userName: person.name }];
+                                                            setExternalPersonPickerOrgId(orgId || null);
+                                                            handleUpdateAuditNode(
+                                                              selectedIndex,
+                                                              buildAssigneeUserUpdates(nextUsers)
+                                                            );
+                                                          }}
+                                                          className={`w-full text-left px-2 py-1.5 border-b border-gray-50 transition-colors flex items-center gap-1.5 ${
+                                                            selected ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-700 hover:bg-slate-50'
+                                                          }`}
+                                                        >
+                                                          {selected ? (
+                                                            <CheckSquare className="w-3.5 h-3.5 shrink-0 text-blue-600" />
+                                                          ) : (
+                                                            <Square className="w-3.5 h-3.5 shrink-0 text-gray-300" />
+                                                          )}
+                                                          <span className="truncate">{person.name}</span>
+                                                        </button>
+                                                      );
+                                                    });
+                                                  })()}
+                                                </div>
+                                              </div>
+                                              <div className="px-2.5 py-1.5 border-t border-gray-100 bg-gray-50 text-[11px] text-gray-600 flex items-center justify-between gap-2">
+                                                <span className="truncate">
+                                                  已选 {selectedUsers.length} 人（{isInternal ? '内部机构' : '可跨机构'}多选）
+                                                </span>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setIsExternalPersonPickerOpen(false)}
+                                                  className="shrink-0 px-2 py-0.5 rounded bg-blue-600 text-white text-[11px] font-medium hover:bg-blue-700"
+                                                >
+                                                  确定
+                                                </button>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                        );
+                                      })()}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <label className="block text-xs font-bold text-gray-800 mb-1">
+                                        {isFinalSelected
+                                          ? '内部机构角色 *'
+                                          : isMode12IntermediateSelected
+                                            ? '外部组织角色 *'
+                                            : '外部处理角色 *'}
+                                      </label>
+                                      {(() => {
+                                        const roleOptions = getNodeRoleOptions(selectedNode, selectedIndex);
+                                        const selectedRoles = getApproverRoles(selectedNode, roleOptions);
+                                        return (
+                                          <div className="relative" ref={rolePickerRef}>
+                                            <button
+                                              type="button"
+                                              onClick={() => setIsRolePickerOpen(open => !open)}
+                                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-medium bg-white text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                            >
+                                              <span className={`truncate ${selectedRoles.length ? 'text-gray-800' : 'text-gray-400'}`}>
+                                                {selectedRoles.length ? selectedRoles.join('、') : '请选择角色（可多选）'}
+                                              </span>
+                                              <ChevronDown className={`w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform ${isRolePickerOpen ? 'rotate-180' : ''}`} />
+                                            </button>
+                                            {isRolePickerOpen && (
+                                              <div className="absolute left-0 right-0 top-full mt-1 z-30 border border-gray-200 rounded-lg overflow-hidden bg-white shadow-lg">
+                                                <div className="max-h-44 overflow-y-auto text-xs">
+                                                  {roleOptions.map(role => {
+                                                    const selected = selectedRoles.includes(role);
+                                                    return (
+                                                      <button
+                                                        key={role}
+                                                        type="button"
+                                                        onClick={() => {
+                                                          const nextRoles = selected
+                                                            ? selectedRoles.filter(item => item !== role)
+                                                            : [...selectedRoles, role];
+                                                          handleUpdateAuditNode(
+                                                            selectedIndex,
+                                                            buildApproverRoleUpdates(nextRoles)
+                                                          );
+                                                        }}
+                                                        className={`w-full text-left px-3 py-2 border-b border-gray-50 transition-colors flex items-center gap-1.5 ${
+                                                          selected ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-700 hover:bg-slate-50'
+                                                        }`}
+                                                      >
+                                                        {selected ? (
+                                                          <CheckSquare className="w-3.5 h-3.5 shrink-0 text-blue-600" />
+                                                        ) : (
+                                                          <Square className="w-3.5 h-3.5 shrink-0 text-gray-300" />
+                                                        )}
+                                                        <span>{role}</span>
+                                                      </button>
+                                                    );
+                                                  })}
+                                                </div>
+                                                <div className="px-2.5 py-1.5 border-t border-gray-100 bg-gray-50 text-[11px] text-gray-600 flex items-center justify-between gap-2">
+                                                  <span>已选 {selectedRoles.length} 个角色</span>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setIsRolePickerOpen(false)}
+                                                    className="shrink-0 px-2 py-0.5 rounded bg-blue-600 text-white text-[11px] font-medium hover:bg-blue-700"
+                                                  >
+                                                    确定
+                                                  </button>
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
+                                    </>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-gray-400 mt-1.5">
+                                  {getNodeSourceOption(selectedNode, selectedIndex)?.hint}
+                                </p>
+                              </div>
+
+                              <div className="border border-amber-200 bg-amber-50/30 rounded-xl p-3.5 space-y-2">
+                                <div className="flex items-center justify-between gap-3">
+                                  <label className="text-xs font-bold text-gray-800 shrink-0">无处理人处理规则</label>
+                                  {isFinalSelected ? (
+                                    <span className="text-xs font-semibold text-amber-900 shrink-0">阻断提交</span>
+                                  ) : (
+                                    <select
+                                      value={
+                                        selectedNode.missingRule === 'block' ||
+                                        selectedNode.ownerMissingStrategy === 'block_submit'
+                                          ? 'block'
+                                          : 'skip'
+                                      }
+                                      onChange={e => {
+                                        const block = e.target.value === 'block';
+                                        handleUpdateAuditNode(selectedIndex, {
+                                          missingRule: block ? 'block' : 'skip',
+                                          ownerMissingStrategy: block ? 'block_submit' : 'skip_to_next',
+                                        });
+                                      }}
+                                      className="px-2.5 py-1 border border-amber-200 rounded-lg text-xs font-semibold text-amber-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    >
+                                      <option value="skip">跳过该节点</option>
+                                      <option value="block">阻断提交</option>
+                                    </select>
+                                  )}
+                                </div>
+                                <p className="text-xs text-gray-500">
+                                  {isFinalSelected
+                                    ? '上报时校验终审处理人。没有处理人则阻断提交，并提示联系管理员后再提交。终审固定为阻断提交，不支持修改。'
+                                    : selectedNode.missingRule === 'block' || selectedNode.ownerMissingStrategy === 'block_submit'
+                                      ? '上报时校验该中间节点处理人。没有处理人则阻断提交，并提示联系管理员后再提交。'
+                                      : '无处理人时跳过当前节点，流转到下一审核节点。'}
+                                </p>
+                              </div>
+
+                              <div className="border border-gray-200 rounded-xl p-3.5 space-y-2.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                                    <Clock className="w-3.5 h-3.5 text-gray-500" />
+                                    <span>审核超时提醒</span>
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const nextState = selectedNode.enableTimeout === false;
+                                      handleUpdateAuditNode(selectedIndex, {
+                                        enableTimeout: nextState,
+                                        timeLimitMinutes: nextState
+                                          ? (selectedNode.timeLimitMinutes && selectedNode.timeLimitMinutes > 0
+                                              ? selectedNode.timeLimitMinutes
+                                              : 15)
+                                          : 0
                                       });
                                     }}
-                                    className="px-2.5 py-1.5 border border-amber-200 rounded-lg text-xs font-semibold text-amber-900 bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                      selectedNode.enableTimeout !== false ? 'bg-[#1677ff]' : 'bg-gray-200'
+                                    }`}
                                   >
-                                    <option value="skip">跳过该节点</option>
-                                    <option value="block">阻断提交</option>
-                                  </select>
+                                    <span
+                                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                                        selectedNode.enableTimeout !== false ? 'translate-x-4' : 'translate-x-0'
+                                      }`}
+                                    />
+                                  </button>
+                                </div>
+                                {selectedNode.enableTimeout !== false && (
+                                  <>
+                                    <div className="flex items-center justify-between gap-2 pt-1">
+                                      <div className="flex items-center space-x-2">
+                                        {[
+                                          { label: '15分', val: 15 },
+                                          { label: '30分', val: 30 },
+                                          { label: '1小时', val: 60 },
+                                          { label: '2小时', val: 120 }
+                                        ].map(preset => (
+                                          <button
+                                            key={preset.val}
+                                            type="button"
+                                            onClick={() => handleUpdateAuditNode(selectedIndex, { timeLimitMinutes: preset.val, enableTimeout: true })}
+                                            className={`px-3 py-1 text-xs rounded-lg font-medium cursor-pointer transition-colors ${
+                                              selectedNode.timeLimitMinutes === preset.val
+                                                ? 'bg-blue-50 text-[#1677ff] border border-blue-300 font-bold'
+                                                : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+                                            }`}
+                                          >
+                                            {preset.label}
+                                          </button>
+                                        ))}
+                                      </div>
+                                      <div className="flex items-center space-x-1.5">
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          value={selectedNode.timeLimitMinutes || 15}
+                                          onChange={e => handleUpdateAuditNode(selectedIndex, { timeLimitMinutes: Number(e.target.value) || 15, enableTimeout: true })}
+                                          className="w-16 px-2 py-1 text-xs border border-gray-300 rounded-lg text-center font-bold focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        />
+                                        <span className="text-xs text-gray-500">分钟</span>
+                                      </div>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-1">
+                                      超过设定时限未处理将自动触发超时催办通知。
+                                    </p>
+                                  </>
                                 )}
                               </div>
-                              <p className="text-[10px] text-gray-500 leading-tight">
-                                {(selectedNode.isUnifiedFinalNode || selectedIndex === formAuditNodes.length - 1)
-                                  ? '上报时校验终审处理人。没有处理人则阻断提交。终审固定为阻断提交，不支持修改。'
-                                  : selectedNode.missingRule === 'block' || selectedNode.ownerMissingStrategy === 'block_submit'
-                                    ? '上报时校验该中间节点处理人。没有处理人则阻断提交，并提示联系管理员后再提交。'
-                                    : '无处理人时跳过当前节点，流转到下一审核节点。'}
-                              </p>
-                            </div>
-
-                            {/* Row 4: 审核超时提醒开关与配置 (水平紧凑排布) */}
-                            <div className="rounded-lg border border-gray-200 bg-gray-50/60 p-2.5 space-y-2">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-1.5">
-                                  <Clock className={`w-3.5 h-3.5 ${selectedNode.enableTimeout !== false ? 'text-[#1E5ABB]' : 'text-gray-400'}`} />
-                                  <span className="text-[11px] font-bold text-gray-800">审核超时提醒</span>
-                                </div>
-                                <button
-                                  type="button"
-                                  role="switch"
-                                  aria-checked={selectedNode.enableTimeout !== false}
-                                  onClick={() => {
-                                    const nextState = selectedNode.enableTimeout === false ? true : false;
-                                    handleUpdateAuditNode(selectedIndex, {
-                                      enableTimeout: nextState,
-                                      timeLimitMinutes: nextState ? (selectedNode.timeLimitMinutes && selectedNode.timeLimitMinutes > 0 ? selectedNode.timeLimitMinutes : 15) : 0
-                                    });
-                                  }}
-                                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                                    selectedNode.enableTimeout !== false ? 'bg-[#1E5ABB]' : 'bg-gray-300'
-                                  }`}
-                                  title={selectedNode.enableTimeout !== false ? '点击关闭超时提醒' : '点击开启超时配置'}
-                                >
-                                  <span
-                                    aria-hidden="true"
-                                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                                      selectedNode.enableTimeout !== false ? 'translate-x-4' : 'translate-x-0'
-                                    }`}
-                                  />
-                                </button>
-                              </div>
-
-                              {selectedNode.enableTimeout !== false ? (
-                                <div className="pt-2 border-t border-gray-200/80 space-y-1.5">
-                                  <div className="flex items-center justify-between flex-wrap gap-2">
-                                    <div className="flex items-center space-x-1">
-                                      {[15, 30, 60, 120].map(mins => (
-                                        <button
-                                          key={mins}
-                                          type="button"
-                                          onClick={() => handleUpdateAuditNode(selectedIndex, { timeLimitMinutes: mins, enableTimeout: true })}
-                                          className={`px-1.5 py-0.5 rounded text-[10px] font-mono cursor-pointer transition-colors ${
-                                            (selectedNode.timeLimitMinutes || 15) === mins
-                                              ? 'bg-blue-100 text-[#1E5ABB] font-bold border border-blue-200'
-                                              : 'text-gray-500 hover:text-gray-700 bg-white border border-gray-200'
-                                          }`}
-                                        >
-                                          {mins === 60 ? '1小时' : mins === 120 ? '2小时' : `${mins}分`}
-                                        </button>
-                                      ))}
-                                    </div>
-
-                                    <div className="flex items-center gap-1">
-                                      <input
-                                        type="number"
-                                        min="1"
-                                        value={selectedNode.timeLimitMinutes || 15}
-                                        onChange={e => handleUpdateAuditNode(selectedIndex, { timeLimitMinutes: Math.max(1, Number(e.target.value) || 1), enableTimeout: true })}
-                                        className="w-20 px-2 py-1 border border-gray-200 rounded text-xs font-mono bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] text-center"
-                                        placeholder="分钟"
-                                      />
-                                      <span className="text-[11px] text-gray-500 shrink-0">分钟</span>
-                                    </div>
-                                  </div>
-                                  <p className="text-[10px] text-gray-400 leading-tight">
-                                    超过设定时限未处理将自动触发超时催办通知。
-                                  </p>
-                                </div>
-                              ) : (
-                                <div className="text-[11px] text-gray-400 bg-white p-1.5 rounded border border-gray-100">
-                                  未开启超时提醒，审批不设时限。
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="py-10 text-center text-gray-400 text-xs">请选择一个节点</div>
-                        )}
+                            </>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -7847,7 +8873,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
               <div className="sticky -bottom-5 z-10 -mx-5 -mb-5 mt-3 flex justify-end space-x-2 border-t border-gray-100 bg-white px-5 py-3 shadow-[0_-4px_12px_rgba(15,23,42,0.04)]">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => { void requestCloseConfigModal(); }}
                   className="px-4 py-1.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50 cursor-pointer"
                 >
                   取消

@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Circle, Eye, EyeOff, User } from 'lucide-react';
 import type { PersonnelItem } from '../pages/ExternalOrgManagement';
 import { getRoleBadgeClass, normalizeAccountRoles } from '../data/userOrgShared';
@@ -120,7 +120,14 @@ export const PersonIdentityCell: React.FC<{
   onAvatarClick?: () => void;
   nameBadge?: React.ReactNode;
 }> = ({ item, revealed, onToggleReveal, onAvatarClick, nameBadge }) => {
-  const avatar = <PersonAvatar name={item.realName} src={getPersonAvatarUrl(item)} size="sm" />;
+  const verified = isRealNameVerified(item);
+  const avatar = verified ? (
+    <PersonAvatar name={item.realName} src={getPersonAvatarUrl(item)} size="sm" />
+  ) : (
+    <span className="w-full h-full bg-slate-200 text-slate-400 flex items-center justify-center" title="未实名用户暂无头像">
+      <User className="w-4 h-4" />
+    </span>
+  );
   return (
     <div className="flex items-center gap-1.5 min-w-0">
       {onAvatarClick ? (
@@ -136,22 +143,35 @@ export const PersonIdentityCell: React.FC<{
         <span className="w-7 h-7 rounded-full overflow-hidden shrink-0 ring-1 ring-black/10">{avatar}</span>
       )}
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1 min-w-0">
-          <span className="font-bold text-gray-900 leading-tight truncate" title={item.realName}>{item.realName}</span>
-          <RealNameStatusBadge item={item} />
-          {nameBadge}
-        </div>
-        <div className="flex items-center gap-0.5 mt-0.5 min-w-0">
-          <span className="font-mono text-[11px] text-gray-500 truncate">{revealed ? item.phone : maskPhone(item.phone)}</span>
-          <button
-            type="button"
-            title={revealed ? '隐藏手机号' : '显示手机号'}
-            onClick={onToggleReveal}
-            className="p-0.5 rounded text-gray-400 hover:text-[#1E5ABB] hover:bg-blue-50 cursor-pointer shrink-0"
-          >
-            {revealed ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-          </button>
-        </div>
+        {verified ? (
+          <>
+            <div className="flex items-center gap-1 min-w-0">
+              <span className="font-bold text-gray-900 leading-tight truncate" title={item.realName}>
+                {item.realName}
+              </span>
+              <RealNameStatusBadge item={item} />
+              {nameBadge}
+            </div>
+            <div className="flex items-center gap-0.5 mt-0.5 min-w-0">
+              <span className="font-mono text-[11px] text-gray-500 truncate">
+                {revealed ? item.phone : maskPhone(item.phone)}
+              </span>
+              <button
+                type="button"
+                title={revealed ? '隐藏手机号' : '显示手机号'}
+                onClick={onToggleReveal}
+                className="p-0.5 rounded text-gray-400 hover:text-[#1E5ABB] hover:bg-blue-50 cursor-pointer shrink-0"
+              >
+                {revealed ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="flex items-center gap-1 min-w-0">
+            <RealNameStatusBadge item={item} />
+            {nameBadge}
+          </div>
+        )}
       </div>
     </div>
   );

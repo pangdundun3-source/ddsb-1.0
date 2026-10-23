@@ -16,7 +16,8 @@ import {
   Download,
   SlidersHorizontal,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  IdCard
 } from 'lucide-react';
 import { InviteRecordModal } from './InviteRecordModal';
 import { OrgCascadeSelect } from '../components/OrgCascadeSelect';
@@ -37,6 +38,7 @@ import {
 } from '../data/userOrgShared';
 import {
   getPersonAvatarUrl,
+  isRealNameVerified,
   PersonAvatar
 } from '../components/PersonAccountDisplay';
 
@@ -52,7 +54,8 @@ const createEmptyAccountQuery = () => ({
   orgs: [] as string[],
   roles: [] as string[],
   groups: [] as string[],
-  statuses: [] as string[]
+  statuses: [] as string[],
+  realNameStatuses: [] as string[]
 });
 
 const STATUS_FILTER_OPTIONS = [
@@ -61,7 +64,19 @@ const STATUS_FILTER_OPTIONS = [
   { id: '禁用', label: '已停用', dot: 'bg-red-500' }
 ] as const;
 
+const REAL_NAME_FILTER_OPTIONS = [
+  { id: '已实名', label: '已实名', dot: 'bg-emerald-500' },
+  { id: '未实名', label: '未实名', dot: 'bg-slate-400' }
+] as const;
+
+/** 多选筛选项全选时等价于「全部」，回填为空数组以显示默认「全部」文案 */
+const normalizeAllSelected = (selected: string[], allIds: readonly string[]) =>
+  allIds.length > 0 && selected.length === allIds.length && allIds.every((id) => selected.includes(id))
+    ? []
+    : selected;
+
 const getAccountStatus = (item: PersonnelItem) => (item.status === '禁用' ? '禁用' : getFollowStatus(item));
+const getRealNameStatus = (item: PersonnelItem) => (isRealNameVerified(item) ? '已实名' : '未实名');
 
 export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = ({
   shared,
@@ -86,7 +101,7 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
   const [orgPath, setOrgPath] = useState<string[]>([]);
   const [pGroupIds, setPGroupIds] = useState<string[]>([]);
   const [pStatus, setPStatus] = useState<'启用' | '禁用'>('启用');
-  const [openFilter, setOpenFilter] = useState<'org' | 'role' | 'group' | 'status' | null>(null);
+  const [openFilter, setOpenFilter] = useState<'org' | 'role' | 'group' | 'status' | 'realName' | null>(null);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [batchModifyOpen, setBatchModifyOpen] = useState(false);
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false);
@@ -149,6 +164,12 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
         return false;
       }
       if ((appliedQuery.statuses || []).length > 0 && !appliedQuery.statuses.includes(getAccountStatus(item))) {
+        return false;
+      }
+      if (
+        (appliedQuery.realNameStatuses || []).length > 0 &&
+        !appliedQuery.realNameStatuses.includes(getRealNameStatus(item))
+      ) {
         return false;
       }
       return true;
@@ -481,7 +502,7 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
             triggerIcon={<Building2 className="w-3.5 h-3.5" />}
             triggerText={(draftQuery.orgs || []).length ? `已选 ${draftQuery.orgs.length} 个节点` : '全部组织节点'}
             active={(draftQuery.orgs || []).length > 0}
-            title="选择组织节点架构（可多选）"
+            title="选择组织节点架构"
             footerText={(count) => `已选中 ${count} 个节点`}
             confirmLabel="确定选择"
             widthClass="w-[340px]"
@@ -499,10 +520,12 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
             open={openFilter === 'role'}
             onOpenChange={(open) => setOpenFilter(open ? 'role' : null)}
             value={draftQuery.roles || []}
-            onChange={(roles) => updateDraftQuery({ roles })}
+            onChange={(roles) =>
+              updateDraftQuery({ roles: normalizeAllSelected(roles, ACCOUNT_ROLE_OPTIONS) })
+            }
             triggerText={(draftQuery.roles || []).length ? `已选 ${draftQuery.roles.length} 个角色` : '全部角色'}
             active={(draftQuery.roles || []).length > 0}
-            title="选择系统角色（可多选）"
+            title="选择系统角色"
             clearLabel="清空"
             footerText={(count) => `已选 ${count} 个角色`}
             confirmLabel="确定选择"
@@ -525,11 +548,18 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
             open={openFilter === 'group'}
             onOpenChange={(open) => setOpenFilter(open ? 'group' : null)}
             value={draftQuery.groups || []}
-            onChange={(groups) => updateDraftQuery({ groups })}
+            onChange={(selectedGroups) =>
+              updateDraftQuery({
+                groups: normalizeAllSelected(
+                  selectedGroups,
+                  groups.map((group) => group.id)
+                )
+              })
+            }
             triggerIcon={<Tags className="w-3.5 h-3.5 text-violet-500" />}
             triggerText={(draftQuery.groups || []).length ? `已选 ${draftQuery.groups.length} 个群组` : '全部用户群组'}
             active={(draftQuery.groups || []).length > 0}
-            title="选择用户群组标签（可多选）"
+            title="选择用户群组标签"
             titleIcon={<Tags className="w-3.5 h-3.5 text-violet-500" />}
             clearLabel="清空"
             footerText={(count) => `已选 ${count} 个群组`}
@@ -554,7 +584,14 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
             open={openFilter === 'status'}
             onOpenChange={(open) => setOpenFilter(open ? 'status' : null)}
             value={draftQuery.statuses || []}
-            onChange={(statuses) => updateDraftQuery({ statuses })}
+            onChange={(statuses) =>
+              updateDraftQuery({
+                statuses: normalizeAllSelected(
+                  statuses,
+                  STATUS_FILTER_OPTIONS.map((item) => item.id)
+                )
+              })
+            }
             triggerIcon={<Shield className="w-3.5 h-3.5" />}
             triggerText={
               (draftQuery.statuses || []).length === 0
@@ -564,7 +601,7 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
                   : `账号状态: 已选 ${draftQuery.statuses.length} 项`
             }
             active={(draftQuery.statuses || []).length > 0}
-            title="账号状态选择（多选）"
+            title="账号状态选择"
             footerText={(count) => `已选 ${count} 项`}
             confirmLabel="确定"
             widthClass="w-[240px]"
@@ -572,6 +609,45 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
             {({ pending, toggle }) => (
               <FilterOptionList
                 options={STATUS_FILTER_OPTIONS.map((item) => ({
+                  id: item.id,
+                  label: item.label,
+                  dot: item.dot
+                }))}
+                selected={pending}
+                onToggle={toggle}
+                shape="square"
+              />
+            )}
+          </AccountFilterShell>
+          <AccountFilterShell
+            open={openFilter === 'realName'}
+            onOpenChange={(open) => setOpenFilter(open ? 'realName' : null)}
+            value={draftQuery.realNameStatuses || []}
+            onChange={(realNameStatuses) =>
+              updateDraftQuery({
+                realNameStatuses: normalizeAllSelected(
+                  realNameStatuses,
+                  REAL_NAME_FILTER_OPTIONS.map((item) => item.id)
+                )
+              })
+            }
+            triggerIcon={<IdCard className="w-3.5 h-3.5" />}
+            triggerText={
+              (draftQuery.realNameStatuses || []).length === 0
+                ? '实名状态: 全部'
+                : draftQuery.realNameStatuses.length === 1
+                  ? `实名状态: ${REAL_NAME_FILTER_OPTIONS.find((option) => option.id === draftQuery.realNameStatuses[0])?.label || draftQuery.realNameStatuses[0]}`
+                  : `实名状态: 已选 ${draftQuery.realNameStatuses.length} 项`
+            }
+            active={(draftQuery.realNameStatuses || []).length > 0}
+            title="实名状态选择"
+            footerText={(count) => `已选 ${count} 项`}
+            confirmLabel="确定"
+            widthClass="w-[240px]"
+          >
+            {({ pending, toggle }) => (
+              <FilterOptionList
+                options={REAL_NAME_FILTER_OPTIONS.map((item) => ({
                   id: item.id,
                   label: item.label,
                   dot: item.dot
@@ -708,7 +784,14 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
             <div className="p-5 space-y-4 text-xs overflow-visible">
               <div className="grid grid-cols-2 gap-3">
                 <Field label="真实姓名 *" value={pRealName} onChange={setPRealName} placeholder="如：张三" />
-                <Field label="账号名称 *" value={pUsername} onChange={setPUsername} placeholder="登录账号" />
+                <Field
+                  label="账号名称 *"
+                  value={pUsername}
+                  onChange={setPUsername}
+                  placeholder="登录账号"
+                  disabled
+                  hint="账号名称不支持修改"
+                />
                 <Field label="职务岗位" value={pJobTitle} onChange={setPJobTitle} placeholder="如：网信指导处审核员" />
                 <Field label="联系电话" value={pPhone} onChange={setPPhone} placeholder="如：138****0001" />
                 <Field label="微信号" value={pWechat} onChange={setPWechat} placeholder="选填" />

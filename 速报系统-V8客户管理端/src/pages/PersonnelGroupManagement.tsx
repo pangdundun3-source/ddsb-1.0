@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, Plus, Users, UserPlus, Pencil, Trash2, X, Building2, Circle, ArrowUpDown } from 'lucide-react';
+import { Search, Plus, Users, UserPlus, Pencil, Trash2, X, Building2, Circle, ArrowUpDown, RotateCcw } from 'lucide-react';
 import type { PersonnelItem } from './OrgManagement';
 import {
   ACCOUNT_ROLE_OPTIONS,
@@ -18,6 +18,7 @@ import {
   PersonRoleBadges
 } from '../components/PersonAccountDisplay';
 import { ExternalUserTable, FollowStatusBadges } from '../components/ExternalUserTable';
+import { PaginationBar } from '../components/PaginationBar';
 
 interface PersonnelGroupManagementProps {
   shared: UserOrgSharedState;
@@ -30,7 +31,10 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
   const [onlyUngrouped, setOnlyUngrouped] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState(groups[0]?.id || '');
   const [groupSearch, setGroupSearch] = useState('');
+  const [memberSearchDraft, setMemberSearchDraft] = useState('');
   const [memberSearch, setMemberSearch] = useState('');
+  const [memberPage, setMemberPage] = useState(1);
+  const [memberPageSize, setMemberPageSize] = useState(10);
   const [toast, setToast] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<PersonnelGroup | null>(null);
@@ -102,6 +106,17 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
         );
       });
   }, [activePeople, selectedGroup, memberSearch]);
+
+  useEffect(() => {
+    setMemberPage(1);
+  }, [selectedGroupId, memberSearch]);
+
+  const memberTotalPages = Math.max(1, Math.ceil(members.length / memberPageSize));
+  const safeMemberPage = Math.min(memberPage, memberTotalPages);
+  const pagedMembers = members.slice(
+    (safeMemberPage - 1) * memberPageSize,
+    safeMemberPage * memberPageSize
+  );
 
   const createGroupByName = (rawName: string) => {
     const name = rawName.trim();
@@ -268,11 +283,10 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
   };
 
   const toggleSelectAllMembers = () => {
-    const ids = members.map((item) => item.id);
+    const pageIds = pagedMembers.map((item) => item.id);
+    const allOnPage = pageIds.length > 0 && pageIds.every((id) => selectedMemberIds.includes(id));
     setSelectedMemberIds((prev) =>
-      ids.length > 0 && ids.every((id) => prev.includes(id))
-        ? prev.filter((id) => !ids.includes(id))
-        : Array.from(new Set([...prev, ...ids]))
+      allOnPage ? prev.filter((id) => !pageIds.includes(id)) : Array.from(new Set([...prev, ...pageIds]))
     );
   };
 
@@ -525,22 +539,54 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
                   </span>
                 )}
               </div>
-              <div className="relative w-64">
-                <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2" />
-                <input
-                  value={memberSearch}
-                  onChange={(event) => setMemberSearch(event.target.value)}
-                  placeholder="搜索姓名 / 手机号"
-                  className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                />
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="relative w-64">
+                  <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2" />
+                  <input
+                    value={memberSearchDraft}
+                    onChange={(event) => setMemberSearchDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        setMemberSearch(memberSearchDraft);
+                        setMemberPage(1);
+                      }
+                    }}
+                    placeholder="搜索姓名 / 手机号"
+                    className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMemberSearch(memberSearchDraft);
+                    setMemberPage(1);
+                  }}
+                  className="h-8 px-3 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-semibold rounded-lg shadow-2xs inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  查询
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMemberSearchDraft('');
+                    setMemberSearch('');
+                    setMemberPage(1);
+                  }}
+                  className="h-8 px-3 bg-white hover:bg-gray-50 text-gray-500 text-xs font-medium rounded-[5px] border border-gray-200 inline-flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  重置
+                </button>
               </div>
             </div>
 
             <div className="flex-1 min-h-0 overflow-auto px-5 pb-4">
               <ExternalUserTable
-                items={members}
+                items={pagedMembers}
                 orgNodes={orgNodes}
                 getGroupName={getGroupName}
+                startIndex={(safeMemberPage - 1) * memberPageSize}
                 emptyText="当前分组暂无成员，点击右上角添加"
                 selectable
                 selectedIds={selectedMemberIds}
@@ -564,6 +610,18 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
                     </button>
                   </>
                 )}
+              />
+            </div>
+            <div className="bg-gray-50/80 border-t border-gray-100">
+              <PaginationBar
+                total={members.length}
+                page={safeMemberPage}
+                pageSize={memberPageSize}
+                onPageChange={setMemberPage}
+                onPageSizeChange={(size) => {
+                  setMemberPageSize(size);
+                  setMemberPage(1);
+                }}
               />
             </div>
           </>

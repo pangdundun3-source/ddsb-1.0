@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Search,
@@ -37,7 +37,8 @@ import {
   Lock,
   Sparkles,
   Download,
-  UserPlus
+  UserPlus,
+  RotateCcw
 } from 'lucide-react';
 import type { PageId } from '../types';
 import {
@@ -63,6 +64,7 @@ import {
 import { ExternalUserTable, FollowStatusBadges } from '../components/ExternalUserTable';
 import { OrgCascadeSelect } from '../components/OrgCascadeSelect';
 import { InviteUserModal } from '../components/InviteUserModal';
+import { PaginationBar } from '../components/PaginationBar';
 import { InviteRecordModal } from './InviteRecordModal';
 
 export interface CategoryItem {
@@ -221,7 +223,10 @@ export const ExternalOrgManagement: React.FC<ExternalOrgManagementProps> = ({
   });
 
   const [treeSearch, setTreeSearch] = useState('');
+  const [personnelSearchDraft, setPersonnelSearchDraft] = useState('');
   const [personnelSearch, setPersonnelSearch] = useState('');
+  const [personnelPageSize, setPersonnelPageSize] = useState(10);
+  const [personnelPage, setPersonnelPage] = useState(1);
   const [revealedPhoneIds, setRevealedPhoneIds] = useState<number[]>([]);
   const [viewingPersonnelId, setViewingPersonnelId] = useState<number | null>(null);
 
@@ -1513,6 +1518,17 @@ export const ExternalOrgManagement: React.FC<ExternalOrgManagementProps> = ({
     return true;
   });
 
+  useEffect(() => {
+    setPersonnelPage(1);
+  }, [selectedOrgId, personnelSearch, isRootSelected]);
+
+  const personnelTotalPages = Math.max(1, Math.ceil(filteredPersonnel.length / personnelPageSize));
+  const safePersonnelPage = Math.min(personnelPage, personnelTotalPages);
+  const pagedPersonnel = filteredPersonnel.slice(
+    (safePersonnelPage - 1) * personnelPageSize,
+    safePersonnelPage * personnelPageSize
+  );
+
   const filteredLeaderCandidates = personnelList.filter((person) => {
     if (person.recycled) return false;
     const query = leaderPickerSearch.trim().toLowerCase();
@@ -2218,16 +2234,6 @@ export const ExternalOrgManagement: React.FC<ExternalOrgManagementProps> = ({
               </div>
 
               <div className="flex items-center space-x-2 shrink-0 whitespace-nowrap">
-                {canSetOrgLeader(currentOrg) && (
-                  <button
-                    onClick={() => openLeaderModal(currentOrg)}
-                    className="px-3 py-1.5 text-xs bg-amber-50 text-amber-700 border border-amber-200 rounded hover:bg-amber-100 font-bold flex items-center space-x-1 cursor-pointer transition-colors"
-                    title="设置当前节点的组织联系人"
-                  >
-                    <UserCheck className="w-3.5 h-3.5" />
-                    <span>设置组织联系人</span>
-                  </button>
-                )}
                 <button
                   type="button"
                   onClick={() => openInviteForOrg(currentOrg)}
@@ -2263,19 +2269,48 @@ export const ExternalOrgManagement: React.FC<ExternalOrgManagementProps> = ({
                   <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2" />
                   <input
                     type="text"
-                    value={personnelSearch}
-                    onChange={(e) => setPersonnelSearch(e.target.value)}
+                    value={personnelSearchDraft}
+                    onChange={(e) => setPersonnelSearchDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        setPersonnelSearch(personnelSearchDraft);
+                        setPersonnelPage(1);
+                      }
+                    }}
                     placeholder="搜索姓名 / 手机号"
-                    className="pl-8 pr-3 py-1 text-xs border border-gray-300 rounded w-48 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                    className="pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded w-48 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
                   />
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPersonnelSearch(personnelSearchDraft);
+                    setPersonnelPage(1);
+                  }}
+                  className="h-8 px-3 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-semibold rounded-lg shadow-2xs inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  查询
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPersonnelSearchDraft('');
+                    setPersonnelSearch('');
+                    setPersonnelPage(1);
+                  }}
+                  className="h-8 px-3 bg-white hover:bg-gray-50 text-gray-500 text-xs font-medium rounded-[5px] border border-gray-200 inline-flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  重置
+                </button>
               </div>
             </div>
 
             {/* Personnel Table */}
             <div className="overflow-x-auto">
               <ExternalUserTable
-                items={filteredPersonnel}
+                items={pagedPersonnel}
                 orgNodes={orgNodes}
                 getGroupName={(id) => getGroupName(id) || id}
                 emptyText="当前节点暂无所属人员，点击右上角“新增人员”添加或调整归属"
@@ -2314,17 +2349,17 @@ export const ExternalOrgManagement: React.FC<ExternalOrgManagementProps> = ({
             </div>
 
             {/* Pagination Footer */}
-            <div className="pt-2 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500 gap-2 border-t border-gray-100">
-              <div>共 {filteredPersonnel.length} 条记录</div>
-              <div className="flex items-center space-x-1">
-                <button className="px-2 py-0.5 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50 text-gray-400">
-                  &lt;
-                </button>
-                <button className="px-2.5 py-0.5 bg-[#1E5ABB] text-white font-bold rounded">1</button>
-                <button className="px-2 py-0.5 border border-gray-200 rounded hover:bg-gray-50 text-gray-600">
-                  &gt;
-                </button>
-              </div>
+            <div className="border-t border-gray-100">
+              <PaginationBar
+                total={filteredPersonnel.length}
+                page={safePersonnelPage}
+                pageSize={personnelPageSize}
+                onPageChange={setPersonnelPage}
+                onPageSizeChange={(size) => {
+                  setPersonnelPageSize(size);
+                  setPersonnelPage(1);
+                }}
+              />
             </div>
           </div>
           </>
@@ -3257,8 +3292,16 @@ export const ExternalOrgManagement: React.FC<ExternalOrgManagementProps> = ({
                     value={pUsername}
                     onChange={(e) => setPUsername(e.target.value)}
                     placeholder="如: zhangsan_01"
-                    className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] font-mono"
+                    disabled={Boolean(editingPersonnel)}
+                    readOnly={Boolean(editingPersonnel)}
+                    title={editingPersonnel ? '账号名称不支持修改' : undefined}
+                    className={`w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] font-mono ${
+                      editingPersonnel ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : 'bg-white'
+                    }`}
                   />
+                  {editingPersonnel && (
+                    <div className="mt-1 text-[10px] text-gray-400">账号名称不支持修改</div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-gray-700 font-medium mb-1">真实姓名 *</label>

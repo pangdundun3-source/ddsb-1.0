@@ -436,6 +436,13 @@ export const INITIAL_PERSONNEL: PersonnelItem[] = [
     jobTitle: '舆情监测科科长',
     lastLogin: '2026-09-14 08:38',
     avatarUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=128&h=128&fit=crop&crop=face',
+    activationFields: {
+      idCardNo: '3401041986****1133',
+      bankCardNo: '6222 **** **** 1133',
+      bankName: '中国银行台中支行',
+      emergencyContact: '陈静',
+      emergencyPhone: '138****1133'
+    }
   },
   {
     id: 6,
@@ -457,6 +464,13 @@ export const INITIAL_PERSONNEL: PersonnelItem[] = [
     jobTitle: '网信指导处审核员',
     lastLogin: '2026-09-14 09:15',
     avatarUrl: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=128&h=128&fit=crop&crop=face',
+    activationFields: {
+      idCardNo: '3401041990****6688',
+      bankCardNo: '6217 **** **** 6688',
+      bankName: '中国建设银行台中支行',
+      emergencyContact: '唐磊',
+      emergencyPhone: '138****6688'
+    }
   },
   {
     id: 7,
@@ -499,7 +513,14 @@ export const INITIAL_PERSONNEL: PersonnelItem[] = [
     groupIds: ['grp-media'],
     jobTitle: '融媒宣发编辑',
     lastLogin: '2026-09-14 11:06',
-    avatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=128&h=128&fit=crop&crop=face'
+    avatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=128&h=128&fit=crop&crop=face',
+    activationFields: {
+      idCardNo: '3401041994****2244',
+      bankCardNo: '6228 **** **** 2244',
+      bankName: '中国工商银行台中支行',
+      emergencyContact: '梁峰',
+      emergencyPhone: '139****2244'
+    }
   }
 ];
 

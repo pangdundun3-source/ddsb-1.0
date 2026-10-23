@@ -328,11 +328,22 @@ export default function App() {
     if (!activeTerminal || docName === panelDoc) return;
     if (!confirmPanelDiscard()) return;
     widenPanelForExternalDoc(activeTerminal.id, docName);
-    window.location.hash = terminalHash(activeTerminal.id, docName);
+    // 同步写入状态：hash 未变时不会触发 hashchange（例如恢复 PRD 入口前 URL 已带 ?doc=）
+    setPanelDoc(docName);
+    const nextHash = terminalHash(activeTerminal.id, docName);
+    if (window.location.hash !== nextHash) {
+      window.location.hash = nextHash;
+    }
   };
 
   const closeDocPanel = () => {
-    if (activeTerminal) window.location.hash = terminalHash(activeTerminal.id);
+    setPanelDoc(null);
+    if (activeTerminal) {
+      const nextHash = terminalHash(activeTerminal.id);
+      if (window.location.hash !== nextHash) {
+        window.location.hash = nextHash;
+      }
+    }
   };
 
   /** Same-origin builds expose the frame's location; dev servers on other ports report via FRAME_HASH_MESSAGE */

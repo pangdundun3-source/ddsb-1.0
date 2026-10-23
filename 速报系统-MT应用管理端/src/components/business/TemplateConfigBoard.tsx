@@ -10,6 +10,7 @@ import {
   Edit3,
   Trash2,
   Copy,
+  ChevronLeft,
   ChevronRight,
   ArrowRight,
   Smartphone,
@@ -53,7 +54,8 @@ import {
   CircleDot,
   CheckSquare,
   ListChecks,
-  Square
+  Square,
+  Search
 } from 'lucide-react';
 
 export type TemplateType = '报送' | '激活';
@@ -631,6 +633,8 @@ const readStoredColumnWidths = (): { left: number; right: number } => {
   }
 };
 
+const TEMPLATE_PAGE_SIZE = 10;
+
 export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   institutionId,
   isGlobalScope = false,
@@ -748,6 +752,8 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
 
   // Active top tab: 报送模板 vs 激活模板
   const [topTab] = useState<TemplateType>('报送');
+  const [templateSearchKeyword, setTemplateSearchKeyword] = useState('');
+  const [templatePage, setTemplatePage] = useState(1);
   const [moreMenuId, setMoreMenuId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1007,10 +1013,27 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
 
   const templateSortRank = (t: BusinessTemplateItem) =>
     t.status !== '启用' ? 2 : isGlobalScope && t.isPreset ? 0 : 1;
-  const visibleTemplates = [...currentCategoryTemplates].sort((a, b) => templateSortRank(a) - templateSortRank(b));
+  const normalizedTemplateKeyword = templateSearchKeyword.trim().toLowerCase();
+  const visibleTemplates = [...currentCategoryTemplates]
+    .filter(t =>
+      !normalizedTemplateKeyword ||
+      t.name.toLowerCase().includes(normalizedTemplateKeyword) ||
+      (t.description || '').toLowerCase().includes(normalizedTemplateKeyword)
+    )
+    .sort((a, b) => templateSortRank(a) - templateSortRank(b));
+  const templateTotalPages = Math.max(1, Math.ceil(visibleTemplates.length / TEMPLATE_PAGE_SIZE));
+  const safeTemplatePage = Math.min(templatePage, templateTotalPages);
+  const pagedTemplates = visibleTemplates.slice(
+    (safeTemplatePage - 1) * TEMPLATE_PAGE_SIZE,
+    safeTemplatePage * TEMPLATE_PAGE_SIZE
+  );
   const [presetTipClosed, setPresetTipClosed] = useState(false);
   const showPresetTip =
     isGlobalScope && !presetTipClosed && !currentCategoryTemplates.some(t => t.isPreset && t.status === '启用');
+
+  useEffect(() => {
+    setTemplatePage(prev => Math.min(prev, templateTotalPages));
+  }, [templateTotalPages]);
 
   // Auto ensure valid selectedTemplateId on topTab change
   useEffect(() => {
@@ -2749,7 +2772,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
               <Layers className="w-4 h-4 text-[#1890ff]" />
               <span className="text-xs font-bold text-gray-800">模板目录</span>
               <span className="w-4.5 h-4.5 rounded-full bg-gray-100 text-gray-600 text-[11px] font-medium flex items-center justify-center border border-gray-200">
-                {currentCategoryTemplates.length}
+                {visibleTemplates.length}
               </span>
             </div>
             {titleMode === 'hidden' && (
@@ -2762,6 +2785,37 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                 <Plus className="w-4 h-4" />
               </button>
             )}
+          </div>
+
+          <div className="px-2.5 pt-2.5 shrink-0 bg-white">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={templateSearchKeyword}
+                onChange={e => {
+                  setTemplateSearchKeyword(e.target.value);
+                  setTemplatePage(1);
+                }}
+                placeholder="搜索模板名称或描述"
+                aria-label="搜索模板名称或描述"
+                className="w-full pl-8 pr-8 py-2 bg-gray-50 border border-gray-200 hover:border-gray-300 focus:border-[#1890ff] rounded-lg text-[11px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1890ff]/10 transition-all"
+              />
+              {templateSearchKeyword && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTemplateSearchKeyword('');
+                    setTemplatePage(1);
+                  }}
+                  aria-label="清空模板搜索"
+                  title="清空搜索"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Template Cards List */}
@@ -2784,10 +2838,10 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
             )}
             {visibleTemplates.length === 0 && (
               <div className="py-10 text-center text-[11px] text-gray-400 border border-dashed border-gray-200 rounded-xl">
-                暂无{topTab}模板
+                {templateSearchKeyword.trim() ? '未找到匹配模板' : `暂无${topTab}模板`}
               </div>
             )}
-            {visibleTemplates.map(tpl => {
+            {pagedTemplates.map(tpl => {
               const isSelected = activeTemplate?.id === tpl.id;
               const isEnabled = tpl.status === '启用';
               const canDelete = isGlobalScope || !tpl.isDefault;
@@ -2962,6 +3016,32 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                 </div>
               );
             })}
+          </div>
+
+          <div className="px-2.5 py-2 border-t border-gray-100 bg-white flex items-center justify-between shrink-0">
+            <button
+              type="button"
+              onClick={() => setTemplatePage(prev => Math.max(1, prev - 1))}
+              disabled={safeTemplatePage <= 1}
+              aria-label="上一页"
+              title="上一页"
+              className="w-6 h-6 rounded-md border border-gray-200 flex items-center justify-center text-gray-500 hover:text-[#1890ff] hover:border-blue-200 hover:bg-blue-50 disabled:text-gray-300 disabled:border-gray-100 disabled:bg-gray-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <span className="text-[10px] font-mono text-gray-500 tabular-nums">
+              {safeTemplatePage} / {templateTotalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setTemplatePage(prev => Math.min(templateTotalPages, prev + 1))}
+              disabled={safeTemplatePage >= templateTotalPages}
+              aria-label="下一页"
+              title="下一页"
+              className="w-6 h-6 rounded-md border border-gray-200 flex items-center justify-center text-gray-500 hover:text-[#1890ff] hover:border-blue-200 hover:bg-blue-50 disabled:text-gray-300 disabled:border-gray-100 disabled:bg-gray-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 

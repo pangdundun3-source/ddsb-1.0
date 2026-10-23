@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Building2, Circle, Edit3, Trash2, Users } from 'lucide-react';
 import type { OrgNode, PersonnelItem } from '../pages/ExternalOrgManagement';
 import { formatPersonOrgPaths } from '../data/userOrgShared';

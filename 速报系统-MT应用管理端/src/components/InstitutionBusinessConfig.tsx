@@ -122,9 +122,22 @@ export const InstitutionBusinessConfig: React.FC<InstitutionBusinessConfigProps>
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
                 placeholder="搜索机构名称"
-                className="w-full h-8 pl-8 pr-2 border border-gray-200 rounded text-[13px] focus:outline-none focus:border-[#1890ff]"
+                aria-label="搜索机构名称"
+                className="w-full h-8 pl-8 pr-8 border border-gray-200 rounded text-[13px] focus:outline-none focus:border-[#1890ff]"
               />
-            </div>          </div>
+              {keyword && (
+                <button
+                  type="button"
+                  onClick={() => setKeyword('')}
+                  aria-label="清空机构搜索"
+                  title="清空搜索"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600 rounded cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[16px]">close</span>
+                </button>
+              )}
+            </div>
+          </div>
           <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-0.5">
             {visibleInstitutions.length === 0 ? (
               <div className="py-10 text-center text-xs text-gray-400">未找到匹配的机构</div>

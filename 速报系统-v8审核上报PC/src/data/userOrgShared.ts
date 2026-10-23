@@ -1,4 +1,4 @@
-﻿import { useState, type Dispatch, type SetStateAction } from 'react';
+import { useState, type Dispatch, type SetStateAction } from 'react';
 import type { CategoryItem, OrgNode, PersonnelItem } from '../pages/ExternalOrgManagement';
 
 export type UserOrgModule = 'account' | 'org' | 'role' | 'group' | 'invite';
@@ -46,6 +46,8 @@ export interface InviteCode {
   batchId: string;
   batchName: string;
   orgIds: string[];
+  /** 邀请加入后自动归属的用户群组（可多选） */
+  groupIds?: string[];
   roles: string[];
   expiresAt: string;
   createdAt: string;
@@ -449,6 +451,13 @@ export const INITIAL_PERSONNEL: PersonnelItem[] = [
     jobTitle: '舆情监测科科长',
     lastLogin: '2026-09-14 08:38',
     avatarUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=128&h=128&fit=crop&crop=face',
+    activationFields: {
+      idCardNo: '3401041986****1133',
+      bankCardNo: '6222 **** **** 1133',
+      bankName: '中国银行台中支行',
+      emergencyContact: '陈静',
+      emergencyPhone: '138****1133'
+    }
   },
   {
     id: 51,
@@ -470,6 +479,13 @@ export const INITIAL_PERSONNEL: PersonnelItem[] = [
     jobTitle: '网格员',
     lastLogin: '2026-10-20 09:15',
     avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=128&h=128&fit=crop&crop=face',
+    activationFields: {
+      idCardNo: '3408231988****1021',
+      bankCardNo: '6222 **** **** 8810',
+      bankName: '西坝区农村商业银行',
+      emergencyContact: '张敏',
+      emergencyPhone: '138****9210'
+    }
   },
   {
     id: 52,
@@ -491,6 +507,13 @@ export const INITIAL_PERSONNEL: PersonnelItem[] = [
     jobTitle: '信息员',
     lastLogin: '2026-10-19 16:20',
     avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=128&h=128&fit=crop&crop=face',
+    activationFields: {
+      idCardNo: '3408231992****3344',
+      bankCardNo: '6217 **** **** 2201',
+      bankName: '中国建设银行西坝支行',
+      emergencyContact: '李明',
+      emergencyPhone: '139****1122'
+    }
   },
   {
     id: 53,
@@ -512,6 +535,13 @@ export const INITIAL_PERSONNEL: PersonnelItem[] = [
     jobTitle: '审核员',
     lastLogin: '2026-10-21 08:40',
     avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=128&h=128&fit=crop&crop=face',
+    activationFields: {
+      idCardNo: '3408231985****5566',
+      bankCardNo: '6228 **** **** 3303',
+      bankName: '中国工商银行西坝支行',
+      emergencyContact: '王芳',
+      emergencyPhone: '137****3003'
+    }
   },
   {
     id: 54,
@@ -596,6 +626,13 @@ export const INITIAL_PERSONNEL: PersonnelItem[] = [
     jobTitle: '环境监测网格员',
     lastLogin: '2026-10-21 19:30',
     avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=128&h=128&fit=crop&crop=face',
+    activationFields: {
+      idCardNo: '3408231990****7788',
+      bankCardNo: '6214 **** **** 7707',
+      bankName: '中国农业银行西坝支行',
+      emergencyContact: '周萍',
+      emergencyPhone: '137****7007'
+    }
   },
   {
     id: 58,
@@ -617,6 +654,13 @@ export const INITIAL_PERSONNEL: PersonnelItem[] = [
     jobTitle: '值班审核员',
     lastLogin: '2026-10-22 07:15',
     avatarUrl: 'https://images.unsplash.com/photo-1547425260-76bcadfb4f2c?w=128&h=128&fit=crop&crop=face',
+    activationFields: {
+      idCardNo: '3408231995****9900',
+      bankCardNo: '6222 **** **** 8808',
+      bankName: '中国银行西坝支行',
+      emergencyContact: '吴丽',
+      emergencyPhone: '139****8008'
+    }
   },
   {
     id: 6,

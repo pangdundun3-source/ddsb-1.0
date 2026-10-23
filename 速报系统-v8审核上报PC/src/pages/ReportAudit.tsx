@@ -17,14 +17,12 @@ import {
   Clock,
   AlertCircle,
   Link as LinkIcon,
-  Layers,
   Check,
   X,
   ExternalLink,
   ChevronRight,
   MapPin,
   Sparkles,
-  Zap,
   Copy,
   Trash2,
   Building2,
@@ -64,7 +62,6 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
   const [selectedAuditor, setSelectedAuditor] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [isBatchMatchActive, setIsBatchMatchActive] = useState(false);
 
   // 50% Right Drawer State
   const [drawerReport, setDrawerReport] = useState<ReportItem | null>(initialDrawerReport || null);
@@ -85,12 +82,6 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
     onNavigate('report-audit');
   };
 
-  // Modal States
-  const [batchModalGroup, setBatchModalGroup] = useState<{ url: string; items: ReportItem[] } | null>(null);
-  const [batchActionMode, setBatchActionMode] = useState<'reject' | 'pass'>('reject');
-  const [batchRejectReason, setBatchRejectReason] = useState('内容重复/同源');
-  const [batchRejectDetail, setBatchRejectDetail] = useState('属于相同来源链接/同地址重复表达，要素存在遗漏，批量予以驳回。');
-  const [batchScore, setBatchScore] = useState(5);
 
   // URL Jump Live Preview Modal
   const [previewUrlItem, setPreviewUrlItem] = useState<ReportItem | null>(null);
@@ -151,32 +142,6 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
     return true;
   });
 
-  // Calculate URL Clusters for Batch Matching (Group by matchUrl for pending items in filtered)
-  const pendingFiltered = filtered.filter((r) => r.auditStatus === '待审核');
-  const urlGroups: { [url: string]: ReportItem[] } = {};
-  pendingFiltered.forEach((item) => {
-    if (item.matchUrl) {
-      if (!urlGroups[item.matchUrl]) {
-        urlGroups[item.matchUrl] = [];
-      }
-      urlGroups[item.matchUrl].push(item);
-    }
-  });
-
-  // Groups with >= 2 items
-  const matchedClusters = Object.entries(urlGroups)
-    .filter(([_, items]) => items.length >= 2)
-    .map(([url, items]) => ({ url, items }));
-
-  // Set of item IDs that are included in matched clusters
-  const clusteredItemIds = new Set<number>();
-  matchedClusters.forEach((cluster) => {
-    cluster.items.forEach((item) => clusteredItemIds.add(item.id));
-  });
-
-  // Non-clustered pending reports or other remaining reports
-  const otherPendingItems = filtered.filter((item) => !clusteredItemIds.has(item.id));
-
   const handleReset = () => {
     setKeyword('');
     setSelectedOrgId(null);
@@ -184,7 +149,6 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
     setStartDate('');
     setEndDate('');
     setActiveTab('待审核');
-    setIsBatchMatchActive(false);
   };
 
   // Pagination (页码管理 + 每页条数设置)
@@ -193,43 +157,11 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, keyword, selectedOrgId, selectedAuditor, startDate, endDate, isBatchMatchActive]);
+  }, [activeTab, keyword, selectedOrgId, selectedAuditor, startDate, endDate]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
   const pagedReports = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
-
-  const openBatchModal = (cluster: { url: string; items: ReportItem[] }) => {
-    setBatchModalGroup(cluster);
-    setBatchActionMode('reject');
-    setBatchRejectReason('内容重复/同源');
-    setBatchRejectDetail('属于相同来源链接/同地址重复表达，要素存在遗漏，批量予以驳回。');
-    setBatchScore(5);
-  };
-
-  const handleExecuteBatchAudit = () => {
-    if (!batchModalGroup) return;
-    const ids = batchModalGroup.items.map((i) => i.id);
-
-    if (batchActionMode === 'reject') {
-      if (onBatchReject) {
-        onBatchReject(ids, batchRejectReason, batchRejectDetail);
-      } else if (onRejectAudit) {
-        ids.forEach((id) => onRejectAudit(id, batchRejectReason, batchRejectDetail));
-      }
-    } else {
-      const canScore = batchModalGroup.items.every((item) => isFinalAuditStage(item));
-      if (onBatchApprove) {
-        onBatchApprove(ids, canScore ? batchScore : undefined);
-      } else if (onApproveAudit) {
-        ids.forEach((id) => {
-          const item = batchModalGroup.items.find((candidate) => candidate.id === id);
-          onApproveAudit(id, item && isFinalAuditStage(item) ? batchScore : undefined, true);
-        });
-      }
-    }
-    setBatchModalGroup(null);
-  };
 
   const handleExecuteQuickAudit = () => {
     if (!quickAuditItem) return;
@@ -265,12 +197,12 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
     );
   };
 
-  const renderAuditRow = (item: ReportItem, seq: number, matched = false) => {
+  const renderAuditRow = (item: ReportItem, seq: number) => {
     const isPending = item.auditStatus === '待审核';
     const isRejected = item.auditStatus === '被驳回' || item.auditStatus === '已驳回';
     return (
-      <div key={`${matched ? 'cluster' : 'row'}-${item.id}`} className={`px-5 py-3.5 flex gap-3 transition-colors ${matched ? 'hover:bg-amber-50/40' : 'hover:bg-gray-50/70'}`}>
-        <span className={`w-6 shrink-0 text-center font-mono text-xs mt-0.5 ${matched ? 'text-amber-700/70' : 'text-gray-400'}`}>{seq}</span>
+      <div key={`row-${item.id}`} className="px-5 py-3.5 flex gap-3 transition-colors hover:bg-gray-50/70">
+        <span className="w-6 shrink-0 text-center font-mono text-xs mt-0.5 text-gray-400">{seq}</span>
         <div className="flex-1 min-w-0 space-y-1">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2 min-w-0">
@@ -286,7 +218,6 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
               <ReportOriginBadge report={item} size="sm" className="shrink-0" />
             </div>
             <div className="flex items-center gap-3 text-xs shrink-0">
-              {matched && <span className="text-[#F26522] font-semibold bg-amber-50 px-1.5 py-px rounded">已匹配</span>}
               <button
                 type="button"
                 onClick={() => handleOpenAuditDrawer(item)}
@@ -332,7 +263,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
         <div className="relative z-10 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
           <h2 className="text-base font-bold tracking-tight">审核管理工作台</h2>
-          <span className="text-[11px] text-blue-100/70 ml-1 truncate">集中处理审核待办、同源批量匹配及审核记录事项</span>
+          <span className="text-[11px] text-blue-100/70 ml-1 truncate">集中处理审核待办及审核记录事项</span>
         </div>
 
         {/* 4 Large Translucent Metric Cards (Matching ReportSummary Exactly) */}
@@ -351,9 +282,6 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
             </div>
             <div className="mt-1 flex items-baseline justify-between">
               <span className="text-xl font-bold font-mono text-white">{pendingCount}</span>
-              <span className="text-[11px] text-blue-200">
-                同源待合审 <strong className="text-amber-300">{matchedClusters.reduce((acc, c) => acc + c.items.length, 0)}</strong>
-              </span>
             </div>
           </div>
 
@@ -488,91 +416,51 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
 
       {/* 3. Main Content: In-Table Clustered View or Cards */}
         <div className="bg-white rounded-xl border border-gray-200/80 shadow-2xs overflow-hidden">
-          <div className="px-5 py-2.5 flex flex-wrap items-center justify-between gap-2 bg-gray-50/70 border-b border-gray-100 text-xs">
-            <span className="text-gray-600">
-              共 <strong className="text-[#1E5ABB] font-mono">{filtered.length}</strong> 条报送
-              {isBatchMatchActive && (
-                <>
-                  <span className="mx-2 text-gray-300">|</span>
-                  已匹配 <strong className="text-[#F26522] font-mono">{matchedClusters.length}</strong> 组同源报送
-                </>
-              )}
-            </span>
-            <button
-              type="button"
-              onClick={() => setIsBatchMatchActive(!isBatchMatchActive)}
-              title="智能识别并聚合来自相同链接/同地址的多条网格员速报"
-              id="btn-batch-match-toggle"
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md border font-semibold cursor-pointer transition-colors ${
-                isBatchMatchActive
-                  ? 'border-orange-200 bg-orange-50 text-[#F26522] hover:bg-orange-100'
-                  : 'border-blue-200 bg-blue-50 text-[#1E5ABB] hover:bg-blue-100'
-              }`}
-            >
-              {isBatchMatchActive ? <X className="w-3.5 h-3.5" /> : <Zap className="w-3.5 h-3.5" />}
-              {isBatchMatchActive ? '取消匹配' : '批量匹配'}
-            </button>
+          <div className="px-5 flex items-center justify-between gap-3 border-b border-gray-100 text-sm">
+            <div className="flex items-center gap-6 min-w-0">
+              {(
+                [
+                  { value: '待审核' as const, label: '待审核', count: pendingCount },
+                  { value: '已驳回' as const, label: '已驳回', count: rejectedCount }
+                ] as const
+              ).map((tab) => {
+                const active = activeTab === tab.value;
+                return (
+                  <button
+                    key={tab.value}
+                    type="button"
+                    onClick={() => setActiveTab(tab.value)}
+                    className={`relative py-3 flex items-center gap-1.5 cursor-pointer transition-colors ${
+                      active ? 'text-[#1E5ABB] font-bold' : 'text-gray-500 hover:text-gray-800'
+                    }`}
+                  >
+                    {tab.label}
+                    <span
+                      className={`min-w-[20px] px-1.5 rounded-full text-[11px] font-mono leading-[18px] text-center ${
+                        active ? 'bg-[#1E5ABB] text-white' : 'bg-gray-100 text-gray-500'
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                    {active && (
+                      <span className="absolute left-0 right-0 -bottom-px h-0.5 rounded-full bg-[#1E5ABB]" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <div className="divide-y divide-gray-100">
             {filtered.length === 0 ? (
               <div className="py-12 text-center text-xs text-gray-400">
                 <FileText className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                当前筛选条件下暂无待审核记录
+                {activeTab === '已驳回'
+                  ? '当前筛选条件下暂无已驳回记录'
+                  : '当前筛选条件下暂无待审核记录'}
               </div>
-            ) : isBatchMatchActive && matchedClusters.length > 0 ? (
-              <>
-                {matchedClusters.map((cluster, cIdx) => (
-                  <React.Fragment key={`cluster-${cIdx}`}>
-                    <div className="px-5 py-2.5 bg-amber-50/90 border-y border-amber-200 flex items-center justify-between gap-3">
-                      <div className="flex items-center space-x-2.5 min-w-0">
-                        <div className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
-                          <LinkIcon className="w-3.5 h-3.5" />
-                        </div>
-                        <span className="font-bold text-gray-900 text-xs shrink-0">相同的上报链接</span>
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-200 text-amber-900 shrink-0">
-                          {cluster.items.length} 条关联
-                        </span>
-                        <span className="text-[11px] text-amber-800/80 font-mono truncate max-w-md" title={cluster.url}>
-                          链接: {cluster.url}
-                        </span>
-                        {cluster.items[0] && (
-                          <button
-                            onClick={() => setPreviewUrlItem(cluster.items[0])}
-                            className="text-[#1E5ABB] hover:underline text-[11px] shrink-0 font-medium inline-flex items-center space-x-0.5 cursor-pointer ml-1"
-                            title="预览该链接内容"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                            <span>预览链接</span>
-                          </button>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => {
-                          const first = cluster.items[0];
-                          if (first) handleOpenAuditDrawer(first);
-                        }}
-                        className="px-3.5 py-1.5 bg-[#F26522] hover:bg-[#D9531E] text-white text-xs font-bold rounded-lg shadow-2xs transition-all shrink-0 flex items-center space-x-1.5 cursor-pointer active:scale-98"
-                        title="进入首条详情，在详情页勾选同源报送继续批量审核"
-                      >
-                        <Layers className="w-3.5 h-3.5" />
-                        <span>批量审核</span>
-                      </button>
-                    </div>
-                    {cluster.items.map((item, itemIdx) => renderAuditRow(item, itemIdx + 1, true))}
-                  </React.Fragment>
-                ))}
-
-                {otherPendingItems.length > 0 && (
-                  <div className="px-5 py-2.5 bg-gray-50/80 border-t-2 border-b border-gray-200 flex items-center justify-between font-bold text-gray-700 text-xs">
-                    <span>其他待审核报送 ({otherPendingItems.length} 条)</span>
-                    <span className="text-[11px] text-gray-400 font-normal">支持单独逐条进行详细审核或快捷处置</span>
-                  </div>
-                )}
-                {otherPendingItems.map((item, itemIdx) => renderAuditRow(item, itemIdx + 1))}
-              </>
             ) : (
-              pagedReports.map((item, index) => renderAuditRow(item, (safePage - 1) * pageSize + index + 1))
-            )}
+                  pagedReports.map((item, index) => renderAuditRow(item, (safePage - 1) * pageSize + index + 1))
+                )}
           </div>
 
           {/* Footer Pagination */}
@@ -589,161 +477,6 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
             />
           </div>
         </div>
-
-      {/* 6. Batch Audit Modal (Matching mobile screenshots 3, 4, 5) */}
-      {batchModalGroup && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-200">
-            {/* Modal Header */}
-            <div className="bg-amber-500 text-white p-4 flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Layers className="w-5 h-5" />
-                <h3 className="text-base font-bold">批量审核</h3>
-              </div>
-              <button
-                onClick={() => setBatchModalGroup(null)}
-                className="text-white/80 hover:text-white text-lg font-bold cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4 text-xs">
-              {/* Linked URL box */}
-              <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-xl space-y-2">
-                <div className="flex items-center space-x-1.5 text-amber-900 font-bold">
-                  <LinkIcon className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                  <span className="truncate">相同上报链接: {batchModalGroup.url}</span>
-                </div>
-                <p className="text-[11px] text-amber-800 font-medium">
-                  统一处理下列 {batchModalGroup.items.length} 条由不同网格员提交的相关速报:
-                </p>
-
-                <div className="space-y-1.5 pt-1">
-                  {batchModalGroup.items.map((item, idx) => (
-                    <div key={item.id} className="p-2 bg-white rounded-lg border border-amber-100 flex items-center justify-between text-xs">
-                      <span className="font-bold text-gray-800 truncate">{idx + 1}. {item.title}</span>
-                      <span className="text-[10px] text-gray-400 shrink-0 ml-2" title={getOrganizationPathText(item.organization)}>
-                        {getOrganizationPathText(item.organization)} · {item.author}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Mode Toggle: Reject vs Pass */}
-              {batchActionMode === 'reject' ? (
-                /* Mode: Reject (驳回重修) */
-                <div className="p-3.5 bg-rose-50/60 border border-rose-200 rounded-xl space-y-3 animate-in fade-in">
-                  <div className="flex items-center space-x-1.5 text-rose-700 font-bold">
-                    <X className="w-4 h-4" />
-                    <span>驳回重修</span>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-700 font-semibold mb-1">驳回原因</label>
-                    <select
-                      value={batchRejectReason}
-                      onChange={(e) => setBatchRejectReason(e.target.value)}
-                      className="w-full px-3 py-1.5 border border-gray-300 rounded-lg bg-white outline-none"
-                    >
-                      <option value="内容重复/同源">内容重复/同源</option>
-                      <option value="信息不完整">信息不完整</option>
-                      <option value="非本辖区职责">非本辖区职责</option>
-                      <option value="佐证不足">佐证不足</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-700 font-semibold mb-1">详细驳回意见及修改指引</label>
-                    <textarea
-                      rows={3}
-                      value={batchRejectDetail}
-                      onChange={(e) => setBatchRejectDetail(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white outline-none text-gray-700"
-                    />
-                  </div>
-                </div>
-              ) : (
-                /* Mode: Pass (审核通过) */
-                <div className="p-3.5 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-3 animate-in fade-in">
-                  <div className="flex items-center space-x-1.5 text-emerald-700 font-bold">
-                    <Check className="w-4 h-4" />
-                    <span>{batchModalGroup.items.every((item) => isFinalAuditStage(item)) ? '审核通过并评分' : '审核通过'}</span>
-                  </div>
-
-                  <p className="text-[11px] text-emerald-800 bg-white p-2.5 rounded-lg border border-emerald-100">
-                    确认后将批量审核通过这 {batchModalGroup.items.length} 条速报，并合并流转进入下一处理节点。
-                  </p>
-
-                  {batchModalGroup.items.every((item) => isFinalAuditStage(item)) && (
-                    <div>
-                      <label className="block text-gray-700 font-semibold mb-1">终审评分</label>
-                      <div className="flex flex-wrap gap-2">
-                        {[5, 3, 1, 0.5, 0].map((score) => (
-                          <button
-                            key={score}
-                            type="button"
-                            onClick={() => setBatchScore(score)}
-                            className={`px-3 py-1 rounded-lg font-bold cursor-pointer ${
-                              batchScore === score ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700'
-                            }`}
-                          >
-                            {score}分
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                {batchActionMode === 'reject' ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={handleExecuteBatchAudit}
-                      className="py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow-sm flex items-center justify-center space-x-1 cursor-pointer"
-                    >
-                      <X className="w-4 h-4" />
-                      <span>确认驳回 ({batchModalGroup.items.length}条)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBatchActionMode('pass')}
-                      className="py-2.5 bg-white border border-emerald-500 text-emerald-700 hover:bg-emerald-50 font-bold rounded-xl flex items-center justify-center space-x-1 cursor-pointer"
-                    >
-                      <Check className="w-4 h-4" />
-                      <span>改为通过</span>
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setBatchActionMode('reject')}
-                      className="py-2.5 bg-white border border-rose-500 text-rose-700 hover:bg-rose-50 font-bold rounded-xl flex items-center justify-center space-x-1 cursor-pointer"
-                    >
-                      <X className="w-4 h-4" />
-                      <span>改为驳回</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleExecuteBatchAudit}
-                      className="py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-sm flex items-center justify-center space-x-1 cursor-pointer"
-                    >
-                      <Check className="w-4 h-4" />
-                      <span>确认通过 ({batchModalGroup.items.length}条)</span>
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 7. URL Jump & Live Web Preview Modal (Matching Screenshot 6) */}
       {previewUrlItem && (
