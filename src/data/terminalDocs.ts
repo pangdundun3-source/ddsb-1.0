@@ -20,8 +20,8 @@ export interface TerminalDocsBundle {
   syncState: DocsSyncState;
 }
 
-/** 进入各端后顶栏 / 右侧分栏可见的文档入口 */
-const DOC_ORDER = ['PRD'];
+/** 进入各端后顶栏 / 右侧分栏可见的文档入口；置空则隐藏 PRD 等入口 */
+const DOC_ORDER: string[] = [];
 /** 门户首页卡片上的文档入口；置空则首页不展示 PRD / 更新记录 */
 const HOME_DOC_ORDER: string[] = [];
 const DOC_LABELS: Record<string, string> = { CHANGELOG: '更新记录', PRD: 'PRD' };

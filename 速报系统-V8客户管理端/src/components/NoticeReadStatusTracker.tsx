@@ -252,7 +252,7 @@ export const NoticeReadStatusTracker: React.FC<NoticeReadStatusTrackerProps> = (
         </div>
 
         {/* ========================================================================= */}
-        {/* MODULE 2: 受送达责任人员查阅明细                                          */}
+        {/* MODULE 2: 查阅明细                                          */}
         {/* ========================================================================= */}
         <div className="space-y-3">
           {/* Module 2 Header & View Mode Switcher */}
@@ -260,7 +260,7 @@ export const NoticeReadStatusTracker: React.FC<NoticeReadStatusTrackerProps> = (
             <div className="flex items-center space-x-2">
               <UserCheck className="w-4 h-4 text-emerald-600" />
               <h3 className="text-xs font-black text-slate-900">
-                受送达责任人员查阅明细 ({filteredRecipients.length}人)
+                查阅明细 ({filteredRecipients.length}人)
               </h3>
             </div>
 
@@ -624,7 +624,7 @@ export const NoticeReadStatusTracker: React.FC<NoticeReadStatusTrackerProps> = (
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center space-x-2">
             <UserCheck className="w-4 h-4 text-[#1E5ABB]" />
-            <h3 className="text-xs font-bold text-slate-900">受送达人员与查阅状态跟踪</h3>
+            <h3 className="text-xs font-bold text-slate-900">查阅状态</h3>
           </div>
         </div>
 
