@@ -8,7 +8,6 @@ import {
   Copy,
   Eye,
   EyeOff,
-  Lock,
   IdCard,
   X
 } from 'lucide-react';
@@ -380,11 +379,6 @@ export const PersonalInfo: React.FC<PersonalInfoProps> = () => {
                   placeholder="请输入银行借记卡卡号"
                   className="w-full px-3 py-2 font-mono border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-[#1E5ABB]"
                 />
-              </div>
-
-              <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 text-[11px] text-amber-800 flex items-start space-x-2">
-                <Lock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                <span>保存后将自动更新至用户中心，并与财政及内控补贴核发系统进行数据绑定。</span>
               </div>
 
               <div className="flex items-center justify-end space-x-2.5 pt-2 border-t border-gray-100">

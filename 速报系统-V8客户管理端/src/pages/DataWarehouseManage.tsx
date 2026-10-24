@@ -454,7 +454,6 @@ export const DataWarehouseManage: React.FC<DataWarehouseManageProps> = ({ negati
                     </option>
                   ))}
                 </select>
-                <p className="mt-1.5 text-[11px] text-gray-400">只能迁入启用中的仓库。迁移后原仓库保留，可再删除空仓库。</p>
               </div>
               {migrateRecordIds.length === 0 && <p className="text-amber-600">所选仓库暂无数据，无需迁移。</p>}
             </div>

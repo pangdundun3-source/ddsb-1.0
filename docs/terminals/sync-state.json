@@ -1,10 +1,10 @@
 {
   "v8-client": {
     "PRD": {
-      "lastSyncedAt": "2026-10-20T16:30:00+08:00"
+      "lastSyncedAt": "2026-10-24T18:20:00+08:00"
     },
     "CHANGELOG": {
-      "lastSyncedAt": "2026-10-20T16:30:00+08:00"
+      "lastSyncedAt": "2026-10-24T18:20:00+08:00"
     }
   },
   "mt-app": {
@@ -17,18 +17,18 @@
   },
   "v8-audit-pc": {
     "PRD": {
-      "lastSyncedAt": "2026-10-20T16:20:00+08:00"
+      "lastSyncedAt": "2026-10-24T18:25:00+08:00"
     },
     "CHANGELOG": {
-      "lastSyncedAt": "2026-10-20T16:20:00+08:00"
+      "lastSyncedAt": "2026-10-24T18:25:00+08:00"
     }
   },
   "v8-audit-h5": {
     "PRD": {
-      "lastSyncedAt": "2026-10-20T16:20:00+08:00"
+      "lastSyncedAt": "2026-10-24T18:20:00+08:00"
     },
     "CHANGELOG": {
-      "lastSyncedAt": "2026-10-20T16:20:00+08:00"
+      "lastSyncedAt": "2026-10-24T18:20:00+08:00"
     }
   }
 }

@@ -12,7 +12,6 @@ interface AuditActionBatchPanelProps {
   scoreMap: Record<number, number>;
   handleSetScore: (reportId: number, score: number) => void;
   identMap: Record<number, '首发' | '重复'>;
-  handleSetIdent: (reportId: number, ident: '首发' | '重复') => void;
   selectedScore: number;
   toggleBatchSelect: (id: number) => void;
   handleSmartMatchDetermine: () => void;
@@ -39,7 +38,6 @@ export const AuditActionBatchPanel: React.FC<AuditActionBatchPanelProps> = ({
   scoreMap,
   handleSetScore,
   identMap,
-  handleSetIdent,
   selectedScore,
   toggleBatchSelect,
   handleSmartMatchDetermine,
@@ -65,8 +63,6 @@ export const AuditActionBatchPanel: React.FC<AuditActionBatchPanelProps> = ({
         setSelectedBatchIds={setSelectedBatchIds}
         scoreMap={scoreMap}
         handleSetScore={handleSetScore}
-        identMap={identMap}
-        handleSetIdent={handleSetIdent}
         selectedScore={selectedScore}
         toggleBatchSelect={toggleBatchSelect}
         handleSmartMatchDetermine={handleSmartMatchDetermine}

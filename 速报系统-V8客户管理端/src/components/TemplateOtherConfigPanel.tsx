@@ -33,6 +33,7 @@ interface ScoreLevelItem {
   levelName: string;
   score: number;
   description?: string;
+  isDefault?: boolean;
 }
 
 export interface ScoreRuleItem {
@@ -105,7 +106,7 @@ const DEFAULT_SCORE_RULES: ScoreRuleItem[] = [
     scoreLevels: [
       { id: 'sl_1', levelName: '一等', score: 100 },
       { id: 'sl_2', levelName: '二等', score: 90 },
-      { id: 'sl_3', levelName: '三等', score: 80 },
+      { id: 'sl_3', levelName: '三等', score: 80, isDefault: true },
       { id: 'sl_4', levelName: '四等', score: 70 },
       { id: 'sl_5', levelName: '五等', score: 60 }
     ]
@@ -633,9 +634,12 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
                           {activeScoreRule.scoreLevels.map(sl => (
                             <span
                               key={sl.id}
-                              className="px-2 py-0.5 bg-white border border-amber-200/80 rounded text-[11px] text-gray-700"
+                              className={`px-2 py-0.5 bg-white rounded text-[11px] text-gray-700 border ${
+                                sl.isDefault ? 'border-blue-300' : 'border-amber-200/80'
+                              }`}
                             >
                               {sl.levelName}: <strong className="font-mono text-amber-800">{sl.score}分</strong>
+                              {sl.isDefault ? <span className="ml-1 text-blue-600 font-bold">默认</span> : null}
                             </span>
                           ))}
                         </div>

@@ -10,8 +10,6 @@ import {
   FileText,
   Paperclip,
   User,
-  Sparkles,
-  CheckCircle2,
 } from 'lucide-react';
 import { AttachmentPreviewModal } from './AttachmentPreviewModal';
 
@@ -160,11 +158,7 @@ export const ReportDetailCard: React.FC<ReportDetailCardProps> = ({
             <h1 className="text-lg sm:text-xl font-bold text-gray-900 leading-snug tracking-tight">
               {report.title}
             </h1>
-            {/* Identification Badge: e.g. ✨ 疑似首发 */}
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-[#EFF6FF] text-[#2563EB] border border-[#BFDBFE] rounded-full text-xs font-medium shadow-2xs">
-              <Sparkles className="w-3 h-3 text-[#2563EB] stroke-[2]" />
-              <span>{displayStatus}</span>
-            </span>
+            <IdentificationBadge status={displayStatus} size="md" showIcon className="shrink-0" />
           </div>
 
           {/* Right Status Badge: 待审核 */}
@@ -177,13 +171,13 @@ export const ReportDetailCard: React.FC<ReportDetailCardProps> = ({
           </div>
         </div>
 
-        {/* Sub-meta: Author + Org & Submit Time */}
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-gray-500 pt-0.5">
+        {/* Sub-meta: Author + Org & Submit Time — 对齐审核上报端 */}
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-gray-500 pt-0.5">
           <div className="flex items-center space-x-1.5">
             <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
             <span className="text-gray-700 font-normal">
               {report.author}{' '}
-              {report.organization ? `(${report.organization})` : ''}
+              {report.organization ? <span>({report.organization})</span> : null}
             </span>
           </div>
           <div className="flex items-center space-x-1.5 font-mono text-gray-500">

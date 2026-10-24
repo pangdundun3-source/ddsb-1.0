@@ -152,7 +152,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
         auditStatus: '待审核',
         auditStage: '初审',
         matchUrl: matchUrl,
-        identificationStatus: '重复',
+        identificationStatus: '疑似重复',
         detailContent: {
           summary: '区水务局针对该事件已派抢修队赶赴现场施工排查，已协调出动应急送水车进驻受影响小区保障居民用水。',
           coreDemands: '居民诉求聚焦抢修进度与临时用水保障。',
@@ -172,7 +172,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
         auditStatus: '待审核',
         auditStage: '初审',
         matchUrl: matchUrl,
-        identificationStatus: '重复',
+        identificationStatus: '疑似重复',
         detailContent: {
           summary: '针对自媒体声称“管道大面积破裂需停水数日”等虚假不实传言已完成现场证据核对，联动公安网安部门对首发造谣账号进行取证。',
           coreDemands: '群众希望官方平台快速发布权威辟谣信息。',
@@ -192,7 +192,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
         auditStatus: '待审核',
         auditStage: '初审',
         matchUrl: matchUrl,
-        identificationStatus: '重复',
+        identificationStatus: '疑似重复',
         detailContent: {
           summary: '应急管理局已启动Ⅳ级应急供水保障机制，协调市自来水集团调配3辆大型蓄水车进驻阳光花园东门。',
           coreDemands: '重点保障老人及婴幼儿家庭生活饮水。',
@@ -212,7 +212,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
         auditStatus: '待审核',
         auditStage: '初审',
         matchUrl: matchUrl,
-        identificationStatus: '重复',
+        identificationStatus: '疑似重复',
         detailContent: {
           summary: '今日上午共接到相关停水工单42件，主要集中于停水通知滞后、物业电话占线等问题。',
           coreDemands: '要求物业与供水公司畅通咨询热线。',
@@ -232,7 +232,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
         auditStatus: '待审核',
         auditStage: '初审',
         matchUrl: matchUrl,
-        identificationStatus: '重复',
+        identificationStatus: '疑似重复',
         detailContent: {
           summary: '已派环境监测站对供水管网末梢水样进行抽检，各项水质常规指标均处于正常安全范围。',
           coreDemands: '通报水质化验检测数据，防止谣言扩散。',
@@ -316,14 +316,6 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
       });
       return next;
     });
-  };
-
-  // Set ident for specific report in cluster
-  const handleSetIdent = (reportId: number, ident: '首发' | '重复') => {
-    setIdentMap((prev) => ({ ...prev, [reportId]: ident }));
-    if (reportId === report.id) {
-      setManualIdent(ident);
-    }
   };
 
   // Toggle batch select checkbox
@@ -563,8 +555,6 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
                   onInspectReport={(item) => setInspectingReport(item as ReportItem)}
                   scoreMap={scoreMap}
                   handleSetScore={handleSetScore}
-                  identMap={identMap}
-                  handleSetIdent={handleSetIdent}
                   selectedScore={selectedScore}
                   auditMode={auditMode}
                   currentReportId={report.id}
@@ -768,17 +758,6 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
         onScoreChange={(newScore) => {
           if (inspectingReport) {
             handleSetScore(inspectingReport.id, newScore);
-          }
-        }}
-        currentIdent={
-          inspectingReport
-            ? identMap[inspectingReport.id] ??
-              (inspectingReport.identificationStatus === '首发' ? '首发' : '重复')
-            : '重复'
-        }
-        onIdentChange={(newIdent) => {
-          if (inspectingReport) {
-            handleSetIdent(inspectingReport.id, newIdent);
           }
         }}
         isSelectedForBatch={

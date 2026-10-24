@@ -24,6 +24,117 @@ import {
 import { BackNavigationBar } from './BackNavigationBar';
 import { RecallConfirmDialog } from './RecallConfirmDialog';
 
+/** 与审核上报 PC「流转状态」人员头像展示对齐 */
+interface FlowPerson {
+  name: string;
+  org?: string;
+  time?: string;
+}
+
+const AVATAR_COLORS = [
+  'bg-blue-500',
+  'bg-emerald-500',
+  'bg-amber-500',
+  'bg-violet-500',
+  'bg-rose-500',
+  'bg-cyan-600',
+];
+
+const isSpecialOperatorLabel = (name: string) =>
+  /流程结束|等待|审核员$|未开始/.test(name) || name.includes('等待上报');
+
+const parseSinglePerson = (chunk: string): FlowPerson => {
+  const parts = chunk
+    .split(/\s*·\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return { name: chunk };
+  const name = parts[0];
+  let org: string | undefined;
+  let time: string | undefined;
+  parts.slice(1).forEach((part) => {
+    if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(part) || /^\d{1,2}:\d{2}/.test(part)) {
+      time = part;
+    } else {
+      org = org ? `${org} · ${part}` : part;
+    }
+  });
+  return { name, org, time };
+};
+
+const parseOperatorPeople = (operator: string): FlowPerson[] => {
+  if (!operator.trim()) return [];
+  return operator
+    .split(/[、；;]/)
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .map(parseSinglePerson);
+};
+
+const PersonAvatar: React.FC<{ name: string }> = ({ name }) => {
+  const color = AVATAR_COLORS[Math.abs(name.charCodeAt(0) || 0) % AVATAR_COLORS.length];
+  return (
+    <span
+      className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white ${color}`}
+      title={name}
+    >
+      {name.slice(0, 1)}
+    </span>
+  );
+};
+
+const PersonListDisplay: React.FC<{
+  people: FlowPerson[];
+  mode: 'pending' | 'done';
+}> = ({ people, mode }) => {
+  if (people.length === 0) return <span className="text-slate-400">—</span>;
+  return (
+    <div
+      className={`flex min-w-0 flex-1 ${
+        mode === 'pending' ? 'flex-wrap items-center gap-x-2.5 gap-y-1' : 'flex-col gap-1'
+      }`}
+    >
+      {people.map((person, index) => {
+        if (isSpecialOperatorLabel(person.name)) {
+          return (
+            <span key={`${person.name}-${index}`} className="truncate text-slate-700 font-medium text-[11px]">
+              {[person.name, person.org, person.time].filter(Boolean).join(' · ')}
+            </span>
+          );
+        }
+        if (mode === 'pending') {
+          return (
+            <span key={`${person.name}-${index}`} className="inline-flex items-center gap-1 max-w-full">
+              <PersonAvatar name={person.name} />
+              <span className="truncate text-slate-800 font-medium text-[11px]">{person.name}</span>
+            </span>
+          );
+        }
+        return (
+          <span key={`${person.name}-${index}`} className="inline-flex items-center gap-1 min-w-0 max-w-full">
+            <PersonAvatar name={person.name} />
+            <span className="truncate text-[11px] text-slate-600 leading-snug">
+              <span className="font-medium text-slate-800">{person.name}</span>
+              {person.org ? <span className="text-slate-500"> · {person.org}</span> : null}
+              {person.time ? <span className="text-slate-400"> · {person.time}</span> : null}
+            </span>
+          </span>
+        );
+      })}
+    </div>
+  );
+};
+
+const resolveFlowPeople = (actor: string, people?: FlowPerson[]): FlowPerson[] =>
+  people?.length ? people : parseOperatorPeople(actor);
+
+const isPendingLikeFlowState = (state?: string, status?: string) =>
+  state === 'waiting' ||
+  state === 'active' ||
+  status === '等待处理' ||
+  status === '待审核' ||
+  status === '审核中';
+
 interface DetailModalProps {
   report: SpeedReport | null;
   allReports?: SpeedReport[];
@@ -204,12 +315,6 @@ export const DetailModal: React.FC<DetailModalProps> = ({
     onClose();
   };
 
-  const handleCopySummaryText = () => {
-    const text = `【速报卡片】\n标题：${report.title}\n来源：${report.source} | 区域：${report.district}\n地址：${report.address}\n摘要：${report.summary}\n诉求：${report.coreDemand}\n处置建议：${report.disposalAdvice}`;
-    navigator.clipboard.writeText(text);
-    onToast('已复制速报摘要文本至剪贴板');
-  };
-
   const handleRecall = () => {
     if (!onRecallReport) return;
     setShowRecallConfirm(true);
@@ -259,8 +364,6 @@ export const DetailModal: React.FC<DetailModalProps> = ({
   const hasFullReviewHistory = report.status === 'approved';
   const firstRejectTime = shiftTime(report.updateTime, -90);
   const resubmitTime = shiftTime(report.updateTime, -45);
-  const showHandledAuditor = (auditor: string, org: string, handled: boolean) =>
-    handled ? `${auditor} · ${org}` : org;
   const firstAuditHandled = report.status !== 'pending_audit';
   const secondAuditHandled = report.status === 'approved';
   const thirdAuditHandled = report.status === 'approved';
@@ -272,6 +375,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
   const flowNodes: Array<{
     title: string;
     actor: string;
+    people?: FlowPerson[];
     status: string;
     state: string;
     time?: string;
@@ -280,6 +384,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
     records?: Array<{
       label: string;
       actor: string;
+      people?: FlowPerson[];
       time?: string;
       status?: string;
       state?: string;
@@ -290,6 +395,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
     {
       title: '提交上报',
       actor: `${report.author} · ${report.authorDept}`,
+      people: [{ name: report.author, org: report.authorDept, time: report.createTime }],
       status: hasFullReviewHistory ? '' : '已提交',
       state: 'done',
       time: report.createTime,
@@ -298,6 +404,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
             {
               label: '',
               actor: `${report.author} · ${report.authorDept}`,
+              people: [{ name: report.author, org: report.authorDept, time: report.createTime }],
               time: report.createTime,
               status: '已提交',
               state: 'done',
@@ -305,6 +412,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
             {
               label: '',
               actor: `${report.author} · ${report.authorDept}`,
+              people: [{ name: report.author, org: report.authorDept, time: resubmitTime }],
               time: resubmitTime,
               status: '已提交',
               state: 'done',
@@ -314,7 +422,15 @@ export const DetailModal: React.FC<DetailModalProps> = ({
     },
     {
       title: '审核处理',
-      actor: showHandledAuditor('王主任', '市委宣传部舆情科', firstAuditHandled),
+      actor: firstAuditHandled
+        ? `王主任 · 市委宣传部舆情科 · ${report.updateTime}`
+        : '王主任 · 市委宣传部舆情科、李审核 · 市委宣传部舆情科',
+      people: firstAuditHandled
+        ? [{ name: '王主任', org: '市委宣传部舆情科', time: report.updateTime }]
+        : [
+            { name: '王主任', org: '市委宣传部舆情科' },
+            { name: '李审核', org: '市委宣传部舆情科' },
+          ],
       status: hasFullReviewHistory
         ? ''
         : report.status === 'pending_audit'
@@ -334,7 +450,8 @@ export const DetailModal: React.FC<DetailModalProps> = ({
         ? [
             {
               label: '',
-              actor: showHandledAuditor('王主任', '市委宣传部舆情科', true),
+              actor: `王主任 · 市委宣传部舆情科 · ${firstRejectTime}`,
+              people: [{ name: '王主任', org: '市委宣传部舆情科', time: firstRejectTime }],
               time: firstRejectTime,
               status: rejectStatusLabel,
               state: 'rejected',
@@ -342,7 +459,8 @@ export const DetailModal: React.FC<DetailModalProps> = ({
             },
             {
               label: '',
-              actor: showHandledAuditor('王主任', '市委宣传部舆情科', true),
+              actor: `王主任 · 市委宣传部舆情科 · ${report.updateTime}`,
+              people: [{ name: '王主任', org: '市委宣传部舆情科', time: report.updateTime }],
               time: report.updateTime,
               status: '已通过',
               state: 'done',
@@ -353,7 +471,15 @@ export const DetailModal: React.FC<DetailModalProps> = ({
     },
     {
       title: '审核处理',
-      actor: showHandledAuditor('李明', '市网信办复核组', secondAuditHandled),
+      actor: secondAuditHandled
+        ? `李明 · 市网信办复核组 · ${report.updateTime}`
+        : '李明 · 市网信办复核组、周复核 · 市网信办复核组',
+      people: secondAuditHandled
+        ? [{ name: '李明', org: '市网信办复核组', time: report.updateTime }]
+        : [
+            { name: '李明', org: '市网信办复核组' },
+            { name: '周复核', org: '市网信办复核组' },
+          ],
       status:
         report.status === 'auditing'
           ? '待审核'
@@ -370,7 +496,15 @@ export const DetailModal: React.FC<DetailModalProps> = ({
     },
     {
       title: '审核处理',
-      actor: showHandledAuditor('赵宁', '市网信办终审组', thirdAuditHandled),
+      actor: thirdAuditHandled
+        ? `赵宁 · 市网信办终审组 · ${report.updateTime}`
+        : '赵宁 · 市网信办终审组、陈终审 · 市网信办终审组',
+      people: thirdAuditHandled
+        ? [{ name: '赵宁', org: '市网信办终审组', time: report.updateTime }]
+        : [
+            { name: '赵宁', org: '市网信办终审组' },
+            { name: '陈终审', org: '市网信办终审组' },
+          ],
       status: report.status === 'approved' ? '已通过' : '等待处理',
       state: report.status === 'approved' ? 'done' : 'waiting',
       time: report.status === 'approved' ? report.updateTime : undefined,
@@ -379,6 +513,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
     {
       title: '结束',
       actor: '流程结束',
+      people: [{ name: '流程结束' }],
       status: report.status === 'approved' ? '已采纳' : '',
       state: report.status === 'approved' ? 'done' : 'waiting',
     },
@@ -836,75 +971,95 @@ export const DetailModal: React.FC<DetailModalProps> = ({
                   </div>
                   {node.records ? (
                     <div className="mt-1.5 space-y-1.5">
-                      {node.records.map((record, index) => (
-                        <div
-                          key={`${node.title}-${record.label}-${index}`}
-                          className="rounded-xl border border-slate-100 bg-slate-50/80 p-2"
-                        >
-                          {record.label ? (
-                            <>
+                      {node.records.map((record, recordIndex) => {
+                        const recordPeople = resolveFlowPeople(record.actor, record.people);
+                        const recordMode: 'pending' | 'done' =
+                          isPendingLikeFlowState(record.state || node.state, record.status) &&
+                          record.state !== 'rejected' &&
+                          record.state !== 'done'
+                            ? 'pending'
+                            : 'done';
+                        return (
+                          <div
+                            key={`${node.title}-${record.label}-${recordIndex}`}
+                            className="rounded-xl border border-slate-100 bg-slate-50/80 p-2 space-y-1.5"
+                          >
+                            {record.label ? (
                               <div className="flex items-center justify-between gap-2">
                                 <span className="text-[11px] font-bold text-slate-700">{record.label}</span>
                                 {record.status && (
-                                  <span className={`text-[10px] shrink-0 ${getFlowStatusClass(record.state || node.state)}`}>
+                                  <span
+                                    className={`text-[10px] shrink-0 ${getFlowStatusClass(
+                                      record.state || node.state
+                                    )}`}
+                                  >
                                     {record.status}
                                   </span>
                                 )}
                               </div>
-                              <p className="text-[10px] text-slate-500 pt-0.5 truncate">
-                                {record.time ? `${record.actor} · ${record.time}` : record.actor}
-                              </p>
-                            </>
-                          ) : (
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="text-[10px] text-slate-500 truncate">
-                                {record.time ? `${record.actor} · ${record.time}` : record.actor}
-                              </p>
-                              {record.status && (
-                                <span className={`text-[10px] shrink-0 ${getFlowStatusClass(record.state || node.state)}`}>
+                            ) : null}
+                            <div className="flex items-start justify-between gap-2">
+                              <PersonListDisplay people={recordPeople} mode={recordMode} />
+                              {record.status && !record.label && (
+                                <span
+                                  className={`text-[10px] shrink-0 ${getFlowStatusClass(
+                                    record.state || node.state
+                                  )}`}
+                                >
                                   {record.status}
                                 </span>
                               )}
                             </div>
-                          )}
-                          {record.reason && (
-                            <div className="mt-1.5 rounded-lg border border-red-200 bg-red-50 p-2 text-[10px] leading-relaxed text-red-700">
-                              <span className="font-bold">驳回原因：</span>
-                              <span>{record.reason}</span>
-                            </div>
-                          )}
-                          {record.scoreText && (
-                            <div className="mt-1.5 rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-[10px] leading-relaxed text-emerald-700">
-                              <span className="font-bold">{record.scoreText}</span>
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                            {record.reason && (
+                              <div className="rounded-lg border border-red-200 bg-red-50 p-2 text-[10px] leading-relaxed text-red-700">
+                                <span className="font-bold">驳回原因：</span>
+                                <span>{record.reason}</span>
+                              </div>
+                            )}
+                            {record.scoreText && (
+                              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-[10px] leading-relaxed text-emerald-700">
+                                <span className="font-bold">{record.scoreText}</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
-                    <div className="mt-1.5 rounded-xl border border-slate-100 bg-slate-50/80 p-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-[11px] text-slate-500 truncate">
-                          {node.time ? `${node.actor} · ${node.time}` : node.actor}
-                        </p>
-                        {node.status && (
-                          <span className={`text-[10px] shrink-0 ${getFlowStatusClass(node.state)}`}>
-                            {node.status}
-                          </span>
-                        )}
-                      </div>
-                      {node.rejectReason && (
-                        <div className="mt-2 rounded-xl border border-red-200 bg-red-50 p-2 text-[11px] leading-relaxed text-red-700">
-                          <span className="font-bold">驳回原因：</span>
-                          <span>{node.rejectReason}</span>
+                    (() => {
+                      const nodePeople = resolveFlowPeople(node.actor, node.people);
+                      const nodeMode: 'pending' | 'done' =
+                        isPendingLikeFlowState(node.state, node.status) &&
+                        node.state !== 'rejected' &&
+                        node.state !== 'done'
+                          ? 'pending'
+                          : 'done';
+                      const hideEndWaiting =
+                        node.title === '结束' && (!node.status || node.status === '等待结论');
+                      return (
+                        <div className="mt-1.5 rounded-xl border border-slate-100 bg-slate-50/80 p-2 space-y-1.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <PersonListDisplay people={nodePeople} mode={nodeMode} />
+                            {node.status && !hideEndWaiting && (
+                              <span className={`text-[10px] shrink-0 ${getFlowStatusClass(node.state)}`}>
+                                {node.status}
+                              </span>
+                            )}
+                          </div>
+                          {node.rejectReason && (
+                            <div className="rounded-xl border border-red-200 bg-red-50 p-2 text-[11px] leading-relaxed text-red-700">
+                              <span className="font-bold">驳回原因：</span>
+                              <span>{node.rejectReason}</span>
+                            </div>
+                          )}
+                          {node.scoreText && (
+                            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-2 text-[11px] leading-relaxed text-emerald-700">
+                              <span className="font-bold">{node.scoreText}</span>
+                            </div>
+                          )}
                         </div>
-                      )}
-                      {node.scoreText && (
-                        <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 p-2 text-[11px] leading-relaxed text-emerald-700">
-                          <span className="font-bold">{node.scoreText}</span>
-                        </div>
-                      )}
-                    </div>
+                      );
+                    })()
                   )}
                 </div>
               </div>
@@ -971,20 +1126,12 @@ export const DetailModal: React.FC<DetailModalProps> = ({
             </button>
           </div>
         ) : (
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={handleCopySummaryText}
-              className="flex-1 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl flex items-center justify-center space-x-1 transition-colors"
-            >
-              <span>复制汇报摘要</span>
-            </button>
-            <button
-              onClick={onClose}
-              className="flex-1 py-2.5 px-3 bg-slate-900 hover:bg-black text-white font-semibold text-xs rounded-xl transition-colors"
-            >
-              关闭详情
-            </button>
-          </div>
+          <button
+            onClick={onClose}
+            className="w-full py-2.5 px-3 bg-slate-900 hover:bg-black text-white font-semibold text-xs rounded-xl transition-colors"
+          >
+            关闭详情
+          </button>
         )}
       </div>
 

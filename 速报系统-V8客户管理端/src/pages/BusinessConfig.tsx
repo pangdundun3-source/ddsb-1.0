@@ -100,6 +100,8 @@ export interface ScoreLevel {
   levelName: string;
   score: number;
   description?: string;
+  /** 同组评分规则内仅可有一个默认等级 */
+  isDefault?: boolean;
 }
 
 export type AuditFlowMode = 'step_by_step' | 'max_n_steps' | 'direct_headquarters';
@@ -823,7 +825,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         scoreLevels: [
           { id: 'sl_1', levelName: '一等', score: 100, description: '省级以上领导批示或极高价值采纳' },
           { id: 'sl_2', levelName: '二等', score: 90, description: '市级领导批示或形成深度专报' },
-          { id: 'sl_3', levelName: '三等', score: 80, description: '研判要素齐全且上报迅速及时' },
+          { id: 'sl_3', levelName: '三等', score: 80, description: '研判要素齐全且上报迅速及时', isDefault: true },
           { id: 'sl_4', levelName: '四等', score: 70, description: '基础提报符合规范与事实' },
           { id: 'sl_5', levelName: '五等', score: 60, description: '提供线索参考价值' }
         ]
@@ -841,7 +843,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         relatedTemplateName: '突发事件快速上报',
         scoreLevels: [
           { id: 'sl_201', levelName: '一级', score: 10, description: '快速高效且要素极其精准' },
-          { id: 'sl_202', levelName: '二级', score: 8, description: '基本要素完整无缺失' },
+          { id: 'sl_202', levelName: '二级', score: 8, description: '基本要素完整无缺失', isDefault: true },
           { id: 'sl_203', levelName: '三级', score: 6, description: '仅提供初始简报线索' }
         ]
       },
@@ -858,7 +860,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         relatedTemplateName: '标准图文报送模板',
         scoreLevels: [
           { id: 'sl_301', levelName: 'A级', score: 50, description: '关键引导节点起到决定性效果' },
-          { id: 'sl_302', levelName: 'B级', score: 40, description: '有效正向引导并扭转态势' },
+          { id: 'sl_302', levelName: 'B级', score: 40, description: '有效正向引导并扭转态势', isDefault: true },
           { id: 'sl_303', levelName: 'C级', score: 30, description: '按指令要求完成跟进' },
           { id: 'sl_304', levelName: 'D级', score: 20, description: '参与协同排查' }
         ]
@@ -2560,6 +2562,21 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     return Math.max(0, totalScore - index * step);
   };
 
+  /** 同组恰好保留一个默认等级 */
+  const ensureOneDefaultScoreLevel = (levels: ScoreLevel[], preferIndex = 0): ScoreLevel[] => {
+    if (levels.length === 0) return levels;
+    if (levels.some(level => level.isDefault)) {
+      let seen = false;
+      return levels.map(level => {
+        const isDefault = !!level.isDefault && !seen;
+        if (isDefault) seen = true;
+        return { ...level, isDefault };
+      });
+    }
+    const target = Math.min(Math.max(0, preferIndex), levels.length - 1);
+    return levels.map((level, i) => ({ ...level, isDefault: i === target }));
+  };
+
   const handleLevelCountChange = (count: number) => {
     const newCount = Math.max(2, Math.min(10, count));
     setFormLevelCount(newCount);
@@ -2572,18 +2589,28 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
             id: 'sl_' + Date.now() + '_' + i,
             levelName: `${i + 1}等`,
             score: getDefaultScoreForLevel(i),
-            description: '请填写该等级的评定说明'
+            description: '请填写该等级的评定说明',
+            isDefault: false
           });
         }
-        return [...prev, ...added];
-      } else {
-        return prev.slice(0, newCount);
+        return ensureOneDefaultScoreLevel([...prev, ...added], Math.floor(prev.length / 2));
       }
+      return ensureOneDefaultScoreLevel(prev.slice(0, newCount), Math.min(newCount - 1, Math.floor(newCount / 2)));
     });
   };
 
   const handleUpdateScoreLevel = (index: number, updates: Partial<ScoreLevel>) => {
     setFormScoreLevels(prev => prev.map((item, i) => (i === index ? { ...item, ...updates } : item)));
+  };
+
+  /** 同组恰好一个默认等级：点选即切换 */
+  const handleSetDefaultScoreLevel = (index: number) => {
+    setFormScoreLevels(prev =>
+      prev.map((item, i) => ({
+        ...item,
+        isDefault: i === index
+      }))
+    );
   };
 
   const handleAddScoreLevel = () => {
@@ -2594,7 +2621,8 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         id: 'sl_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
         levelName: `${nextIdx}等`,
         score: getDefaultScoreForLevel(nextIdx - 1),
-        description: '请填写该等级的评定说明'
+        description: '请填写该等级的评定说明',
+        isDefault: false
       }
     ]);
     setFormLevelCount(prev => prev + 1);
@@ -2605,7 +2633,11 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       alert('至少需要保留 2 个得分等级');
       return;
     }
-    setFormScoreLevels(prev => prev.filter((_, i) => i !== index));
+    setFormScoreLevels(prev => {
+      const next = prev.filter((_, i) => i !== index);
+      const preferIndex = Math.min(index, next.length - 1);
+      return ensureOneDefaultScoreLevel(next, preferIndex);
+    });
     setFormLevelCount(prev => prev - 1);
   };
 
@@ -3670,7 +3702,16 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     setIsModalOpen(false);
   };
 
+  /** 模式一依赖增值业务「外部审核」开通；未开通时不可新选该模式 */
+  const isExternalAuditOpened = (dataStore.value_added || []).some(
+    item =>
+      (item.name || '').includes('外部审核') &&
+      (item.activatedStatus === '已开通' || item.status === '启用')
+  );
+  const isStepByStepModeLocked = !isExternalAuditOpened;
+
   const handleSwitchAuditFlowMode = (mode: AuditFlowMode, keepCurrentNameAndDesc = false) => {
+    if (mode === 'step_by_step' && isStepByStepModeLocked) return;
     if (mode === formAuditFlowMode) return;
     flowModeDraftsRef.current[formAuditFlowMode] = {
       nodes: formAuditNodes.map(node => ({ ...node })),
@@ -3783,20 +3824,27 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       setFormScoreLevels([
         { id: 'sl_1', levelName: '一等', score: 100, description: '特优级标准' },
         { id: 'sl_2', levelName: '二等', score: 90, description: '优秀级标准' },
-        { id: 'sl_3', levelName: '三等', score: 80, description: '良好级标准' },
+        { id: 'sl_3', levelName: '三等', score: 80, description: '良好级标准', isDefault: true },
         { id: 'sl_4', levelName: '四等', score: 70, description: '合格级标准' },
         { id: 'sl_5', levelName: '五等', score: 60, description: '基本级标准' }
       ]);
     } else if (activeModule === 'audit_flow') {
-      const addName = '逐级审核流程（组织树自适应）';
-      const addDesc = '本级机构提报后沿组织树逐级向上传递审核，最终由总机构终审';
+      const externalAuditOpened = (dataStore.value_added || []).some(
+        item =>
+          (item.name || '').includes('外部审核') &&
+          (item.activatedStatus === '已开通' || item.status === '启用')
+      );
+      const defaultMode: AuditFlowMode = externalAuditOpened ? 'step_by_step' : 'max_n_steps';
+      const preset = auditFlowModePreset(defaultMode);
+      const addName = preset.name;
+      const addDesc = preset.desc;
       setFormName(addName);
       setFormDesc(addDesc);
       setFormScoreStatus('启用');
       const defaultTpl = enabledReportTemplates[0];
       setFormRelatedTemplateId(defaultTpl ? defaultTpl.id : '1');
       setFormTemplateApplyMode('all_report_templates');
-      setFormAuditFlowMode('step_by_step');
+      setFormAuditFlowMode(defaultMode);
       setFormMaxIntermediateNodes(3);
       setFormFlowLevelDirection('up');
       setFormSimulatorScenario('depth_5');
@@ -3808,10 +3856,10 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       setFormOwnerMissingFallbackRole('机构管理员');
       setFormOwnerMissingFallbackUserName('');
       resetOrgPickerState();
-      const defaultFlowNodes = buildDefaultFlowNodes('step_by_step', 3);
+      const defaultFlowNodes = buildDefaultFlowNodes(defaultMode, 3);
       setFormAuditNodes(defaultFlowNodes);
       setSelectedAuditNodeId(defaultFlowNodes[0]?.id || null);
-      rememberAuditFlowBaseline(addName, addDesc, '启用', 'step_by_step', 3, defaultFlowNodes);
+      rememberAuditFlowBaseline(addName, addDesc, '启用', defaultMode, 3, defaultFlowNodes);
     } else if (activeModule === 'evaluation_rule') {
       setFormName('人员考核配置');
       setFormDesc('用于配置人员月度目标上报量和数量、质量评分权重，考核页面按周期自动计算人员得分、等级和排名。');
@@ -3873,13 +3921,16 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       setFormScoreStatus(item.status);
       const defaultTpl = enabledReportTemplates[0];
       setFormRelatedTemplateId(item.relatedTemplateId || (defaultTpl ? defaultTpl.id : '1'));
-      setFormScoreLevels(item.scoreLevels && item.scoreLevels.length > 0 ? item.scoreLevels : [
-        { id: 'sl_1', levelName: '一等', score: 30, description: '' },
-        { id: 'sl_2', levelName: '二等', score: 25, description: '' },
-        { id: 'sl_3', levelName: '三等', score: 20, description: '' },
-        { id: 'sl_4', levelName: '四等', score: 15, description: '' },
-        { id: 'sl_5', levelName: '五等', score: 10, description: '' }
-      ]);
+      {
+        const levels = item.scoreLevels && item.scoreLevels.length > 0 ? item.scoreLevels : [
+          { id: 'sl_1', levelName: '一等', score: 30, description: '' },
+          { id: 'sl_2', levelName: '二等', score: 25, description: '' },
+          { id: 'sl_3', levelName: '三等', score: 20, description: '', isDefault: true },
+          { id: 'sl_4', levelName: '四等', score: 15, description: '' },
+          { id: 'sl_5', levelName: '五等', score: 10, description: '' }
+        ];
+        setFormScoreLevels(ensureOneDefaultScoreLevel(levels, Math.floor(levels.length / 2)));
+      }
     } else if (activeModule === 'audit_flow') {
       setFormScoreStatus(item.status);
       const defaultTpl = enabledReportTemplates[0];
@@ -4091,11 +4142,14 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       const isEnabled = formScoreStatus === '启用';
       const relTplId = 'all_report_templates';
       const relTplName = '全部上报统一适用';
-      const normalizedScoreLevels = formScoreLevels.map(level => ({
-        ...level,
-        levelName: level.levelName.trim(),
-        description: level.description?.trim()
-      }));
+      const normalizedScoreLevels = ensureOneDefaultScoreLevel(
+        formScoreLevels.map(level => ({
+          ...level,
+          levelName: level.levelName.trim(),
+          description: level.description?.trim()
+        })),
+        Math.floor(formScoreLevels.length / 2)
+      );
       const enabledScoreCount = (dataStore.audit_score || []).filter(item => item.status === '启用').length;
 
       if (formTotalScore <= 0) {
@@ -6224,8 +6278,15 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               {activeModule === 'audit_score' && item.scoreLevels && item.scoreLevels.length > 0 && (
                                 <div className="flex flex-wrap items-center gap-1 pt-0.5">
                                   {item.scoreLevels.map((lvl, lIdx) => (
-                                    <span key={lvl.id || lIdx} className="px-1.5 py-0.2 bg-amber-50 text-amber-800 text-[10px] font-mono rounded border border-amber-200/60">
-                                      {lvl.levelName}: {lvl.score}分
+                                    <span
+                                      key={lvl.id || lIdx}
+                                      className={`px-1.5 py-0.2 text-[10px] font-mono rounded border ${
+                                        lvl.isDefault
+                                          ? 'bg-blue-50 text-blue-800 border-blue-200'
+                                          : 'bg-amber-50 text-amber-800 border-amber-200/60'
+                                      }`}
+                                    >
+                                      {lvl.levelName}: {lvl.score}分{lvl.isDefault ? ' ·默认' : ''}
                                     </span>
                                   ))}
                                 </div>
@@ -7413,22 +7474,43 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <button
                         type="button"
+                        disabled={isStepByStepModeLocked && formAuditFlowMode !== 'step_by_step'}
+                        title={
+                          isStepByStepModeLocked && formAuditFlowMode !== 'step_by_step'
+                            ? '未开通外部审核功能，该模式暂时无法选择。'
+                            : undefined
+                        }
                         onClick={() => handleSwitchAuditFlowMode('step_by_step')}
-                        className={`rounded-xl p-3.5 text-left cursor-pointer transition-all flex flex-col justify-between bg-white ${
+                        className={`rounded-xl p-3.5 text-left transition-all flex flex-col justify-between bg-white ${
                           formAuditFlowMode === 'step_by_step'
                             ? 'border-2 border-[#1677ff] shadow-xs'
-                            : 'border border-gray-200 hover:border-gray-300'
+                            : isStepByStepModeLocked
+                            ? 'border border-gray-200 opacity-55 cursor-not-allowed bg-gray-50'
+                            : 'border border-gray-200 hover:border-gray-300 cursor-pointer'
                         }`}
                       >
                         <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-xs font-bold text-gray-900">模式一: 逐级审核</span>
-                          <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-emerald-50 text-emerald-600 border border-emerald-200">
-                            推荐
+                          <span className={`text-xs font-bold ${isStepByStepModeLocked && formAuditFlowMode !== 'step_by_step' ? 'text-gray-500' : 'text-gray-900'}`}>
+                            模式一: 逐级审核
                           </span>
+                          {isStepByStepModeLocked && formAuditFlowMode !== 'step_by_step' ? (
+                            <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                              不可选
+                            </span>
+                          ) : (
+                            <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-emerald-50 text-emerald-600 border border-emerald-200">
+                              推荐
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs text-gray-500 leading-relaxed">
                           沿组织树逐级向上传递复核，最终由总机构终审并评分（自适应组织深度）。
                         </p>
+                        {isStepByStepModeLocked && (
+                          <p className="text-[11px] text-amber-700 leading-relaxed mt-2 pt-2 border-t border-amber-100/80">
+                            未开通外部审核功能，该模式暂时无法选择。
+                          </p>
+                        )}
                       </button>
 
                       <button
@@ -7691,6 +7773,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                       <div className="flex items-center justify-between px-1 gap-3">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="font-bold text-gray-800 text-xs">等级评分</span>
+                          <span className="text-[10px] text-gray-400 font-medium truncate">审核打分时预选该等级</span>
                           {(invalidScoreCount > 0 || !isDescending) && (
                             <span className={`px-1.5 py-0.5 rounded border text-[10px] font-bold ${
                               invalidScoreCount > 0
@@ -7713,9 +7796,30 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 
                       <div className="bg-gray-50/70 p-3 rounded-lg border border-gray-200 space-y-2 max-h-[300px] overflow-y-auto">
                         {formScoreLevels.map((lvl, index) => (
-                          <div key={lvl.id} className="bg-white p-2.5 rounded-md border border-gray-200 shadow-2xs grid grid-cols-1 sm:grid-cols-[42px_130px_90px_1fr_28px] items-center gap-2">
-                            <div className="flex items-center gap-1 text-gray-400 font-mono text-[11px]">
-                              <GripVertical className="w-3.5 h-3.5 text-gray-300" />
+                          <div
+                            key={lvl.id}
+                            draggable
+                            onDragStart={e => {
+                              setDraggingScoreLevelIndex(index);
+                              e.dataTransfer.effectAllowed = 'move';
+                            }}
+                            onDragOver={e => {
+                              e.preventDefault();
+                              e.dataTransfer.dropEffect = 'move';
+                            }}
+                            onDrop={() => handleDropScoreLevel(index)}
+                            onDragEnd={() => setDraggingScoreLevelIndex(null)}
+                            className={`p-2.5 rounded-md border shadow-2xs grid grid-cols-1 sm:grid-cols-[42px_110px_80px_1fr_64px_28px] items-center gap-2 transition-all ${
+                              draggingScoreLevelIndex === index
+                                ? 'border-blue-400 bg-blue-50/70 opacity-60 scale-[0.99]'
+                                : 'bg-white border-gray-200 hover:border-blue-200'
+                            }`}
+                          >
+                            <div
+                              className="flex items-center gap-1 text-gray-400 hover:text-blue-600 font-mono text-[11px] cursor-grab active:cursor-grabbing select-none p-1 -m-1 rounded hover:bg-gray-100"
+                              title="按住拖拽以调整等级顺序"
+                            >
+                              <GripVertical className="w-3.5 h-3.5 text-gray-400" />
                               <span>#{index + 1}</span>
                             </div>
 
@@ -7756,6 +7860,29 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                 className="w-full px-2.5 py-1 border border-gray-200 rounded text-xs text-gray-600 placeholder:text-gray-300 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
                               />
                             </div>
+
+                            {/* Default (exclusive radio) */}
+                            <label
+                              className="flex items-center justify-center gap-1 cursor-pointer select-none"
+                              title="设为默认等级（审核打分时预选）"
+                              onMouseDown={e => e.stopPropagation()}
+                              onClick={e => e.stopPropagation()}
+                            >
+                              <input
+                                type="radio"
+                                name="score-level-default"
+                                checked={!!lvl.isDefault}
+                                onChange={() => handleSetDefaultScoreLevel(index)}
+                                className="w-3.5 h-3.5 accent-[#1E5ABB] cursor-pointer"
+                              />
+                              {lvl.isDefault ? (
+                                <span className="px-1 py-0.5 rounded text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200">
+                                  默认
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-gray-400 font-medium">设为</span>
+                              )}
+                            </label>
 
                             {/* Delete Level */}
                             <button

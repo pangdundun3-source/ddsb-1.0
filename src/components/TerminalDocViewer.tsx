@@ -208,7 +208,7 @@ function FeishuDocPanel({
   );
 }
 
-/** 有飞书链接时只展示飞书 Wiki，不再提供原生 Markdown PRD 切换 */
+/** 有飞书链接时直接打开飞书 Wiki（隐藏「原生 PRD」切换入口） */
 export function TerminalDocViewer(props: TerminalDocViewerProps) {
   const externalUrl = getExternalDocUrl(props.terminalId, props.docName);
   if (externalUrl) {

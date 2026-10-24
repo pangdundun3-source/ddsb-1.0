@@ -4,7 +4,11 @@ import {
   Link as LinkIcon,
   ExternalLink,
   Ban,
+  User,
+  Clock,
 } from 'lucide-react';
+import { IdentificationBadge } from './IdentificationBadge';
+import { toPreAdoptionIdentLabel } from '../services/identificationService';
 
 interface MatchedClusterPanelProps {
   report: ReportItem;
@@ -14,8 +18,6 @@ interface MatchedClusterPanelProps {
   setSelectedBatchIds?: React.Dispatch<React.SetStateAction<number[]>>;
   scoreMap: Record<number, number>;
   handleSetScore: (reportId: number, score: number) => void;
-  identMap: Record<number, '首发' | '重复'>;
-  handleSetIdent: (reportId: number, ident: '首发' | '重复') => void;
   selectedScore: number;
   toggleBatchSelect?: (id: number) => void;
   handleSmartMatchDetermine?: () => void;
@@ -35,8 +37,6 @@ export const MatchedClusterPanel: React.FC<MatchedClusterPanelProps> = ({
   setSelectedBatchIds,
   scoreMap,
   handleSetScore,
-  identMap,
-  handleSetIdent,
   selectedScore,
   toggleBatchSelect,
   onInspectReport,
@@ -131,7 +131,9 @@ export const MatchedClusterPanel: React.FC<MatchedClusterPanelProps> = ({
           const isCurrent = item.id === report.id;
           const isSelected = selectedBatchIds.includes(item.id);
           const itemScore = scoreMap[item.id] ?? (isCurrent ? selectedScore : 3);
-          const itemIdent = identMap[item.id] ?? (item.identificationStatus === '首发' ? '首发' : '重复');
+          const systemIdent = toPreAdoptionIdentLabel(
+            item.identificationStatus || (isCurrent ? '疑似首发' : '疑似重复')
+          );
 
           return (
             <div
@@ -166,51 +168,33 @@ export const MatchedClusterPanel: React.FC<MatchedClusterPanelProps> = ({
                     </span>
                   )}
                 </div>
+                <IdentificationBadge
+                  status={systemIdent}
+                  size="sm"
+                  showIcon
+                  className="shrink-0 mt-0.5"
+                  title="系统打标（未采纳入库前为疑似标识，不支持人工修改）"
+                />
               </div>
 
-              {/* Author, Organization & Submit Time */}
-              <div className="text-[11px] text-gray-500 flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-6.5">
-                <span>
-                  <strong className="text-gray-700 font-medium">{item.author}</strong>（{item.organization || '属地机构'}）
-                </span>
-                <span className="text-gray-300">•</span>
-                <span className="font-mono text-gray-400">{item.submitTime}</span>
-              </div>
-
-              {/* Card Footer: 判定 & 评分 */}
-              <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 text-xs pl-6.5">
-                {/* 判定: 首发 / 重复 */}
-                <div className="flex items-center space-x-1.5">
-                  <span className="text-[11px] text-gray-400">判定:</span>
-                  <div className="inline-flex rounded-md border border-gray-200 bg-gray-100 p-0.5">
-                    <button
-                      type="button"
-                      onClick={() => handleSetIdent(item.id, '首发')}
-                      className={`px-2 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer ${
-                        itemIdent === '首发'
-                          ? 'bg-[#1E5ABB] text-white shadow-2xs'
-                          : 'text-gray-600 hover:text-gray-900'
-                      }`}
-                    >
-                      首发
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSetIdent(item.id, '重复')}
-                      className={`px-2 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer ${
-                        itemIdent === '重复'
-                          ? 'bg-amber-600 text-white shadow-2xs'
-                          : 'text-gray-600 hover:text-gray-900'
-                      }`}
-                    >
-                      重复
-                    </button>
-                  </div>
+              {/* 上报人 / 时间 / 打分同一行，打分贴卡片右缘 */}
+              <div className="w-full text-[11px] text-gray-500 flex items-center gap-x-3 gap-y-1.5 pl-6.5">
+                <div className="flex items-center flex-wrap gap-x-3 gap-y-0.5 min-w-0 flex-1">
+                  <span className="flex items-center space-x-1 min-w-0">
+                    <User className="w-3 h-3 text-gray-400 shrink-0" />
+                    <span className="truncate">
+                      {item.author || '—'}（{item.organization || '属地机构'}）
+                    </span>
+                  </span>
+                  {item.submitTime && (
+                    <span className="flex items-center space-x-1 font-mono shrink-0">
+                      <Clock className="w-3 h-3 text-gray-400" />
+                      <span>{item.submitTime}</span>
+                    </span>
+                  )}
                 </div>
-
-                {/* 评分模块 */}
                 {auditMode === 'reject' ? (
-                  <div className="flex items-center space-x-1">
+                  <div className="ml-auto flex items-center space-x-1 shrink-0">
                     <span className="text-[11px] text-gray-400">评分:</span>
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium text-rose-600 bg-rose-50 border border-rose-200/80">
                       <Ban className="w-3 h-3 text-rose-500" />
@@ -218,7 +202,7 @@ export const MatchedClusterPanel: React.FC<MatchedClusterPanelProps> = ({
                     </span>
                   </div>
                 ) : (
-                  <div className="flex items-center space-x-1.5">
+                  <div className="ml-auto flex items-center space-x-1.5 shrink-0">
                     <span className="text-[11px] text-gray-400">评分:</span>
                     <div className="flex items-center space-x-1">
                       {[5, 3.5, 3, 1, 0].map((sc) => (

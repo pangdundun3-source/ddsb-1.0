@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Link as LinkIcon, ExternalLink, Ban } from 'lucide-react';
+import { Link as LinkIcon, ExternalLink, Ban, User, Clock } from 'lucide-react';
 import { ReportItem } from '../types';
+import { IdentificationBadge } from './IdentificationBadge';
+import { toPreAdoptionIdentLabel } from '../services/identificationService';
 
 export interface MatchedItem {
   id: number | string;
@@ -20,8 +22,6 @@ export interface MatchByUrlCardProps {
   onInspectReport?: (report: ReportItem | MatchedItem) => void;     // 查看详情回调
   scoreMap?: Record<number, number>;                               // 各条目得分 Map
   handleSetScore?: (reportId: number, score: number) => void;       // 设置打分回调
-  identMap?: Record<number, '首发' | '重复'>;                        // 各条目首发/重复判定 Map
-  handleSetIdent?: (reportId: number, ident: '首发' | '重复') => void; // 设置判定回调
   selectedScore?: number;                                          // 主评分默认值
   auditMode?: 'pass' | 'reject';                                   // 当前审核模式
   currentReportId?: number | string;                               // 当前主审报告 ID（过滤自身）
@@ -35,8 +35,6 @@ export const MatchByUrlCard: React.FC<MatchByUrlCardProps> = ({
   onInspectReport,
   scoreMap = {},
   handleSetScore,
-  identMap = {},
-  handleSetIdent,
   selectedScore = 5,
   auditMode = 'pass',
   currentReportId,
@@ -165,13 +163,10 @@ export const MatchByUrlCard: React.FC<MatchByUrlCardProps> = ({
             {displayList.map((item) => {
               const itemIdNum = Number(item.id);
               const isChecked = currentSelectedBatchIds.includes(item.id);
-
-              // 判定状态：优先从 identMap 获取，否则取 item.identificationStatus
-              const itemIdent =
-                identMap[itemIdNum] ??
-                (item.identificationStatus === '首发' ? '首发' : '重复');
-
-              // 打分状态：优先从 scoreMap 获取
+              // 未采纳入库：只展示系统疑似标识，不支持人工改标
+              const systemIdent = toPreAdoptionIdentLabel(
+                item.identificationStatus || '疑似重复'
+              );
               const itemScore = scoreMap[itemIdNum] ?? 3.0;
 
               return (
@@ -185,7 +180,6 @@ export const MatchByUrlCard: React.FC<MatchByUrlCardProps> = ({
                 >
                   <div className="flex items-start justify-between gap-2.5">
                     <div className="flex items-start space-x-2.5 min-w-0 flex-1">
-                      {/* 单项复选框 */}
                       <input
                         type="checkbox"
                         checked={isChecked}
@@ -194,104 +188,72 @@ export const MatchByUrlCard: React.FC<MatchByUrlCardProps> = ({
                         title={isChecked ? '取消联动批量审核' : '勾选加入批量审核'}
                       />
 
-                      {/* 内容展示插槽区域 */}
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                          {/* 标题插槽 */}
-                          <div className="font-bold text-[#1E5ABB] text-xs leading-snug truncate">
-                            {onInspectReport ? (
-                              <button
-                                type="button"
-                                onClick={() => onInspectReport(item)}
-                                className="text-left font-bold text-[#1E5ABB] hover:text-[#134092] hover:underline truncate transition-colors cursor-pointer"
-                                title={`点击查看详情：${item.title || '速报详情'}`}
-                              >
-                                {item.title || `速报 #${item.id}`}
-                              </button>
-                            ) : (
-                              <span>{item.title || `速报 #${item.id}`}</span>
-                            )}
-                          </div>
-
-                          {/* 状态徽章：勾选联动显示「同步审核」，未勾选显示「待审核」 */}
-                          {isChecked ? (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-blue-100 text-[#1E5ABB] border border-blue-200/80 shrink-0 whitespace-nowrap">
-                              同步审核
-                            </span>
+                      <div className="min-w-0 flex-1 flex items-center space-x-2 flex-wrap gap-y-1">
+                        <div className="font-bold text-[#1E5ABB] text-xs leading-snug truncate">
+                          {onInspectReport ? (
+                            <button
+                              type="button"
+                              onClick={() => onInspectReport(item)}
+                              className="text-left font-bold text-[#1E5ABB] hover:text-[#134092] hover:underline truncate transition-colors cursor-pointer"
+                              title={`点击查看详情：${item.title || '速报详情'}`}
+                            >
+                              {item.title || `速报 #${item.id}`}
+                            </button>
                           ) : (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-amber-50 text-amber-700 border border-amber-200/80 shrink-0 whitespace-nowrap">
-                              待审核
-                            </span>
+                            <span>{item.title || `速报 #${item.id}`}</span>
                           )}
                         </div>
 
-                        {/* 元信息插槽 (如上报人、机构、时间等) */}
-                        <div className="text-[11px] text-gray-500 flex items-center flex-wrap gap-x-2 gap-y-0.5">
-                          {item.author && (
-                            <span>
-                              上报人：
-                              <strong className="text-gray-700 font-medium">
-                                {item.author}
-                              </strong>
-                              {item.organization ? `（${item.organization}）` : ''}
-                            </span>
-                          )}
-                          {item.submitTime && (
-                            <>
-                              <span className="text-gray-300">•</span>
-                              <span className="font-mono text-gray-500">
-                                报送时间：{item.submitTime}
-                              </span>
-                            </>
-                          )}
-                        </div>
+                        {isChecked ? (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-blue-100 text-[#1E5ABB] border border-blue-200/80 shrink-0 whitespace-nowrap">
+                            同步审核
+                          </span>
+                        ) : (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-amber-50 text-amber-700 border border-amber-200/80 shrink-0 whitespace-nowrap">
+                            待审核
+                          </span>
+                        )}
                       </div>
                     </div>
+                    <IdentificationBadge
+                      status={systemIdent}
+                      size="sm"
+                      showIcon
+                      className="shrink-0 mt-0.5"
+                      title="系统打标（未采纳入库前为疑似标识，不支持人工修改）"
+                    />
                   </div>
 
-                  {/* 4. 底部设置区：首发 / 重复 判定打标 + 单个上报打分 */}
-                  <div className="pt-2 flex flex-wrap items-center justify-between gap-2.5 border-t border-gray-100/90 text-xs pl-6.5">
-                    {/* 判定: 首发 / 重复 打标 */}
-                    <div className="flex items-center space-x-1.5">
-                      <span className="text-[11px] text-gray-500 font-medium">判定打标:</span>
-                      <div className="inline-flex rounded-md border border-gray-200 bg-gray-100 p-0.5 shadow-2xs">
-                        <button
-                          type="button"
-                          onClick={() => handleSetIdent?.(itemIdNum, '首发')}
-                          className={`px-2.5 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer ${
-                            itemIdent === '首发'
-                              ? 'bg-[#1E5ABB] text-white shadow-xs'
-                              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/60'
-                          }`}
-                        >
-                          首发
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleSetIdent?.(itemIdNum, '重复')}
-                          className={`px-2.5 py-0.5 text-[11px] font-bold rounded transition-all cursor-pointer ${
-                            itemIdent === '重复'
-                              ? 'bg-amber-600 text-white shadow-xs'
-                              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/60'
-                          }`}
-                        >
-                          重复
-                        </button>
-                      </div>
+                  {/* 上报人 / 时间 / 打分同一行，打分贴卡片右缘 */}
+                  <div className="w-full text-[11px] text-gray-500 flex items-center gap-x-3 gap-y-1.5 pl-6.5">
+                    <div className="flex items-center flex-wrap gap-x-3 gap-y-0.5 min-w-0 flex-1">
+                      {(item.author || item.organization) && (
+                        <span className="flex items-center space-x-1 min-w-0">
+                          <User className="w-3 h-3 text-gray-400 shrink-0" />
+                          <span className="truncate">
+                            {item.author || '—'}
+                            {item.organization ? `（${item.organization}）` : ''}
+                          </span>
+                        </span>
+                      )}
+                      {item.submitTime && (
+                        <span className="flex items-center space-x-1 font-mono shrink-0">
+                          <Clock className="w-3 h-3 text-gray-400" />
+                          <span>{item.submitTime}</span>
+                        </span>
+                      )}
                     </div>
-
-                    {/* 单个上报时间的打分设置 */}
                     {auditMode === 'reject' ? (
-                      <div className="flex items-center space-x-1">
-                        <span className="text-[11px] text-gray-500 font-medium">打分:</span>
+                      <div className="ml-auto flex items-center space-x-1 shrink-0">
+                        <span className="text-[11px] text-gray-500 font-medium">评分:</span>
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium text-rose-600 bg-rose-50 border border-rose-200/80">
                           <Ban className="w-3 h-3 text-rose-500 shrink-0" />
                           驳回不赋分
                         </span>
                       </div>
                     ) : (
-                      <div className="flex items-center space-x-1.5">
-                        <span className="text-[11px] text-gray-500 font-medium">打分:</span>
+                      <div className="ml-auto flex items-center space-x-1.5 shrink-0">
+                        <span className="text-[11px] text-gray-500 font-medium">评分:</span>
                         <div className="flex items-center space-x-1">
                           {[5, 3.5, 3, 1, 0].map((sc) => (
                             <button

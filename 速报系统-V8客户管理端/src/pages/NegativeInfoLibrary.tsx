@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ReportItem, PageId } from '../types';
-import { ChevronRight, Database, Search, RotateCcw, X, Pencil, Trash2, Plus, Globe, Users, Lock, Inbox, Clock, ArrowRightLeft, LogOut, FileText, Send, Download } from 'lucide-react';
+import { ChevronRight, Database, Search, RotateCcw, X, Pencil, Trash2, Plus, Globe, Users, Lock, Inbox, ArrowRightLeft, LogOut, FileText, Send, Download } from 'lucide-react';
 import {
   isWarehouseEnabled,
   loadWarehouses,
@@ -23,6 +23,8 @@ import { OrgPathDisplay, getOrganizationPathText } from '../components/OrgPathDi
 import { IdentificationBadge } from '../components/IdentificationBadge';
 import { resolveIdentification } from '../services/identificationService';
 import { DateRangeField } from '../components/DateRangeField';
+import { OrgFilterSelect } from '../components/OrgFilterSelect';
+import { INITIAL_ORG_NODES, matchOrganizationByFilter } from '../data/userOrgShared';
 
 const SHARE_ICON: Record<WarehouseShareScope, React.ElementType> = {
   全机构可见: Globe,
@@ -61,9 +63,7 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
   const [timeFilterType, setTimeFilterType] = useState<'submit' | 'auditComplete'>('submit');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [orgFilterType, setOrgFilterType] = useState<'submit' | 'audit'>('submit');
-  const [orgFilter, setOrgFilter] = useState('全部');
-  const [statusFilter, setStatusFilter] = useState('全部');
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
   const [identFilter, setIdentFilter] = useState<'全部' | '首发' | '重复'>('全部');
   const [keywordInput, setKeywordInput] = useState('');
   const [warehouses, setWarehouses] = useState(loadWarehouses);
@@ -134,12 +134,6 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
 
   const getAuditCompleteTime = (item: ReportItem) => item.auditTime || getAuditNode(item)?.time || item.submitTime;
 
-  const getTransferStatus = (item: ReportItem) => (item.auditStatus === '已转办' ? '已转办' : '待转办');
-
-  const submitOrgOptions = Array.from(new Set(scopedList.map((item) => item.organization)));
-  const auditOrgOptions = Array.from(new Set(scopedList.map((item) => getAuditorOrg(item))));
-  const activeOrgOptions = orgFilterType === 'submit' ? submitOrgOptions : auditOrgOptions;
-
   const normalizeDate = (value?: string) => {
     const dateText = (value || '').trim();
     if (!dateText || dateText === '--') return '';
@@ -155,22 +149,16 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
     if (keyword) {
       const q = keyword.toLowerCase();
       const matchTitle = item.title.toLowerCase().includes(q);
-      const matchAuthor = (item.author || '').toLowerCase().includes(q);
-      const matchAuditor = getAuditor(item).toLowerCase().includes(q);
-      const matchOrg = (item.organization || '').toLowerCase().includes(q);
-      const matchOrgPath = getOrganizationPathText(item.organization).toLowerCase().includes(q);
-      const matchAuditorOrgPath = getOrganizationPathText(getAuditorOrg(item)).toLowerCase().includes(q);
-      if (!matchTitle && !matchAuthor && !matchAuditor && !matchOrg && !matchOrgPath && !matchAuditorOrgPath) {
+      const matchContent = (item.detailContent?.summary || '').toLowerCase().includes(q);
+      if (!matchTitle && !matchContent) {
         return false;
       }
     }
     const itemDate = normalizeDate(getTimeFilterValue(item));
     if (startDateFilter && (!itemDate || itemDate < startDateFilter)) return false;
     if (endDateFilter && (!itemDate || itemDate > endDateFilter)) return false;
-    if (statusFilter !== '全部' && getTransferStatus(item) !== statusFilter) return false;
-    if (orgFilter !== '全部') {
-      const itemOrg = orgFilterType === 'submit' ? item.organization : getAuditorOrg(item);
-      if (itemOrg !== orgFilter) return false;
+    if (!matchOrganizationByFilter(item.organization, selectedOrgId, INITIAL_ORG_NODES)) {
+      return false;
     }
     if (identFilter !== '全部') {
       const identStatus = resolveIdentification(item, negativeList).status;
@@ -189,7 +177,7 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [keyword, orgFilterType, orgFilter, statusFilter, identFilter, timeFilterType, startDateFilter, endDateFilter, activeWarehouseId]);
+  }, [keyword, selectedOrgId, identFilter, timeFilterType, startDateFilter, endDateFilter, activeWarehouseId]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
@@ -205,9 +193,7 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
     setTimeFilterType('submit');
     setStartDate('');
     setEndDate('');
-    setOrgFilterType('submit');
-    setOrgFilter('全部');
-    setStatusFilter('全部');
+    setSelectedOrgId(null);
     setIdentFilter('全部');
   };
 
@@ -236,10 +222,7 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
     setWarehousePage(1);
   };
 
-  const pendingCountOf = (id: string) =>
-    negativeList.filter((item) => isInWarehouse(assignment, item.id, id) && getTransferStatus(item) === '待转办').length;
   const emptyWarehouseCount = warehouses.filter((item) => warehouseCountOf(item.id) === 0).length;
-  const totalPending = negativeList.filter((item) => getTransferStatus(item) === '待转办').length;
 
   const persistWarehouses = (next: WarehouseItem[]) => {
     setWarehouses(next);
@@ -308,7 +291,6 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
     const summaryTiles = [
       { label: '数据仓库', value: warehouses.length, unit: '个', icon: Database, tone: 'text-[#1E5ABB] bg-blue-50' },
       { label: '入库数据总量', value: negativeList.length, unit: '条', icon: Inbox, tone: 'text-emerald-600 bg-emerald-50' },
-      { label: '待转办', value: totalPending, unit: '条', icon: Clock, tone: 'text-amber-600 bg-amber-50' },
       { label: '空仓库', value: emptyWarehouseCount, unit: '个', icon: Trash2, tone: 'text-gray-500 bg-gray-100' }
     ];
 
@@ -335,7 +317,7 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
           </button>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
           {summaryTiles.map((tile) => {
             const Icon = tile.icon;
             return (
@@ -418,7 +400,6 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {warehouseRows.map((item) => {
               const count = warehouseCountOf(item.id);
-              const pending = pendingCountOf(item.id);
               const ShareIcon = SHARE_ICON[item.shareScope];
               const blockReason = deleteBlockReason(item);
               const enter = () => {
@@ -484,17 +465,9 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
                   </div>
 
                   <div className="mx-5 border-t border-gray-100 py-3 flex items-end justify-between gap-3">
-                    <div className="flex items-end gap-6">
-                      <div>
-                        <div className="text-[11px] text-gray-400">数据总量</div>
-                        <div className="text-2xl font-bold text-[#1E5ABB] font-mono leading-none mt-1">{count}</div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] text-gray-400">待转办</div>
-                        <div className={`text-2xl font-bold font-mono leading-none mt-1 ${pending > 0 ? 'text-amber-600' : 'text-gray-300'}`}>
-                          {pending}
-                        </div>
-                      </div>
+                    <div>
+                      <div className="text-[11px] text-gray-400">数据总量</div>
+                      <div className="text-2xl font-bold text-[#1E5ABB] font-mono leading-none mt-1">{count}</div>
                     </div>
                     <span className="inline-flex items-center text-xs font-semibold text-[#1E5ABB]">
                       进入仓库
@@ -583,12 +556,11 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
         return;
       }
       const escape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-      const header = ['事件标题', '内容摘要', '转办状态', '识别标识', '上报人', '报送机构', '报送时间'];
+      const header = ['事件标题', '内容摘要', '识别标识', '报送人', '报送机构', '报送时间'];
       const lines = rows.map((item) =>
         [
           item.title,
           item.detailContent?.summary || '',
-          getTransferStatus(item),
           resolveIdentification(item, negativeList).status,
           item.author,
           item.organization,
@@ -654,7 +626,7 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') setKeyword(keywordInput.trim());
                 }}
-                placeholder="请输入事件标题、上报人员、审核人员姓名、机构名称进行检索"
+                placeholder="请输入事件标题、内容进行检索"
                 className="w-full pl-8 pr-7 py-1.5 border border-gray-300 hover:border-gray-400 focus:border-[#1E5ABB] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15"
               />
               {keywordInput && (
@@ -681,19 +653,11 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
               startTitle="开始日期"
               endTitle="结束日期"
             />
-            <select value={orgFilter} onChange={(e) => setOrgFilter(e.target.value)} aria-label="报送机构" className={`${filterSelect} max-w-[180px]`}>
-              <option value="全部">全部报送机构</option>
-              {activeOrgOptions.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="状态" className={filterSelect}>
-              <option value="全部">全部状态</option>
-              <option value="待转办">待转办</option>
-              <option value="已转办">已转办</option>
-            </select>
+            <OrgFilterSelect
+              value={selectedOrgId}
+              onChange={setSelectedOrgId}
+              triggerClassName="min-w-[120px] max-w-[180px]"
+            />
             <select
               value={identFilter}
               onChange={(e) => setIdentFilter(e.target.value as '全部' | '首发' | '重复')}
@@ -787,7 +751,6 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
           {displayList.length === 0 && <div className="py-16 text-center text-sm text-gray-400">该仓库暂无不良信息</div>}
           {displayList.map((item) => {
             const ident = resolveIdentification(item, negativeList);
-            const pending = getTransferStatus(item) === '待转办';
             const checked = selectedRecordIds.includes(item.id);
             const openDetail = () => {
               onSelectNegative(item);
@@ -805,13 +768,6 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
                 <div className="flex-1 min-w-0 space-y-1">
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span
-                        className={`shrink-0 px-1.5 py-px rounded text-[11px] font-medium ${
-                          pending ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'
-                        }`}
-                      >
-                        {getTransferStatus(item)}
-                      </span>
                       <button
                         type="button"
                         onClick={openDetail}
@@ -836,7 +792,7 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
                   </p>
 
                   <div className="flex items-center gap-1.5 min-w-0 whitespace-nowrap text-[11px] text-gray-400">
-                    <span className="shrink-0 px-1 rounded bg-gray-100 text-gray-500">上报人</span>
+                    <span className="shrink-0 px-1 rounded bg-gray-100 text-gray-500">报送人</span>
                     <span className="shrink-0 text-gray-600">{item.author}</span>
                     <span className="shrink-0 text-gray-300">·</span>
                     <span title={getOrganizationPathText(item.organization)} className="truncate">{item.organization}</span>
@@ -962,7 +918,7 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
                 type="text"
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
-                placeholder="请输入事件标题、上报人员、审核人员姓名、机构名称进行检索"
+                placeholder="请输入事件标题、内容进行检索"
                 className="w-full pl-9 pr-8 py-2 border border-gray-300 hover:border-gray-400 focus:border-[#1E5ABB] rounded-lg text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 transition-all shadow-2xs"
               />
               <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
@@ -1001,46 +957,14 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
             />
           </div>
 
-          {/* 机构（报送机构 / 审核机构 下拉切换） */}
-          <div className="flex items-center space-x-2 shrink-0">
-            <select
-              value={orgFilterType}
-              onChange={(e) => {
-                setOrgFilterType(e.target.value as 'submit' | 'audit');
-                setOrgFilter('全部');
-              }}
-              aria-label="机构类型"
-              className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-xs bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] shadow-2xs cursor-pointer"
-            >
-              <option value="submit">报送机构</option>
-              <option value="audit">审核机构</option>
-            </select>
-            <select
-              value={orgFilter}
-              onChange={(e) => setOrgFilter(e.target.value)}
-              className="min-w-[150px] max-w-[240px] px-3 py-2 border border-gray-300 rounded-lg text-xs bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] shadow-2xs cursor-pointer"
-            >
-              <option value="全部">全部</option>
-              {activeOrgOptions.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* 状态 */}
-          <div className="flex items-center space-x-2 shrink-0">
-            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">状态</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-xs bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] shadow-2xs cursor-pointer"
-            >
-              <option value="全部">全部</option>
-              <option value="待转办">待转办</option>
-              <option value="已转办">已转办</option>
-            </select>
+          {/* 组织节点 */}
+          <div className="flex items-center space-x-2 shrink-0 min-w-0">
+            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">组织节点</label>
+            <OrgFilterSelect
+              value={selectedOrgId}
+              onChange={setSelectedOrgId}
+              triggerClassName="min-w-[150px] max-w-[240px]"
+            />
           </div>
 
           {/* 识别标识 */}
@@ -1086,10 +1010,9 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
               <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-600 font-semibold">
                 <th className="py-3 px-4 w-12 text-center">序号</th>
                 <th className="py-3 px-4 min-w-[220px] w-full">事件标题 / 内容描述</th>
-                <th className="py-3 px-4 min-w-[160px]">上报人员 / 机构</th>
+                <th className="py-3 px-4 min-w-[160px]">报送人员 / 机构</th>
                 <th className="py-3 px-4">报送时间</th>
                 <th className="py-3 px-4 min-w-[160px]">审核人员 / 机构</th>
-                <th className="py-3 px-4 text-center">状态</th>
                 <th className="py-3 px-4">审核时间</th>
                 <th className="py-3 px-4 text-center">操作</th>
               </tr>
@@ -1097,7 +1020,7 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
             <tbody className="divide-y divide-gray-100 text-gray-700">
               {displayList.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="py-14 text-center text-gray-400">
+                  <td colSpan={7} className="py-14 text-center text-gray-400">
                     该仓库暂无不良信息
                   </td>
                 </tr>
@@ -1133,17 +1056,6 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
                     <td className="py-3 px-4">
                       <div className="font-semibold text-gray-900 leading-snug">{getAuditor(item)}</div>
                       <OrgPathDisplay organization={getAuditorOrg(item)} className="max-w-[220px]" />
-                    </td>
-                    <td className="py-3 px-4 text-center whitespace-nowrap">
-                      {getTransferStatus(item) === '待转办' ? (
-                        <span className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-amber-100 text-amber-700 border border-amber-200">
-                          待转办
-                        </span>
-                      ) : (
-                        <span className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-blue-100 text-blue-700 border border-blue-200">
-                          已转办
-                        </span>
-                      )}
                     </td>
                     <td className="py-3 px-4 font-mono text-gray-500 whitespace-nowrap">{getAuditCompleteTime(item)}</td>
                     <td className="py-3 px-4 text-center whitespace-nowrap">

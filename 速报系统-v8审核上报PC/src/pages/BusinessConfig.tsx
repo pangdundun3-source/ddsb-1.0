@@ -28,7 +28,8 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
-  BarChart3
+  BarChart3,
+  GripVertical
 } from 'lucide-react';
 
 export type FieldType = 'text' | 'number' | 'date' | 'file' | 'link' | 'select';
@@ -47,6 +48,8 @@ export interface ScoreLevel {
   levelName: string;
   score: number;
   description?: string;
+  /** 同组评分规则内仅可有一个默认等级 */
+  isDefault?: boolean;
 }
 
 export interface AuditNode {
@@ -228,7 +231,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
         scoreLevels: [
           { id: 'sl_1', levelName: '一等（特优）', score: 30, description: '省级以上领导批示或极高价值采纳' },
           { id: 'sl_2', levelName: '二等（优秀）', score: 25, description: '市级领导批示或形成深度专报' },
-          { id: 'sl_3', levelName: '三等（良好）', score: 20, description: '研判要素齐全且上报迅速及时' },
+          { id: 'sl_3', levelName: '三等（良好）', score: 20, description: '研判要素齐全且上报迅速及时', isDefault: true },
           { id: 'sl_4', levelName: '四等（合格）', score: 15, description: '基础提报符合规范与事实' },
           { id: 'sl_5', levelName: '五等（基本）', score: 10, description: '提供线索参考价值' }
         ]
@@ -246,7 +249,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
         relatedTemplateName: '突发事件快速上报',
         scoreLevels: [
           { id: 'sl_201', levelName: '一级（优秀）', score: 5, description: '快速高效且要素极其精准' },
-          { id: 'sl_202', levelName: '二级（良好）', score: 3, description: '基本要素完整无缺失' },
+          { id: 'sl_202', levelName: '二级（良好）', score: 3, description: '基本要素完整无缺失', isDefault: true },
           { id: 'sl_203', levelName: '三级（合格）', score: 2, description: '仅提供初始简报线索' }
         ]
       },
@@ -263,7 +266,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
         relatedTemplateName: '标准图文报送模板',
         scoreLevels: [
           { id: 'sl_301', levelName: 'A级（特级）', score: 20, description: '关键引导节点起到决定性效果' },
-          { id: 'sl_302', levelName: 'B级（高级）', score: 15, description: '有效正向引导并扭转态势' },
+          { id: 'sl_302', levelName: 'B级（高级）', score: 15, description: '有效正向引导并扭转态势', isDefault: true },
           { id: 'sl_303', levelName: 'C级（中级）', score: 10, description: '按指令要求完成跟进' },
           { id: 'sl_304', levelName: 'D级（初级）', score: 5, description: '参与协同排查' }
         ]
@@ -788,6 +791,21 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
   const [previewItem, setPreviewItem] = useState<ConfigModuleItem | null>(null);
 
   // Score level helper handlers
+  /** 同组恰好保留一个默认等级 */
+  const ensureOneDefaultScoreLevel = (levels: ScoreLevel[], preferIndex = 0): ScoreLevel[] => {
+    if (levels.length === 0) return levels;
+    if (levels.some(level => level.isDefault)) {
+      let seen = false;
+      return levels.map(level => {
+        const isDefault = !!level.isDefault && !seen;
+        if (isDefault) seen = true;
+        return { ...level, isDefault };
+      });
+    }
+    const target = Math.min(Math.max(0, preferIndex), levels.length - 1);
+    return levels.map((level, i) => ({ ...level, isDefault: i === target }));
+  };
+
   const handleLevelCountChange = (count: number) => {
     const newCount = Math.max(1, Math.min(10, count));
     setFormLevelCount(newCount);
@@ -800,18 +818,28 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
             id: 'sl_' + Date.now() + '_' + i,
             levelName: `${i + 1}等`,
             score: 0,
-            description: ''
+            description: '',
+            isDefault: false
           });
         }
-        return [...prev, ...added];
-      } else {
-        return prev.slice(0, newCount);
+        return ensureOneDefaultScoreLevel([...prev, ...added], Math.floor(prev.length / 2));
       }
+      return ensureOneDefaultScoreLevel(prev.slice(0, newCount), Math.min(newCount - 1, Math.floor(newCount / 2)));
     });
   };
 
   const handleUpdateScoreLevel = (index: number, updates: Partial<ScoreLevel>) => {
     setFormScoreLevels(prev => prev.map((item, i) => (i === index ? { ...item, ...updates } : item)));
+  };
+
+  /** 同组恰好一个默认等级：点选即切换 */
+  const handleSetDefaultScoreLevel = (index: number) => {
+    setFormScoreLevels(prev =>
+      prev.map((item, i) => ({
+        ...item,
+        isDefault: i === index
+      }))
+    );
   };
 
   const handleAddScoreLevel = () => {
@@ -822,7 +850,8 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
         id: 'sl_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
         levelName: `${nextIdx}等`,
         score: 0,
-        description: ''
+        description: '',
+        isDefault: false
       }
     ]);
     setFormLevelCount(prev => prev + 1);
@@ -833,8 +862,26 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
       alert('至少需要保留 1 个得分等级');
       return;
     }
-    setFormScoreLevels(prev => prev.filter((_, i) => i !== index));
+    setFormScoreLevels(prev => {
+      const next = prev.filter((_, i) => i !== index);
+      return ensureOneDefaultScoreLevel(next, Math.min(index, next.length - 1));
+    });
     setFormLevelCount(prev => prev - 1);
+  };
+
+  const [draggingScoreLevelIndex, setDraggingScoreLevelIndex] = useState<number | null>(null);
+  const handleDropScoreLevel = (targetIndex: number) => {
+    if (draggingScoreLevelIndex === null || draggingScoreLevelIndex === targetIndex) {
+      setDraggingScoreLevelIndex(null);
+      return;
+    }
+    setFormScoreLevels(prev => {
+      const next = [...prev];
+      const [moved] = next.splice(draggingScoreLevelIndex, 1);
+      next.splice(targetIndex, 0, moved);
+      return next;
+    });
+    setDraggingScoreLevelIndex(null);
   };
 
   // Field element handlers
@@ -1001,7 +1048,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
       setFormScoreLevels([
         { id: 'sl_1', levelName: '一等（特优）', score: 30, description: '特优级标准' },
         { id: 'sl_2', levelName: '二等（优秀）', score: 25, description: '优秀级标准' },
-        { id: 'sl_3', levelName: '三等（良好）', score: 20, description: '良好级标准' },
+        { id: 'sl_3', levelName: '三等（良好）', score: 20, description: '良好级标准', isDefault: true },
         { id: 'sl_4', levelName: '四等（合格）', score: 15, description: '合格级标准' },
         { id: 'sl_5', levelName: '五等（基本）', score: 10, description: '基本级标准' }
       ]);
@@ -1074,13 +1121,16 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
       setFormScoreStatus(item.status);
       const defaultTpl = enabledReportTemplates[0];
       setFormRelatedTemplateId(item.relatedTemplateId || (defaultTpl ? defaultTpl.id : '1'));
-      setFormScoreLevels(item.scoreLevels && item.scoreLevels.length > 0 ? item.scoreLevels : [
-        { id: 'sl_1', levelName: '一等', score: 30, description: '' },
-        { id: 'sl_2', levelName: '二等', score: 25, description: '' },
-        { id: 'sl_3', levelName: '三等', score: 20, description: '' },
-        { id: 'sl_4', levelName: '四等', score: 15, description: '' },
-        { id: 'sl_5', levelName: '五等', score: 10, description: '' }
-      ]);
+      {
+        const levels = item.scoreLevels && item.scoreLevels.length > 0 ? item.scoreLevels : [
+          { id: 'sl_1', levelName: '一等', score: 30, description: '' },
+          { id: 'sl_2', levelName: '二等', score: 25, description: '' },
+          { id: 'sl_3', levelName: '三等', score: 20, description: '', isDefault: true },
+          { id: 'sl_4', levelName: '四等', score: 15, description: '' },
+          { id: 'sl_5', levelName: '五等', score: 10, description: '' }
+        ];
+        setFormScoreLevels(ensureOneDefaultScoreLevel(levels, Math.floor(levels.length / 2)));
+      }
     } else if (activeModule === 'audit_flow') {
       setFormScoreStatus(item.status);
       const defaultTpl = enabledReportTemplates[0];
@@ -1239,6 +1289,10 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
       const selTpl = (dataStore.report_template || []).find(t => t.id === formRelatedTemplateId);
       const relTplId = formRelatedTemplateId || (selTpl ? selTpl.id : '');
       const relTplName = selTpl ? selTpl.name : (formRelatedTemplateId ? '关联上报模版' : '标准图文报送模板');
+      const normalizedScoreLevels = ensureOneDefaultScoreLevel(
+        formScoreLevels,
+        Math.floor(formScoreLevels.length / 2)
+      );
 
       if (editingItem) {
         setDataStore(prev => ({
@@ -1251,8 +1305,8 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
                 description: formDesc.trim(),
                 status: formScoreStatus,
                 totalScore: formTotalScore,
-                levelCount: formScoreLevels.length,
-                scoreLevels: formScoreLevels,
+                levelCount: normalizedScoreLevels.length,
+                scoreLevels: normalizedScoreLevels,
                 relatedTemplateId: relTplId,
                 relatedTemplateName: relTplName,
                 updateTime: nowStr
@@ -1270,8 +1324,8 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
           updateTime: nowStr,
           description: formDesc.trim() || '自定义打分规则组',
           totalScore: formTotalScore,
-          levelCount: formScoreLevels.length,
-          scoreLevels: formScoreLevels,
+          levelCount: normalizedScoreLevels.length,
+          scoreLevels: normalizedScoreLevels,
           relatedTemplateId: relTplId,
           relatedTemplateName: relTplName
         };
@@ -1712,8 +1766,15 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
                               {activeModule === 'audit_score' && item.scoreLevels && item.scoreLevels.length > 0 && (
                                 <div className="flex flex-wrap items-center gap-1 pt-0.5">
                                   {item.scoreLevels.map((lvl, lIdx) => (
-                                    <span key={lvl.id || lIdx} className="px-1.5 py-0.2 bg-amber-50 text-amber-800 text-[10px] font-mono rounded border border-amber-200/60">
-                                      {lvl.levelName}: {lvl.score}分
+                                    <span
+                                      key={lvl.id || lIdx}
+                                      className={`px-1.5 py-0.2 text-[10px] font-mono rounded border ${
+                                        lvl.isDefault
+                                          ? 'bg-blue-50 text-blue-800 border-blue-200'
+                                          : 'bg-amber-50 text-amber-800 border-amber-200/60'
+                                      }`}
+                                    >
+                                      {lvl.levelName}: {lvl.score}分{lvl.isDefault ? ' ·默认' : ''}
                                     </span>
                                   ))}
                                 </div>
@@ -2905,10 +2966,13 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
 
                     {/* Score Levels Table */}
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between px-1">
-                        <span className="font-bold text-gray-800 text-xs">
-                          各等级分值分配明细 ({formScoreLevels.length} 项)
-                        </span>
+                      <div className="flex items-center justify-between px-1 gap-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-bold text-gray-800 text-xs">
+                            各等级分值分配明细 ({formScoreLevels.length} 项)
+                          </span>
+                          <span className="text-[10px] text-gray-400 font-medium truncate">审核打分时预选该等级</span>
+                        </div>
                         <button
                           type="button"
                           onClick={handleAddScoreLevel}
@@ -2921,10 +2985,32 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
 
                       <div className="bg-gray-50/70 p-3 rounded-lg border border-gray-200 space-y-2 max-h-[280px] overflow-y-auto">
                         {formScoreLevels.map((lvl, index) => (
-                          <div key={lvl.id} className="bg-white p-2.5 rounded-md border border-gray-200 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                            <span className="text-gray-400 font-mono text-[11px] w-5 shrink-0">
-                              #{index + 1}
-                            </span>
+                          <div
+                            key={lvl.id}
+                            draggable
+                            onDragStart={e => {
+                              setDraggingScoreLevelIndex(index);
+                              e.dataTransfer.effectAllowed = 'move';
+                            }}
+                            onDragOver={e => {
+                              e.preventDefault();
+                              e.dataTransfer.dropEffect = 'move';
+                            }}
+                            onDrop={() => handleDropScoreLevel(index)}
+                            onDragEnd={() => setDraggingScoreLevelIndex(null)}
+                            className={`p-2.5 rounded-md border shadow-2xs flex flex-col sm:flex-row items-start sm:items-center gap-2 transition-all ${
+                              draggingScoreLevelIndex === index
+                                ? 'border-blue-400 bg-blue-50/70 opacity-60 scale-[0.99]'
+                                : 'bg-white border-gray-200 hover:border-blue-200'
+                            }`}
+                          >
+                            <div
+                              className="flex items-center gap-1 text-gray-400 hover:text-blue-600 font-mono text-[11px] w-8 shrink-0 cursor-grab active:cursor-grabbing select-none p-1 -m-1 rounded hover:bg-gray-100"
+                              title="按住拖拽以调整等级顺序"
+                            >
+                              <GripVertical className="w-3.5 h-3.5 text-gray-400" />
+                              <span>#{index + 1}</span>
+                            </div>
 
                             {/* Level Name */}
                             <div className="w-full sm:w-36 shrink-0">
@@ -2962,6 +3048,29 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
                                 className="w-full px-2.5 py-1 border border-gray-200 rounded text-xs text-gray-600 placeholder:text-gray-300 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
                               />
                             </div>
+
+                            {/* Default (exclusive radio) */}
+                            <label
+                              className="flex items-center gap-1 cursor-pointer select-none shrink-0"
+                              title="设为默认等级（审核打分时预选）"
+                              onMouseDown={e => e.stopPropagation()}
+                              onClick={e => e.stopPropagation()}
+                            >
+                              <input
+                                type="radio"
+                                name="score-level-default"
+                                checked={!!lvl.isDefault}
+                                onChange={() => handleSetDefaultScoreLevel(index)}
+                                className="w-3.5 h-3.5 accent-[#1E5ABB] cursor-pointer"
+                              />
+                              {lvl.isDefault ? (
+                                <span className="px-1 py-0.5 rounded text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200">
+                                  默认
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-gray-400 font-medium">设为</span>
+                              )}
+                            </label>
 
                             {/* Delete Level */}
                             <button

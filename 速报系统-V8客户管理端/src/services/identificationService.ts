@@ -16,6 +16,19 @@ export const isIdentifyingStatus = (status?: string | null): boolean => {
 };
 
 /**
+ * 未采纳入库前仅展示系统疑似标识；正式「首发/重复」须等终审采纳后由系统定标。
+ */
+export const toPreAdoptionIdentLabel = (
+  status?: string | null
+): IdentificationStatus => {
+  if (!status) return '疑似重复';
+  const s = status.trim();
+  if (s === '识别中' || s === '正在识别' || s === '比对中') return '识别中';
+  if (s.includes('重复')) return '疑似重复';
+  return '疑似首发';
+};
+
+/**
  * 判断速报是否处于已采纳/终审通过/转办完成阶段
  */
 export const isPostAuditStage = (auditStatus?: string): boolean => {

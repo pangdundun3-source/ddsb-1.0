@@ -246,7 +246,7 @@ export const AuditView: React.FC<AuditViewProps> = ({
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="搜索上报标题、上报人姓名、下级机构"
+          placeholder="搜索上报标题、上报人姓名、组织节点进行检索"
           className="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         {searchQuery && (

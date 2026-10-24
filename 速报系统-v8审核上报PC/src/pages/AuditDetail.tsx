@@ -55,8 +55,19 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
   const [rejectDetail, setRejectDetail] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
   const [drawerActiveTab, setDrawerActiveTab] = useState<'detail' | 'flow'>('detail');
-  const [previewAttachment, setPreviewAttachment] = useState<any | null>(null);
+  const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
+  const [previewAttachmentList, setPreviewAttachmentList] = useState<Attachment[]>([]);
   const [viewingDetailReport, setViewingDetailReport] = useState<ReportItem | null>(null);
+
+  const openAttachmentPreview = (att: Attachment, list: Attachment[]) => {
+    setPreviewAttachmentList(list);
+    setPreviewAttachment(att);
+  };
+
+  const closeAttachmentPreview = () => {
+    setPreviewAttachment(null);
+    setPreviewAttachmentList([]);
+  };
 
   // Sync state if report changes
   useEffect(() => {
@@ -436,7 +447,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
         {attachments.map((att) => {
           const isImage = att.type === 'image';
           const isPdf = att.type === 'pdf' || att.name.toLowerCase().endsWith('.pdf');
-          const downloadAtt = () => alert(`正在下载附件：${att.name}`);
+          const downloadAtt = () => downloadAttachmentFile(att, report?.title);
           return (
           <div
             key={att.id}
@@ -445,7 +456,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
             {isImage ? (
               <div
                 className="w-full h-28 sm:h-32 bg-gray-100 overflow-hidden relative flex items-center justify-center cursor-pointer group"
-                onClick={() => setPreviewAttachment(att)}
+                onClick={() => openAttachmentPreview(att, attachments)}
                 title="点击预览图片"
               >
                 <div className="absolute top-2 left-2 z-10 bg-black/60 backdrop-blur-xs text-white text-[10px] px-1.5 py-0.5 rounded flex items-center space-x-1 max-w-[90%]">
@@ -512,7 +523,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
                   <>
                     <button
                       type="button"
-                      onClick={() => setPreviewAttachment(att)}
+                      onClick={() => openAttachmentPreview(att, attachments)}
                       className="text-[#1E5ABB] hover:underline cursor-pointer flex items-center space-x-0.5 font-medium"
                     >
                       <Eye className="w-3 h-3" />
@@ -894,9 +905,58 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
     );
   };
 
+  const downloadAttachmentFile = (att: Attachment, relatedTitle?: string) => {
+    if (att.url || att.thumbnailUrl) {
+      const link = document.createElement('a');
+      link.href = att.url || att.thumbnailUrl || '#';
+      link.download = att.name;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+    const blob = new Blob(
+      [
+        `【附件材料】${att.name}\n文件大小：${att.size}\n关联事件：${relatedTitle || report?.title || ''}\n`,
+      ],
+      { type: 'text/plain;charset=utf-8' }
+    );
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = att.name.endsWith('.pdf') || att.name.includes('.') ? att.name : `${att.name}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   // 4. 同源速报详情查看弹窗 (z-[70])
   const renderDetailReportModal = () => {
     if (!viewingDetailReport) return null;
+    const matchedAttachments: Attachment[] =
+      viewingDetailReport.attachments && viewingDetailReport.attachments.length > 0
+        ? viewingDetailReport.attachments
+        : [
+            {
+              id: `matched-img-${viewingDetailReport.id}`,
+              name: '现场核查抢修照片.jpg',
+              size: '1.4 MB',
+              type: 'image',
+              thumbnailUrl:
+                'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=600&auto=format&fit=crop',
+              url: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=1200&auto=format&fit=crop',
+            },
+            {
+              id: `matched-pdf-${viewingDetailReport.id}`,
+              name: '供水调度与送水车台账.pdf',
+              size: '2.1 MB',
+              type: 'pdf',
+            },
+          ];
+
     return (
       <div
         className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
@@ -1020,23 +1080,54 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
                 </div>
               )}
 
-              {/* Attachments if any */}
-              {viewingDetailReport.attachments && viewingDetailReport.attachments.length > 0 && (
+              {/* Attachments: 图片可预览，附件可下载 */}
+              {matchedAttachments.length > 0 && (
                 <div className="space-y-1 pt-1">
-                  <div className="font-bold text-gray-900 text-xs">【附件列表】({viewingDetailReport.attachments.length}个)</div>
+                  <div className="font-bold text-gray-900 text-xs">
+                    【附件列表】({matchedAttachments.length}个)
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {viewingDetailReport.attachments.map((att) => (
-                      <div
-                        key={att.id}
-                        className="flex items-center justify-between p-2 bg-gray-50 border border-gray-200 rounded-lg text-[11px]"
-                      >
-                        <div className="flex items-center space-x-2 truncate">
-                          <Paperclip className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                          <span className="truncate font-medium text-gray-700">{att.name}</span>
+                    {matchedAttachments.map((att) => {
+                      const isImage = att.type === 'image';
+                      return (
+                        <div
+                          key={att.id}
+                          className="flex items-center justify-between gap-2 p-2 bg-gray-50 border border-gray-200 rounded-lg text-[11px]"
+                        >
+                          <div className="flex items-center space-x-2 truncate min-w-0">
+                            <Paperclip className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <div className="min-w-0">
+                              <span className="truncate font-medium text-gray-700 block" title={att.name}>
+                                {att.name}
+                              </span>
+                              <span className="text-gray-400 text-[10px]">{att.size}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {isImage && (
+                              <button
+                                type="button"
+                                onClick={() => openAttachmentPreview(att, matchedAttachments)}
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[#1E5ABB] hover:bg-blue-50 font-medium cursor-pointer"
+                                title="预览图片"
+                              >
+                                <Eye className="w-3 h-3" />
+                                <span>预览</span>
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => downloadAttachmentFile(att, viewingDetailReport.title)}
+                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-gray-600 hover:text-[#1E5ABB] hover:bg-blue-50 font-medium cursor-pointer"
+                              title="下载附件"
+                            >
+                              <Download className="w-3 h-3" />
+                              <span>下载</span>
+                            </button>
+                          </div>
                         </div>
-                        <span className="text-gray-400 text-[10px] shrink-0">{att.size}</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1127,12 +1218,12 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
           {renderAuditActionBar()}
         </div>
 
-        {/* 附件全屏预览弹窗 (z-[70]) */}
+        {/* 附件全屏预览弹窗（高于同源详情 z-[70]） */}
         <AttachmentPreviewModal
           isOpen={!!previewAttachment}
-          onClose={() => setPreviewAttachment(null)}
+          onClose={closeAttachmentPreview}
           attachment={previewAttachment}
-          attachments={attachments}
+          attachments={previewAttachmentList.length > 0 ? previewAttachmentList : attachments}
           onSelectAttachment={(att) => setPreviewAttachment(att)}
         />
 
@@ -1193,9 +1284,9 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
       {/* Rich Attachment Preview Modal */}
       <AttachmentPreviewModal
         isOpen={!!previewAttachment}
-        onClose={() => setPreviewAttachment(null)}
+        onClose={closeAttachmentPreview}
         attachment={previewAttachment}
-        attachments={attachments}
+        attachments={previewAttachmentList.length > 0 ? previewAttachmentList : attachments}
         onSelectAttachment={(att) => setPreviewAttachment(att)}
       />
 

@@ -1,24 +1,17 @@
 import React, { useState } from 'react';
-import { ReportItem } from '../types';
+import { Attachment, ReportItem } from '../types';
 import { IdentificationBadge } from './IdentificationBadge';
-import { AuditStatusBadge } from './AuditStatusBadge';
+import { AttachmentPreviewModal } from './AttachmentPreviewModal';
+import { toPreAdoptionIdentLabel } from '../services/identificationService';
 import {
-  X,
   User,
   Clock,
-  MapPin,
-  Building2,
   Paperclip,
-  CheckCircle2,
-  AlertTriangle,
   FileText,
-  Eye,
   ArrowRightLeft,
-  Columns3,
-  Sliders,
-  Sparkles,
   ExternalLink,
-  Check
+  Eye,
+  Download,
 } from 'lucide-react';
 
 interface MatchedReportDetailModalProps {
@@ -28,8 +21,6 @@ interface MatchedReportDetailModalProps {
   currentReport: ReportItem | null;
   currentScore?: number;
   onScoreChange?: (score: number) => void;
-  currentIdent?: '首发' | '重复';
-  onIdentChange?: (ident: '首发' | '重复') => void;
   isSelectedForBatch?: boolean;
   onToggleBatchSelect?: (selected: boolean) => void;
   onSetAsPrimary?: (report: ReportItem) => void;
@@ -42,13 +33,12 @@ export const MatchedReportDetailModal: React.FC<MatchedReportDetailModalProps> =
   currentReport,
   currentScore = 3,
   onScoreChange,
-  currentIdent = '重复',
-  onIdentChange,
   isSelectedForBatch = true,
   onToggleBatchSelect,
   onSetAsPrimary
 }) => {
   const [viewMode, setViewMode] = useState<'detail' | 'compare'>('detail');
+  const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
 
   if (!isOpen || !matchedReport) return null;
 
@@ -66,193 +56,242 @@ export const MatchedReportDetailModal: React.FC<MatchedReportDetailModalProps> =
     recommendations: ['建议持续关注事件发展。']
   };
 
-  const attachments = matchedReport.attachments || [
-    { id: 'm-att-1', name: '现场核查抢修照片.jpg', size: '1.4 MB', type: 'image' as const },
-    { id: 'm-att-2', name: '供水调度与送水车台账.pdf', size: '2.1 MB', type: 'pdf' as const }
-  ];
+  const attachments: Attachment[] =
+    matchedReport.attachments && matchedReport.attachments.length > 0
+      ? matchedReport.attachments
+      : [
+          {
+            id: 'm-att-1',
+            name: '现场核查抢修照片.jpg',
+            size: '1.4 MB',
+            type: 'image',
+            thumbnailUrl:
+              'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=600&auto=format&fit=crop',
+            url: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=1200&auto=format&fit=crop',
+          },
+          {
+            id: 'm-att-2',
+            name: '供水调度与送水车台账.pdf',
+            size: '2.1 MB',
+            type: 'pdf',
+          },
+        ];
+
+  const handleDownloadAttachment = (att: Attachment) => {
+    if (att.url || att.thumbnailUrl) {
+      const link = document.createElement('a');
+      link.href = att.url || att.thumbnailUrl || '#';
+      link.download = att.name;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+    const blob = new Blob(
+      [
+        `【附件材料】${att.name}\n文件大小：${att.size}\n关联事件：${matchedReport.title}\n上报单位：${matchedReport.organization}\n报送时间：${matchedReport.submitTime}`,
+      ],
+      { type: 'text/plain;charset=utf-8' }
+    );
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = att.name.endsWith('.pdf') ? att.name : `${att.name}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   return (
+    <>
     <div
-      className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200"
+      className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
       id="matched-report-detail-modal"
+      onClick={onClose}
     >
-      <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden">
-        {/* 1. Modal Top Header */}
-        <div className="px-6 py-4 bg-gradient-to-r from-amber-50 via-white to-blue-50 border-b border-gray-200 flex items-center justify-between gap-4 shrink-0">
-          <div className="flex items-center space-x-3 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
-              <FileText className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="text-base font-bold text-gray-900 truncate">
-                同省疑似重复报送 · 详情与对比
-              </h2>
-            </div>
+      <div
+        className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-gray-100"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Modal Header — 对齐审核上报端同源详情弹窗 */}
+        <div className="bg-[#1E5ABB] text-white px-5 py-3.5 flex items-center justify-between shrink-0">
+          <div className="flex items-center space-x-2 min-w-0">
+            <FileText className="w-5 h-5 text-blue-100 shrink-0" />
+            <h3 className="text-sm font-bold truncate">事件详情 · 同源速报查看</h3>
           </div>
-
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer shrink-0"
-            title="关闭详情"
+            className="text-white/80 hover:text-white p-1 hover:bg-white/10 rounded-lg text-lg font-bold cursor-pointer transition-colors shrink-0"
+            title="关闭"
           >
-            <X className="w-5 h-5" />
+            ✕
           </button>
         </div>
 
-        {/* 2. Modal Body (Scrollable) */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-5 text-xs text-gray-700">
+        {/* Modal Body */}
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4 text-xs text-gray-700">
           {viewMode === 'detail' ? (
-            /* Detail Mode */
-            <div className="space-y-5">
-              {/* Report Header Card */}
-              <div className="bg-amber-50/50 border border-amber-200/80 rounded-xl p-4 space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-base font-bold text-gray-900 leading-snug">
+            <div className="space-y-4">
+              {/* Title & Origin Badge — 对齐上报端 */}
+              <div className="pb-3 border-b border-gray-100">
+                <div className="space-y-1.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center flex-wrap gap-2 min-w-0">
+                      <h2 className="text-base font-bold text-gray-900 leading-snug">
                         {matchedReport.title}
-                      </h3>
+                      </h2>
                       <IdentificationBadge
-                        status={matchedReport.identificationStatus || '疑似重复'}
-                        size="xs"
+                        status={toPreAdoptionIdentLabel(matchedReport.identificationStatus)}
+                        size="sm"
                         showIcon
+                        title="系统打标（未采纳入库前为疑似标识，不支持人工修改）"
                       />
                     </div>
-                  </div>
-                  <AuditStatusBadge
-                    status={matchedReport.auditStatus || '待审核'}
-                    className="shrink-0"
-                  />
-                </div>
-
-                {/* Sub Metadata */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs text-gray-600 pt-1 border-t border-amber-200/60">
-                  <div>
-                    <span className="text-gray-400 block text-[11px]">上报人 / 机构</span>
-                    <span className="font-semibold text-gray-800">
-                      {matchedReport.author} · {matchedReport.organization}
+                    <span className="shrink-0 text-xs font-semibold px-2.5 py-1 rounded-md border bg-amber-50 text-amber-600 border-amber-200">
+                      {matchedReport.auditStatus || '待审核'}
                     </span>
                   </div>
-                  <div>
-                    <span className="text-gray-400 block text-[11px]">所属区域 / 类型</span>
-                    <span className="font-semibold text-gray-800">
-                      {matchedReport.region} · {matchedReport.infoType}
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-gray-500 text-[11px]">
+                    <span className="flex items-center space-x-1">
+                      <User className="w-3 h-3 text-gray-400" />
+                      <span>
+                        {matchedReport.author}
+                        {matchedReport.organization ? `（${matchedReport.organization}）` : ''}
+                      </span>
                     </span>
+                    {matchedReport.submitTime && (
+                      <span className="flex items-center space-x-1">
+                        <Clock className="w-3 h-3 text-gray-400" />
+                        <span className="font-mono">{matchedReport.submitTime}</span>
+                      </span>
+                    )}
                   </div>
-                  <div>
-                    <span className="text-gray-400 block text-[11px]">报送时间</span>
-                    <span className="font-mono text-gray-800">{matchedReport.submitTime}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400 block text-[11px]">发生地址</span>
-                    <span className="font-semibold text-gray-800 truncate block" title={matchedReport.occurAddress}>
-                      {matchedReport.occurAddress || '西屯区管网涉事街道'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Incremental Analysis Notice */}
-                <div className="bg-white/90 border border-amber-200/80 rounded-lg p-2.5 flex items-center justify-between gap-3 text-[11px]">
-                  <div className="flex items-center space-x-2 text-amber-900">
-                    <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
-                    <span>
-                      <strong>智能时序比对:</strong> 相比当前首发件晚约 25 分钟报送，但包含现场抢修管网阀门工单及应急送水车点位，具备增量参考价值。
-                    </span>
-                  </div>
-                  <span className="px-2 py-0.5 rounded font-bold bg-amber-100 text-amber-800 shrink-0">
-                    建议打分: 3.0分
-                  </span>
                 </div>
               </div>
 
-              {/* Detail Sections */}
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <span className="font-bold text-gray-900 text-xs flex items-center space-x-1.5">
-                    <span className="w-1.5 h-3.5 bg-[#1E5ABB] rounded-full inline-block"></span>
-                    <span>【内容摘要】</span>
+              {/* Structured Meta */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3 bg-gray-50/80 rounded-xl border border-gray-100 text-[11px]">
+                <div>
+                  <span className="text-gray-400 block">所属区域</span>
+                  <span className="font-medium text-gray-700">{matchedReport.region || '—'}</span>
+                </div>
+                <div>
+                  <span className="text-gray-400 block">信息类型</span>
+                  <span className="font-medium text-gray-700">{matchedReport.infoType || '—'}</span>
+                </div>
+                <div>
+                  <span className="text-gray-400 block">信息来源</span>
+                  <span className="font-medium text-gray-700">{matchedReport.source || '—'}</span>
+                </div>
+                <div className="col-span-2 sm:col-span-3">
+                  <span className="text-gray-400 block">发生地址</span>
+                  <span className="font-medium text-gray-700">
+                    {matchedReport.occurAddress || '西屯区管网涉事街道'}
                   </span>
-                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-3.5 leading-relaxed text-gray-800 font-normal">
+                </div>
+                {matchedReport.matchUrl && (
+                  <div className="col-span-2 sm:col-span-3">
+                    <span className="text-gray-400 block">匹配链接</span>
+                    <a
+                      href={matchedReport.matchUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono text-[#2563EB] hover:underline flex items-center space-x-1 truncate"
+                    >
+                      <span className="truncate">{matchedReport.matchUrl}</span>
+                      <ExternalLink className="w-3 h-3 shrink-0" />
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {/* Detail Sections */}
+              <div className="space-y-3 pt-1">
+                <div className="space-y-1">
+                  <div className="font-bold text-gray-900 text-xs">【内容摘要】</div>
+                  <div className="bg-[#F8F9FA] border border-gray-100 rounded-lg p-3 text-xs text-gray-700 leading-relaxed font-normal">
                     {detail.summary}
                   </div>
                 </div>
 
                 {detail.coreDemands && (
-                  <div className="space-y-1.5">
-                    <span className="font-bold text-gray-900 text-xs flex items-center space-x-1.5">
-                      <span className="w-1.5 h-3.5 bg-[#1E5ABB] rounded-full inline-block"></span>
-                      <span>【核心诉求】</span>
-                    </span>
-                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-3.5 leading-relaxed text-gray-800 font-normal">
+                  <div className="space-y-1">
+                    <div className="font-bold text-gray-900 text-xs">【核心诉求】</div>
+                    <div className="bg-[#F8F9FA] border border-gray-100 rounded-lg p-3 text-xs text-gray-700 leading-relaxed font-normal">
                       {detail.coreDemands}
                     </div>
                   </div>
                 )}
 
-                {detail.publicOpinionTrend && (
-                  <div className="space-y-1.5">
-                    <span className="font-bold text-gray-900 text-xs flex items-center space-x-1.5">
-                      <span className="w-1.5 h-3.5 bg-[#1E5ABB] rounded-full inline-block"></span>
-                      <span>【舆情态势】</span>
-                    </span>
-                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-3.5 leading-relaxed text-gray-800 font-normal">
-                      {detail.publicOpinionTrend}
-                    </div>
-                  </div>
-                )}
-
                 {detail.recommendations && (
-                  <div className="space-y-1.5">
-                    <span className="font-bold text-gray-900 text-xs flex items-center space-x-1.5">
-                      <span className="w-1.5 h-3.5 bg-[#1E5ABB] rounded-full inline-block"></span>
-                      <span>【建议举措 / 处置建议】</span>
-                    </span>
-                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-3.5 space-y-1 text-gray-800 leading-relaxed font-normal">
+                  <div className="space-y-1">
+                    <div className="font-bold text-gray-900 text-xs">【处置建议】</div>
+                    <div className="bg-[#F8F9FA] border border-gray-100 rounded-lg p-3 text-xs text-gray-700 leading-relaxed font-normal space-y-1">
                       {Array.isArray(detail.recommendations) ? (
                         detail.recommendations.map((r, idx) => (
-                          <div key={idx} className="flex items-start space-x-1.5">
-                            <span className="text-[#1E5ABB] font-bold">{idx + 1}.</span>
-                            <span>{r}</span>
-                          </div>
+                          <p key={idx} className="leading-relaxed">{r}</p>
                         ))
                       ) : (
-                        <p>{detail.recommendations}</p>
+                        <p className="leading-relaxed">{detail.recommendations}</p>
                       )}
                     </div>
                   </div>
                 )}
 
-                {/* Attachments Section */}
-                <div className="space-y-2">
-                  <span className="font-bold text-gray-900 text-xs flex items-center space-x-1.5">
-                    <Paperclip className="w-3.5 h-3.5 text-[#1E5ABB]" />
-                    <span>佐证材料清单 ({attachments.length}份)</span>
-                  </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {attachments.map((att) => (
-                      <div
-                        key={att.id}
-                        className="bg-white border border-gray-200 rounded-lg p-3 flex items-center justify-between hover:border-blue-400 transition-colors shadow-2xs"
-                      >
-                        <div className="flex items-center space-x-2.5 min-w-0">
-                          <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#1E5ABB] flex items-center justify-center shrink-0">
-                            <FileText className="w-4 h-4" />
+                {attachments.length > 0 && (
+                  <div className="space-y-1 pt-1">
+                    <div className="font-bold text-gray-900 text-xs">
+                      【附件列表】({attachments.length}个)
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {attachments.map((att) => {
+                        const isImage = att.type === 'image';
+                        return (
+                          <div
+                            key={att.id}
+                            className="flex items-center justify-between gap-2 p-2 bg-gray-50 border border-gray-200 rounded-lg text-[11px]"
+                          >
+                            <div className="flex items-center space-x-2 truncate min-w-0">
+                              <Paperclip className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                              <div className="min-w-0">
+                                <span className="truncate font-medium text-gray-700 block" title={att.name}>
+                                  {att.name}
+                                </span>
+                                <span className="text-gray-400 text-[10px]">{att.size}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {isImage && (
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewAttachment(att)}
+                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[#1E5ABB] hover:bg-blue-50 font-medium cursor-pointer"
+                                  title="预览图片"
+                                >
+                                  <Eye className="w-3 h-3" />
+                                  <span>预览</span>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadAttachment(att)}
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-gray-600 hover:text-[#1E5ABB] hover:bg-blue-50 font-medium cursor-pointer"
+                                title="下载附件"
+                              >
+                                <Download className="w-3 h-3" />
+                                <span>下载</span>
+                              </button>
+                            </div>
                           </div>
-                          <div className="min-w-0">
-                            <p className="font-semibold text-gray-800 truncate" title={att.name}>
-                              {att.name}
-                            </p>
-                            <span className="text-[11px] text-gray-400">{att.size}</span>
-                          </div>
-                        </div>
-                        <span className="text-[11px] text-blue-600 font-medium shrink-0 cursor-pointer hover:underline">
-                          预览
-                        </span>
-                      </div>
-                    ))}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           ) : (
@@ -376,5 +415,14 @@ export const MatchedReportDetailModal: React.FC<MatchedReportDetailModalProps> =
         </div>
       </div>
     </div>
+
+    <AttachmentPreviewModal
+      isOpen={!!previewAttachment}
+      onClose={() => setPreviewAttachment(null)}
+      attachment={previewAttachment}
+      attachments={attachments}
+      onSelectAttachment={(att) => setPreviewAttachment(att)}
+    />
+    </>
   );
 };
