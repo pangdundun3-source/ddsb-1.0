@@ -6,6 +6,7 @@ import { AuditStatusBadge } from '../components/AuditStatusBadge';
 import { ReportOriginBadge } from '../components/ReportOriginBadge';
 import { ReportDetail } from './ReportDetail';
 import { ReportItem, PageId, AuditStatus } from '../types';
+import { getRejectTime } from '../services/reportWorkflowService';
 import {
   Search,
   RotateCcw,
@@ -20,21 +21,17 @@ import {
   MapPin,
   LayoutGrid,
   List,
-  Check,
   Building2,
   Calendar,
   Layers,
   Sparkles,
   User,
   X,
-  Download,
   Filter,
   ArrowUpDown,
-  FileSpreadsheet,
   ExternalLink,
   ChevronRight,
-  ShieldCheck,
-  Info
+  ShieldCheck
 } from 'lucide-react';
 import { DateRangeField } from '../components/DateRangeField';
 interface OrgAccount {
@@ -78,8 +75,6 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
   const [withdrawTarget, setWithdrawTarget] = useState<ReportItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ReportItem | null>(null);
   const [drawerReport, setDrawerReport] = useState<ReportItem | null>(null);
-  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [exportSuccessToast, setExportSuccessToast] = useState<string | null>(null);
 
   // 1. Account Scope Data Filter
   const scopedReports = useMemo(() => {
@@ -141,8 +136,9 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
         }
 
         // Date Range
-        if (startDate && item.submitTime < startDate) return false;
-        if (endDate && item.submitTime > endDate) return false;
+        const adoptDate = (item.auditTime || item.submitTime || '').slice(0, 10);
+        if (startDate && adoptDate < startDate) return false;
+        if (endDate && adoptDate > endDate) return false;
 
         return true;
       })
@@ -176,54 +172,8 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
     setSortBy('time-desc');
   };
 
-  // Export handler
-  const handleExportData = () => {
-    const csvContent =
-      'data:text/csv;charset=utf-8,\uFEFF' +
-      ['序号,事件标题,信息类型,来源渠道,所属区域,发生地址,报送人,报送机构,报送时间,审核状态,评分,驳回原因']
-        .concat(
-          filteredReports.map((r, i) =>
-            [
-              i + 1,
-              `"${(r.title || '').replace(/"/g, '""')}"`,
-              `"${r.infoType || ''}"`,
-              `"${r.source || ''}"`,
-              `"${r.region || ''}"`,
-              `"${(r.occurAddress || '').replace(/"/g, '""')}"`,
-              `"${r.author || ''}"`,
-              `"${r.organization || ''}"`,
-              `"${r.submitTime || ''}"`,
-              `"${r.auditStatus || ''}"`,
-              `"${r.score || '--'}"`,
-              `"${(r.rejectReason || '').replace(/"/g, '""')}"`
-            ].join(',')
-          )
-        )
-        .join('\n');
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `报送记录台账_${currentUser}_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    setIsExportModalOpen(false);
-    setExportSuccessToast('报送台账导出成功！文件已开始下载。');
-    setTimeout(() => setExportSuccessToast(null), 3000);
-  };
-
   return (
     <div className="space-y-5" id="report-records-view">
-      {/* Toast Notification */}
-      {exportSuccessToast && (
-        <div className="fixed top-4 right-4 z-50 bg-[#1E5ABB] text-white px-4 py-2.5 rounded-lg shadow-xl text-xs font-bold flex items-center space-x-2 animate-in fade-in slide-in-from-top-2">
-          <Check className="w-4 h-4 text-emerald-300" />
-          <span>{exportSuccessToast}</span>
-        </div>
-      )}
-
       {/* 1. Clean Title Header - Aligned with AuditRecords */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -232,32 +182,19 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
           </div>
           <p className="text-xs text-gray-400 mt-1">显示当前账号在该机构提交的全部报送记录</p>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Export Button */}
-          <button
-            onClick={() => setIsExportModalOpen(true)}
-            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-2xs transition-all flex items-center space-x-1.5 cursor-pointer"
-            id="btn-export-records"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>导出台账</span>
-          </button>
-        </div>
       </div>
 
-      {/* 2. Search & Filter Area */}
-      <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-2xs space-y-4">
-        <div className="flex flex-col lg:flex-row lg:flex-wrap items-stretch lg:items-center gap-4 text-xs">
-          {/* 关键词搜索 */}
-          <div className="flex-1 min-w-[260px]">
-            <div className="relative flex-1">
+      {/* 2. Search & Filter Area - 筛选项与操作同一行 */}
+      <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-2xs">
+        <div className="flex items-center gap-2.5 text-xs w-full min-w-0">
+          <div className="flex-1 min-w-0 max-w-[280px]">
+            <div className="relative">
               <input
                 type="text"
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
                 placeholder="搜索上报标题、事件描述关键词..."
-                className="w-full pl-8 pr-8 py-2 bg-white border border-gray-300 hover:border-gray-400 focus:border-[#1E5ABB] rounded-lg text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 transition-all shadow-2xs"
+                className="w-full min-w-0 pl-8 pr-8 py-2 bg-white border border-gray-300 hover:border-gray-400 focus:border-[#1E5ABB] rounded-lg text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 transition-all shadow-2xs"
               />
               <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
               {keyword && (
@@ -273,31 +210,25 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
             </div>
           </div>
 
-          {/* 报送时间 */}
-          <div className="flex items-center space-x-2 shrink-0">
-            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">报送时间</label>
+          <div className="flex items-center space-x-1.5 shrink-0">
+            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">采纳时间</label>
             <DateRangeField
               startValue={startDate}
               endValue={endDate}
               onStartChange={setStartDate}
               onEndChange={setEndDate}
-              title="报送时间区间"
-              startTitle="报送开始日期"
-              endTitle="报送结束日期"
+              title="采纳时间区间"
+              startTitle="采纳开始日期"
+              endTitle="采纳结束日期"
+              inputClassName="w-[100px] flex-none"
             />
           </div>
-        </div>
 
-        <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs">
-          <div className="text-xs text-gray-500 font-medium">
-            共查询到 <strong className="text-[#1E5ABB] font-mono">{filteredReports.length}</strong> 条报送记录
-          </div>
-
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 shrink-0 ml-auto">
             <button
               type="button"
               onClick={() => {}}
-              className="px-4 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-semibold rounded-lg shadow-2xs flex items-center space-x-1.5 cursor-pointer transition-colors"
+              className="px-3.5 py-2 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-semibold rounded-lg shadow-2xs flex items-center space-x-1.5 cursor-pointer transition-colors"
             >
               <Search className="w-3.5 h-3.5" />
               <span>查询</span>
@@ -305,7 +236,7 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
             <button
               type="button"
               onClick={handleReset}
-              className="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium rounded-lg border border-gray-200 flex items-center space-x-1.5 cursor-pointer transition-colors"
+              className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium rounded-lg border border-gray-200 flex items-center space-x-1.5 cursor-pointer transition-colors"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>重置</span>
@@ -316,31 +247,39 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
 
       {/* 3. Data Presentation Area */}
       {filteredReports.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400 space-y-3">
-          <FileText className="w-12 h-12 mx-auto opacity-30 text-gray-400" />
-          <div>
-            <p className="text-sm font-bold text-gray-600">未找到符合条件的报送记录</p>
-            <p className="text-xs text-gray-400 mt-1">您可以调整检索关键字或日期区间重试</p>
+        <div className="bg-white rounded-xl border border-gray-200/80 shadow-2xs overflow-hidden">
+          <div className="px-5 py-2.5 bg-gray-50/70 border-b border-gray-100 text-xs text-gray-600">
+            共 <strong className="text-[#1E5ABB] font-mono">0</strong> 条报送记录
           </div>
-          <div className="pt-2 flex items-center justify-center space-x-3">
-            <button
-              onClick={handleReset}
-              className="px-3.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-            >
-              清空搜索条件
-            </button>
-            <button
-              onClick={() => onOpenNewReport && onOpenNewReport()}
-              className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center space-x-1"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>立即新建上报</span>
-            </button>
+          <div className="p-12 text-center text-gray-400 space-y-3">
+            <FileText className="w-12 h-12 mx-auto opacity-30 text-gray-400" />
+            <div>
+              <p className="text-sm font-bold text-gray-600">未找到符合条件的报送记录</p>
+              <p className="text-xs text-gray-400 mt-1">您可以调整检索关键字或日期区间重试</p>
+            </div>
+            <div className="pt-2 flex items-center justify-center space-x-3">
+              <button
+                onClick={handleReset}
+                className="px-3.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+              >
+                清空搜索条件
+              </button>
+              <button
+                onClick={() => onOpenNewReport && onOpenNewReport()}
+                className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center space-x-1"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>立即新建上报</span>
+              </button>
+            </div>
           </div>
         </div>
       ) : viewMode === 'table' ? (
         /* TABLE VIEW */
         <div className="bg-white rounded-xl border border-gray-200/90 shadow-2xs overflow-hidden">
+          <div className="px-5 py-2.5 bg-gray-50/70 border-b border-gray-100 text-xs text-gray-600">
+            共 <strong className="text-[#1E5ABB] font-mono">{filteredReports.length}</strong> 条报送记录
+          </div>
           <div className="divide-y divide-gray-100">
             {pagedReports.map((item, index) => {
               const isAdopted = ['已采纳', '已通过', '待转办', '已转办'].includes(item.auditStatus);
@@ -418,13 +357,19 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
                       <span className="shrink-0 text-gray-300">·</span>
                       <span className="shrink-0 font-mono">{item.submitTime || '2026-08-13 10:00'}</span>
                       {isRejected && (
-                        <span
-                          className="ml-2 inline-flex items-center gap-1 min-w-0 text-rose-500 cursor-help"
-                          title={`驳回原因：${item.rejectReason || '信息不完整'}`}
-                        >
-                          <AlertCircle className="w-3 h-3 shrink-0" />
-                          <span className="truncate">驳回原因：{item.rejectReason || '信息不完整'}</span>
-                        </span>
+                        <>
+                          <span className="shrink-0 text-gray-300">·</span>
+                          <span className="shrink-0">
+                            驳回时间 <span className="font-mono text-gray-500">{getRejectTime(item)}</span>
+                          </span>
+                          <span
+                            className="ml-2 inline-flex items-center gap-1 min-w-0 text-rose-500 cursor-help"
+                            title={`驳回原因：${item.rejectReason || '信息不完整'}`}
+                          >
+                            <AlertCircle className="w-3 h-3 shrink-0" />
+                            <span className="truncate">驳回原因：{item.rejectReason || '信息不完整'}</span>
+                          </span>
+                        </>
                       )}
                     </div>
                   </div>
@@ -450,6 +395,9 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
       ) : (
         /* CARDS VIEW */
         <>
+          <div className="bg-white rounded-xl border border-gray-200/80 shadow-2xs px-5 py-2.5 text-xs text-gray-600">
+            共 <strong className="text-[#1E5ABB] font-mono">{filteredReports.length}</strong> 条报送记录
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {pagedReports.map((item) => {
             const isAdopted = ['已采纳', '已通过', '待转办', '已转办'].includes(item.auditStatus);
@@ -508,8 +456,13 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
                   </div>
 
                   {/* Time */}
-                  <div className="flex items-center justify-between text-[11px] text-gray-400 pt-0.5">
+                  <div className="flex items-center justify-between gap-2 text-[11px] text-gray-400 pt-0.5">
                     <span className="font-mono">{item.submitTime}</span>
+                    {isRejected && (
+                      <span className="shrink-0">
+                        驳回时间 <span className="font-mono text-gray-500">{getRejectTime(item)}</span>
+                      </span>
+                    )}
                   </div>
 
                   {/* Content snippet */}
@@ -657,86 +610,6 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
                 className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg shadow-sm cursor-pointer"
               >
                 确认删除
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 4. Export Report 台账 Modal */}
-      {isExportModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-gray-100 animate-in fade-in duration-200 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <div className="flex items-center space-x-2">
-                <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
-                <h3 className="font-bold text-base text-gray-900">导出报送台账记录</h3>
-              </div>
-              <button
-                onClick={() => setIsExportModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs text-gray-600">
-              <div className="p-3 bg-blue-50/80 rounded-xl border border-blue-100 space-y-1.5">
-                <div className="font-bold text-gray-900 flex items-center space-x-1.5">
-                  <Info className="w-4 h-4 text-[#1E5ABB]" />
-                  <span>导出数据摘要</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
-                  <div>
-                    <span className="text-gray-500">报送账号：</span>
-                    <strong className="text-gray-800">{currentUser}</strong>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">所属机构：</span>
-                    <strong className="text-gray-800">{currentOrg?.name || '台中市网信办'}</strong>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">当前筛选记录数：</span>
-                    <strong className="text-[#1E5ABB]">{filteredReports.length} 篇</strong>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">导出格式：</span>
-                    <strong className="text-emerald-700">标准 CSV / Excel 表格</strong>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block font-bold text-gray-700">包含导出字段说明：</label>
-                <div className="grid grid-cols-3 gap-1.5 text-[11px] text-gray-600 bg-gray-50 p-2.5 rounded-lg border border-gray-200">
-                  <span>✓ 序号与事件标题</span>
-                  <span>✓ 信息类型及来源</span>
-                  <span>✓ 发生地址与区域</span>
-                  <span>✓ 报送人与机构</span>
-                  <span>✓ 报送提交时间</span>
-                  <span>✓ 审核状态与得分</span>
-                  <span>✓ 审核反馈意见</span>
-                  <span>✓ 驳回详细说明</span>
-                  <span>✓ 流程流转记录</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end space-x-3 pt-3 border-t border-gray-100">
-              <button
-                type="button"
-                onClick={() => setIsExportModalOpen(false)}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-lg cursor-pointer text-xs"
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                onClick={handleExportData}
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-sm cursor-pointer text-xs flex items-center space-x-1.5 transition-colors"
-              >
-                <Download className="w-4 h-4" />
-                <span>确认导出并下载</span>
               </button>
             </div>
           </div>

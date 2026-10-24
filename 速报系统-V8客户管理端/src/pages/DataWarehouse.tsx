@@ -27,14 +27,12 @@ const GROUPS: { key: GroupKey; label: string }[] = [
 interface DataWarehouseProps {
   negativeList: ReportItem[];
   onSelectNegative: (item: ReportItem) => void;
-  onTransferSubmit?: (id: number, opinion: string) => void;
   onNavigate: (page: PageId) => void;
 }
 
 export const DataWarehouse: React.FC<DataWarehouseProps> = ({
   negativeList,
   onSelectNegative,
-  onTransferSubmit,
   onNavigate
 }) => {
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>(loadWarehouses);
@@ -251,7 +249,6 @@ export const DataWarehouse: React.FC<DataWarehouseProps> = ({
           <NegativeInfoLibrary
             negativeList={negativeList}
             onSelectNegative={onSelectNegative}
-            onTransferSubmit={onTransferSubmit}
             onNavigate={onNavigate}
             embedded={{
               warehouseId: activeWarehouse.id,

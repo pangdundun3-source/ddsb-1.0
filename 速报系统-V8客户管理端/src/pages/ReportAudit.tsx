@@ -28,6 +28,7 @@ import {
 import { DateRangeField } from '../components/DateRangeField';
 import { OrgFilterSelect } from '../components/OrgFilterSelect';
 import { INITIAL_ORG_NODES, matchOrganizationByFilter } from '../data/userOrgShared';
+import { getAuditArrivedAt, getRejectTime } from '../services/reportWorkflowService';
 
 interface ReportAuditProps {
   auditPendingList: ReportItem[];
@@ -112,8 +113,9 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
 
     if (selectedAuditor && (item.auditor || '') !== selectedAuditor) return false;
 
-    if (startDate && item.submitTime < startDate) return false;
-    if (endDate && item.submitTime > endDate) return false;
+    const submitDate = (item.submitTime || '').slice(0, 10);
+    if (startDate && submitDate < startDate) return false;
+    if (endDate && submitDate > endDate) return false;
 
     return true;
   });
@@ -215,20 +217,34 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
             {item.detailContent?.summary || '暂无内容描述'}
           </p>
           <div className="flex items-center gap-1.5 min-w-0 whitespace-nowrap text-[11px] text-gray-400">
-            <span className="shrink-0 px-1 rounded bg-gray-100 text-gray-500">上报人</span>
+            <span className="shrink-0 px-1 rounded bg-gray-100 text-gray-500">报送人</span>
             <span className="shrink-0 text-gray-600">{item.author}</span>
             <span className="shrink-0 text-gray-300">·</span>
             <span title={getOrganizationPathText(item.organization)} className="truncate">{item.organization}</span>
             <span className="shrink-0 text-gray-300">·</span>
-            <span className="shrink-0 font-mono">{item.submitTime}</span>
+            <span className="shrink-0 font-mono text-gray-500">{item.submitTime}</span>
+            {isPending && (
+              <>
+                <span className="shrink-0 text-gray-300">·</span>
+                <span className="shrink-0">
+                  提交时间 <span className="font-mono text-gray-500">{getAuditArrivedAt(item)}</span>
+                </span>
+              </>
+            )}
             {isRejected && (
-              <span
-                className="ml-2 inline-flex items-center gap-1 min-w-0 text-rose-500 cursor-help"
-                title={`驳回原因：${item.rejectReason || '信息要素不全，请核实后补充提交。'}`}
-              >
-                <AlertCircle className="w-3 h-3 shrink-0" />
-                <span className="truncate">驳回原因：{item.rejectReason || '信息不完整'}</span>
-              </span>
+              <>
+                <span className="shrink-0 text-gray-300">·</span>
+                <span className="shrink-0">
+                  驳回时间 <span className="font-mono text-gray-500">{getRejectTime(item)}</span>
+                </span>
+                <span
+                  className="ml-2 inline-flex items-center gap-1 min-w-0 text-rose-500 cursor-help"
+                  title={`驳回原因：${item.rejectReason || '信息要素不全，请核实后补充提交。'}`}
+                >
+                  <AlertCircle className="w-3 h-3 shrink-0" />
+                  <span className="truncate">驳回原因：{item.rejectReason || '信息不完整'}</span>
+                </span>
+              </>
             )}
           </div>
         </div>
@@ -344,7 +360,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
             />
           </div>
           <div className="flex items-center space-x-2 min-w-0">
-            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">报送机构</label>
+            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">组织节点</label>
             <OrgFilterSelect value={selectedOrgId} onChange={setSelectedOrgId} />
           </div>
         </div>

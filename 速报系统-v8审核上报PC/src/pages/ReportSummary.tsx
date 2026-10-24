@@ -6,6 +6,7 @@ import { StackedDateTime } from '../components/StackedDateTime';
 import { AuditStatusBadge } from '../components/AuditStatusBadge';
 import { ReportOriginBadge, getEffectiveOriginLabel } from '../components/ReportOriginBadge';
 import { ReportDetail } from './ReportDetail';
+import { getRejectTime } from '../services/reportWorkflowService';
 import {
   Search,
   RotateCcw,
@@ -303,7 +304,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
               className="px-3.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg border border-gray-200 transition-colors cursor-pointer flex items-center space-x-1.5 active:scale-98"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>重置条件</span>
+              <span>重置</span>
             </button>
           </div>
         </div>
@@ -412,13 +413,19 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                         <span className="shrink-0 text-gray-300">·</span>
                         <span className="shrink-0 font-mono">{item.submitTime}</span>
                         {isRejected && (
-                          <span
-                            className="ml-2 inline-flex items-center gap-1 min-w-0 text-rose-500 cursor-help"
-                            title={`驳回原因：${item.rejectReason || '信息要素不完整，请补充政策依据与证明材料后重新提交。'}`}
-                          >
-                            <AlertCircle className="w-3 h-3 shrink-0" />
-                            <span className="truncate">驳回原因：{item.rejectReason || '信息不完整'}</span>
-                          </span>
+                          <>
+                            <span className="shrink-0 text-gray-300">·</span>
+                            <span className="shrink-0">
+                              驳回时间 <span className="font-mono text-gray-500">{getRejectTime(item)}</span>
+                            </span>
+                            <span
+                              className="ml-2 inline-flex items-center gap-1 min-w-0 text-rose-500 cursor-help"
+                              title={`驳回原因：${item.rejectReason || '信息要素不完整，请补充政策依据与证明材料后重新提交。'}`}
+                            >
+                              <AlertCircle className="w-3 h-3 shrink-0" />
+                              <span className="truncate">驳回原因：{item.rejectReason || '信息不完整'}</span>
+                            </span>
+                          </>
                         )}
                       </div>
                     </div>

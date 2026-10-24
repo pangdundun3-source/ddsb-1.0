@@ -312,6 +312,7 @@ export default function App() {
               records={auditRecords}
               allReports={reports}
               onSelectAuditRecord={setSelectedAuditRecord}
+              onTransferSubmit={handleTransferSubmit}
               onNavigate={handleNavigate}
             />
             {activePage === 'audit-record-detail' && (
@@ -350,13 +351,11 @@ export default function App() {
                 report.auditStatus === '已通过'
               )}
               onSelectNegative={setSelectedNegative}
-              onTransferSubmit={handleTransferSubmit}
               onNavigate={handleNavigate}
             />
             {activePage === 'data-warehouse-detail' && (
               <NegativeDetail
                 report={selectedNegative}
-                onTransferSubmit={handleTransferSubmit}
                 onNavigate={handleNavigate}
                 backPage="data-warehouse"
               />
@@ -373,13 +372,11 @@ export default function App() {
                 report.auditStatus === '已通过'
               )}
               onSelectNegative={setSelectedNegative}
-              onTransferSubmit={handleTransferSubmit}
               onNavigate={handleNavigate}
             />
             {activePage === 'negative-detail' && (
               <NegativeDetail
                 report={selectedNegative}
-                onTransferSubmit={handleTransferSubmit}
                 onNavigate={handleNavigate}
               />
             )}

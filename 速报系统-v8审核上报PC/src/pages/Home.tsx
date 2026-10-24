@@ -22,6 +22,7 @@ import { AuditStatusBadge } from '../components/AuditStatusBadge';
 import { ReportOriginBadge } from '../components/ReportOriginBadge';
 import { OrgPathDisplay } from '../components/OrgPathDisplay';
 import { HomeNotificationPanel } from '../components/HomeNotificationPanel';
+import { getRejectTime } from '../services/reportWorkflowService';
 
 export type SystemRoleMode = 'all' | 'reporter' | 'auditor';
 
@@ -527,6 +528,9 @@ export const Home: React.FC<HomeProps> = ({
                         <span className="text-slate-600 font-medium shrink-0">{item.author || '—'}</span>
                         <OrgPathDisplay organization={item.organization} compact className="max-w-[200px]" />
                         <span className="tabular-nums shrink-0">{item.submitTime}</span>
+                        <span className="shrink-0">
+                          驳回时间 <span className="tabular-nums text-slate-500">{getRejectTime(item)}</span>
+                        </span>
                         <div className="ml-auto flex items-center gap-3 shrink-0 text-xs">
                           {onOpenEditReport && (
                             <button

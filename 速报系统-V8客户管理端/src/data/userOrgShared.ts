@@ -47,6 +47,8 @@ export interface InviteCode {
   batchName: string;
   orgIds: string[];
   roles: string[];
+  /** 加入后默认归属的用户群组（可选） */
+  groupIds?: string[];
   expiresAt: string;
   createdAt: string;
   status: InviteCodeStatus;
@@ -273,6 +275,19 @@ export const INITIAL_ORG_NODES: OrgNode[] = [
     expireDate: '2026-12-31',
     sortOrder: 100,
     allowSubOrgCreation: false
+  },
+  {
+    id: 'org-2-2',
+    categoryId: 'cat-1',
+    parentId: 'org-2',
+    name: '西坝区环保局',
+    code: 'WXB-XB-HB',
+    leaderName: '张三',
+    leaderPhone: '13888889210',
+    systemVersion: '正式版',
+    expireDate: '2026-12-31',
+    sortOrder: 95,
+    allowSubOrgCreation: true
   },
   {
     id: 'org-3',
@@ -572,405 +587,214 @@ export const INITIAL_GROUPS: PersonnelGroup[] = [
   }
 ];
 
-const buildBatchActivationCodes = (
-  batch: Pick<InviteCode, 'batchId' | 'batchName' | 'orgIds' | 'roles' | 'expiresAt' | 'createdAt'> &
-    Partial<Pick<InviteCode, 'createdBy'>>,
-  codes: string[],
-  usedBy: Array<{ name: string; phone: string; usedAt?: string }>
-): InviteCode[] =>
-  codes.map((code, index) => ({
-    ...batch,
-    id: `${batch.batchId}-${index + 1}`,
-    code,
-    channel: 'activation_code' as const,
-    status: index < usedBy.length ? ('已使用' as const) : ('未使用' as const),
-    usedByName: usedBy[index]?.name,
-    usedByPhone: usedBy[index]?.phone,
-    usedAt: usedBy[index]?.usedAt,
-    createdBy: batch.createdBy || '系统'
-  }));
-
-const buildShareInvite = (
-  channel: 'qrcode' | 'link',
-  invite: Pick<InviteCode, 'id' | 'code' | 'batchName' | 'orgIds' | 'roles' | 'expiresAt' | 'createdAt' | 'qrLimit' | 'scannedCount'>
-): InviteCode => ({
-  ...invite,
-  batchId: `batch-${invite.id}`,
-  status: '未使用',
-  channel
-});
-
-const buildOfficialAccountInvite = (
-  invite: Pick<InviteCode, 'id' | 'code' | 'orgIds' | 'roles' | 'expiresAt' | 'createdAt' | 'sentToName' | 'sentToWechat' | 'sentToFollowerId'> &
-    Partial<Pick<InviteCode, 'status' | 'usedByName' | 'usedByPhone'>>
-): InviteCode => ({
-  status: '未使用',
-  ...invite,
-  batchId: `batch-${invite.id}`,
-  batchName: `公众号主动邀请-${invite.createdAt.slice(0, 10).replace(/-/g, '')}`,
-  channel: 'official_account'
-});
-
+/** 激活码管理三态实验数据：待激活 / 已激活 / 已失效 */
 export const INITIAL_INVITE_CODES: InviteCode[] = [
-  /** 西坝区环保局实验数据：待激活 / 已激活 / 已失效（审核上报端当前机构 org-2-2 可见） */
+  // —— 待激活 ——
   {
-    ...buildShareInvite('qrcode', {
-      id: 'inv-qr-demo-pending',
-      code: 'QR-2026-XBHP1',
-      batchName: '西坝区环保局网格员扫码邀请',
-      orgIds: ['org-2-2'],
-      roles: ['网格员'],
-      expiresAt: '2026-11-22T23:59',
-      createdAt: '2026-10-20T09:30',
-      qrLimit: 20,
-      scannedCount: 3
-    }),
-    createdBy: '张三',
-    joinedMembers: [
-      { id: 'jm-xb-1', name: '刘芳', phone: '13820001001', joinedAt: '2026-10-20 10:12' },
-      { id: 'jm-xb-2', name: '陈刚', phone: '13920001002', joinedAt: '2026-10-20 11:05' },
-      { id: 'jm-xb-3', name: '王雪', phone: '13620001003', joinedAt: '2026-10-21 09:40' }
-    ]
-  },
-  {
-    ...buildShareInvite('link', {
-      id: 'inv-lk-demo-pending',
-      code: 'LK-2026-XBHP2',
-      batchName: '西坝区环保局外部协作链接邀请',
-      orgIds: ['org-2-2'],
-      roles: ['外部协作专员'],
-      expiresAt: '2026-10-29T23:59',
-      createdAt: '2026-10-21T14:20',
-      qrLimit: 30,
-      scannedCount: 5
-    }),
-    createdBy: '张三'
-  },
-  ...buildBatchActivationCodes(
-    {
-      batchId: 'batch-ac-demo-pending',
-      batchName: '西坝区环保局激活码-待激活样例',
-      orgIds: ['org-2-2'],
-      roles: ['网格员', '审核员'],
-      expiresAt: '2026-11-05T23:59',
-      createdAt: '2026-10-21T16:00',
-      createdBy: '张三'
-    },
-    ['XB-2026-A1001', 'XB-2026-A1002', 'XB-2026-A1003', 'XB-2026-A1004', 'XB-2026-A1005', 'XB-2026-A1006'],
-    [
-      { name: '赵敏', phone: '13720002001', usedAt: '2026-10-21 17:10' },
-      { name: '孙磊', phone: '13820002002', usedAt: '2026-10-22 08:25' }
-    ]
-  ),
-  ...buildBatchActivationCodes(
-    {
-      batchId: 'batch-ac-demo-activated',
-      batchName: '西坝区环保局激活码-已激活样例',
-      orgIds: ['org-2-2'],
-      roles: ['网格员'],
-      expiresAt: '2026-12-01T23:59',
-      createdAt: '2026-10-18T10:00',
-      createdBy: '张三'
-    },
-    ['XB-2026-B2001', 'XB-2026-B2002', 'XB-2026-B2003', 'XB-2026-B2004'],
-    [
-      { name: '周倩', phone: '13920003001', usedAt: '2026-10-18 11:20' },
-      { name: '吴昊', phone: '13620003002', usedAt: '2026-10-18 14:05' },
-      { name: '郑悦', phone: '13720003003', usedAt: '2026-10-19 09:33' },
-      { name: '冯超', phone: '13820003004', usedAt: '2026-10-19 16:48' }
-    ]
-  ),
-  {
-    ...buildShareInvite('qrcode', {
-      id: 'inv-qr-demo-activated',
-      code: 'QR-2026-XBHP3',
-      batchName: '西坝区环保局节假日值守扫码',
-      orgIds: ['org-2-2'],
-      roles: ['审核员'],
-      expiresAt: '2026-12-15T23:59',
-      createdAt: '2026-10-15T08:00',
-      qrLimit: 10,
-      scannedCount: 10
-    }),
-    createdBy: '张三',
-    status: '已使用'
-  },
-  {
-    ...buildShareInvite('link', {
-      id: 'inv-lk-demo-expired',
-      code: 'LK-2026-XBHP4',
-      batchName: '西坝区环保局临时链接邀请-已失效',
-      orgIds: ['org-2-2'],
-      roles: ['网格员'],
-      expiresAt: '2026-10-18T23:59',
-      createdAt: '2026-10-10T09:00',
-      qrLimit: 15,
-      scannedCount: 4
-    }),
-    createdBy: '张三',
-    status: '已过期'
-  },
-  ...buildBatchActivationCodes(
-    {
-      batchId: 'batch-ac-demo-expired',
-      batchName: '西坝区环保局激活码-已失效样例',
-      orgIds: ['org-2-2'],
-      roles: ['网格员'],
-      expiresAt: '2026-10-12T23:59',
-      createdAt: '2026-10-05T11:30',
-      createdBy: '张三'
-    },
-    ['XB-2026-C3001', 'XB-2026-C3002', 'XB-2026-C3003', 'XB-2026-C3004', 'XB-2026-C3005'],
-    [
-      { name: '曹阳', phone: '13520004001', usedAt: '2026-10-06 10:00' },
-      { name: '邓丽', phone: '13920004002', usedAt: '2026-10-07 15:22' }
-    ]
-  ),
-  {
-    ...buildShareInvite('qrcode', {
-      id: 'inv-qr-1014',
-      code: 'QR-2026-B8N4W',
-      batchName: '综合协调处批量邀请',
-      orgIds: ['org-1-2-1-1-1'],
-      roles: ['外部协作专员', '调研分析员'],
-      expiresAt: '2026-12-31T23:59',
-      createdAt: '2026-10-14T08:40',
-      qrLimit: 50,
-      scannedCount: 4
-    }),
-    createdBy: '张云昭',
-    joinedMembers: [
-      { id: 'jm-1', name: '周启明', phone: '13800001001', joinedAt: '2026-10-14 09:12' },
-      { id: 'jm-2', name: '李婉清', phone: '13900001002', joinedAt: '2026-10-14 10:05' },
-      { id: 'jm-3', name: '陈思远', phone: '13600001003', joinedAt: '2026-10-15 11:20' },
-      { id: 'jm-4', name: '赵若彤', phone: '13700001004', joinedAt: '2026-10-15 14:33' }
-    ]
-  },
-  buildOfficialAccountInvite({
-    id: 'inv-oa-1013',
-    code: 'SB-2026-ZK7P3',
-    orgIds: ['org-2-1'],
-    roles: ['网格员'],
-    expiresAt: '2026-10-27T23:59',
-    createdAt: '2026-10-13T16:20',
-    sentToName: '郑凯',
-    sentToWechat: 'zhengkai88',
-    sentToFollowerId: 'flw-5'
-  }),
-  ...buildBatchActivationCodes(
-    {
-      batchId: 'batch-ac-1013',
-      batchName: '应急联络组激活码',
-      orgIds: ['org-2-1'],
-      roles: ['外部协作专员'],
-      expiresAt: '2026-11-20T23:59',
-      createdAt: '2026-10-13T10:30',
-      createdBy: '张云昭'
-    },
-    ['3847291560', '5829147360', '7193652840', '9264815730', '1582739460', '6471928350', '8350174620', '2739486150'],
-    [
-      { name: '周启明', phone: '13856781203', usedAt: '2026-10-13 14:22' },
-      { name: '韩雨桐', phone: '13987654321', usedAt: '2026-10-14 09:08' }
-    ]
-  ),
-  {
-    ...buildShareInvite('qrcode', {
-      id: 'inv-qr-1013',
-      code: 'QR-2026-D4M9S',
-      batchName: '台中日报社融媒通讯员',
-      orgIds: ['org-4'],
-      roles: ['网格员'],
-      expiresAt: '2026-11-15T23:59',
-      createdAt: '2026-10-13T09:00',
-      qrLimit: 30,
-      scannedCount: 30
-    }),
-    createdBy: '王主任',
-    status: '已使用'
-  },
-  ...buildBatchActivationCodes(
-    {
-      batchId: 'batch-ac-1012',
-      batchName: '网信指导处批量邀请',
-      orgIds: ['org-1-2'],
-      roles: ['调研分析员', '网格员'],
-      expiresAt: '2026-11-30T23:59',
-      createdAt: '2026-10-12T14:05',
-      createdBy: '李科长'
-    },
-    ['SB-2026-K4P2A', 'SB-2026-M7Q9B', 'SB-2026-R2T6C', 'SB-2026-W8X3D', 'SB-2026-H5J1E', 'SB-2026-N9L4F', 'SB-2026-Z3V7G', 'SB-2026-E6Y2H'],
-    [
-      { name: '林雅婷', phone: '13812345170', usedAt: '2026-10-12 16:10' },
-      { name: '陈志豪', phone: '13987654321', usedAt: '2026-10-12 17:02' },
-      { name: '黄冠宇', phone: '13655553904', usedAt: '2026-10-13 08:45' }
-    ]
-  ),
-  {
-    ...buildShareInvite('link', {
-      id: 'inv-lk-1012',
-      code: 'LK-2026-H2Q6E',
-      batchName: '网信指导处联络员链接邀请',
-      orgIds: ['org-1-2'],
-      roles: ['网格员'],
-      expiresAt: '2026-12-12T23:59',
-      createdAt: '2026-10-12T15:30',
-      qrLimit: 80,
-      scannedCount: 41
-    }),
-    createdBy: '李科长'
-  },
-  buildOfficialAccountInvite({
-    id: 'inv-oa-1011',
-    code: 'SB-2026-SB4M2',
-    orgIds: ['org-1-1-1-1-1'],
-    roles: ['网格员'],
-    expiresAt: '2026-10-25T23:59',
-    createdAt: '2026-10-11T11:05',
-    sentToName: '孙博',
-    sentToWechat: 'sunbo_tz',
-    sentToFollowerId: 'flw-2'
-  }),
-  buildShareInvite('qrcode', {
-    id: 'inv-qr-1',
-    code: 'QR-2026-T7K3M',
-    batchName: '办公室扫码入组-20261010',
+    id: 'inv-pending-code-1',
+    code: 'SB-2026-P001A',
+    batchId: 'batch-pending-code',
+    batchName: '邀请批次-20261024-01',
     orgIds: ['org-1-1'],
     roles: ['网格员'],
-    expiresAt: '2026-12-31T23:59',
-    createdAt: '2026-10-10T09:30',
-    qrLimit: 100,
-    scannedCount: 12
-  }),
-  buildShareInvite('link', {
-    id: 'inv-lk-1009',
-    code: 'LK-2026-P5V1J',
-    batchName: '蜀山区网信联络员链接邀请-20261009',
+    groupIds: ['grp-emergency'],
+    expiresAt: '2026-10-25T09:12',
+    createdAt: '2026-10-24T09:12',
+    status: '未使用',
+    channel: 'activation_code',
+    createdBy: '系统管理员'
+  },
+  {
+    id: 'inv-pending-code-2',
+    code: 'SB-2026-P001B',
+    batchId: 'batch-pending-code',
+    batchName: '邀请批次-20261024-01',
+    orgIds: ['org-1-1'],
+    roles: ['网格员'],
+    groupIds: ['grp-emergency'],
+    expiresAt: '2026-10-25T09:12',
+    createdAt: '2026-10-24T09:12',
+    status: '未使用',
+    channel: 'activation_code',
+    createdBy: '系统管理员'
+  },
+  {
+    id: 'inv-pending-code-3',
+    code: 'SB-2026-P001C',
+    batchId: 'batch-pending-code',
+    batchName: '邀请批次-20261024-01',
+    orgIds: ['org-1-1'],
+    roles: ['网格员'],
+    groupIds: ['grp-emergency'],
+    expiresAt: '2026-10-25T09:12',
+    createdAt: '2026-10-24T09:12',
+    status: '未使用',
+    channel: 'activation_code',
+    createdBy: '系统管理员'
+  },
+  {
+    id: 'inv-pending-qr',
+    code: 'QR-2026-PENDING',
+    batchId: 'batch-pending-qr',
+    batchName: '西坝街道扫码邀请',
+    orgIds: ['org-2-1'],
+    roles: ['网格员', '上报员'],
+    groupIds: ['grp-xb-env'],
+    expiresAt: '2026-10-26T14:30',
+    createdAt: '2026-10-23T14:30',
+    status: '未使用',
+    channel: 'qrcode',
+    createdBy: '系统管理员',
+    qrLimit: 8,
+    scannedCount: 2
+  },
+  {
+    id: 'inv-pending-link',
+    code: 'LK-2026-PENDING',
+    batchId: 'batch-pending-link',
+    batchName: '河长制链接邀请',
+    orgIds: ['org-2-2'],
+    roles: ['网格员'],
+    groupIds: ['grp-xb-river'],
+    expiresAt: '2026-10-31T08:05',
+    createdAt: '2026-10-24T08:05',
+    status: '未使用',
+    channel: 'link',
+    createdBy: '系统管理员',
+    qrLimit: 5,
+    scannedCount: 0
+  },
+
+  // —— 已激活 ——
+  {
+    id: 'inv-done-code-1',
+    code: 'SB-2026-D002A',
+    batchId: 'batch-done-code',
+    batchName: '邀请批次-20261020-03',
+    orgIds: ['org-1-2'],
+    roles: ['审核员'],
+    groupIds: ['grp-duty'],
+    expiresAt: '2026-10-23T10:40',
+    createdAt: '2026-10-20T10:40',
+    status: '已使用',
+    channel: 'activation_code',
+    createdBy: '系统管理员',
+    usedByName: '林雅婷',
+    usedByPhone: '13851001234',
+    usedAt: '2026-10-21T09:18'
+  },
+  {
+    id: 'inv-done-code-2',
+    code: 'SB-2026-D002B',
+    batchId: 'batch-done-code',
+    batchName: '邀请批次-20261020-03',
+    orgIds: ['org-1-2'],
+    roles: ['审核员'],
+    groupIds: ['grp-duty'],
+    expiresAt: '2026-10-23T10:40',
+    createdAt: '2026-10-20T10:40',
+    status: '已使用',
+    channel: 'activation_code',
+    createdBy: '系统管理员',
+    usedByName: '陈志豪',
+    usedByPhone: '13952002345',
+    usedAt: '2026-10-21T11:02'
+  },
+  {
+    id: 'inv-done-qr',
+    code: 'QR-2026-DONE',
+    batchId: 'batch-done-qr',
+    batchName: '融媒协同扫码邀请',
     orgIds: ['org-3'],
     roles: ['网格员'],
-    expiresAt: '2026-11-09T23:59',
-    createdAt: '2026-10-09T10:10',
-    qrLimit: 50,
-    scannedCount: 23
-  }),
-  ...buildBatchActivationCodes(
-    {
-      batchId: 'batch-ac-1008',
-      batchName: '蜀山区委网信办批量邀请-20261008',
-      orgIds: ['org-3'],
-      roles: ['网格员'],
-      expiresAt: '2026-10-31T23:59',
-      createdAt: '2026-10-08T09:15'
-    },
-    ['SB-2026-P1A8K', 'SB-2026-Q6C3M', 'SB-2026-S9D5N', 'SB-2026-U2F7R', 'SB-2026-Y4G1T'],
-    [
-      { name: '张雅琪', phone: '13722221711' },
-      { name: '李承恩', phone: '13599990249' }
-    ]
-  ),
-  {
-    ...buildOfficialAccountInvite({
-      id: 'inv-oa-1003',
-      code: 'SB-2026-LL6Q8',
-      orgIds: ['org-4'],
-      roles: ['网格员'],
-      expiresAt: '2026-10-17T23:59',
-      createdAt: '2026-10-03T14:45',
-      sentToName: '日报梁编',
-      sentToWechat: 'll_media',
-      sentToFollowerId: 'flw-6',
-      status: '已使用',
-      usedByName: '梁琳',
-      usedByPhone: '13912342244'
-    }),
-    usedAt: '2026-10-05 09:18:22',
-    createdBy: '王主任'
+    groupIds: ['grp-media'],
+    expiresAt: '2026-10-25T16:20',
+    createdAt: '2026-10-18T16:20',
+    status: '已使用',
+    channel: 'qrcode',
+    createdBy: '系统管理员',
+    qrLimit: 3,
+    scannedCount: 3
   },
-  buildOfficialAccountInvite({
-    id: 'inv-oa-0920',
-    code: 'SB-2026-FH2D7',
-    orgIds: ['org-1-2-1-1-1'],
+  {
+    id: 'inv-done-link',
+    code: 'LK-2026-DONE',
+    batchId: 'batch-done-link',
+    batchName: '热点导控链接邀请',
+    orgIds: ['org-1'],
+    roles: ['上报员'],
+    groupIds: ['grp-hotspot'],
+    expiresAt: '2026-10-20T11:05',
+    createdAt: '2026-10-19T11:05',
+    status: '已使用',
+    channel: 'link',
+    createdBy: '系统管理员',
+    qrLimit: 2,
+    scannedCount: 2
+  },
+
+  // —— 已失效 ——
+  {
+    id: 'inv-expired-code-1',
+    code: 'SB-2026-E003A',
+    batchId: 'batch-expired-code',
+    batchName: '邀请批次-20261010-02',
+    orgIds: ['org-4'],
     roles: ['网格员'],
-    expiresAt: '2026-10-04T23:59',
-    createdAt: '2026-09-20T09:35',
-    sentToName: '傅浩',
-    sentToWechat: 'fuhao_work',
-    sentToFollowerId: 'flw-8'
-  }),
-  ...buildBatchActivationCodes(
-    {
-      batchId: 'batch-seed',
-      batchName: '办公室邀请-20260917',
-      orgIds: ['org-1-1'],
-      roles: ['网格员'],
-      expiresAt: '2026-09-30T23:59',
-      createdAt: '2026-09-17T10:20'
-    },
-    ['SB-2026-3B22C', 'SB-2026-8A91F', 'SB-2026-7C11D', 'SB-2026-9E40E'],
-    [{ name: '周敏', phone: '13900006621' }]
-  ),
-  {
-    ...buildOfficialAccountInvite({
-      id: 'inv-5',
-      code: 'SB-2026-HX91A',
-      orgIds: ['org-1-1'],
-      roles: ['网格员'],
-      expiresAt: '2026-09-30T23:59',
-      createdAt: '2026-09-16T15:40',
-      sentToName: '何岚',
-      sentToWechat: 'helan_wx',
-      sentToFollowerId: 'flw-1'
-    }),
+    expiresAt: '2026-10-11T09:00',
+    createdAt: '2026-10-10T09:00',
     status: '已过期',
-    invalidatedAt: '2026-09-22 11:06:18',
-    invalidateReason: '管理员手动失效',
-    invalidatedBy: '张云昭',
-    createdBy: '张云昭',
-    remark: '何岚'
+    channel: 'activation_code',
+    createdBy: '系统管理员'
   },
   {
-    ...buildShareInvite('link', {
-      id: 'inv-lk-0915',
-      code: 'LK-2026-Y7C3U',
-      batchName: '值班席链接邀请-20260915',
-      orgIds: ['org-1-1-1-1-1'],
-      roles: ['网格员'],
-      expiresAt: '2026-09-25T23:59',
-      createdAt: '2026-09-15T08:50',
-      qrLimit: 20,
-      scannedCount: 8
-    }),
-    status: '已过期',
-    createdBy: '系统'
-  },
-  buildShareInvite('qrcode', {
-    id: 'inv-qr-0901',
-    code: 'QR-2026-G6E1R',
-    batchName: '舆情监测科扫码入组-20260901',
-    orgIds: ['org-2-1'],
+    id: 'inv-expired-code-2',
+    code: 'SB-2026-E003B',
+    batchId: 'batch-expired-code',
+    batchName: '邀请批次-20261010-02',
+    orgIds: ['org-4'],
     roles: ['网格员'],
-    expiresAt: '2026-09-30T23:59',
-    createdAt: '2026-09-01T09:00',
-    qrLimit: 50,
-    scannedCount: 37
-  }),
-  ...buildBatchActivationCodes(
-    {
-      batchId: 'batch-ac-0825',
-      batchName: '应急值守班批量邀请-20260825',
-      orgIds: ['org-1-2-1'],
-      roles: ['网格员'],
-      expiresAt: '2026-09-10T23:59',
-      createdAt: '2026-08-25T16:00'
-    },
-    ['SB-2026-J2K8L', 'SB-2026-T4N6P', 'SB-2026-V9B3Q', 'SB-2026-X1D5R', 'SB-2026-B6F2S', 'SB-2026-G8H4T'],
-    [
-      { name: '徐晨阳', phone: '13611208842' },
-      { name: '胡海燕', phone: '13798763315' },
-      { name: '朱立伟', phone: '13566017729' },
-      { name: '高嘉欣', phone: '13843215568' },
-      { name: '何文博', phone: '13955890174' }
-    ]
-  )
+    expiresAt: '2026-10-11T09:00',
+    createdAt: '2026-10-10T09:00',
+    status: '已过期',
+    channel: 'activation_code',
+    createdBy: '系统管理员'
+  },
+  {
+    id: 'inv-expired-qr',
+    code: 'QR-2026-EXPIRED',
+    batchId: 'batch-expired-qr',
+    batchName: '夜间值班扫码邀请',
+    orgIds: ['org-2'],
+    roles: ['网格员'],
+    groupIds: ['grp-xb-night'],
+    expiresAt: '2026-10-15T20:10',
+    createdAt: '2026-10-12T20:10',
+    status: '未使用',
+    channel: 'qrcode',
+    createdBy: '系统管理员',
+    qrLimit: 6,
+    scannedCount: 1
+  },
+  {
+    id: 'inv-invalid-link',
+    code: 'LK-2026-INVALID',
+    batchId: 'batch-invalid-link',
+    batchName: '已作废链接邀请',
+    orgIds: ['org-1-1-1'],
+    roles: ['审核员'],
+    groupIds: ['grp-cybersecurity'],
+    expiresAt: '2026-10-29T13:40',
+    createdAt: '2026-10-22T13:40',
+    status: '未使用',
+    channel: 'link',
+    createdBy: '系统管理员',
+    qrLimit: 4,
+    scannedCount: 0,
+    invalidatedAt: '2026-10-23T10:15',
+    invalidateReason: '邀请配置调整，手动作废',
+    invalidatedBy: '系统管理员'
+  }
 ];
 
 export const INITIAL_FOLLOWERS: OfficialAccountFollower[] = [
@@ -1205,6 +1029,41 @@ export const buildOrgIdPath = (orgNodes: OrgNode[], orgId?: string) => {
   }
   return path;
 };
+
+/** 组织树根配额上限（与外部组织管理一致） */
+export const ORG_TREE_QUOTA_LIMIT = 500;
+
+/** 节点人员配额：本节点未设置时向上继承，最终回落根配额 */
+export const getOrgNodeCapacity = (orgNodes: OrgNode[], orgId?: string | null): number => {
+  if (!orgId) return ORG_TREE_QUOTA_LIMIT;
+  const node = getOrgById(orgNodes, orgId);
+  if (!node) return ORG_TREE_QUOTA_LIMIT;
+  return node.quota ?? getOrgNodeCapacity(orgNodes, node.parentId);
+};
+
+/** 各节点人数（含下级，挂到祖先链） */
+export const buildOrgHeadcount = (
+  orgNodes: OrgNode[],
+  personnel: Array<Pick<PersonnelItem, 'orgIds' | 'primaryOrgId' | 'recycled'>>
+): Record<string, number> => {
+  const acc: Record<string, number> = {};
+  for (const person of personnel) {
+    if (person.recycled) continue;
+    const personOrgId = getDeepestOrgId(orgNodes, person.orgIds, person.primaryOrgId);
+    if (!personOrgId) continue;
+    for (const id of buildOrgIdPath(orgNodes, personOrgId)) {
+      acc[id] = (acc[id] || 0) + 1;
+    }
+  }
+  return acc;
+};
+
+/** 组织节点剩余可用额度 */
+export const getOrgNodeRemainingSeats = (
+  orgNodes: OrgNode[],
+  orgHeadcount: Record<string, number>,
+  orgId: string
+) => Math.max(0, getOrgNodeCapacity(orgNodes, orgId) - (orgHeadcount[orgId] || 0));
 
 export const getOrgFullPath = (
   orgNodes: OrgNode[],

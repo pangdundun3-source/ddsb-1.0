@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react';
-import { NoticePerson, NoticeGroup } from '../types';
 import {
   Building2,
   Users,
@@ -11,7 +10,6 @@ import {
   Square,
   MinusSquare,
   Layers,
-  List,
   Tag
 } from 'lucide-react';
 import {
@@ -46,7 +44,6 @@ export const NoticeRecipientSelector: React.FC<NoticeRecipientSelectorProps> = (
 
   // Secondary operation states for Selected Personnel Module
   const [selectedKeyword, setSelectedKeyword] = useState('');
-  const [selectedViewMode, setSelectedViewMode] = useState<'list' | 'byOrg' | 'byGroup'>('list');
   const [batchSelectedIds, setBatchSelectedIds] = useState<Set<string>>(new Set());
 
   // Memoized selected personnel list
@@ -124,12 +121,6 @@ export const NoticeRecipientSelector: React.FC<NoticeRecipientSelectorProps> = (
     updatePersonnelSelection(allIds);
   };
 
-  const handleSelectDistricts = () => {
-    const districtOrgs = ['西屯区宣传部', '北屯区宣传部', '南屯区宣传部', '东湖区宣传处'];
-    const districtMemberIds = NOTICE_PERSONNEL.filter((p) => districtOrgs.includes(p.org)).map((p) => p.id);
-    updatePersonnelSelection(districtMemberIds);
-  };
-
   const handleClearAll = () => {
     onChange([], []);
     setBatchSelectedIds(new Set());
@@ -169,52 +160,9 @@ export const NoticeRecipientSelector: React.FC<NoticeRecipientSelectorProps> = (
     );
   }, [selectedPersonnelList, selectedKeyword]);
 
-  // Grouped by organization for the Selected module
-  const selectedByOrgMap = useMemo(() => {
-    const map: Record<string, NoticePerson[]> = {};
-    filteredSelectedList.forEach((person) => {
-      if (!map[person.org]) map[person.org] = [];
-      map[person.org].push(person);
-    });
-    return map;
-  }, [filteredSelectedList]);
-
-  // Grouped by group for the Selected module
-  const selectedByGroupMap = useMemo(() => {
-    const map: Record<string, NoticePerson[]> = {};
-    filteredSelectedList.forEach((person) => {
-      if (person.groups && person.groups.length > 0) {
-        person.groups.forEach((grp) => {
-          if (!map[grp]) map[grp] = [];
-          map[grp].push(person);
-        });
-      } else {
-        if (!map['其他人员']) map['其他人员'] = [];
-        map['其他人员'].push(person);
-      }
-    });
-    return map;
-  }, [filteredSelectedList]);
-
   // Secondary operation: Remove single person
   const handleRemoveSinglePerson = (personId: string) => {
     const next = targetPersonnelIds.filter((id) => id !== personId);
-    updatePersonnelSelection(next);
-  };
-
-  // Secondary operation: Remove all members of an organization
-  const handleRemoveOrgMembers = (orgName: string) => {
-    const orgMembers = getPersonnelByOrg(orgName);
-    const orgMemberIds = new Set(orgMembers.map((m) => m.id));
-    const next = targetPersonnelIds.filter((id) => !orgMemberIds.has(id));
-    updatePersonnelSelection(next);
-  };
-
-  // Secondary operation: Remove all members of a group
-  const handleRemoveGroupMembers = (groupName: string) => {
-    const groupMembers = getPersonnelByGroup(groupName);
-    const groupMemberIds = new Set(groupMembers.map((m) => m.id));
-    const next = targetPersonnelIds.filter((id) => !groupMemberIds.has(id));
     updatePersonnelSelection(next);
   };
 
@@ -303,23 +251,13 @@ export const NoticeRecipientSelector: React.FC<NoticeRecipientSelectorProps> = (
 
         {/* Quick Shortcuts */}
         <div className="flex items-center justify-between text-[11px] text-slate-500 px-0.5 pt-0.5">
-          <div className="flex items-center space-x-2">
-            <button
-              type="button"
-              onClick={handleSelectAll}
-              className="text-[#1E5ABB] hover:underline cursor-pointer font-bold"
-            >
-              全选所有条件
-            </button>
-            <span className="text-slate-200">|</span>
-            <button
-              type="button"
-              onClick={handleSelectDistricts}
-              className="text-[#1E5ABB] hover:underline cursor-pointer"
-            >
-              仅区县网信
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleSelectAll}
+            className="text-[#1E5ABB] hover:underline cursor-pointer font-bold"
+          >
+            全选所有条件
+          </button>
           <button
             type="button"
             onClick={handleClearAll}
@@ -496,55 +434,12 @@ export const NoticeRecipientSelector: React.FC<NoticeRecipientSelectorProps> = (
       {/* ========================================================================= */}
       <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-3.5">
         {/* Module 2 Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+        <div className="flex items-center border-b border-slate-100 pb-2.5">
           <div className="flex items-center space-x-2">
             <UserCheck className="w-4 h-4 text-emerald-600" />
             <h3 className="text-xs font-bold text-slate-800">
               已选中具体人员情况（{targetPersonnelIds.length}人）
             </h3>
-          </div>
-
-          {/* View Mode Toggle: List vs Grouped by Org vs Grouped by Group */}
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs shrink-0">
-            <button
-              type="button"
-              onClick={() => setSelectedViewMode('list')}
-              className={`px-2 py-0.5 rounded flex items-center space-x-1 cursor-pointer transition-all ${
-                selectedViewMode === 'list'
-                  ? 'bg-white text-slate-800 shadow-2xs font-bold'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-              title="人员清单明细"
-            >
-              <List className="w-3 h-3" />
-              <span className="text-[11px]">明细</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedViewMode('byOrg')}
-              className={`px-2 py-0.5 rounded flex items-center space-x-1 cursor-pointer transition-all ${
-                selectedViewMode === 'byOrg'
-                  ? 'bg-white text-slate-800 shadow-2xs font-bold'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-              title="按所属机构归集展示"
-            >
-              <Building2 className="w-3 h-3" />
-              <span className="text-[11px]">按机构</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedViewMode('byGroup')}
-              className={`px-2 py-0.5 rounded flex items-center space-x-1 cursor-pointer transition-all ${
-                selectedViewMode === 'byGroup'
-                  ? 'bg-white text-slate-800 shadow-2xs font-bold'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-              title="按关联群组归集展示"
-            >
-              <Users className="w-3 h-3" />
-              <span className="text-[11px]">按群组</span>
-            </button>
           </div>
         </div>
 
@@ -609,8 +504,7 @@ export const NoticeRecipientSelector: React.FC<NoticeRecipientSelectorProps> = (
             <div className="py-8 text-center text-xs text-slate-400">
               未找到匹配的已选人员，可尝试更换搜索关键词
             </div>
-          ) : selectedViewMode === 'list' ? (
-            /* ================= VIEW 1: FLAT LIST OF PERSONS ================= */
+          ) : (
             <div className="space-y-1.5">
               {filteredSelectedList.map((person) => {
                 const isBatchChecked = batchSelectedIds.has(person.id);
@@ -624,7 +518,6 @@ export const NoticeRecipientSelector: React.FC<NoticeRecipientSelectorProps> = (
                         : 'bg-slate-50/70 hover:bg-white border-slate-200/70 hover:shadow-2xs'
                     }`}
                   >
-                    {/* Checkbox, Avatar, Personal info */}
                     <div className="flex items-center space-x-2.5 min-w-0 flex-1">
                       <button
                         type="button"
@@ -652,7 +545,6 @@ export const NoticeRecipientSelector: React.FC<NoticeRecipientSelectorProps> = (
                           </span>
                         </div>
 
-                        {/* Org & Phone linkage labels */}
                         <div className="text-[10px] text-slate-500 truncate flex items-center space-x-1.5 mt-0.5">
                           <span className="truncate text-slate-600 font-medium">{person.org}</span>
                           <span className="text-slate-300">·</span>
@@ -661,7 +553,6 @@ export const NoticeRecipientSelector: React.FC<NoticeRecipientSelectorProps> = (
                       </div>
                     </div>
 
-                    {/* Secondary Actions: Remove Single (X) */}
                     <div className="flex items-center space-x-1 shrink-0 ml-2">
                       <button
                         type="button"
@@ -675,124 +566,6 @@ export const NoticeRecipientSelector: React.FC<NoticeRecipientSelectorProps> = (
                   </div>
                 );
               })}
-            </div>
-          ) : selectedViewMode === 'byOrg' ? (
-            /* ================= VIEW 2: GROUPED BY ORGANIZATION ================= */
-            <div className="space-y-2.5">
-              {(Object.entries(selectedByOrgMap) as [string, NoticePerson[]][]).map(
-                ([orgName, persons]) => (
-                  <div
-                    key={orgName}
-                    className="bg-slate-50 rounded-xl p-3 border border-slate-200/80 space-y-2"
-                  >
-                    <div className="flex items-center justify-between text-xs font-bold text-slate-800 border-b border-slate-200/60 pb-1.5">
-                      <div className="flex items-center space-x-1.5 truncate">
-                        <Building2 className="w-3.5 h-3.5 text-[#1E5ABB]" />
-                        <span className="truncate">{orgName}</span>
-                        <span className="text-[10px] text-slate-500 font-normal">
-                          （选出 {persons.length} 人）
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveOrgMembers(orgName)}
-                        className="text-[10px] text-rose-500 hover:text-rose-700 hover:underline cursor-pointer shrink-0"
-                      >
-                        移出此单位人员
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                      {persons.map((p) => {
-                        return (
-                          <div
-                            key={p.id}
-                            className="bg-white border border-slate-200/80 rounded-xl p-2 text-xs flex items-center justify-between shadow-2xs"
-                          >
-                            <div className="truncate min-w-0 pr-1">
-                              <div className="flex items-center space-x-1 truncate">
-                                <span className="font-bold text-slate-800">{p.name}</span>
-                                <span className="text-[10px] text-slate-400 font-normal">({p.role})</span>
-                              </div>
-                              <div className="text-[10px] text-slate-400 font-mono truncate">{p.phone}</div>
-                            </div>
-
-                            <div className="flex items-center space-x-1 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveSinglePerson(p.id)}
-                                className="text-slate-300 hover:text-rose-600 p-0.5 cursor-pointer"
-                                title="移出此人"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )
-              )}
-            </div>
-          ) : (
-            /* ================= VIEW 3: GROUPED BY SPECIAL WORK GROUP ================= */
-            <div className="space-y-2.5">
-              {(Object.entries(selectedByGroupMap) as [string, NoticePerson[]][]).map(
-                ([groupName, persons]) => (
-                  <div
-                    key={groupName}
-                    className="bg-slate-50 rounded-xl p-3 border border-slate-200/80 space-y-2"
-                  >
-                    <div className="flex items-center justify-between text-xs font-bold text-slate-800 border-b border-slate-200/60 pb-1.5">
-                      <div className="flex items-center space-x-1.5 truncate">
-                        <Users className="w-3.5 h-3.5 text-indigo-600" />
-                        <span className="truncate">{groupName}</span>
-                        <span className="text-[10px] text-slate-500 font-normal">
-                          （选出 {persons.length} 人）
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveGroupMembers(groupName)}
-                        className="text-[10px] text-rose-500 hover:text-rose-700 hover:underline cursor-pointer shrink-0"
-                      >
-                        移出此群组人员
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                      {persons.map((p) => {
-                        return (
-                          <div
-                            key={p.id}
-                            className="bg-white border border-slate-200/80 rounded-xl p-2 text-xs flex items-center justify-between shadow-2xs"
-                          >
-                            <div className="truncate min-w-0 pr-1">
-                              <div className="flex items-center space-x-1 truncate">
-                                <span className="font-bold text-slate-800">{p.name}</span>
-                                <span className="text-[10px] text-slate-400 font-normal">({p.role})</span>
-                              </div>
-                              <div className="text-[10px] text-slate-500 truncate">{p.org}</div>
-                            </div>
-
-                            <div className="flex items-center space-x-1 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveSinglePerson(p.id)}
-                                className="text-slate-300 hover:text-rose-600 p-0.5 cursor-pointer"
-                                title="移出此人"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )
-              )}
             </div>
           )}
         </div>

@@ -2,21 +2,26 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { AuditRecordItem, PageId, ReportItem } from '../types';
 import { Search, RotateCcw, X, AlertCircle, Database } from 'lucide-react';
 import { AddToWarehouseModal } from '../components/AddToWarehouseModal';
+import { TransferDirectiveModal } from '../components/TransferDirectiveModal';
 import { loadWarehouses, saveWarehouses, warehouseNowText, type WarehouseItem } from '../data/warehouses';
 import { addRecordsToWarehouses, isInWarehouse, resolveLibraryAssignments } from '../data/warehouseAssignments';
 import { PaginationBar } from '../components/PaginationBar';
 import { OrgPathDisplay, getOrganizationPathText } from '../components/OrgPathDisplay';
 import { IdentificationBadge } from '../components/IdentificationBadge';
-import { StackedDateTime } from '../components/StackedDateTime';
 import { DateRangeField } from '../components/DateRangeField';
 import { OrgFilterSelect } from '../components/OrgFilterSelect';
 import { INITIAL_ORG_NODES, matchOrganizationByFilter } from '../data/userOrgShared';
 import { resolveIdentification } from '../services/identificationService';
 
+/** 与数据仓库一致：除「已转办」外均视为待转办 */
+const getTransferStatus = (report?: ReportItem | null) =>
+  report?.auditStatus === '已转办' ? '已转办' : '待转办';
+
 interface AuditRecordsProps {
   records: AuditRecordItem[];
   allReports: ReportItem[];
   onSelectAuditRecord: (record: AuditRecordItem) => void;
+  onTransferSubmit?: (id: number, opinion: string) => void;
   onNavigate: (page: PageId) => void;
 }
 
@@ -24,6 +29,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
   records,
   allReports,
   onSelectAuditRecord,
+  onTransferSubmit,
   onNavigate
 }) => {
   const [keyword, setKeyword] = useState('');
@@ -31,10 +37,12 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
   const [endDate, setEndDate] = useState('');
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
   const [selectedIdent, setSelectedIdent] = useState('全部');
+  const [transferFilter, setTransferFilter] = useState<'全部' | '待转办' | '已转办'>('全部');
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>(loadWarehouses);
   const [assignmentVersion, setAssignmentVersion] = useState(0);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [joinTargets, setJoinTargets] = useState<AuditRecordItem[] | null>(null);
+  const [transferTarget, setTransferTarget] = useState<ReportItem | null>(null);
   const [notice, setNotice] = useState('');
 
   useEffect(() => {
@@ -86,6 +94,10 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
       const recDate = rec.auditTime.split(' ')[0];
       if (recDate > endDate) return false;
     }
+    if (transferFilter !== '全部') {
+      const reportMatch = allReports.find((r) => r.id === rec.reportId);
+      if (getTransferStatus(reportMatch) !== transferFilter) return false;
+    }
     return true;
   });
 
@@ -98,6 +110,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
     setEndDate('');
     setSelectedOrgId(null);
     setSelectedIdent('全部');
+    setTransferFilter('全部');
   };
 
   // Pagination (页码管理 + 每页条数设置)
@@ -106,7 +119,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [keyword, selectedOrgId, selectedIdent, startDate, endDate]);
+  }, [keyword, selectedOrgId, selectedIdent, transferFilter, startDate, endDate]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
@@ -160,10 +173,10 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
         </div>
       </div>
 
-      {/* Filter Card - 筛选项与操作同一行 */}
-      <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-2xs">
-        <div className="flex items-center gap-2.5 text-xs w-full min-w-0">
-          <div className="flex-1 min-w-0 max-w-[240px]">
+      {/* Filter Card - 空间不足时自动换行 */}
+      <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-2xs space-y-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+          <div className="flex-1 min-w-[200px] max-w-[320px]">
             <div className="relative">
               <input
                 type="text"
@@ -188,28 +201,30 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
           </div>
 
           <div className="flex items-center space-x-1.5 shrink-0">
-            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">审核时间</label>
+            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">采纳时间</label>
             <DateRangeField
               startValue={startDate}
               endValue={endDate}
               onStartChange={setStartDate}
               onEndChange={setEndDate}
-              title="审核时间区间"
-              startTitle="审核开始日期"
-              endTitle="审核结束日期"
+              title="采纳时间区间"
+              startTitle="采纳开始日期"
+              endTitle="采纳结束日期"
               inputClassName="w-[100px] flex-none"
             />
           </div>
 
           <div className="flex items-center space-x-1.5 shrink-0 min-w-0">
-            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">报送机构</label>
+            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">组织节点</label>
             <OrgFilterSelect
               value={selectedOrgId}
               onChange={setSelectedOrgId}
               triggerClassName="min-w-[120px] max-w-[150px]"
             />
           </div>
+        </div>
 
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
           <div className="flex items-center space-x-1.5 shrink-0">
             <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">标识</label>
             <select
@@ -220,6 +235,19 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
               <option value="全部">全部标识</option>
               <option value="首发">首发</option>
               <option value="重复">重复</option>
+            </select>
+          </div>
+
+          <div className="flex items-center space-x-1.5 shrink-0">
+            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">转办状态</label>
+            <select
+              value={transferFilter}
+              onChange={(e) => setTransferFilter(e.target.value as '全部' | '待转办' | '已转办')}
+              className="w-[100px] px-2.5 py-2 border border-gray-300 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 cursor-pointer"
+            >
+              <option value="全部">全部</option>
+              <option value="待转办">待转办</option>
+              <option value="已转办">已转办</option>
             </select>
           </div>
 
@@ -283,8 +311,10 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
             const rejectReasonText = item.rejectReason || reportMatch?.rejectReason || '信息不完整';
             const rejectDetailText = item.rejectDetail || reportMatch?.rejectDetail;
             const passed = item.auditResult === '已通过';
+            const transferStatus = getTransferStatus(reportMatch);
+            const transferPending = transferStatus === '待转办';
             const metaParts = [
-              { label: '上报人', person: submitterName, org: item.organization, time: submitTimeStr, fallbackOrg: undefined },
+              { label: '报送人', person: submitterName, org: item.organization, time: submitTimeStr, fallbackOrg: undefined },
               { label: '审核人', person: auditorName, org: auditorOrgStr, time: item.auditTime, fallbackOrg: '市委网信办' }
             ];
 
@@ -307,6 +337,13 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
                 <div className="flex-1 min-w-0 space-y-1">
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className={`shrink-0 px-1.5 py-px rounded text-[11px] font-medium ${
+                          transferPending ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'
+                        }`}
+                      >
+                        {transferStatus}
+                      </span>
                       <span
                         className={`shrink-0 px-1.5 py-px rounded text-[11px] font-medium ${
                           passed ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
@@ -336,6 +373,19 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
                       >
                         详情
                       </button>
+                      {reportMatch ? (
+                        <button
+                          type="button"
+                          onClick={() => setTransferTarget(reportMatch)}
+                          className={`hover:underline cursor-pointer ${
+                            transferPending
+                              ? 'text-[#1E5ABB] hover:text-[#184A9C] font-semibold'
+                              : 'text-sky-600 hover:text-sky-700'
+                          }`}
+                        >
+                          {transferPending ? '转办' : '再次转办'}
+                        </button>
+                      ) : null}
                       {joinable ? (
                         <button
                           type="button"
@@ -412,6 +462,18 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
           onWarehousesChange={persistWarehouses}
           onClose={() => setJoinTargets(null)}
           onConfirm={confirmJoin}
+        />
+      )}
+
+      {transferTarget && (
+        <TransferDirectiveModal
+          key={transferTarget.id}
+          report={transferTarget}
+          onClose={() => setTransferTarget(null)}
+          onSubmit={(opinion) => {
+            onTransferSubmit?.(transferTarget.id, opinion);
+            setTransferTarget(null);
+          }}
         />
       )}
 

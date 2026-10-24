@@ -10,8 +10,6 @@ import {
   Edit3,
   Trash2,
   Copy,
-  ChevronLeft,
-  ChevronRight,
   ArrowRight,
   Smartphone,
   Monitor,
@@ -633,7 +631,6 @@ const readStoredColumnWidths = (): { left: number; right: number } => {
   }
 };
 
-const TEMPLATE_PAGE_SIZE = 10;
 
 export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   institutionId,
@@ -753,7 +750,6 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   // Active top tab: 报送模板 vs 激活模板
   const [topTab] = useState<TemplateType>('报送');
   const [templateSearchKeyword, setTemplateSearchKeyword] = useState('');
-  const [templatePage, setTemplatePage] = useState(1);
   const [moreMenuId, setMoreMenuId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1021,19 +1017,10 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
       (t.description || '').toLowerCase().includes(normalizedTemplateKeyword)
     )
     .sort((a, b) => templateSortRank(a) - templateSortRank(b));
-  const templateTotalPages = Math.max(1, Math.ceil(visibleTemplates.length / TEMPLATE_PAGE_SIZE));
-  const safeTemplatePage = Math.min(templatePage, templateTotalPages);
-  const pagedTemplates = visibleTemplates.slice(
-    (safeTemplatePage - 1) * TEMPLATE_PAGE_SIZE,
-    safeTemplatePage * TEMPLATE_PAGE_SIZE
-  );
   const [presetTipClosed, setPresetTipClosed] = useState(false);
   const showPresetTip =
     isGlobalScope && !presetTipClosed && !currentCategoryTemplates.some(t => t.isPreset && t.status === '启用');
 
-  useEffect(() => {
-    setTemplatePage(prev => Math.min(prev, templateTotalPages));
-  }, [templateTotalPages]);
 
   // Auto ensure valid selectedTemplateId on topTab change
   useEffect(() => {
@@ -1603,7 +1590,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
           }`}
         >
           {isPc ? (
-            <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between gap-3 select-none">
+            <div className="px-5 py-3.5 border-b border-gray-100 flex items-center gap-3 select-none">
               <div className="min-w-0 flex items-center gap-2">
                 <span className="text-sm font-bold text-gray-800 truncate">{titleText}</span>
                 {onChangePcWidth && (
@@ -1612,9 +1599,6 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                   </span>
                 )}
               </div>
-              <span className="w-6 h-6 rounded flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
-                <X className="w-4 h-4" />
-              </span>
             </div>
           ) : (
             <div className="bg-[#1E5ABB] text-white py-3 px-4 text-center select-none shadow-xs">
@@ -2795,7 +2779,6 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                 value={templateSearchKeyword}
                 onChange={e => {
                   setTemplateSearchKeyword(e.target.value);
-                  setTemplatePage(1);
                 }}
                 placeholder="搜索模板名称或描述"
                 aria-label="搜索模板名称或描述"
@@ -2806,7 +2789,6 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                   type="button"
                   onClick={() => {
                     setTemplateSearchKeyword('');
-                    setTemplatePage(1);
                   }}
                   aria-label="清空模板搜索"
                   title="清空搜索"
@@ -2841,7 +2823,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                 {templateSearchKeyword.trim() ? '未找到匹配模板' : `暂无${topTab}模板`}
               </div>
             )}
-            {pagedTemplates.map(tpl => {
+            {visibleTemplates.map(tpl => {
               const isSelected = activeTemplate?.id === tpl.id;
               const isEnabled = tpl.status === '启用';
               const canDelete = isGlobalScope || !tpl.isDefault;
@@ -3016,32 +2998,6 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                 </div>
               );
             })}
-          </div>
-
-          <div className="px-2.5 py-2 border-t border-gray-100 bg-white flex items-center justify-between shrink-0">
-            <button
-              type="button"
-              onClick={() => setTemplatePage(prev => Math.max(1, prev - 1))}
-              disabled={safeTemplatePage <= 1}
-              aria-label="上一页"
-              title="上一页"
-              className="w-6 h-6 rounded-md border border-gray-200 flex items-center justify-center text-gray-500 hover:text-[#1890ff] hover:border-blue-200 hover:bg-blue-50 disabled:text-gray-300 disabled:border-gray-100 disabled:bg-gray-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-            </button>
-            <span className="text-[10px] font-mono text-gray-500 tabular-nums">
-              {safeTemplatePage} / {templateTotalPages}
-            </span>
-            <button
-              type="button"
-              onClick={() => setTemplatePage(prev => Math.min(templateTotalPages, prev + 1))}
-              disabled={safeTemplatePage >= templateTotalPages}
-              aria-label="下一页"
-              title="下一页"
-              className="w-6 h-6 rounded-md border border-gray-200 flex items-center justify-center text-gray-500 hover:text-[#1890ff] hover:border-blue-200 hover:bg-blue-50 disabled:text-gray-300 disabled:border-gray-100 disabled:bg-gray-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
-            >
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
           </div>
         </div>
 

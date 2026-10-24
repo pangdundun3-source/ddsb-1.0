@@ -150,7 +150,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
           </div>
 
           <div className="flex items-center space-x-1.5 shrink-0 min-w-0">
-            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">报送机构</label>
+            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">组织节点</label>
             <OrgFilterSelect
               value={selectedOrgId}
               onChange={setSelectedOrgId}
@@ -201,7 +201,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
                 ? '重复'
                 : '首发';
             const metaParts = [
-              { label: '上报人', person: submitterName, org: item.organization, time: submitTimeStr, fallbackOrg: undefined },
+              { label: '报送人', person: submitterName, org: item.organization, time: submitTimeStr, fallbackOrg: undefined },
               { label: '审核人', person: auditorName, org: auditorOrgStr, time: item.auditTime, fallbackOrg: '市委网信办' }
             ];
 

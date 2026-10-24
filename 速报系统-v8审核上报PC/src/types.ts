@@ -169,7 +169,9 @@ export interface ReportItem {
   infoType: string; // e.g. 突发事件, 舆情动态, 政策解读, 民生诉求, 网络谣言
   author: string; // e.g. 张三, 李四, 王五
   organization: string; // e.g. 台中市网信办, XX市委宣传部舆情科, 西坝区教育局
-  submitTime: string; // e.g. 2026-08-13 14:30
+  submitTime: string; // e.g. 2026-08-13 14:30 上报时间
+  /** 流转到当前审核人待办的提交时间；未填时可由时间轴推导 */
+  arrivedAt?: string;
   auditStatus: AuditStatus;
   auditStage?: AuditStage;
   score?: number | string; // e.g. 85, 95, '--'

@@ -38,8 +38,6 @@ import {
   Square,
   GripVertical,
   ArrowUpDown,
-  ChevronLeft,
-  ChevronRight,
   ChevronDown,
   Smartphone,
   Monitor,
@@ -76,9 +74,6 @@ export type FieldType =
   | 'email'
   | 'address'
   | 'identity';
-
-const CONFIG_LIST_PAGE_SIZE = 6;
-const TEMPLATE_LIST_PAGE_SIZE = 10;
 
 export type PcFieldWidth = 'full' | 'half';
 export type FieldControl = FieldType | 'textarea';
@@ -1129,7 +1124,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
   });
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [configListPage, setConfigListPage] = useState(1);
   const [templateTypeFilter] = useState<'报送' | '激活'>('报送');  const [auditFlowModeFilter, setAuditFlowModeFilter] = useState<'all' | 'step_by_step' | 'direct_headquarters' | 'max_n_steps'>('all');
   const [auditScoreStatusFilter, setAuditScoreStatusFilter] = useState<'all' | 'active' | 'backup'>('all');
   const [metricNameInput, setMetricNameInput] = useState('');
@@ -2765,52 +2759,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
             return categoryCompare || (a.sortOrder || 999) - (b.sortOrder || 999);
           })
         : filteredList;
-  const configPageSize = activeModule === 'report_template' ? TEMPLATE_LIST_PAGE_SIZE : CONFIG_LIST_PAGE_SIZE;
-  const configTotalPages = Math.max(1, Math.ceil(sortedConfigList.length / configPageSize));
-  const safeConfigListPage = Math.min(configListPage, configTotalPages);
-  const pagedConfigList = sortedConfigList.slice(
-    (safeConfigListPage - 1) * configPageSize,
-    safeConfigListPage * configPageSize
-  );
-
-  useEffect(() => {
-    setConfigListPage(1);
-  }, [activeModule, searchQuery, templateTypeFilter, dictSubCategoryFilter]);
-
-  useEffect(() => {
-    setConfigListPage(prev => Math.min(prev, configTotalPages));
-  }, [configTotalPages]);
-
-  const renderConfigListPagination = (variant: 'card' | 'directory' = 'card') => (
-    <div className={variant === 'directory'
-      ? 'px-2.5 py-2 border-t border-gray-100 bg-white flex items-center justify-between shrink-0'
-      : 'px-3 py-2.5 border border-gray-100 rounded-lg bg-gray-50/60 flex items-center justify-between shrink-0'
-    }>
-      <button
-        type="button"
-        onClick={() => setConfigListPage(prev => Math.max(1, prev - 1))}
-        disabled={safeConfigListPage <= 1}
-        aria-label="上一页"
-        title="上一页"
-        className="w-7 h-7 rounded-md border border-gray-200 bg-white flex items-center justify-center text-gray-500 hover:text-[#1E5ABB] hover:border-blue-200 hover:bg-blue-50 disabled:text-gray-300 disabled:border-gray-100 disabled:bg-gray-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
-      >
-        <ChevronLeft className="w-4 h-4" />
-      </button>
-      <span className="text-[11px] font-mono text-gray-500 tabular-nums">
-        {safeConfigListPage} / {configTotalPages}
-      </span>
-      <button
-        type="button"
-        onClick={() => setConfigListPage(prev => Math.min(configTotalPages, prev + 1))}
-        disabled={safeConfigListPage >= configTotalPages}
-        aria-label="下一页"
-        title="下一页"
-        className="w-7 h-7 rounded-md border border-gray-200 bg-white flex items-center justify-center text-gray-500 hover:text-[#1E5ABB] hover:border-blue-200 hover:bg-blue-50 disabled:text-gray-300 disabled:border-gray-100 disabled:bg-gray-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
-      >
-        <ChevronRight className="w-4 h-4" />
-      </button>
-    </div>
-  );
 
   const statsMetrics = (dataStore.stats_metric || []).filter(item => {
     if (metricCategoryFilter !== 'all' && item.metricCategory !== metricCategoryFilter) return false;
@@ -2863,7 +2811,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         }
       >
         {isPc ? (
-          <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between gap-3 select-none">
+          <div className="px-5 py-3.5 border-b border-gray-100 flex items-center gap-3 select-none">
             <div className="min-w-0 flex items-center gap-2">
               <span className="text-sm font-bold text-gray-800 truncate">{titleText}</span>
               {onChangePcWidth ? (
@@ -2876,9 +2824,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                 </span>
               )}
             </div>
-            <span className="w-6 h-6 rounded flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
-              <WinCloseIcon className="w-4 h-4" />
-            </span>
           </div>
         ) : (
           <div className="h-11 bg-[#1E5ABB] text-white flex items-center justify-center px-4 select-none">
@@ -4372,7 +4317,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                   onClick={() => {
                     setActiveModule(mod.id);
                     setSearchQuery('');
-                    setConfigListPage(1);
                     setIsTemplateDetailPageOpen(false);
                     if (onNavigatePage) {
                       onNavigatePage('business-config', mod.id);
@@ -4424,7 +4368,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                     value={searchQuery}
                     onChange={e => {
                       setSearchQuery(e.target.value);
-                      setConfigListPage(1);
                     }}
                     placeholder={
                       activeModule === 'data_dict'
@@ -4451,7 +4394,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                       type="button"
                       onClick={() => {
                         setSearchQuery('');
-                        setConfigListPage(1);
                       }}
                       aria-label="清空列表搜索"
                       title="清空搜索"
@@ -4706,7 +4648,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
               <div className="space-y-3">
                 {(() => {
                   const isRejectReasonView = dictSubCategoryFilter === 'reject_reason';
-                  const sortedDictList = [...pagedConfigList];
+                  const sortedDictList = [...sortedConfigList];
 
                   return (
                     <>
@@ -4740,7 +4682,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               return (
                                 <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
                                   <td className="py-3 px-4 align-middle text-center whitespace-nowrap text-gray-400 font-mono">
-                                    {(safeConfigListPage - 1) * CONFIG_LIST_PAGE_SIZE + index + 1}
+                                    {index + 1}
                                   </td>
                                   <td className="py-3 px-4 align-middle">
                                     <div className="flex items-center gap-2 min-w-0">
@@ -4820,7 +4762,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                         </tbody>
                         </table>
                       </div>
-                      {renderConfigListPagination()}
                     </>
                   );
                 })()}
@@ -4833,7 +4774,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {pagedConfigList.map(item => {
+                    {sortedConfigList.map(item => {
                       const isEnabled = item.status === '启用';
                       const levelCount = item.levelCount || (item.scoreLevels || []).length || 5;
                       const totalScore = item.totalScore ?? ((item.scoreLevels && item.scoreLevels[0]?.score) || 100);
@@ -4970,7 +4911,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                     })}
                   </div>
                 )}
-                {renderConfigListPagination()}
               </div>
             ) : activeModule === 'report_template' ? (
               isTemplateDetailPageOpen ? (
@@ -5456,7 +5396,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                   {(() => {
                     const activeSelectedTemplate =
                       filteredList.find(item => item.id === selectedTemplateId) ||
-                      pagedConfigList[0] ||
+                      sortedConfigList[0] ||
                       filteredList[0] ||
                       null;
 
@@ -5494,7 +5434,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                   value={searchQuery}
                                   onChange={e => {
                                     setSearchQuery(e.target.value);
-                                    setConfigListPage(1);
                                   }}
                                   placeholder="搜索模板名称或描述"
                                   aria-label="搜索模板名称或描述"
@@ -5505,7 +5444,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                     type="button"
                                     onClick={() => {
                                       setSearchQuery('');
-                                      setConfigListPage(1);
                                     }}
                                     aria-label="清空模板搜索"
                                     title="清空搜索"
@@ -5518,12 +5456,12 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                             </div>
 
                             <div className="p-3 space-y-2 bg-gray-50/20 flex-1 max-h-[750px] overflow-y-auto">
-                              {pagedConfigList.length === 0 && (
+                              {sortedConfigList.length === 0 && (
                                 <div className="py-8 text-center text-[11px] text-gray-400 border border-dashed border-gray-200 rounded-lg bg-white">
                                   暂无匹配的模板配置
                                 </div>
                               )}
-                              {pagedConfigList.map(item => {
+                              {sortedConfigList.map(item => {
                                 const isSelected = activeSelectedTemplate?.id === item.id;
                                 const isEnabled = item.status === '启用';
 
@@ -5677,7 +5615,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                 );
                               })}
                             </div>
-                            {renderConfigListPagination('directory')}
                           </div>
 
                           {/* Resize handle: left | center */}
@@ -5950,7 +5887,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {pagedConfigList.map(item => {
+                    {sortedConfigList.map(item => {
                       const isSelected = selectedAuditFlowId === item.id;
                       const isEnabled = item.status === '启用';
 
@@ -6091,7 +6028,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                     })}
                   </div>
                 )}
-                {renderConfigListPagination()}
               </div>
             ) : activeModule === 'value_added' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

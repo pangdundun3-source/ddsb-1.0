@@ -9,6 +9,28 @@ export const appendTimeline = (report: ReportItem, nodes: TimelineNode[]): Repor
   timeline: [...(report.timeline || []), ...nodes]
 });
 
+/** 流转到当前审核人待办的提交时间：优先 arrivedAt，否则取当前节点前最近一次完成节点时间 */
+export const getAuditArrivedAt = (report: ReportItem): string => {
+  if (report.arrivedAt) return report.arrivedAt;
+  const nodes = report.timeline || [];
+  const currentIdx = nodes.findIndex((node) => node.status === 'current');
+  if (currentIdx > 0) {
+    for (let i = currentIdx - 1; i >= 0; i -= 1) {
+      if (nodes[i].time) return nodes[i].time as string;
+    }
+  }
+  for (let i = nodes.length - 1; i >= 0; i -= 1) {
+    if (nodes[i].status === 'completed' && nodes[i].time) return nodes[i].time as string;
+  }
+  return report.submitTime;
+};
+
+/** 驳回时间：优先 auditTime，否则取时间轴最近一次驳回节点时间 */
+export const getRejectTime = (report: ReportItem): string =>
+  report.auditTime ||
+  [...(report.timeline || [])].reverse().find((node) => node.status === 'rejected' && node.time)?.time ||
+  '—';
+
 export const createSubmitNode = (
   report: ReportItem,
   time: string,

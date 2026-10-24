@@ -1,46 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import {
   AlertCircle,
-  Check,
   CheckCircle2,
   FileText,
   History,
-  Send,
   X,
 } from 'lucide-react';
 import { PageId, ReportItem } from '../types';
 import { ReportDetailCard } from '../components/ReportDetailCard';
 import { AuditFlowTimeline } from '../components/AuditFlowTimeline';
 import { getFinalAuditScore } from '../auditStage';
-import { TransferDirectiveModal } from '../components/TransferDirectiveModal';
 
 interface NegativeDetailProps {
   report: ReportItem | null;
-  onTransferSubmit: (id: number, opinion: string) => void;
   onNavigate: (page: PageId) => void;
   backPage?: PageId;
 }
 
 export const NegativeDetail: React.FC<NegativeDetailProps> = ({
   report,
-  onTransferSubmit,
   onNavigate,
   backPage = 'negative-info',
 }) => {
   const [activeTab, setActiveTab] = useState<'detail' | 'timeline'>('detail');
-  const [transferModalOpen, setTransferModalOpen] = useState(false);
-  const [locallyTransferred, setLocallyTransferred] = useState(false);
 
   // Esc key listener to close drawer
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !transferModalOpen) {
+      if (e.key === 'Escape') {
         onNavigate(backPage);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onNavigate, backPage, transferModalOpen]);
+  }, [onNavigate, backPage]);
 
   if (!report) {
     return (
@@ -58,7 +51,7 @@ export const NegativeDetail: React.FC<NegativeDetailProps> = ({
     );
   }
 
-  const isTransferred = locallyTransferred || report.auditStatus === '已转办';
+  const isTransferred = report.auditStatus === '已转办';
   const transferStatus: '待转办' | '已转办' = isTransferred ? '已转办' : '待转办';
 
   // 不良信息库内的记录已完成审核采纳：状态只需体现“是否已完成转办”
@@ -172,7 +165,7 @@ export const NegativeDetail: React.FC<NegativeDetailProps> = ({
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                 <div>
                   <p className="font-bold text-gray-900">当前状态：待转办</p>
-                  <p className="text-gray-500 text-[11px]">确认信息无误后可直接转办至责任单位处置</p>
+                  <p className="text-gray-500 text-[11px]">可在审核管理 · 审核记录中发起转办</p>
                 </div>
               </div>
             )}
@@ -186,32 +179,9 @@ export const NegativeDetail: React.FC<NegativeDetailProps> = ({
             >
               关闭
             </button>
-
-            <button
-              type="button"
-              onClick={() => setTransferModalOpen(true)}
-              className="px-5 py-2 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg text-xs font-bold shadow-sm flex items-center space-x-1.5 transition-colors cursor-pointer"
-            >
-              <Send className="w-3.5 h-3.5" />
-              <span>{isTransferred ? '再次转办' : '确认转办'}</span>
-            </button>
           </div>
         </div>
       </div>
-
-      {/* Transfer Confirm Modal */}
-      {transferModalOpen && (
-        <TransferDirectiveModal
-          key={report.id}
-          report={report}
-          onClose={() => setTransferModalOpen(false)}
-          onSubmit={(opinion) => {
-            onTransferSubmit(report.id, opinion);
-            setLocallyTransferred(true);
-            setTransferModalOpen(false);
-          }}
-        />
-      )}
     </div>
   );
 };

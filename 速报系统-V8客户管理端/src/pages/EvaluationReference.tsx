@@ -607,7 +607,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-xs">
               <Trophy className="h-5 w-5" />
             </span>
-            <h1 className="truncate text-base font-bold text-slate-900">考核管理与综合绩效评定</h1>
+              <h1 className="truncate text-base font-bold text-slate-900">考核管理与综合绩效评定</h1>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -634,79 +634,79 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
         </div>
 
         {/* 筛选栏（两个页签共用） */}
-        <div className="flex flex-wrap items-center gap-2.5 pt-3">
-          <div className="flex items-center rounded-2xl border border-[#E4EDF7] bg-[#F0F5FA] p-1 text-xs">
-            <span className="flex items-center gap-1 pl-2.5 pr-1.5 text-slate-500 select-none">
-              <Clock className="h-3.5 w-3.5 text-[#2F74FF]" />
-              <span>统计周期:</span>
-            </span>
-            {[
-              ['day', '日(今日)'],
-              ['week', '周(本周)'],
-              ['month', '月(本月)'],
-              ['quarter', '季度'],
-              ['year', '年度'],
-              ['custom', '自定义'],
-            ].map(([key, label]) => {
-              const active = period === key;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => handlePeriodChange(key as Period)}
-                  className={`rounded-xl px-3 py-1 text-xs transition-all ${
+          <div className="flex flex-wrap items-center gap-2.5 pt-3">
+            <div className="flex items-center rounded-2xl border border-[#E4EDF7] bg-[#F0F5FA] p-1 text-xs">
+              <span className="flex items-center gap-1 pl-2.5 pr-1.5 text-slate-500 select-none">
+                <Clock className="h-3.5 w-3.5 text-[#2F74FF]" />
+                <span>统计周期:</span>
+              </span>
+              {[
+                ['day', '日(今日)'],
+                ['week', '周(本周)'],
+                ['month', '月(本月)'],
+                ['quarter', '季度'],
+                ['year', '年度'],
+                ['custom', '自定义'],
+              ].map(([key, label]) => {
+                const active = period === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => handlePeriodChange(key as Period)}
+                    className={`rounded-xl px-3 py-1 text-xs transition-all ${
                     active ? 'bg-white font-semibold text-[#1B5BD6] shadow-xs' : 'text-slate-700 hover:text-slate-900'
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
 
           <DateRangeField
             startValue={startDate.replaceAll('/', '-')}
             endValue={endDate.replaceAll('/', '-')}
             onStartChange={(value) => {
               setStartDate(value.replaceAll('-', '/'));
-              setPeriod('custom');
-            }}
+                  setPeriod('custom');
+                }}
             onEndChange={(value) => {
               setEndDate(value.replaceAll('-', '/'));
-              setPeriod('custom');
-            }}
+                  setPeriod('custom');
+                }}
             title="考核时间区间"
             startTitle="选择开始日期"
             endTitle="选择结束日期"
             inputClassName="w-24 flex-none font-mono text-[11px]"
-          />
+              />
 
-          <div className="relative flex items-center">
-            <select
+            <div className="relative flex items-center">
+              <select
               aria-label="机构范围"
               value={orgFilter}
               onChange={(e) => setOrgFilter(e.target.value)}
-              className="appearance-none cursor-pointer rounded-2xl border border-blue-200 bg-white pl-3.5 pr-8 py-1.5 text-xs font-semibold text-[#1D58C9] outline-none shadow-xs"
-            >
+                className="appearance-none cursor-pointer rounded-2xl border border-blue-200 bg-white pl-3.5 pr-8 py-1.5 text-xs font-semibold text-[#1D58C9] outline-none shadow-xs"
+              >
               <option value="">机构范围: 全部机构 ({orgRecords.length}家)</option>
               {orgRecords.map((o) => (
                 <option key={o.name} value={o.name}>
                   机构范围: {o.name}
                 </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-[#1D58C9]" />
-          </div>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-[#1D58C9]" />
+            </div>
 
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-xs transition hover:text-slate-800"
-            title="重置筛选"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-xs transition hover:text-slate-800"
+              title="重置筛选"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+            </button>
+          </div>
       </section>
 
       {tab === 'org' ? (
@@ -879,7 +879,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                           title={`点击按${label}排序`}
                         >
                           {label} {active && (orgSort === 'firstCount' ? '(首发)↓' : arrow)}
-                        </th>
+                    </th>
                       );
                     })}
                   </tr>
@@ -1044,9 +1044,9 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                   subDetail={
                     <div>
                       <span className="font-medium text-[#08B889]">首发 {reporterStats.first.toLocaleString()}</span>
-                      <span className="mx-1 text-slate-300">/</span>
+                        <span className="mx-1 text-slate-300">/</span>
                       <span className="font-medium text-[#2F74FF]">重复 {reporterStats.repeat.toLocaleString()}</span>
-                    </div>
+                      </div>
                   }
                   footerLeft="首发占比"
                   footerRight={`${reporterStats.adopted ? round1((reporterStats.first / reporterStats.adopted) * 100) : 0}%`}
@@ -1062,7 +1062,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                   subDetail={
                     <span className="font-mono text-xs text-slate-500">
                       通过 {reporterStats.direct.toLocaleString()} / {reporterStats.total.toLocaleString()} 件
-                    </span>
+                      </span>
                   }
                   footerLeft="按报送件数加权"
                   footerRight="全员平均"
@@ -1078,7 +1078,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                   subDetail={
                     <span className="font-mono text-xs text-slate-500">
                       通过 {reporterStats.adopted.toLocaleString()} / {reporterStats.total.toLocaleString()} 件
-                    </span>
+                      </span>
                   }
                   footerLeft="按报送件数加权"
                   footerRight="全员平均"
@@ -1102,7 +1102,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                   footerLeft="全员单条均分"
                   footerRight="全员平均"
                 />
-              </div>
+                    </div>
             ) : (
               <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
                 <GlobalKpiCard
@@ -1131,9 +1131,9 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                   subDetail={
                     <div>
                       <span className="font-medium text-[#08B889]">通过 {auditorStats.passed.toLocaleString()}</span>
-                      <span className="mx-1 text-slate-300">/</span>
+                        <span className="mx-1 text-slate-300">/</span>
                       <span className="font-medium text-[#E11D48]">驳回 {auditorStats.rejected.toLocaleString()}</span>
-                    </div>
+                      </div>
                   }
                   footerLeft="驳回占比"
                   footerRight={`${auditorStats.audited ? round1((auditorStats.rejected / auditorStats.audited) * 100) : 0}%`}
@@ -1150,7 +1150,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                   subDetail={
                     <span className="font-mono text-xs text-slate-500">
                       已办 {auditorStats.audited.toLocaleString()} / {auditorStats.reported.toLocaleString()} 件
-                    </span>
+                      </span>
                   }
                   footerLeft="按待审件数加权"
                   footerRight="全员平均"
@@ -1174,7 +1174,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                   footerLeft="派发至审核完成"
                   footerRight="全员平均"
                 />
-              </div>
+                    </div>
             )}
           </section>
 
@@ -1266,46 +1266,46 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                             <div className="flex flex-col items-center">
                               <RankBadge rank={row.rank} />
                               <span className={`mt-1 text-[10px] font-medium ${rankChangeClass(row.rankChange)}`}>{row.rankChange}</span>
-                            </div>
-                          </td>
+                          </div>
+                        </td>
                           <td className="px-3 py-3.5">
-                            <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5">
                               <span className="text-xs font-bold text-slate-900">{row.name}</span>
                               {row.rank === 1 && (
                                 <span className="rounded bg-[#FFF4E5] px-1.5 py-0.5 text-[10px] font-semibold text-[#ED7B11]">领跑者</span>
-                              )}
-                            </div>
-                            <div className="mt-0.5 text-[11px] text-slate-400">{row.org}</div>
-                          </td>
+                            )}
+                          </div>
+                          <div className="mt-0.5 text-[11px] text-slate-400">{row.org}</div>
+                        </td>
                           <td className="px-3 py-3.5 text-center">
                             <div className="font-mono text-xs font-bold text-[#08B889]">{row.adoptedCount} 件</div>
-                            <div className="mt-0.5 text-[11px]">
-                              <span className="font-medium text-[#08B889]">首发 {row.firstCount}</span>
-                              <span className="mx-1 text-slate-300">/</span>
-                              <span className="font-medium text-[#2F74FF]">重复 {row.repeatCount}</span>
-                            </div>
-                          </td>
+                          <div className="mt-0.5 text-[11px]">
+                            <span className="font-medium text-[#08B889]">首发 {row.firstCount}</span>
+                            <span className="mx-1 text-slate-300">/</span>
+                            <span className="font-medium text-[#2F74FF]">重复 {row.repeatCount}</span>
+                          </div>
+                        </td>
                           <td className="px-3 py-3.5 text-center">
                             <div className="font-mono text-xs font-bold text-[#08B889]">{row.directRate}%</div>
-                            <div className="mt-0.5 font-mono text-[11px] text-slate-400">
+                          <div className="mt-0.5 font-mono text-[11px] text-slate-400">
                               通过 {row.directCount}/{row.total} 件
-                            </div>
-                          </td>
+                          </div>
+                        </td>
                           <td className="px-3 py-3.5 text-center">
                             <div className="font-mono text-xs font-bold text-[#2F74FF]">{row.passRate}%</div>
-                            <div className="mt-0.5 font-mono text-[11px] text-slate-400">
+                          <div className="mt-0.5 font-mono text-[11px] text-slate-400">
                               通过 {row.adoptedCount}/{row.total} 件
-                            </div>
-                          </td>
+                          </div>
+                        </td>
                           <td className="px-3 py-3.5 text-center">
                             <div className="font-mono text-xs font-bold text-[#ED7B11]">{row.score.toLocaleString()} 分</div>
                             <div className="mt-0.5 text-[11px] text-slate-400">累加得分</div>
-                          </td>
+                        </td>
                           <td className="px-3 py-3.5 text-center">
                             <div className="font-mono text-xs font-bold text-[#8C3BE0]">{row.avgScore} 分</div>
                             <div className="mt-0.5 text-[11px] text-slate-400">每条均分</div>
-                          </td>
-                        </tr>
+                        </td>
+                      </tr>
                       ))
                     )}
                   </tbody>
@@ -1333,30 +1333,30 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                             <div className="flex flex-col items-center">
                               <RankBadge rank={row.rank} />
                               <span className={`mt-1 text-[10px] font-medium ${rankChangeClass(row.rankChange)}`}>{row.rankChange}</span>
-                            </div>
-                          </td>
+                          </div>
+                        </td>
                           <td className="px-3 py-3.5">
                             <div className="text-xs font-bold text-slate-900">{row.name}</div>
-                            <div className="mt-0.5 text-[11px] text-slate-400">{row.org}</div>
-                          </td>
+                          <div className="mt-0.5 text-[11px] text-slate-400">{row.org}</div>
+                        </td>
                           <td className="px-3 py-3.5 text-center">
                             <div className="font-mono text-xs font-bold text-slate-800">{row.totalAudited} 件</div>
-                            <div className="mt-0.5 text-[11px]">
-                              <span className="font-medium text-[#08B889]">通过 {row.passedCount}</span>
-                              <span className="mx-1 text-slate-300">/</span>
-                              <span className="font-medium text-[#E11D48]">驳回 {row.rejectedCount}</span>
-                            </div>
-                          </td>
+                          <div className="mt-0.5 text-[11px]">
+                            <span className="font-medium text-[#08B889]">通过 {row.passedCount}</span>
+                            <span className="mx-1 text-slate-300">/</span>
+                            <span className="font-medium text-[#E11D48]">驳回 {row.rejectedCount}</span>
+                          </div>
+                        </td>
                           <td className="px-3 py-3.5 text-center">
                             <div className="font-mono text-xs font-bold text-[#08B889]">{row.auditProcessRate}%</div>
-                            <div className="mt-0.5 font-mono text-[11px] text-slate-400">
+                          <div className="mt-0.5 font-mono text-[11px] text-slate-400">
                               已办 {row.totalAudited} / 待审 {row.reportedCount} 件
-                            </div>
-                          </td>
+                          </div>
+                        </td>
                           <td className="px-3 py-3.5 text-center">
                             <div className="font-mono text-xs font-bold text-[#8C3BE0]">{row.avgResponseMin} 分钟</div>
-                          </td>
-                        </tr>
+                        </td>
+                      </tr>
                       ))
                     )}
                   </tbody>

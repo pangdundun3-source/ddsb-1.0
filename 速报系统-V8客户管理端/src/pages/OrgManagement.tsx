@@ -460,11 +460,18 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
     setAddingOrgName('');
   };
 
+  const isOrgNameDuplicated = (name: string, excludeId?: string) =>
+    orgNodes.some((node) => node.id !== excludeId && node.name.trim() === name);
+
   const confirmAddOrg = () => {
     const name = addingOrgName.trim();
     if (!addingOrgTarget) return;
     if (!name) {
       cancelAddOrg();
+      return;
+    }
+    if (isOrgNameDuplicated(name)) {
+      triggerToast('组织节点名称已存在，请更换名称');
       return;
     }
     const parentOrg = addingOrgTarget.parentId
@@ -486,7 +493,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
     setSelectedOrgId(newOrgId);
     setIsRootSelected(false);
     cancelAddOrg();
-    triggerToast(`已新增机构『${name}』`);
+    triggerToast(`已新增组织节点『${name}』`);
   };
 
   const renderInlineOrgInput = () => (
@@ -505,7 +512,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
             cancelAddOrg();
           }
         }}
-        placeholder="输入机构名称，回车保存"
+        placeholder="输入组织节点名称，回车保存"
         className="flex-1 min-w-0 px-2 py-1 text-xs border border-[#1E5ABB] rounded bg-white text-gray-800 font-normal focus:outline-none"
       />
       <button
@@ -554,6 +561,10 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
       cancelRenameOrg();
       return;
     }
+    if (isOrgNameDuplicated(name, node.id)) {
+      triggerToast('组织节点名称已存在，请更换名称');
+      return;
+    }
     setOrgNodes((prev) => prev.map((item) => (item.id === node.id ? { ...item, name } : item)));
     cancelRenameOrg();
     triggerToast(`已将『${node.name}』重命名为『${name}』`);
@@ -576,7 +587,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
             cancelRenameOrg();
           }
         }}
-        placeholder="输入机构名称，回车保存"
+        placeholder="输入组织节点名称，回车保存"
         className="flex-1 min-w-0 px-2 py-0.5 text-xs border border-[#1E5ABB] rounded bg-white text-gray-800 font-normal focus:outline-none"
       />
       <button
@@ -877,8 +888,8 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
     const totalToDelete = [node.id, ...descendantIds];
 
     const msg = descendantIds.length > 0
-      ? `确定要删除机构节点『${node.name}』及其下的 ${descendantIds.length} 个子机构吗？`
-      : `确定要删除机构节点『${node.name}』吗？`;
+      ? `确定要删除组织节点『${node.name}』及其下的 ${descendantIds.length} 个子节点吗？`
+      : `确定要删除组织节点『${node.name}』吗？`;
 
     if (confirm(msg)) {
       setOrgNodes((prev) => prev.filter((o) => !totalToDelete.includes(o.id)));
@@ -902,7 +913,12 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
     e.preventDefault();
     const parentOrg = orgParentIdInput ? orgNodes.find((node) => node.id === orgParentIdInput) : undefined;
     const nextCategoryId = parentOrg?.categoryId || orgCategoryIdInput || categories[0]?.id;
-    if (!orgNameInput.trim() || !nextCategoryId) return;
+    const nextName = orgNameInput.trim();
+    if (!nextName || !nextCategoryId) return;
+    if (isOrgNameDuplicated(nextName, editingOrgNode?.id)) {
+      triggerToast('组织节点名称已存在，请更换名称');
+      return;
+    }
 
     const selectedLeaderPerson = orgLeaderPersonIdInput
       ? personnelList.find((person) => person.id === orgLeaderPersonIdInput)
@@ -919,7 +935,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
           o.id === editingOrgNode.id
             ? {
                 ...o,
-                name: orgNameInput.trim(),
+                name: nextName,
                 categoryId: nextCategoryId,
                 parentId: nextParentId,
                 code: orgCodeInput.trim(),
@@ -938,7 +954,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
         id: newOrgId,
         categoryId: nextCategoryId,
         parentId: orgParentIdInput || null,
-        name: orgNameInput.trim(),
+        name: nextName,
         code: orgCodeInput.trim() || `ORG-${Math.floor(100000 + Math.random() * 900000)}`,
         sortOrder: getDefaultOrgSortOrder(orgParentIdInput || null),
         allowSubOrgCreation: orgAllowSubOrgCreationInput,
@@ -1547,17 +1563,15 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
     if (!quotaUnlimited) {
       const value = Number(quotaInput);
       const used = orgHeadcount[node.id] || 0;
-      const childAllocated = getAllocatedQuota(node.id);
-      const available = getNodeCapacity(node.parentId) - getAllocatedQuota(node.parentId ?? null, node.id);
-      const message = !Number.isInteger(value) || value < 1
-        ? '请输入大于 0 的整数配额'
-        : value < used
-          ? `配额不能少于本节点及下级已有人数（${used} 人）`
-          : value < childAllocated
-            ? `配额不能少于下级节点已分配的配额（${childAllocated} 人）`
-            : value > available
-              ? `超出可分配配额，${node.parentId ? '上级节点' : '根节点'}剩余可分配 ${Math.max(0, available)} 人`
-              : '';
+      const minQuota = used;
+      const maxQuota = EXTERNAL_QUOTA_LIMIT;
+      const message = !Number.isInteger(value)
+        ? '请输入整数配额'
+        : value < minQuota
+          ? `配额不能少于已邀请用户数（${minQuota} 人）`
+          : value > maxQuota
+            ? `配额不能超过平台最大额度（${maxQuota} 人）`
+            : '';
       if (message) {
         triggerToast(message);
         return;
@@ -1799,21 +1813,21 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                   <button
                     type="button"
                     onClick={(e) => startAddOrg(node.id, node.categoryId, e)}
-                    title="添加下级子机构"
+                    title="添加子节点"
                     className="p-0.5 hover:bg-blue-100 text-blue-700 rounded cursor-pointer"
                   >
                     <Plus className="w-3 h-3" />
                   </button>
                   <button
                     onClick={(e) => startRenameOrg(node, e)}
-                    title="重命名此机构节点"
+                    title="重命名此组织节点"
                     className="p-0.5 hover:bg-gray-200 text-gray-600 rounded cursor-pointer"
                   >
                     <Edit3 className="w-3 h-3" />
                   </button>
                   <button
                     onClick={(e) => handleDeleteOrgNode(node, e)}
-                    title="删除此机构节点"
+                    title="删除此组织节点"
                     className="p-0.5 hover:bg-rose-100 text-rose-600 rounded cursor-pointer"
                   >
                     <Trash2 className="w-3 h-3" />
@@ -1859,9 +1873,21 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                 type="text"
                 value={treeSearch}
                 onChange={(e) => setTreeSearch(e.target.value)}
-                placeholder="搜索各级机构..."
-                className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-gray-50/50"
+                placeholder="搜索组织节点"
+                className={`w-full pl-8 py-1.5 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-gray-50/50 ${
+                  treeSearch ? 'pr-7' : 'pr-3'
+                }`}
               />
+              {treeSearch && (
+                <button
+                  type="button"
+                  onClick={() => setTreeSearch('')}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex items-center justify-center cursor-pointer"
+                  title="清除"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
             </div>
             <div className="flex items-center space-x-1.5 shrink-0">
               <button
@@ -1931,8 +1957,8 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                 className={`ml-1 p-0.5 rounded text-blue-700 hover:bg-blue-100 cursor-pointer shrink-0 transition-opacity ${
                   isRootSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                 }`}
-                title="新增一级机构"
-                aria-label="新增一级机构"
+                title="新增一级组织节点"
+                aria-label="新增一级组织节点"
               >
                 <Plus className="w-3 h-3" />
               </button>
@@ -1942,7 +1968,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
               {orgNodes.some((o) => !o.parentId) || addingOrgTarget?.parentId === null ? (
                 renderOrgTreeNodes(null, 0)
               ) : (
-                <div className="py-1 pl-2 text-[11px] text-gray-400 italic">尚无机构</div>
+                <div className="py-1 pl-2 text-[11px] text-gray-400 italic">尚无组织节点</div>
               )}
             </div>
           </div>
@@ -2339,11 +2365,15 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
         const node = orgNodes.find((item) => item.id === quotaModalOrgId);
         if (!node) return null;
         const used = orgHeadcount[node.id] || 0;
-        const childAllocated = getAllocatedQuota(node.id);
         const parentCapacity = getNodeCapacity(node.parentId);
-        const available = Math.max(0, parentCapacity - getAllocatedQuota(node.parentId ?? null, node.id));
-        const minQuota = Math.max(used, childAllocated, 1);
-        const parentName = node.parentId ? orgNodes.find((item) => item.id === node.parentId)?.name : '根节点';
+        const minQuota = used;
+        const maxQuota = EXTERNAL_QUOTA_LIMIT;
+        const clampQuotaInput = (raw: string) => {
+          if (raw === '') return '';
+          const value = Number(raw);
+          if (!Number.isFinite(value)) return String(minQuota);
+          return String(Math.min(maxQuota, Math.max(minQuota, Math.round(value))));
+        };
         return (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setQuotaModalOrgId(null)}>
             <div className="bg-white rounded-xl shadow-xl w-full max-w-lg text-xs" onClick={(event) => event.stopPropagation()}>
@@ -2366,11 +2396,10 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                 </button>
               </div>
               <div className="px-5 py-4 space-y-4">
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   {[
-                    { label: '本节点及下级人数', value: used, tone: 'text-gray-800' },
-                    { label: '下级已分配配额', value: childAllocated, tone: 'text-gray-800' },
-                    { label: `${parentName}可分配`, value: available, tone: 'text-[#1E5ABB]' },
+                    { label: '已邀请用户数', value: used, tone: 'text-gray-800' },
+                    { label: '平台最大额度', value: maxQuota, tone: 'text-[#1E5ABB]' },
                   ].map((stat) => (
                     <div key={stat.label} className="rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-2">
                       <div className="text-[11px] text-gray-400 truncate" title={stat.label}>{stat.label}</div>
@@ -2398,7 +2427,11 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                       checked={!quotaUnlimited}
                       onChange={() => {
                         setQuotaUnlimited(false);
-                        if (!quotaInput) setQuotaInput(String(Math.min(available, Math.max(minQuota, 10))));
+                        if (!quotaInput) {
+                          setQuotaInput(String(Math.min(maxQuota, Math.max(minQuota, 10))));
+                        } else {
+                          setQuotaInput(clampQuotaInput(quotaInput));
+                        }
                       }}
                       className="accent-[#1E5ABB]"
                     />
@@ -2410,15 +2443,16 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                         <input
                           type="number"
                           min={minQuota}
-                          max={available}
+                          max={maxQuota}
                           value={quotaInput}
                           onChange={(event) => setQuotaInput(event.target.value)}
+                          onBlur={() => setQuotaInput((prev) => clampQuotaInput(prev))}
                           className="w-32 px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] font-mono"
                         />
                         <span className="text-gray-500">人</span>
                       </div>
                       <div className="text-[11px] text-gray-400">
-                        可设置范围 {minQuota} ~ {available} 人；配额包含下级节点人员，总量受根节点配额 {EXTERNAL_QUOTA_LIMIT} 人控制
+                        可设置范围 {minQuota} ~ {maxQuota} 人（已邀请用户数 ~ 平台最大额度），不可超出该范围
                       </div>
                     </div>
                   )}
@@ -2449,9 +2483,11 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
         <InviteUserModal
           key={inviteTarget.orgId || 'root'}
           orgNodes={orgNodes}
+          groups={groups}
           inviteCodes={inviteCodes}
           setInviteCodes={setInviteCodes}
           activatedCount={personnelList.filter((person) => !person.recycled).length}
+          personnelList={personnelList}
           initialOrgId={inviteTarget.orgId}
           onClose={() => setInviteTarget(null)}
           onToast={triggerToast}

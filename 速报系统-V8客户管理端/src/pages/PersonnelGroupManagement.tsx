@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, Plus, Users, UserPlus, Pencil, Trash2, X, Building2, Circle, ArrowUpDown, RotateCcw } from 'lucide-react';
+import { Search, Plus, Users, UserPlus, Pencil, Trash2, X, Check, Building2, Circle, ArrowUpDown, RotateCcw } from 'lucide-react';
 import type { PersonnelItem } from './OrgManagement';
 import {
   ACCOUNT_ROLE_OPTIONS,
@@ -36,20 +36,16 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
   const [memberPage, setMemberPage] = useState(1);
   const [memberPageSize, setMemberPageSize] = useState(10);
   const [toast, setToast] = useState('');
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [editingGroup, setEditingGroup] = useState<PersonnelGroup | null>(null);
   const [isAddingGroup, setIsAddingGroup] = useState(false);
   const [inlineGroupName, setInlineGroupName] = useState('');
+  const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
+  const [renamingGroupName, setRenamingGroupName] = useState('');
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [orgFilter, setOrgFilter] = useState('all');
   const [pickedIds, setPickedIds] = useState<number[]>([]);
-  const [revealedPhoneIds, setRevealedPhoneIds] = useState<number[]>([]);
   const [selectedMemberIds, setSelectedMemberIds] = useState<number[]>([]);
   const [changeGroupTargets, setChangeGroupTargets] = useState<PersonnelItem[] | null>(null);
   const [changeGroupTo, setChangeGroupTo] = useState('');
-
-  const [gName, setGName] = useState('');
-  const [gDesc, setGDesc] = useState('');
   const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null);
   const [dropHint, setDropHint] = useState<{ id: string; position: 'before' | 'after' } | null>(null);
   const groupDragMovedRef = useRef(false);
@@ -136,44 +132,54 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
     return true;
   };
 
-  const openCreate = () => {
-    if (createGroupByName(groupSearch)) {
-      setGroupSearch('');
-      return;
-    }
-    setIsAddingGroup(true);
+  const cancelAddGroup = () => {
+    setIsAddingGroup(false);
     setInlineGroupName('');
   };
 
+  const openCreate = () => {
+    cancelRenameGroup();
+    setIsAddingGroup(true);
+    setInlineGroupName(groupSearch.trim());
+  };
+
   const confirmInlineGroup = () => {
-    if (createGroupByName(inlineGroupName) || !inlineGroupName.trim()) {
-      setIsAddingGroup(false);
-      setInlineGroupName('');
+    const name = inlineGroupName.trim();
+    if (!name) {
+      cancelAddGroup();
+      return;
+    }
+    if (createGroupByName(name)) {
+      cancelAddGroup();
+      setGroupSearch('');
     }
   };
 
-  const openEdit = (group: PersonnelGroup) => {
-    setEditingGroup(group);
-    setGName(group.name);
-    setGDesc(group.description);
-    setIsCreateOpen(true);
+  const startRenameGroup = (group: PersonnelGroup) => {
+    cancelAddGroup();
+    setRenamingGroupId(group.id);
+    setRenamingGroupName(group.name);
   };
 
-  const handleSaveGroup = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!gName.trim()) return;
+  const cancelRenameGroup = () => {
+    setRenamingGroupId(null);
+    setRenamingGroupName('');
+  };
 
-    if (editingGroup) {
-      setGroups((prev) =>
-        prev.map((group) =>
-          group.id === editingGroup.id
-            ? { ...group, name: gName.trim(), description: gDesc.trim() }
-            : group
-        )
-      );
-      triggerToast(`已保存分组【${gName.trim()}】`);
+  const confirmRenameGroup = () => {
+    const name = renamingGroupName.trim();
+    const group = groups.find((item) => item.id === renamingGroupId);
+    if (!group || !name || name === group.name) {
+      cancelRenameGroup();
+      return;
     }
-    setIsCreateOpen(false);
+    if (groups.some((item) => item.id !== group.id && item.name === name)) {
+      triggerToast('已存在同名分组');
+      return;
+    }
+    setGroups((prev) => prev.map((item) => (item.id === group.id ? { ...item, name } : item)));
+    cancelRenameGroup();
+    triggerToast(`已将分组重命名为【${name}】`);
   };
 
   const handleDeleteGroup = (group: PersonnelGroup) => {
@@ -341,7 +347,18 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
               placeholder="输入分组名称"
               className="w-full pl-3 pr-8 py-1.5 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white"
             />
-            <Search className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-2 pointer-events-none" />
+            {groupSearch ? (
+              <button
+                type="button"
+                onClick={() => setGroupSearch('')}
+                title="清除"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            ) : (
+              <Search className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-2 pointer-events-none" />
+            )}
           </div>
           <button
             type="button"
@@ -354,7 +371,7 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
         </div>
         <div className="flex-1 overflow-y-auto space-y-1 pr-0.5">
           {isAddingGroup && (
-            <div className="flex items-center gap-1 px-1 py-1">
+            <div className="flex items-center gap-1 px-2 py-2">
               <input
                 autoFocus
                 value={inlineGroupName}
@@ -365,13 +382,31 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
                     confirmInlineGroup();
                   }
                   if (event.key === 'Escape') {
-                    setIsAddingGroup(false);
-                    setInlineGroupName('');
+                    event.preventDefault();
+                    cancelAddGroup();
                   }
                 }}
                 placeholder="输入分组名称，回车保存"
-                className="flex-1 min-w-0 px-2 py-1.5 text-xs border border-[#1E5ABB] rounded focus:outline-none"
+                className="flex-1 min-w-0 px-2 py-1 text-xs border border-[#1E5ABB] rounded bg-white text-gray-800 font-normal focus:outline-none"
               />
+              <button
+                type="button"
+                title="保存"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={confirmInlineGroup}
+                className="p-1 rounded text-[#1E5ABB] hover:bg-blue-50 cursor-pointer"
+              >
+                <Check className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                title="取消"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={cancelAddGroup}
+                className="p-1 rounded text-gray-400 hover:bg-gray-50 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
           )}
           {filteredGroups.length === 0 && !isAddingGroup ? (
@@ -379,12 +414,55 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
           ) : (
             filteredGroups.map((group) => {
               const isActive = selectedGroup?.id === group.id;
+              const isRenaming = renamingGroupId === group.id;
               const isDragging = draggingGroupId === group.id;
               const canDropHere = Boolean(
                 (draggingGroupIdRef.current || draggingGroupId) &&
                   (draggingGroupIdRef.current || draggingGroupId) !== group.id
               );
               const hintHere = dropHint?.id === group.id ? dropHint.position : null;
+              if (isRenaming) {
+                return (
+                  <div key={group.id} className="flex items-center gap-1 px-2 py-2" onClick={(event) => event.stopPropagation()}>
+                    <input
+                      autoFocus
+                      value={renamingGroupName}
+                      onChange={(event) => setRenamingGroupName(event.target.value)}
+                      onFocus={(event) => event.target.select()}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          confirmRenameGroup();
+                        }
+                        if (event.key === 'Escape') {
+                          event.preventDefault();
+                          cancelRenameGroup();
+                        }
+                      }}
+                      placeholder="输入分组名称，回车保存"
+                      className="flex-1 min-w-0 px-2 py-1 text-xs border border-[#1E5ABB] rounded bg-white text-gray-800 font-normal focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      title="保存"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={confirmRenameGroup}
+                      className="p-1 rounded text-[#1E5ABB] hover:bg-blue-50 cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      title="取消"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={cancelRenameGroup}
+                      className="p-1 rounded text-gray-400 hover:bg-gray-50 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              }
               return (
                 <div
                   key={group.id}
@@ -447,10 +525,10 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
                     <span className="flex items-center shrink-0">
                       <button
                         type="button"
-                        title="编辑分组"
+                        title="重命名分组"
                         onClick={(event) => {
                           event.stopPropagation();
-                          openEdit(group);
+                          startRenameGroup(group);
                         }}
                         className="p-1 rounded hover:bg-white/15 cursor-pointer"
                       >
@@ -488,7 +566,6 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
                   <Users className="w-4 h-4 text-[#1E5ABB] shrink-0" />
                   <h3 className="text-sm font-bold text-gray-800 truncate">{selectedGroup.name}</h3>
                 </div>
-                <p className="text-[11px] text-gray-400 mt-1">{selectedGroup.description}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2 shrink-0">
                 <button
@@ -502,14 +579,6 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
                 >
                   <ArrowUpDown className="w-3 h-3" />
                   批量修改分组{selectedMemberIds.length ? ` (${selectedMemberIds.length})` : ''}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openEdit(selectedGroup)}
-                  className="px-2.5 py-1 text-xs border border-gray-200 rounded text-gray-600 hover:border-blue-200 hover:text-[#1E5ABB] cursor-pointer flex items-center gap-1"
-                >
-                  <Pencil className="w-3 h-3" />
-                  编辑
                 </button>
                 <button
                   type="button"
@@ -705,58 +774,6 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
         </div>
       )}
 
-      {isCreateOpen && editingGroup && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <form
-            onSubmit={handleSaveGroup}
-            className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95"
-          >
-            <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-              <h3 className="text-sm font-bold text-gray-800">编辑用户群组</h3>
-              <button type="button" onClick={() => setIsCreateOpen(false)} className="text-gray-400 hover:text-gray-600 cursor-pointer">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="p-5 space-y-3 text-xs">
-              <div>
-                <label className="block text-gray-700 font-medium mb-1">分组名称 *</label>
-                <input
-                  value={gName}
-                  onChange={(event) => setGName(event.target.value)}
-                  placeholder="例如：突发舆情应急响应专班"
-                  className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                />
-              </div>
-              <div>
-                  <label className="block text-gray-700 font-medium mb-1">专班职责说明</label>
-                <textarea
-                  value={gDesc}
-                  onChange={(event) => setGDesc(event.target.value)}
-                  rows={3}
-                  placeholder="请写入该分组在业务协同中的定位与处置职责"
-                  className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] resize-none"
-                />
-              </div>
-            </div>
-            <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setIsCreateOpen(false)}
-                className="px-4 py-1.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50 cursor-pointer text-xs"
-              >
-                取消
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-1.5 bg-[#1E5ABB] text-white rounded font-bold hover:bg-[#134092] cursor-pointer text-xs"
-              >
-                确认保存
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
       {isAddMemberOpen && selectedGroup && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setIsAddMemberOpen(false)}>
           <div
@@ -794,7 +811,7 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
                 onChange={(event) => setOrgFilter(event.target.value)}
                 className="h-8 max-w-[260px] border border-gray-200 rounded px-2 bg-white focus:outline-none focus:border-[#1E5ABB]"
               >
-                <option value="all">全部所属机构</option>
+                <option value="all">全部组织节点</option>
                 {orgNodes.map((org) => (
                   <option key={org.id} value={org.id}>
                     {getOrgFullPath(orgNodes, org.id)}
@@ -842,7 +859,7 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
                     </th>
                     <th className="py-2.5 px-3 whitespace-nowrap">姓名 / 手机号</th>
                     <th className="py-2.5 px-3 whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1"><Building2 className="w-3 h-3" />所属机构</span>
+                      <span className="inline-flex items-center gap-1"><Building2 className="w-3 h-3" />组织节点</span>
                     </th>
                     <th className="py-2.5 px-3 whitespace-nowrap">
                       <span className="inline-flex items-center gap-1"><Circle className="w-3 h-3" />角色名称</span>

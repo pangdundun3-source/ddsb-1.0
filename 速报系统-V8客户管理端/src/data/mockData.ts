@@ -513,6 +513,8 @@ export const INITIAL_REPORTS: ReportItem[] = [
     organization: '台中市网信办',
     submitTime: '2023-10-24 09:20',
     auditStatus: '被驳回',
+    auditTime: '2023-10-24 16:05',
+    auditor: '王审核',
     rejectReason: '请补充具体小区居民代表访谈意见与现场排查照片后重新提交。',
     detailContent: {
       summary: '近期多个老旧小区业主群讨论加装电梯政策，暂未形成统一诉求口径，待补充具体小区案例与居民反馈截图后再送审。',
@@ -522,7 +524,17 @@ export const INITIAL_REPORTS: ReportItem[] = [
         '1. 走访重点小区收集具体案例素材。',
         '2. 整理政策问答口径后补充佐证材料再提交送审。'
       ]
-    }
+    },
+    timeline: [
+      { title: '提交上报', operator: '张三·台中市网信办', time: '2023-10-24 09:20', status: 'completed' },
+      {
+        title: '审核处理',
+        operator: '王审核·市委宣传部舆情科',
+        time: '2023-10-24 16:05',
+        status: 'rejected',
+        note: '请补充具体小区居民代表访谈意见与现场排查照片后重新提交。'
+      }
+    ]
   },
   {
     id: 22,
@@ -533,6 +545,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     author: '张三',
     organization: '台中市网信办',
     submitTime: '2023-10-23 17:40',
+    arrivedAt: '2023-10-23 18:05',
     auditStatus: '待审核',
     detailContent: {
       summary: '活动开展一周以来各平台阅读量稳步上升，正面评价占比较高，已汇总各渠道传播数据报表并提交送审。',
@@ -902,6 +915,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     author: '李华',
     organization: '广域传媒主机构 / 台中市网信办 / 北屯区宣传部 / 北屯区教育科',
     submitTime: '2026-08-13 09:10',
+    arrivedAt: '2026-08-13 09:10',
     auditStatus: '待审核',
     identificationStatus: '识别中',
     score: '--',
@@ -1106,6 +1120,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     author: '张三',
     organization: '台中市网信办',
     submitTime: '2023-10-24 09:30',
+    arrivedAt: '2023-10-24 09:42',
     auditStatus: '待审核',
     auditStage: '初审',
     matchUrl: 'https://news.example.com/topic-water',
@@ -1140,6 +1155,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     author: '李四',
     organization: '西屯区水务局',
     submitTime: '2023-10-24 09:55',
+    arrivedAt: '2023-10-24 10:02',
     auditStatus: '待审核',
     auditStage: '初审',
     matchUrl: 'https://news.example.com/topic-water',
@@ -1171,6 +1187,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     author: '王五',
     organization: '市委宣传部融媒体中心',
     submitTime: '2023-10-24 10:20',
+    arrivedAt: '2023-10-24 10:35',
     auditStatus: '待审核',
     auditStage: '初审',
     matchUrl: 'https://news.example.com/topic-water',
@@ -1243,7 +1260,20 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     organization: '台中市网信办',
     submitTime: '2023-10-22 16:45',
     auditStatus: '被驳回',
-    matchUrl: 'https://news.example.com/'
+    auditTime: '2023-10-22 18:05',
+    auditor: '王审核',
+    rejectReason: '信息不完整',
+    matchUrl: 'https://news.example.com/',
+    timeline: [
+      { title: '提交上报', operator: '王五·台中市网信办', time: '2023-10-22 16:45', status: 'completed' },
+      {
+        title: '审核处理',
+        operator: '王审核·市委宣传部舆情科',
+        time: '2023-10-22 18:05',
+        status: 'rejected',
+        note: '信息不完整，请补充讨论热度数据与代表性截图后重新提交。'
+      }
+    ]
   },
   {
     id: 104,
@@ -1266,8 +1296,22 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     author: '孙七',
     organization: '台中市网信办',
     submitTime: '2023-10-21 15:55',
-    auditStatus: '待审核',
-    matchUrl: 'https://news.example.com/'
+    auditStatus: '被驳回',
+    auditTime: '2023-10-21 17:20',
+    auditor: '刘审核',
+    rejectReason: '佐证不足',
+    rejectDetail: '请补充带货主播违规话术截图与平台处置记录后重新提交。',
+    matchUrl: 'https://news.example.com/',
+    timeline: [
+      { title: '提交上报', operator: '孙七·台中市网信办', time: '2023-10-21 15:55', status: 'completed' },
+      {
+        title: '审核处理',
+        operator: '刘审核·市委宣传部舆情科',
+        time: '2023-10-21 17:20',
+        status: 'rejected',
+        note: '佐证不足，请补充带货主播违规话术截图与平台处置记录后重新提交。'
+      }
+    ]
   },
   {
     id: 106,
@@ -1412,7 +1456,20 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     author: '周十六',
     organization: '市政务服务局',
     submitTime: '2023-10-17 11:30',
-    auditStatus: '被驳回'
+    auditStatus: '被驳回',
+    auditTime: '2023-10-17 14:45',
+    auditor: '郑审核',
+    rejectReason: '佐证材料不足，请补充窗口排队时长统计与群众意见原件后重新提交。',
+    timeline: [
+      { title: '提交上报', operator: '周十六·市政务服务局', time: '2023-10-17 11:30', status: 'completed' },
+      {
+        title: '审核处理',
+        operator: '郑审核·市委宣传部舆情科',
+        time: '2023-10-17 14:45',
+        status: 'rejected',
+        note: '佐证材料不足，请补充窗口排队时长统计与群众意见原件后重新提交。'
+      }
+    ]
   },
   {
     id: 114,

@@ -8,7 +8,8 @@ export const Field: React.FC<{
   placeholder?: string;
   disabled?: boolean;
   hint?: string;
-}> = ({ label, value, onChange, placeholder, disabled, hint }) => (
+  readOnlyTitle?: string;
+}> = ({ label, value, onChange, placeholder, disabled, hint, readOnlyTitle }) => (
   <div>
     <label className="block text-gray-700 font-medium mb-1">{label}</label>
     <input
@@ -17,7 +18,7 @@ export const Field: React.FC<{
       placeholder={placeholder}
       disabled={disabled}
       readOnly={disabled}
-      title={disabled ? '账号名称不支持修改' : undefined}
+      title={disabled ? readOnlyTitle || '该字段不支持修改' : undefined}
       className={`w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] ${
         disabled ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : 'bg-white'
       }`}

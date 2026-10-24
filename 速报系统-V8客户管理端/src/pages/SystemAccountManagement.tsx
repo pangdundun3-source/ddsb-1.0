@@ -96,7 +96,6 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
   const [pRealName, setPRealName] = useState('');
   const [pWechat, setPWechat] = useState('');
   const [pPhone, setPPhone] = useState('');
-  const [pJobTitle, setPJobTitle] = useState('');
   const [pRoles, setPRoles] = useState<string[]>(['网格员']);
   const [orgPath, setOrgPath] = useState<string[]>([]);
   const [pGroupIds, setPGroupIds] = useState<string[]>([]);
@@ -246,7 +245,6 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
     setPRealName(item.realName);
     setPWechat(item.wechat);
     setPPhone(item.phone);
-    setPJobTitle(item.jobTitle || '');
     setPRoles(item.roles?.length ? [...item.roles] : ['网格员']);
     syncOrgPath(buildOrgIdPath(orgNodes, getDeepestOrgId(orgNodes, item.orgIds, item.primaryOrgId)));
     setPGroupIds([...(item.groupIds || [])]);
@@ -264,7 +262,7 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
     if (editing) {
       if (!pUsername.trim() || !pRealName.trim()) return;
       if (orgPath.length === 0) {
-        triggerToast('请选择所属机构');
+        triggerToast('请选择组织节点');
         return;
       }
       if (pRoles.length === 0) {
@@ -280,7 +278,6 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
                 realName: pRealName.trim(),
                 wechat: pWechat.trim() || item.wechat,
                 phone: pPhone.trim() || item.phone,
-                jobTitle: pJobTitle.trim(),
                 roles: pRoles,
                 orgIds: selectedLeafOrgId ? [selectedLeafOrgId] : [],
                 primaryOrgId: selectedLeafOrgId,
@@ -775,7 +772,7 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
             <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
               <div>
                 <h3 className="text-sm font-bold text-gray-800">编辑系统账号</h3>
-                <p className="text-[11px] text-gray-400 mt-0.5">绑定机构、角色与用户群组，字段沿用当前人员档案</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">绑定组织节点、角色与用户群组，字段沿用当前人员档案</p>
               </div>
               <button type="button" onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 cursor-pointer">
                 <X className="w-4 h-4" />
@@ -784,29 +781,36 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
             <div className="p-5 space-y-4 text-xs overflow-visible">
               <div className="grid grid-cols-2 gap-3">
                 <Field label="真实姓名 *" value={pRealName} onChange={setPRealName} placeholder="如：张三" />
-                <Field
-                  label="账号名称 *"
-                  value={pUsername}
-                  onChange={setPUsername}
-                  placeholder="登录账号"
-                  disabled
-                  hint="账号名称不支持修改"
-                />
-                <Field label="职务岗位" value={pJobTitle} onChange={setPJobTitle} placeholder="如：网信指导处审核员" />
                 <Field label="联系电话" value={pPhone} onChange={setPPhone} placeholder="如：138****0001" />
-                <Field label="微信号" value={pWechat} onChange={setPWechat} placeholder="选填" />
+                <div className="col-span-2">
+                  <Field
+                    label="微信号"
+                    value={pWechat}
+                    onChange={setPWechat}
+                    placeholder="暂无微信号"
+                    disabled
+                    readOnlyTitle="微信号不支持修改"
+                    hint="微信号不支持修改"
+                  />
+                </div>
               </div>
-              <OrgCascadeSelect orgNodes={orgNodes} path={orgPath} onChange={syncOrgPath} />
+              <OrgCascadeSelect
+                orgNodes={orgNodes}
+                path={orgPath}
+                onChange={syncOrgPath}
+                label="组织节点 *"
+                placeholder="请选择组织节点"
+              />
               <div className="grid grid-cols-2 gap-3">
                 <MultiSelectDropdown
-                  label="分配系统角色 *"
-                  placeholder="请选择系统角色"
+                  label="角色 *"
+                  placeholder="请选择角色"
                   options={ACCOUNT_ROLE_OPTIONS.map((role) => ({ id: role, label: role }))}
                   selected={pRoles}
                   onToggle={(id) => toggleMulti(id, pRoles, setPRoles)}
                 />
                 <MultiSelectDropdown
-                  label="所属用户群组（可选）"
+                  label="用户群组"
                   placeholder="-- 暂不归属任何分组 --"
                   options={groups.map((group) => ({ id: group.id, label: group.name }))}
                   selected={pGroupIds}
@@ -852,9 +856,11 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
       {isModalOpen && !editing && (
         <InviteUserModal
           orgNodes={orgNodes}
+          groups={groups}
           inviteCodes={inviteCodes}
           setInviteCodes={setInviteCodes}
           activatedCount={inRoster.length}
+          personnelList={personnelList}
           onClose={() => setIsModalOpen(false)}
           onToast={triggerToast}
           onOpenRecords={() => {
@@ -964,7 +970,7 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
                   onChange={(event) => setBatchChangeOrg(event.target.checked)}
                   className="mt-0.5 rounded border-gray-300 text-[#1E5ABB] focus:ring-[#1E5ABB]"
                 />
-                <span className="font-bold text-gray-800">批量变更【所在组织（组织节点）】</span>
+                <span className="font-bold text-gray-800">批量变更组织节点</span>
               </label>
               {batchChangeOrg && (
                 <div className="pl-6 space-y-1.5">
@@ -972,6 +978,8 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
                     orgNodes={orgNodes}
                     path={batchOrgPath}
                     onChange={(path) => setBatchOrgPath(path.filter(Boolean))}
+                    label="组织节点"
+                    placeholder="请选择组织节点"
                   />
                   <p className="text-[11px] text-gray-400">选中的所有人员将被指派到该组织节点</p>
                 </div>
@@ -984,7 +992,7 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
                   onChange={(event) => setBatchChangeGroup(event.target.checked)}
                   className="mt-0.5 rounded border-gray-300 text-[#1E5ABB] focus:ring-[#1E5ABB]"
                 />
-                <span className="font-bold text-gray-800">批量变更【所在群组（用户群组）】</span>
+                <span className="font-bold text-gray-800">批量变更用户群组</span>
               </label>
               {batchChangeGroup && (
                 <div className="pl-6 space-y-2">

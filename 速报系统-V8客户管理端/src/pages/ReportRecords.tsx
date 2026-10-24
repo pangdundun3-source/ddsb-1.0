@@ -5,6 +5,7 @@ import { AuditStatusBadge } from '../components/AuditStatusBadge';
 import { IdentificationBadge } from '../components/IdentificationBadge';
 import { resolveIdentification } from '../services/identificationService';
 import { ReportItem, PageId, AuditStatus } from '../types';
+import { getRejectTime } from '../services/reportWorkflowService';
 import {
   Search,
   RotateCcw,
@@ -432,7 +433,12 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
 
                       {/* Submit Time */}
                       <td className="py-3 px-3 text-gray-500 font-mono text-[11px]">
-                        {item.submitTime || '2026-08-13 10:00'}
+                        <div>{item.submitTime || '2026-08-13 10:00'}</div>
+                        {isRejected && (
+                          <div className="mt-0.5 text-[11px] text-gray-400 font-sans">
+                            驳回时间 <span className="font-mono">{getRejectTime(item)}</span>
+                          </div>
+                        )}
                       </td>
 
                       {/* Audit Status */}
@@ -584,8 +590,13 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
                   </div>
 
                   {/* Time */}
-                  <div className="flex items-center justify-between text-[11px] text-gray-400 pt-0.5">
+                  <div className="flex items-center justify-between gap-2 text-[11px] text-gray-400 pt-0.5">
                     <span className="font-mono">{item.submitTime}</span>
+                    {isRejected && (
+                      <span className="shrink-0">
+                        驳回时间 <span className="font-mono text-gray-500">{getRejectTime(item)}</span>
+                      </span>
+                    )}
                   </div>
 
                   {/* Content snippet */}

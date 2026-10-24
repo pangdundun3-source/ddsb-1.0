@@ -53,6 +53,16 @@ const formatYmd = (date: Date) => {
   return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}`;
 };
 
+/** 根据创建时间与截止时间推断凭证有效期档位 */
+const resolveValidityLabel = (createdAt?: string, expiresAt?: string) => {
+  if (!createdAt || !expiresAt) return '—';
+  const hours = (new Date(expiresAt.replace(' ', 'T')).getTime() - new Date(createdAt.replace(' ', 'T')).getTime()) / 3600000;
+  if (!Number.isFinite(hours) || hours <= 0) return '—';
+  if (hours <= 36) return '24小时';
+  if (hours <= 96) return '3天';
+  return '7天';
+};
+
 const statusLabelForExport = (item: InviteCode) => {
   const tab = resolveTab(item);
   if (tab === 'activated') return `已激活${item.usedByName ? ` · ${item.usedByName}` : ''}`;
@@ -76,6 +86,7 @@ interface BatchRow {
   expiresAt?: string;
   roles: string[];
   orgIds: string[];
+  groupIds: string[];
   total: number;
   activated: number;
   occupied: number;
@@ -85,7 +96,7 @@ interface BatchRow {
 }
 
 interface InviteRecordsProps {
-  shared: Pick<UserOrgSharedState, 'orgNodes' | 'inviteCodes' | 'setInviteCodes' | 'personnelList'>;
+  shared: Pick<UserOrgSharedState, 'orgNodes' | 'inviteCodes' | 'setInviteCodes' | 'personnelList' | 'groups'>;
 }
 
 const buildBatchRows = (inviteCodes: InviteCode[]): BatchRow[] => {
@@ -118,6 +129,7 @@ const buildBatchRows = (inviteCodes: InviteCode[]): BatchRow[] => {
       expiresAt: item.expiresAt,
       roles: item.roles || [],
       orgIds: item.orgIds || [],
+      groupIds: item.groupIds || [],
       total,
       activated,
       occupied,
@@ -147,6 +159,7 @@ const buildBatchRows = (inviteCodes: InviteCode[]): BatchRow[] => {
       expiresAt: sample.expiresAt,
       roles: sample.roles || [],
       orgIds: sample.orgIds || [],
+      groupIds: sample.groupIds || [],
       total,
       activated,
       occupied,
@@ -160,7 +173,7 @@ const buildBatchRows = (inviteCodes: InviteCode[]): BatchRow[] => {
 };
 
 export const InviteRecords: React.FC<InviteRecordsProps> = ({ shared }) => {
-  const { orgNodes, inviteCodes, setInviteCodes } = shared;
+  const { orgNodes, inviteCodes, setInviteCodes, groups } = shared;
   const [statusTab, setStatusTab] = useState<StatusTab>('pending');
   const [keyword, setKeyword] = useState('');
   const [appliedKeyword, setAppliedKeyword] = useState('');
@@ -183,6 +196,11 @@ export const InviteRecords: React.FC<InviteRecordsProps> = ({ shared }) => {
 
   const detailMembers = useMemo(() => {
     if (!detailRow) return [];
+    const resolveOrgPath = (orgIds?: string[]) => formatPersonOrgPaths(orgNodes, orgIds || []) || '—';
+    const resolveGroupNames = (groupIds?: string[]) =>
+      (groupIds || [])
+        .map((id) => groups.find((group) => group.id === id)?.name || id)
+        .filter(Boolean);
     if (detailRow.channel === 'activation_code') {
       return detailRow.codes
         .filter((item) => item.status === '已使用')
@@ -192,7 +210,9 @@ export const InviteRecords: React.FC<InviteRecordsProps> = ({ shared }) => {
           phone: item.usedByPhone || '',
           joinedAt: formatTime(item.usedAt),
           role: (item.roles || detailRow.roles)[0] || '—',
-          code: item.code
+          code: item.code,
+          orgPath: resolveOrgPath(item.orgIds?.length ? item.orgIds : detailRow.orgIds),
+          groupNames: resolveGroupNames(item.groupIds?.length ? item.groupIds : detailRow.groupIds)
         }));
     }
     return getInviteJoinedMembers(detailRow.sample).map((member) => ({
@@ -201,9 +221,11 @@ export const InviteRecords: React.FC<InviteRecordsProps> = ({ shared }) => {
       phone: member.phone,
       joinedAt: member.joinedAt,
       role: (detailRow.roles || [])[0] || '—',
-      code: undefined as string | undefined
+      code: undefined as string | undefined,
+      orgPath: resolveOrgPath(detailRow.orgIds),
+      groupNames: resolveGroupNames(detailRow.groupIds)
     }));
-  }, [detailRow]);
+  }, [detailRow, orgNodes, groups]);
 
   const triggerToast = (message: string) => {
     setToast(message);
@@ -429,6 +451,7 @@ export const InviteRecords: React.FC<InviteRecordsProps> = ({ shared }) => {
                 <th className="py-2.5 px-3 whitespace-nowrap">邀请方式</th>
                 <th className="py-2.5 px-3 whitespace-nowrap">数量统计</th>
                 <th className="py-2.5 px-3 whitespace-nowrap">组织节点</th>
+                <th className="py-2.5 px-3 whitespace-nowrap">用户群组</th>
                 <th className="py-2.5 px-3 whitespace-nowrap">角色</th>
                 <th className="py-2.5 px-3 whitespace-nowrap">邀请凭证有效期</th>
                 <th className="py-2.5 px-3 whitespace-nowrap">状态</th>
@@ -438,7 +461,7 @@ export const InviteRecords: React.FC<InviteRecordsProps> = ({ shared }) => {
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {pagedBatches.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-16 text-center text-gray-400">
+                  <td colSpan={9} className="py-16 text-center text-gray-400">
                     暂无匹配的批量邀请记录
                   </td>
                 </tr>
@@ -446,6 +469,9 @@ export const InviteRecords: React.FC<InviteRecordsProps> = ({ shared }) => {
                 pagedBatches.map((row) => {
                   const ratio = row.total ? Math.round((row.activated / row.total) * 100) : 0;
                   const orgPath = formatPersonOrgPaths(orgNodes, row.orgIds);
+                  const groupNames = row.groupIds
+                    .map(groupId => groups.find(group => group.id === groupId)?.name)
+                    .filter((name): name is string => Boolean(name));
                   return (
                     <tr key={row.key} className="hover:bg-blue-50/20 align-top">
                       <td className="py-3 px-3 min-w-[160px]">
@@ -491,6 +517,25 @@ export const InviteRecords: React.FC<InviteRecordsProps> = ({ shared }) => {
                           <span className="line-clamp-2">{orgPath || '—'}</span>
                         </span>
                       </td>
+                      <td className="py-3 px-3 max-w-[220px]">
+                        <div className="flex items-start gap-1">
+                          <Users className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                          {groupNames.length ? (
+                            <div className="flex flex-wrap gap-1 min-w-0">
+                              {groupNames.map(groupName => (
+                                <span
+                                  key={groupName}
+                                  className="inline-flex px-1.5 py-0.5 rounded border border-sky-200 bg-sky-50 text-sky-700 text-[11px] font-semibold"
+                                >
+                                  {groupName}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </div>
+                      </td>
                       <td className="py-3 px-3">
                         <div className="flex flex-wrap gap-1">
                           {(row.roles.length ? row.roles : ['—']).map((role, index) => (
@@ -503,8 +548,13 @@ export const InviteRecords: React.FC<InviteRecordsProps> = ({ shared }) => {
                           ))}
                         </div>
                       </td>
-                      <td className="py-3 px-3 whitespace-nowrap font-mono text-gray-600">
-                        {formatTime(row.expiresAt)}
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <div className="font-medium text-slate-700">
+                          {resolveValidityLabel(row.createdAt, row.expiresAt)}
+                        </div>
+                        <div className="mt-0.5 text-[11px] text-gray-400 font-mono">
+                          截止 {formatTime(row.expiresAt)}
+                        </div>
                       </td>
                       <td className="py-3 px-3 whitespace-nowrap">
                         <span
@@ -574,7 +624,7 @@ export const InviteRecords: React.FC<InviteRecordsProps> = ({ shared }) => {
       {detailRow && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setDetailRow(null)}>
           <div
-            className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden"
+            className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
@@ -592,18 +642,22 @@ export const InviteRecords: React.FC<InviteRecordsProps> = ({ shared }) => {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-slate-50 text-slate-600 border-y border-slate-200">
-                    <th className="py-2 px-3 text-left">姓名</th>
-                    <th className="py-2 px-3 text-left">手机号</th>
-                    {detailRow.channel === 'activation_code' && <th className="py-2 px-3 text-left">激活码</th>}
-                    <th className="py-2 px-3 text-left">角色</th>
-                    <th className="py-2 px-3 text-left">激活时间</th>
+                    <th className="py-2 px-3 text-left whitespace-nowrap">姓名</th>
+                    <th className="py-2 px-3 text-left whitespace-nowrap">手机号</th>
+                    {detailRow.channel === 'activation_code' && (
+                      <th className="py-2 px-3 text-left whitespace-nowrap">激活码</th>
+                    )}
+                    <th className="py-2 px-3 text-left whitespace-nowrap">组织节点</th>
+                    <th className="py-2 px-3 text-left whitespace-nowrap">用户群组</th>
+                    <th className="py-2 px-3 text-left whitespace-nowrap">角色</th>
+                    <th className="py-2 px-3 text-left whitespace-nowrap">激活时间</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {detailMembers.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={detailRow.channel === 'activation_code' ? 5 : 4}
+                        colSpan={detailRow.channel === 'activation_code' ? 7 : 6}
                         className="py-10 text-center text-gray-400"
                       >
                         暂无已激活人员
@@ -612,17 +666,41 @@ export const InviteRecords: React.FC<InviteRecordsProps> = ({ shared }) => {
                   ) : (
                     detailMembers.map((member) => (
                       <tr key={member.id}>
-                        <td className="py-2 px-3 font-medium">{member.name}</td>
-                        <td className="py-2 px-3 font-mono">{member.phone ? maskPhone(member.phone) : '—'}</td>
+                        <td className="py-2 px-3 font-medium whitespace-nowrap">{member.name}</td>
+                        <td className="py-2 px-3 font-mono whitespace-nowrap">
+                          {member.phone ? maskPhone(member.phone) : '—'}
+                        </td>
                         {detailRow.channel === 'activation_code' && (
-                          <td className="py-2 px-3 font-mono text-slate-600">{member.code || '—'}</td>
+                          <td className="py-2 px-3 font-mono text-slate-600 whitespace-nowrap">{member.code || '—'}</td>
                         )}
+                        <td className="py-2 px-3 max-w-[180px]">
+                          <span className="inline-flex items-start gap-1 text-slate-700">
+                            <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                            <span className="line-clamp-2">{member.orgPath}</span>
+                          </span>
+                        </td>
+                        <td className="py-2 px-3 max-w-[180px]">
+                          {member.groupNames.length ? (
+                            <div className="flex flex-wrap gap-1">
+                              {member.groupNames.map((groupName) => (
+                                <span
+                                  key={groupName}
+                                  className="inline-flex px-1.5 py-0.5 rounded border border-sky-200 bg-sky-50 text-sky-700 text-[11px] font-semibold"
+                                >
+                                  {groupName}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
                         <td className="py-2 px-3">
                           <span className="inline-flex px-1.5 py-0.5 rounded border border-violet-200 bg-violet-50 text-violet-700 text-[11px] font-bold">
                             {member.role}
                           </span>
                         </td>
-                        <td className="py-2 px-3 font-mono text-gray-500">{member.joinedAt}</td>
+                        <td className="py-2 px-3 font-mono text-gray-500 whitespace-nowrap">{member.joinedAt}</td>
                       </tr>
                     ))
                   )}
@@ -659,16 +737,27 @@ export const InviteRecords: React.FC<InviteRecordsProps> = ({ shared }) => {
                       value: formatPersonOrgPaths(orgNodes, configRow.orgIds) || '—'
                     },
                     {
+                      label: '用户群组',
+                      value:
+                        (configRow.groupIds || [])
+                          .map((id) => groups.find((group) => group.id === id)?.name || id)
+                          .filter(Boolean)
+                          .join('、') || '—'
+                    },
+                    {
                       label: '角色',
                       value: (configRow.roles.length ? configRow.roles : ['—']).join('、')
                     },
                     {
-                      label: configRow.channel === 'activation_code' ? '生成数量' : '上限人数',
+                      label: '生成数量',
                       value: `${configRow.total} 人`
                     },
-                    { label: '发放时间', value: formatTime(configRow.createdAt) },
-                    { label: '邀请凭证有效期', value: formatTime(configRow.expiresAt) },
-                    { label: '发起人', value: configRow.createdBy }
+                    {
+                      label: '邀请凭证有效期',
+                      value: resolveValidityLabel(configRow.createdAt, configRow.expiresAt)
+                    },
+                    { label: '发起人', value: configRow.createdBy },
+                    { label: '发放时间', value: formatTime(configRow.createdAt) }
                   ] as const
                 ).map((row) => (
                   <div key={row.label} className="flex items-start justify-between gap-3 px-3 py-2.5 bg-white">

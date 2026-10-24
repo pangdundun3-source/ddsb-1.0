@@ -22,7 +22,6 @@ import { PaginationBar } from '../components/PaginationBar';
 import { OrgPathDisplay, getOrganizationPathText } from '../components/OrgPathDisplay';
 import { IdentificationBadge } from '../components/IdentificationBadge';
 import { resolveIdentification } from '../services/identificationService';
-import { TransferDirectiveModal } from '../components/TransferDirectiveModal';
 import { DateRangeField } from '../components/DateRangeField';
 
 const SHARE_ICON: Record<WarehouseShareScope, React.ElementType> = {
@@ -48,7 +47,6 @@ export interface EmbeddedWarehouseScope {
 interface NegativeInfoLibraryProps {
   negativeList: ReportItem[];
   onSelectNegative: (item: ReportItem) => void;
-  onTransferSubmit?: (id: number, opinion: string) => void;
   onNavigate: (page: PageId) => void;
   embedded?: EmbeddedWarehouseScope;
 }
@@ -56,7 +54,6 @@ interface NegativeInfoLibraryProps {
 export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
   negativeList,
   onSelectNegative,
-  onTransferSubmit,
   onNavigate,
   embedded
 }) => {
@@ -69,7 +66,6 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
   const [statusFilter, setStatusFilter] = useState('全部');
   const [identFilter, setIdentFilter] = useState<'全部' | '首发' | '重复'>('全部');
   const [keywordInput, setKeywordInput] = useState('');
-  const [transferTarget, setTransferTarget] = useState<ReportItem | null>(null);
   const [warehouses, setWarehouses] = useState(loadWarehouses);
   const [activeWarehouseId, setActiveWarehouseId] = useState<string | null>(null);
   const [warehouseKeyword, setWarehouseKeyword] = useState('');
@@ -573,8 +569,6 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
     const actionLink = 'hover:underline cursor-pointer';
     const ACTION_COLOR = {
       detail: 'text-gray-500 hover:text-gray-800',
-      transfer: 'text-[#1E5ABB] hover:text-[#184A9C] font-semibold',
-      retransfer: 'text-sky-600 hover:text-sky-700',
       move: 'text-amber-600 hover:text-amber-700',
       remove: 'text-rose-500 hover:text-rose-600'
     };
@@ -830,13 +824,6 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
                     </div>
                     <div className="flex items-center gap-3 text-xs shrink-0">
                       <button type="button" onClick={openDetail} className={`${actionLink} ${ACTION_COLOR.detail}`}>详情</button>
-                      <button
-                        type="button"
-                        onClick={() => setTransferTarget(item)}
-                        className={`${actionLink} ${pending ? ACTION_COLOR.transfer : ACTION_COLOR.retransfer}`}
-                      >
-                        {pending ? '转办' : '再次转办'}
-                      </button>
                       {moveTargets.length > 0 && (
                         <button type="button" onClick={() => openMoveRecords([item.id])} className={`${actionLink} ${ACTION_COLOR.move}`}>迁移</button>
                       )}
@@ -941,17 +928,6 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
           </div>
         )}
 
-        {transferTarget && (
-          <TransferDirectiveModal
-            key={transferTarget.id}
-            report={transferTarget}
-            onClose={() => setTransferTarget(null)}
-            onSubmit={(opinion) => {
-              onTransferSubmit?.(transferTarget.id, opinion);
-              setTransferTarget(null);
-            }}
-          />
-        )}
       </div>
     );
   }
@@ -1170,7 +1146,7 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
                       )}
                     </td>
                     <td className="py-3 px-4 font-mono text-gray-500 whitespace-nowrap">{getAuditCompleteTime(item)}</td>
-                    <td className="py-3 px-4 text-center whitespace-nowrap space-x-2">
+                    <td className="py-3 px-4 text-center whitespace-nowrap">
                       <button
                         onClick={() => {
                           onSelectNegative(item);
@@ -1179,15 +1155,6 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
                         className="text-[#1E5ABB] hover:underline font-medium cursor-pointer"
                       >
                         详情
-                      </button>
-                      <span className="text-gray-300">|</span>
-                      <button
-                        onClick={() => {
-                          setTransferTarget(item);
-                        }}
-                        className="text-[#1E5ABB] hover:underline font-medium cursor-pointer"
-                      >
-                        {getTransferStatus(item) === '待转办' ? '转办' : '再次转办'}
                       </button>
                     </td>
                   </tr>
@@ -1212,18 +1179,6 @@ export const NegativeInfoLibrary: React.FC<NegativeInfoLibraryProps> = ({
         </div>
       </div>
 
-      {/* Transfer Modal */}
-      {transferTarget && (
-        <TransferDirectiveModal
-          key={transferTarget.id}
-          report={transferTarget}
-          onClose={() => setTransferTarget(null)}
-          onSubmit={(opinion) => {
-            onTransferSubmit?.(transferTarget.id, opinion);
-            setTransferTarget(null);
-          }}
-        />
-      )}
     </div>
   );
 };

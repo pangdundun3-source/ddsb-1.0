@@ -5,17 +5,19 @@ import {
   ACCOUNT_ROLE_OPTIONS,
   EXTERNAL_APP,
   formatPersonOrgPaths,
-  type InviteCode
+  type InviteCode,
+  type PersonnelGroup
 } from '../data/userOrgShared';
+import { MultiSelectDropdown } from './FormControls';
 import { OrgCascadeSelect } from './OrgCascadeSelect';
 import { InviteQrCode, downloadQrCardImage } from './InviteQrCode';
 
 export type ShareInviteMode = 'qrcode' | 'link';
 
 const VALIDITY_OPTIONS = [
-  { id: '24h', label: '24 小时', hours: 24 },
-  { id: '3d', label: '3 天', hours: 72 },
-  { id: '7d', label: '7 天', hours: 168 }
+  { id: '24h', label: '24小时', hours: 24 },
+  { id: '3d', label: '3天', hours: 72 },
+  { id: '7d', label: '7天', hours: 168 }
 ] as const;
 
 const pad = (value: number) => String(value).padStart(2, '0');
@@ -50,14 +52,19 @@ export type InviteValidityPresetId = (typeof VALIDITY_OPTIONS)[number]['id'];
 interface ShareInvitePanelProps {
   mode: ShareInviteMode;
   orgNodes: OrgNode[];
+  groups?: PersonnelGroup[];
   inviteCodes: InviteCode[];
   setInviteCodes: React.Dispatch<React.SetStateAction<InviteCode[]>>;
   remainingSeats: number;
+  /** 选中组织节点后展示的可用额度提示 */
+  quotaTip?: string;
   /** 与激活码模式共用的左侧配置 */
   orgPath: string[];
   onOrgPathChange: (path: string[]) => void;
   roles: string[];
   onRolesChange: (roles: string[]) => void;
+  groupIds?: string[];
+  onGroupIdsChange?: (groupIds: string[]) => void;
   batchName: string;
   onBatchNameChange: (name: string) => void;
   limit: number;
@@ -66,19 +73,25 @@ interface ShareInvitePanelProps {
   onValidityIdChange: (id: InviteValidityPresetId) => void;
   onToast: (message: string) => void;
   onCopy: (text: string, message: string) => void;
+  /** 生成成功后回调（用于重置左侧表单） */
+  onGenerated?: (created: InviteCode[]) => void;
 }
 
-/** 邀请弹窗中的「二维码邀请」「链接邀请」：一码/一链多人加入，按上限人数与有效期控制 */
+/** 邀请弹窗中的「二维码邀请」「链接邀请」：一码/一链多人加入，按生成数量与有效期控制 */
 export const ShareInvitePanel: React.FC<ShareInvitePanelProps> = ({
   mode,
   orgNodes,
+  groups = [],
   inviteCodes,
   setInviteCodes,
   remainingSeats,
+  quotaTip = '',
   orgPath,
   onOrgPathChange,
   roles,
   onRolesChange,
+  groupIds = [],
+  onGroupIdsChange,
   batchName,
   onBatchNameChange,
   limit,
@@ -86,13 +99,11 @@ export const ShareInvitePanel: React.FC<ShareInvitePanelProps> = ({
   validityId,
   onValidityIdChange,
   onToast,
-  onCopy
+  onCopy,
+  onGenerated
 }) => {
   const meta = MODE_META[mode];
-  const scopeOrgId = orgPath[orgPath.length - 1];
-  const records = inviteCodes.filter(
-    (item) => item.channel === mode && (!scopeOrgId || (item.orgIds || []).includes(scopeOrgId))
-  );
+  const records = inviteCodes.filter((item) => item.channel === mode);
   const [activeId, setActiveId] = useState<string | null>(() => records[0]?.id || null);
   const active = records.find((item) => item.id === activeId) || null;
 
@@ -105,25 +116,40 @@ export const ShareInvitePanel: React.FC<ShareInvitePanelProps> = ({
     onRolesChange([...roles, option]);
   };
 
+  const toggleGroup = (groupId: string) => {
+    if (!onGroupIdsChange) return;
+    onGroupIdsChange(
+      groupIds.includes(groupId) ? groupIds.filter((id) => id !== groupId) : [...groupIds, groupId]
+    );
+  };
+
   const getOrgName = (item: InviteCode) => {
-    const path = formatPersonOrgPaths(orgNodes, item.orgIds);
-    return path.split('/').pop()?.trim() || path || '未指定机构';
+    const leafId = [...(item.orgIds || [])].reverse().find((id) => orgNodes.some((node) => node.id === id));
+    const nodeName = leafId ? orgNodes.find((node) => node.id === leafId)?.name : undefined;
+    if (nodeName) return nodeName;
+    const path = formatPersonOrgPaths(orgNodes, item.orgIds || []);
+    const leafFromPath = path && path !== '未分配机构' ? path.split('/').pop()?.trim() : '';
+    return leafFromPath || item.batchName || '未指定组织节点';
   };
 
   const handleGenerate = () => {
     const leafOrgId = orgPath[orgPath.length - 1];
     const validity = VALIDITY_OPTIONS.find((item) => item.id === validityId) || VALIDITY_OPTIONS[0];
     const expiresAt = addHours(validity.hours);
-    const name = batchName.trim() || `${meta.label}邀请-${formatYmd(new Date())}`;
-    const message = !leafOrgId
-      ? '请选择组织节点'
-      : roles.length === 0
-        ? '请至少选择一个加入后角色'
-        : !limit || limit < 1
-          ? '上限人数需大于 0'
-          : limit > remainingSeats
-            ? `上限人数不能超过机构剩余可用名额（剩余 ${remainingSeats} 人）`
-            : '';
+    const name = batchName.trim();
+    const message = !name
+      ? '请填写邀请名称'
+      : inviteCodes.some((item) => (item.batchName || '').trim() === name)
+        ? '邀请名称已存在，请更换名称'
+        : !leafOrgId
+          ? '请选择组织节点'
+          : roles.length === 0
+            ? '请至少选择一个加入后角色'
+            : !limit || limit < 1
+              ? '生成数量需大于 0'
+              : remainingSeats <= 0 || limit > remainingSeats
+                ? quotaTip || `本节点剩余可用额度 ${remainingSeats} 人，数量不可超过该额度`
+                : '';
     if (message) {
       onToast(message);
       return;
@@ -140,6 +166,7 @@ export const ShareInvitePanel: React.FC<ShareInvitePanelProps> = ({
       batchName: name,
       orgIds: [leafOrgId],
       roles: [...roles],
+      groupIds: groupIds.length ? [...groupIds] : undefined,
       expiresAt,
       createdAt: toLocalDateTime(now),
       status: '未使用',
@@ -149,6 +176,7 @@ export const ShareInvitePanel: React.FC<ShareInvitePanelProps> = ({
     };
     setInviteCodes((prev) => [record, ...prev]);
     setActiveId(record.id);
+    onGenerated?.([record]);
     onToast(`已生成邀请${meta.label}「${name}」`);
   };
 
@@ -192,6 +220,14 @@ export const ShareInvitePanel: React.FC<ShareInvitePanelProps> = ({
           label="组织节点 *"
           placeholder="请选择用户所在组织节点"
         />
+        <MultiSelectDropdown
+          label="用户群组"
+          hint="可多选"
+          placeholder="-- 暂不归属任何分组 --"
+          options={groups.map((group) => ({ id: group.id, label: group.name }))}
+          selected={groupIds}
+          onToggle={toggleGroup}
+        />
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label className="block text-gray-700 font-medium">加入后角色 *</label>
@@ -211,7 +247,7 @@ export const ShareInvitePanel: React.FC<ShareInvitePanelProps> = ({
           </div>
         </div>
         <div>
-          <label className="block text-gray-700 font-medium mb-1.5">上限人数 *</label>
+          <label className="block text-gray-700 font-medium mb-1.5">生成数量 *</label>
           <input
             type="number"
             min={1}
@@ -221,20 +257,18 @@ export const ShareInvitePanel: React.FC<ShareInvitePanelProps> = ({
             onBlur={() => {
               if (limit > remainingSeats) {
                 onLimitChange(remainingSeats);
-                onToast(`上限人数不能超过机构剩余可用名额（剩余 ${remainingSeats} 人）`);
+                onToast(quotaTip || `本节点剩余可用额度 ${remainingSeats} 人，数量不可超过该额度`);
               }
             }}
-            placeholder="请输入上限人数"
+            placeholder="请输入生成数量"
             className="w-full px-3 py-1.5 border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
           />
-          <div className="mt-1 text-[11px] text-gray-400">
-            本机构剩余可用名额 {remainingSeats} 人，上限不可超过该额度
-          </div>
+          {quotaTip && <div className="mt-1 text-[11px] text-gray-400">{quotaTip}</div>}
         </div>
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label className="block text-gray-700 font-medium">邀请凭证有效期 *</label>
-            <span className="text-[11px] text-gray-400">默认 24 小时，最长 7 天</span>
+            <span className="text-[11px] text-gray-400">默认 24小时，最长 7天</span>
           </div>
           <div className="grid grid-cols-3 gap-2">
             {VALIDITY_OPTIONS.map((option) => (
@@ -342,7 +376,9 @@ export const ShareInvitePanel: React.FC<ShareInvitePanelProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-bold text-gray-800 truncate">{getOrgName(item)}</span>
+                      <span className="font-bold text-gray-800 truncate" title={item.batchName}>
+                        {item.batchName || getOrgName(item)}
+                      </span>
                       <span
                         className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded ${
                           status === '待激活'
@@ -360,7 +396,7 @@ export const ShareInvitePanel: React.FC<ShareInvitePanelProps> = ({
                     </div>
                     <div className="mt-1 flex items-center justify-between text-[10px] text-gray-400">
                       <span>已加入 {used} / {max} 人</span>
-                      <span>至 {formatTime(item.expiresAt).slice(0, 10)}</span>
+                      <span>至 {formatTime(item.expiresAt)}</span>
                     </div>
                   </button>
                 );

@@ -302,18 +302,18 @@ export const InstitutionDetailPage: React.FC<InstitutionDetailPageProps> = ({
                 <p className="text-xs text-gray-500 mt-1.5 leading-5">
                   「{institution.name}」将立即失去「点点速报 - 清朗净网鉴谣速报系统」的访问权限，并从已开通列表中移除；后续可在「开通机构」中重新授权。
                 </p>
+                </div>
               </div>
-            </div>
             <div className="flex justify-end gap-3 mt-6">
-              <button
-                type="button"
+                  <button
+                    type="button"
                 onClick={() => setShowRevokeConfirm(false)}
                 className="px-4 py-2 text-sm font-bold text-gray-700 border border-gray-200 rounded-md hover:bg-gray-50 cursor-pointer"
               >
                 取消
-              </button>
-              <button
-                type="button"
+                  </button>
+                  <button
+                    type="button"
                 onClick={() => {
                   setShowRevokeConfirm(false);
                   onRevoke?.(institution);
@@ -321,21 +321,21 @@ export const InstitutionDetailPage: React.FC<InstitutionDetailPageProps> = ({
                 className="px-4 py-2 text-sm font-bold text-white bg-rose-500 rounded-md hover:bg-rose-600 cursor-pointer"
               >
                 确认设为未开通
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+                  </button>
+                </div>
+                </div>
+                </div>
+              )}
 
       {/* Navigation Tabs Switcher (Only shown in Detail/Edit mode, hidden in Create mode) */}
       {!isCreateMode && (
         <div className="flex items-center gap-2 sm:gap-4 border-b border-gray-200 text-sm font-medium -mt-2 overflow-x-auto no-scrollbar">
           {INSTITUTION_DETAIL_TABS.map((tab) => {
             const isActive = detailTab === tab.key;
-            return (
-              <button
+                return (
+                  <button
                 key={tab.key}
-                type="button"
+                    type="button"
                 onClick={() => {
                   handleDetailTabChange(tab.key);
                 }}
@@ -347,13 +347,13 @@ export const InstitutionDetailPage: React.FC<InstitutionDetailPageProps> = ({
               >
                 <span className="material-symbols-outlined text-[18px]">
                   {tab.icon}
-                </span>
+                      </span>
                 <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
       {detailTab === 'org_structure' && (
         <InstitutionOrgStructure institutionName={institution?.name || ''} />

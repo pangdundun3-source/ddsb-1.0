@@ -40,14 +40,9 @@ import {
   ArrowRight,
   Settings2,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight
 } from 'lucide-react';
 
 export type FieldType = 'text' | 'number' | 'date' | 'file' | 'link' | 'select' | 'phone' | 'gender' | 'id_card' | 'bank_card' | 'email' | 'address' | 'identity';
-
-const AUDIT_LIST_PAGE_SIZE = 6;
-const DICT_LIST_PAGE_SIZE = 10;
 
 export interface TemplateField {
   id: string;
@@ -916,8 +911,6 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
   };
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [auditListPage, setAuditListPage] = useState(1);
-  const [dictListPage, setDictListPage] = useState(1);
   const [templateTypeFilter, setTemplateTypeFilter] = useState<'all' | '报送' | '激活'>('报送');
   const [metricNameInput, setMetricNameInput] = useState('');
   const [metricNameQuery, setMetricNameQuery] = useState('');
@@ -2314,67 +2307,6 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
     return matchesQuery;
   });
 
-  const auditListTotalPages = Math.max(1, Math.ceil(filteredList.length / AUDIT_LIST_PAGE_SIZE));
-  const safeAuditListPage = Math.min(auditListPage, auditListTotalPages);
-  const dictListTotalPages = Math.max(1, Math.ceil(filteredList.length / DICT_LIST_PAGE_SIZE));
-  const safeDictListPage = Math.min(dictListPage, dictListTotalPages);
-  const pagedAuditList = filteredList.slice(
-    (safeAuditListPage - 1) * AUDIT_LIST_PAGE_SIZE,
-    safeAuditListPage * AUDIT_LIST_PAGE_SIZE
-  );
-
-  useEffect(() => {
-    setAuditListPage(1);
-    setDictListPage(1);
-  }, [activeModule, searchQuery]);
-
-  useEffect(() => {
-    setDictListPage(1);
-  }, [dictSubCategoryFilter]);
-
-  useEffect(() => {
-    setAuditListPage(prev => Math.min(prev, auditListTotalPages));
-  }, [auditListTotalPages]);
-
-  useEffect(() => {
-    setDictListPage(prev => Math.min(prev, dictListTotalPages));
-  }, [dictListTotalPages]);
-
-  /** 简易分页：上一页 / 当前页 / 下一页，紧凑右对齐 */
-  const renderListPagination = (
-    page: number,
-    totalPages: number,
-    onPageChange: (nextPage: number) => void
-  ) => (
-    <div className="pt-1 flex items-center justify-end">
-      <div className="inline-flex items-center gap-1.5">
-        <button
-          type="button"
-          onClick={() => onPageChange(Math.max(1, page - 1))}
-          disabled={page <= 1}
-          aria-label="上一页"
-          title="上一页"
-          className="w-7 h-7 rounded-md border border-gray-200 bg-white flex items-center justify-center text-gray-500 hover:text-[#1890ff] hover:border-blue-200 hover:bg-blue-50 disabled:text-gray-300 disabled:border-gray-100 disabled:bg-gray-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-        <span className="min-w-[3.25rem] px-1 text-center text-[11px] font-mono text-gray-500 tabular-nums">
-          {page} / {totalPages}
-        </span>
-        <button
-          type="button"
-          onClick={() => onPageChange(Math.min(totalPages, page + 1))}
-          disabled={page >= totalPages}
-          aria-label="下一页"
-          title="下一页"
-          className="w-7 h-7 rounded-md border border-gray-200 bg-white flex items-center justify-center text-gray-500 hover:text-[#1890ff] hover:border-blue-200 hover:bg-blue-50 disabled:text-gray-300 disabled:border-gray-100 disabled:bg-gray-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
-      </div>
-    </div>
-  );
-
   const statsMetrics = (dataStore.stats_metric || []).filter(item => {
     if (metricCategoryFilter !== 'all' && item.metricCategory !== metricCategoryFilter) return false;
     if (!metricNameQuery) return true;
@@ -3348,8 +3280,6 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                   onClick={() => {
                     setActiveModule(mod.id);
                     setSearchQuery('');
-                    setAuditListPage(1);
-                    setDictListPage(1);
                   }}
                   className={`w-full text-left px-3.5 py-2.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
                     isActive
@@ -3417,8 +3347,6 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                         value={searchQuery}
                         onChange={e => {
                           setSearchQuery(e.target.value);
-                          setAuditListPage(1);
-                          setDictListPage(1);
                         }}
                         aria-label={
                           activeModule === 'data_dict'
@@ -3445,8 +3373,6 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                           type="button"
                           onClick={() => {
                             setSearchQuery('');
-                            setAuditListPage(1);
-                            setDictListPage(1);
                           }}
                           aria-label="清空列表搜索"
                           title="清空搜索"
@@ -3500,7 +3426,6 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                         key={tab.id}
                         onClick={() => {
                           setDictSubCategoryFilter(tab.id);
-                          setDictListPage(1);
                         }}
                         className={`px-3 py-2.5 -mb-px border-b-2 text-xs font-bold cursor-pointer transition-colors flex items-center space-x-1.5 ${
                           isActive
@@ -3673,10 +3598,6 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                     if (aCat !== bCat) return aCat.localeCompare(bCat);
                     return (a.sortOrder || 999) - (b.sortOrder || 999);
                   });
-                  const pagedDictList = sortedDictList.slice(
-                    (safeDictListPage - 1) * DICT_LIST_PAGE_SIZE,
-                    safeDictListPage * DICT_LIST_PAGE_SIZE
-                  );
 
                   return (
                     <>
@@ -3704,13 +3625,13 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                 </td>
                               </tr>
                             ) : (
-                              pagedDictList.map((item, index) => {
+                              sortedDictList.map((item, index) => {
                                 const itemCategory = item.dictCategory || 'reject_reason';
                                 const itemMeta = getDictCategoryMeta(itemCategory);
                                 return (
                                   <tr key={item.id} className="hover:bg-blue-50/20 transition-colors">
                                     <td className="py-3 px-4 align-top whitespace-nowrap text-gray-500 font-mono">
-                                      {(safeDictListPage - 1) * DICT_LIST_PAGE_SIZE + index + 1}
+                                      {index + 1}
                                     </td>
                                     <td className="py-3 px-4 align-top max-w-44">
                                       <div className="flex flex-col gap-1 min-w-0">
@@ -3804,7 +3725,6 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                           </tbody>
                         </table>
                       </div>
-                      {renderListPagination(safeDictListPage, dictListTotalPages, setDictListPage)}
                     </>
                   );
                 })()}
@@ -3817,7 +3737,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {pagedAuditList.map(item => {
+                    {filteredList.map(item => {
                       const isEnabled = item.status === '启用';
                       const levels = item.scoreLevels || [];
                       return (
@@ -3946,7 +3866,6 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                     })}
                   </div>
                 )}
-                {renderListPagination(safeAuditListPage, auditListTotalPages, setAuditListPage)}
               </div>
             ) : activeModule === 'report_template' ? (
               <TemplateConfigBoard
@@ -4084,7 +4003,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {pagedAuditList.map(item => {
+                    {filteredList.map(item => {
                       const isSelected = selectedAuditFlowId === item.id;
                       const isEnabled = item.status === '启用';
 
@@ -4243,7 +4162,6 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                     })}
                   </div>
                 )}
-                {renderListPagination(safeAuditListPage, auditListTotalPages, setAuditListPage)}
               </div>
             ) : activeModule === 'login_method' ? (
               <div className="space-y-3">

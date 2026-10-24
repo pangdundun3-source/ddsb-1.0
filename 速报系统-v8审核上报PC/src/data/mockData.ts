@@ -149,6 +149,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     organization: '台中市网信办',
     submitTime: '2023-10-24 14:30',
     auditStatus: '被驳回',
+    auditTime: '2023-10-24 16:05',
     score: '--',
     originLabel: '疑似首发',
     originReason: '系统智能比对：自动比对不良信息库与在审历史库，未发现重合线索，初判为首发报送。',
@@ -255,6 +256,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     organization: '台中市网信办',
     submitTime: '2023-10-21 15:55',
     auditStatus: '被驳回',
+    auditTime: '2023-10-21 17:20',
     score: '--',
     originLabel: '疑似首发',
     originReason: '系统智能比对：线索源比对为首次报送。',
@@ -313,6 +315,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     organization: '台中市网信办',
     submitTime: '2023-10-19 14:40',
     auditStatus: '被驳回',
+    auditTime: '2023-10-19 16:10',
     score: '--',
     originLabel: '首发'
   },
@@ -866,6 +869,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     author: '李华',
     organization: '广域传媒主机构 / 台中市网信办 / 北屯区宣传部 / 北屯区教育科',
     submitTime: '2026-08-13 09:10',
+    arrivedAt: '2026-08-13 09:10',
     auditStatus: '待审核',
     score: '--',
     detailContent: {
@@ -1100,6 +1104,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     author: '李四',
     organization: '台中市网信办',
     submitTime: '2023-10-23 09:15',
+    arrivedAt: '2023-10-23 10:02',
     auditStatus: '待审核',
     originLabel: '疑似重复',
     originReason: '系统智能比对：检测到与《台中市秋季旅游推广媒体传播分析》存在完全一致的线索来源URL，初判为重复报送。',
@@ -1115,6 +1120,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     organization: '台中市网信办',
     submitTime: '2023-10-22 16:45',
     auditStatus: '被驳回',
+    auditTime: '2023-10-22 18:05',
     originLabel: '疑似重复',
     originReason: '系统智能比对：与已通过记录存在同源URL。',
     matchUrl: 'https://example.com/'
@@ -1128,6 +1134,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     author: '赵六',
     organization: '台中市网信办',
     submitTime: '2023-10-22 10:20',
+    arrivedAt: '2023-10-22 11:05',
     auditStatus: '待审核',
     originLabel: '疑似首发',
     originReason: '系统智能比对：自动比对不良信息库与在审历史库，未发现重合线索，初判为首发报送。',
@@ -1142,6 +1149,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     author: '孙七',
     organization: '台中市网信办',
     submitTime: '2023-10-21 15:55',
+    arrivedAt: '2023-10-21 16:40',
     auditStatus: '待审核',
     originLabel: '识别中',
     originReason: '系统智能比对中：正在自动比对不良信息库与在审历史库，识别首发/重复状态...',
@@ -1156,6 +1164,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     author: '周八',
     organization: '台中市网信办',
     submitTime: '2023-10-21 09:00',
+    arrivedAt: '2023-10-21 09:35',
     auditStatus: '待审核',
     originLabel: '疑似首发',
     originReason: '系统智能比对：自动比对不良信息库与在审历史库，未发现重合线索，初判为首发报送。'
@@ -1240,6 +1249,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     author: '林十二',
     organization: '台中市网信办',
     submitTime: '2023-10-19 09:30',
+    arrivedAt: '2023-10-19 10:15',
     auditStatus: '待审核',
     originLabel: '识别中',
     originReason: '系统智能比对中：正在全网比对同类舆情事件与重合度...'
@@ -1253,6 +1263,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     author: '钱十三',
     organization: '高新区管委会',
     submitTime: '2023-10-18 16:20',
+    arrivedAt: '2023-10-18 17:05',
     auditStatus: '待审核',
     originLabel: '疑似首发',
     originReason: '系统智能比对：自动比对不良信息库与在审历史库，未发现重合线索，初判为首发报送。'
@@ -1297,6 +1308,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     organization: '市政务服务局',
     submitTime: '2023-10-17 11:30',
     auditStatus: '被驳回',
+    auditTime: '2023-10-17 14:45',
     originLabel: '疑似首发',
     originReason: '系统智能比对：线索源比对为首次报送。'
   },
@@ -1322,6 +1334,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     author: '陈二十',
     organization: '西屯区教育局',
     submitTime: '2023-10-15 15:45',
+    arrivedAt: '2023-10-15 16:20',
     auditStatus: '待审核',
     originLabel: '识别中',
     originReason: '系统智能比对中：正在自动比对不良信息库与在审历史库，识别首发/重复状态...'

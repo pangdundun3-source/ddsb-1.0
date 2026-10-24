@@ -157,6 +157,8 @@ export interface ReportItem {
   transferTime?: string;
   auditor?: string;
   auditTime?: string;
+  /** 流转到当前审核人待办的提交时间 */
+  arrivedAt?: string;
   identificationStatus?: IdentificationStatus;
   identificationDetail?: IdentificationDetail;
 }

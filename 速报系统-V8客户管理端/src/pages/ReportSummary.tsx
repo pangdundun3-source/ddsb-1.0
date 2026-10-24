@@ -25,6 +25,7 @@ import {
   X
 } from 'lucide-react';
 import { DateRangeField } from '../components/DateRangeField';
+import { getRejectTime } from '../services/reportWorkflowService';
 
 interface ReportSummaryProps {
   reports: ReportItem[];
@@ -444,7 +445,12 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                           </div>
                         </td>
                         <td className="py-3.5 px-4 font-mono text-gray-500 whitespace-nowrap text-xs">
-                          {item.submitTime}
+                          <div>{item.submitTime}</div>
+                          {isRejected && (
+                            <div className="mt-0.5 text-[11px] text-gray-400 font-sans">
+                              驳回时间 <span className="font-mono">{getRejectTime(item)}</span>
+                            </div>
+                          )}
                         </td>
                         <td className="py-3.5 px-4 text-center whitespace-nowrap">
                           {!isRejected && <AuditStatusBadge status={item.auditStatus} audience="report" />}
