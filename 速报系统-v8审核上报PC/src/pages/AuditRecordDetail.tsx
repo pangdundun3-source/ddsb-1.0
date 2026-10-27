@@ -120,6 +120,7 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
     : null;
 
   const [copied, setCopied] = useState(false);
+  const [urlCopied, setUrlCopied] = useState(false);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -417,18 +418,27 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
         <div className="space-y-1.5">
           <div className="font-bold text-gray-900 text-xs">【同源地址】</div>
           <div className="bg-[#F8F9FA] border border-gray-100 rounded-xl p-3.5 flex items-center justify-between gap-3 text-xs">
-            <a
-              href={report.matchUrl || 'https://example.com/'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center space-x-1 text-xs font-mono text-[#1E5ABB] hover:text-[#134092] transition-colors truncate min-w-0 max-w-[460px] group cursor-pointer"
+            <span
+              className="text-xs font-mono text-[#1E5ABB] truncate min-w-0 flex-1"
               title={report.matchUrl || 'https://example.com/'}
             >
-              <span className="truncate underline underline-offset-2 decoration-blue-300 group-hover:decoration-blue-600">
-                {report.matchUrl || 'https://example.com/'}
-              </span>
-              <ExternalLink className="w-3.5 h-3.5 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity" />
-            </a>
+              {report.matchUrl || 'https://example.com/'}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                const url = report.matchUrl || 'https://example.com/';
+                void navigator.clipboard.writeText(url).then(() => {
+                  setUrlCopied(true);
+                  window.setTimeout(() => setUrlCopied(false), 2000);
+                });
+              }}
+              className="px-3 py-1 bg-white hover:bg-blue-50 text-[#1E5ABB] border border-[#BFD7FE] rounded-md font-medium text-xs shrink-0 flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
+              title="复制同源地址"
+            >
+              {urlCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{urlCopied ? '已复制' : '复制'}</span>
+            </button>
           </div>
         </div>
       </div>

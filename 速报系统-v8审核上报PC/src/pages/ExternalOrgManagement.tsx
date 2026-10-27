@@ -2481,9 +2481,11 @@ export const ExternalOrgManagement: React.FC<ExternalOrgManagementProps> = ({
         <InviteUserModal
           key={inviteTarget.orgId || 'root'}
           orgNodes={orgNodes}
+          groups={groups}
           inviteCodes={inviteCodes}
           setInviteCodes={setInviteCodes}
           activatedCount={personnelList.filter((person) => !person.recycled).length}
+          personnelList={personnelList}
           initialOrgId={inviteTarget.orgId}
           onClose={() => setInviteTarget(null)}
           onToast={triggerToast}

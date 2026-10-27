@@ -3,9 +3,10 @@ import { Attachment, ReportItem } from '../types';
 import { IdentificationBadge } from './IdentificationBadge';
 import { resolveIdentification } from '../services/identificationService';
 import {
+  Check,
   Clock,
+  Copy,
   Download,
-  ExternalLink,
   Eye,
   FileText,
   Paperclip,
@@ -68,6 +69,7 @@ export const ReportDetailCard: React.FC<ReportDetailCardProps> = ({
   const [internalPreviewAttachment, setInternalPreviewAttachment] = useState<Attachment | null>(
     null
   );
+  const [urlCopied, setUrlCopied] = useState(false);
 
   const detail = report.detailContent || {
     summary: defaultSummary,
@@ -256,16 +258,20 @@ export const ReportDetailCard: React.FC<ReportDetailCardProps> = ({
               >
                 {currentMatchUrl}
               </span>
-              <a
-                href={currentMatchUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#EFF6FF] hover:bg-blue-100 text-[#2563EB] border border-[#BFDBFE] rounded-lg text-xs font-medium transition-colors shrink-0 shadow-2xs"
-                title="在新窗口查看源网页"
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard.writeText(currentMatchUrl).then(() => {
+                    setUrlCopied(true);
+                    window.setTimeout(() => setUrlCopied(false), 2000);
+                  });
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#EFF6FF] hover:bg-blue-100 text-[#2563EB] border border-[#BFDBFE] rounded-lg text-xs font-medium transition-colors shrink-0 shadow-2xs cursor-pointer"
+                title="复制同源地址"
               >
-                <span>访问链接</span>
-                <ExternalLink className="w-3.5 h-3.5 text-[#2563EB]" />
-              </a>
+                {urlCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-[#2563EB]" />}
+                <span>{urlCopied ? '已复制' : '复制'}</span>
+              </button>
             </div>
           </div>
         </div>

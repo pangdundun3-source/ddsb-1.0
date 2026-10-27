@@ -1803,8 +1803,12 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
     setFormFlowMode(mode);
     if (!keepCurrentNameAndDesc) {
       const preset = auditFlowModePreset(mode);
-      setFormName(preset.name);
-      setFormDesc(preset.desc);
+      const presetNames = (['adaptive', 'max_n', 'direct'] as const).map(m => auditFlowModePreset(m).name);
+      // 新增空态：名称/说明为空时不自动回填业务文案；仅当名称仍是模式预设名时才随模式切换
+      if (presetNames.includes(formName.trim())) {
+        setFormName(preset.name);
+        setFormDesc(preset.desc);
+      }
     }
 
     const cached = flowModeDraftsRef.current[mode];
@@ -2253,8 +2257,13 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
     setDraggingScoreLevelIndex(null);
   };
 
+  const TEMPLATE_FIELD_LIMIT = 20;
+  const fieldLimitReached = formFields.length >= TEMPLATE_FIELD_LIMIT;
+  const fieldLimitTip = '当前模板最多支持20个表单字段，请删除已有字段后新增';
+
   // Field element handlers
   const handleAddField = (type: FieldType) => {
+    if (formFields.length >= TEMPLATE_FIELD_LIMIT) return;
     const meta = getFieldTypeMeta(type);
     const newField: TemplateField = {
       id: 'f_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
@@ -2746,7 +2755,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
 
     if (activeModule === 'report_template') {
       setFormScoreStatus('启用');
-      handleLoadStandardPreset();
+      setFormFields([]);
     } else if (activeModule === 'data_dict' || activeModule === 'reject_reason') {
       const targetCat = dictSubCategoryFilter !== 'all' ? dictSubCategoryFilter : 'reject_reason';
       const targetMeta = getDictCategoryMeta(targetCat);
@@ -2765,20 +2774,14 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
           : targetMeta.description
       );
     } else if (activeModule === 'audit_score') {
-      setFormName(isGlobalScope ? '百分制打分规则组' : '自定义百分制打分规则组');
-      setFormDesc('按审核结果命中一个评分等级，设为启用后替代现有打分标准');
+      // 新增空态：不预填规则名、说明与等级业务内容
+      setFormName('');
+      setFormDesc('');
       setFormTotalScore(100);
-      setFormLevelCount(5);
+      setFormLevelCount(0);
       setFormScoreStatus('启用');
-      const defaultTpl = enabledReportTemplates[0];
-      setFormRelatedTemplateId(defaultTpl ? defaultTpl.id : '1');
-      setFormScoreLevels([
-        { id: 'sl_1', levelName: '一等', score: 100, description: '特优级标准' },
-        { id: 'sl_2', levelName: '二等', score: 90, description: '优秀级标准' },
-        { id: 'sl_3', levelName: '三等', score: 80, description: '良好级标准', isDefault: true },
-        { id: 'sl_4', levelName: '四等', score: 70, description: '合格级标准' },
-        { id: 'sl_5', levelName: '五等', score: 60, description: '基本级标准' }
-      ]);
+      setFormRelatedTemplateId('');
+      setFormScoreLevels([]);
     } else if (activeModule === 'audit_flow') {
       const externalAuditOpened = (dataStore.value_added || []).some(
         item =>
@@ -2787,13 +2790,12 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       );
       const defaultMode: 'adaptive' | 'max_n' | 'direct' =
         isGlobalScope || externalAuditOpened ? 'adaptive' : 'max_n';
-      const preset = auditFlowModePreset(defaultMode);
-      setFormName(preset.name);
-      setFormDesc(preset.desc);
+      // 新增：名称/说明空态；节点按当前模式生成骨架（模式一默认选中时不会再点选触发，需在此生成）
+      setFormName('');
+      setFormDesc('');
       setFormScoreStatus('启用');
       setFormFlowMode(defaultMode);
-      const defaultTpl = enabledReportTemplates[0];
-      setFormRelatedTemplateId(defaultTpl ? defaultTpl.id : '1');
+      setFormRelatedTemplateId('');
       setFormTemplateApplyMode('all_report_templates');
       setFormFlowDepth(3);
       setFormFlowLevelDirection('up');
@@ -2805,15 +2807,8 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       resetOrgPickerState();
       const defaultFlowNodes = buildDefaultFlowNodes(defaultMode, 3);
       setFormAuditNodes(defaultFlowNodes);
-      setSelectedAuditNodeId(defaultFlowNodes[0].id);
-      rememberAuditFlowBaseline(
-        preset.name,
-        preset.desc,
-        '启用',
-        defaultMode,
-        3,
-        defaultFlowNodes
-      );
+      setSelectedAuditNodeId(defaultFlowNodes[0]?.id || null);
+      rememberAuditFlowBaseline('', '', '启用', defaultMode, 3, defaultFlowNodes);
     } else if (activeModule === 'evaluation_rule') {
       setFormName('人员考核配置');
       setFormDesc('用于配置人员月度目标上报量和数量、质量评分权重，考核页面按周期自动计算人员得分、等级和排名。');
@@ -6331,6 +6326,11 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                       </div>
 
                       <div className="bg-gray-50/70 p-3 rounded-lg border border-gray-200 space-y-2 max-h-[300px] overflow-y-auto">
+                        {formScoreLevels.length === 0 && (
+                          <div className="py-8 text-center text-xs text-gray-400">
+                            暂无评分等级，请点击「新增等级」开始配置
+                          </div>
+                        )}
                         {formScoreLevels.map((lvl, index) => (
                           <div
                             key={lvl.id}
@@ -6459,6 +6459,14 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                         </div>
 
                         <div className="border border-gray-200 rounded-xl p-4 bg-white min-h-[420px]">
+                          {formAuditNodes.length === 0 && (
+                            <div className="flex flex-col items-center justify-center text-center min-h-[380px] px-8">
+                              <p className="text-sm font-bold text-gray-800">暂无审核节点</p>
+                              <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+                                请先选择审核流程模式以生成节点，或自行补充流程阶段
+                              </p>
+                            </div>
+                          )}
                           <div className="grid grid-cols-2 gap-3">
                             {formAuditNodes.map((node, index) => {
                               const isSelected = (selectedNode?.id || formAuditNodes[0]?.id) === node.id;
@@ -6569,7 +6577,12 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                         </div>
 
                         <div className="border border-gray-200 rounded-xl p-4 bg-white space-y-3.5 min-h-[420px]">
-                          {selectedNode && (selectedNode.isSubmitStage || selectedNode.nodeName === '上报人' || selectedNode.nodeName === '上报') ? (
+                          {!selectedNode ? (
+                            <div className="flex flex-col items-center justify-center text-center min-h-[380px] px-8">
+                              <p className="text-sm font-bold text-gray-800">请先添加审核节点</p>
+                              <p className="text-xs text-gray-500 mt-2 leading-relaxed">选择流程模式后可在左侧点击节点进行属性编辑</p>
+                            </div>
+                          ) : selectedNode && (selectedNode.isSubmitStage || selectedNode.nodeName === '上报人' || selectedNode.nodeName === '上报') ? (
                             <div className="flex flex-col items-center justify-center text-center min-h-[380px] px-8">
                               <p className="text-sm font-bold text-gray-800">上报阶段无需配置</p>
                               <p className="text-xs text-gray-500 mt-2 leading-relaxed">上报功能人员暂无限制，不配置节点属性。</p>
@@ -7240,7 +7253,13 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                             <button
                               type="button"
                               onClick={() => handleAddField(quickFieldType)}
-                              className="px-3 py-1.5 bg-[#1E5ABB] text-white text-xs font-bold rounded hover:bg-[#134092] cursor-pointer flex items-center gap-1 shrink-0"
+                              disabled={fieldLimitReached}
+                              title={fieldLimitReached ? fieldLimitTip : undefined}
+                              className={`px-3 py-1.5 text-xs font-bold rounded flex items-center gap-1 shrink-0 ${
+                                fieldLimitReached
+                                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                  : 'bg-[#1E5ABB] text-white hover:bg-[#134092] cursor-pointer'
+                              }`}
                             >
                               <Plus className="w-3.5 h-3.5" />
                               添加字段

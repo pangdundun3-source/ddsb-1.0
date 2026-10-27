@@ -94,7 +94,6 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
   const [isInviteRecordOpen, setIsInviteRecordOpen] = useState(false);
   const [pUsername, setPUsername] = useState('');
   const [pRealName, setPRealName] = useState('');
-  const [pWechat, setPWechat] = useState('');
   const [pPhone, setPPhone] = useState('');
   const [pRoles, setPRoles] = useState<string[]>(['网格员']);
   const [orgPath, setOrgPath] = useState<string[]>([]);
@@ -243,7 +242,6 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
     setEditing(item);
     setPUsername(item.username);
     setPRealName(item.realName);
-    setPWechat(item.wechat);
     setPPhone(item.phone);
     setPRoles(item.roles?.length ? [...item.roles] : ['网格员']);
     syncOrgPath(buildOrgIdPath(orgNodes, getDeepestOrgId(orgNodes, item.orgIds, item.primaryOrgId)));
@@ -260,7 +258,7 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
     event.preventDefault();
 
     if (editing) {
-      if (!pUsername.trim() || !pRealName.trim()) return;
+      if (!pUsername.trim() || !editing.realName.trim()) return;
       if (orgPath.length === 0) {
         triggerToast('请选择组织节点');
         return;
@@ -275,9 +273,6 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
             ? {
                 ...item,
                 username: pUsername.trim(),
-                realName: pRealName.trim(),
-                wechat: pWechat.trim() || item.wechat,
-                phone: pPhone.trim() || item.phone,
                 roles: pRoles,
                 orgIds: selectedLeafOrgId ? [selectedLeafOrgId] : [],
                 primaryOrgId: selectedLeafOrgId,
@@ -287,7 +282,7 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
             : item
         )
       );
-      triggerToast(`已保存账号【${pRealName.trim()}】`);
+      triggerToast(`已保存账号【${editing.realName}】`);
       setIsModalOpen(false);
       return;
     }
@@ -780,19 +775,24 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
             </div>
             <div className="p-5 space-y-4 text-xs overflow-visible">
               <div className="grid grid-cols-2 gap-3">
-                <Field label="真实姓名 *" value={pRealName} onChange={setPRealName} placeholder="如：张三" />
-                <Field label="联系电话" value={pPhone} onChange={setPPhone} placeholder="如：138****0001" />
-                <div className="col-span-2">
-                  <Field
-                    label="微信号"
-                    value={pWechat}
-                    onChange={setPWechat}
-                    placeholder="暂无微信号"
-                    disabled
-                    readOnlyTitle="微信号不支持修改"
-                    hint="微信号不支持修改"
-                  />
-                </div>
+                <Field
+                  label="真实姓名"
+                  value={pRealName}
+                  onChange={setPRealName}
+                  placeholder="如：张三"
+                  disabled
+                  readOnlyTitle="姓名不支持修改"
+                  hint="姓名不支持修改"
+                />
+                <Field
+                  label="联系电话"
+                  value={pPhone}
+                  onChange={setPPhone}
+                  placeholder="如：138****0001"
+                  disabled
+                  readOnlyTitle="手机号不支持修改"
+                  hint="手机号不支持修改"
+                />
               </div>
               <OrgCascadeSelect
                 orgNodes={orgNodes}
@@ -901,7 +901,6 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
               <Detail label="真实姓名" value={viewing.realName} />
               <Detail label="职务岗位" value={viewing.jobTitle || '—'} />
               <Detail label="联系电话" value={viewing.phone} />
-              <Detail label="微信号" value={viewing.wechat} />
               <Detail label="角色名称" value={(viewing.roles || []).join('、')} />
               <Detail
                 label="账号状态"

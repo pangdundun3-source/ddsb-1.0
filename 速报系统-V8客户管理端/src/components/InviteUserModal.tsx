@@ -187,6 +187,7 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
       return '邀请名称已存在，请更换名称';
     }
     if (orgPath.length === 0 || !selectedLeafOrgId) return '请选择组织节点';
+    if (pGroupIds.length === 0) return '请至少选择一个用户群组';
     if (pRoles.length === 0) return '请至少选择一个加入后角色';
     if (!inviteCount || inviteCount < 1) return '生成数量需大于 0';
     if (remainingSeats <= 0 || inviteCount > remainingSeats) return quotaTip;
@@ -434,9 +435,9 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
                 placeholder="请选择用户所在组织节点"
               />
               <MultiSelectDropdown
-                label="用户群组"
+                label="用户群组 *"
                 hint="可多选"
-                placeholder="-- 暂不归属任何分组 --"
+                placeholder="请选择用户群组"
                 options={groups.map((group) => ({ id: group.id, label: group.name }))}
                 selected={pGroupIds}
                 onToggle={toggleGroup}

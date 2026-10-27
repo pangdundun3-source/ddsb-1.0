@@ -18,7 +18,6 @@ import {
   BarChart2,
   BarChart3,
   PieChart as PieChartIcon,
-  Printer,
   ChevronRight,
   Layers,
   ArrowUpRight,
@@ -720,13 +719,6 @@ export const AuditStatistics: React.FC<{ scope: StatisticsScope }> = ({ scope })
             >
               <Download className="w-3.5 h-3.5 text-emerald-600" />
               <span>导出统计报表</span>
-            </button>
-            <button
-              onClick={() => window.print()}
-              className="px-3.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-lg border border-slate-200 shadow-2xs flex items-center space-x-1.5 transition-colors cursor-pointer"
-            >
-              <Printer className="w-3.5 h-3.5 text-slate-500" />
-              <span>打印统计报告</span>
             </button>
           </div>
         </div>

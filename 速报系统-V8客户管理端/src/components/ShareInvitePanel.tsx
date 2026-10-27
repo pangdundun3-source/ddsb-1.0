@@ -143,13 +143,15 @@ export const ShareInvitePanel: React.FC<ShareInvitePanelProps> = ({
         ? '邀请名称已存在，请更换名称'
         : !leafOrgId
           ? '请选择组织节点'
-          : roles.length === 0
-            ? '请至少选择一个加入后角色'
-            : !limit || limit < 1
-              ? '生成数量需大于 0'
-              : remainingSeats <= 0 || limit > remainingSeats
-                ? quotaTip || `本节点剩余可用额度 ${remainingSeats} 人，数量不可超过该额度`
-                : '';
+          : groupIds.length === 0
+            ? '请至少选择一个用户群组'
+            : roles.length === 0
+              ? '请至少选择一个加入后角色'
+              : !limit || limit < 1
+                ? '生成数量需大于 0'
+                : remainingSeats <= 0 || limit > remainingSeats
+                  ? quotaTip || `本节点剩余可用额度 ${remainingSeats} 人，数量不可超过该额度`
+                  : '';
     if (message) {
       onToast(message);
       return;
@@ -221,9 +223,9 @@ export const ShareInvitePanel: React.FC<ShareInvitePanelProps> = ({
           placeholder="请选择用户所在组织节点"
         />
         <MultiSelectDropdown
-          label="用户群组"
+          label="用户群组 *"
           hint="可多选"
-          placeholder="-- 暂不归属任何分组 --"
+          placeholder="请选择用户群组"
           options={groups.map((group) => ({ id: group.id, label: group.name }))}
           selected={groupIds}
           onToggle={toggleGroup}

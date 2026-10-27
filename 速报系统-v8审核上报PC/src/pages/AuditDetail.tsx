@@ -54,6 +54,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
   const [rejectReason, setRejectReason] = useState('信息不完整');
   const [rejectDetail, setRejectDetail] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
+  const [urlCopied, setUrlCopied] = useState(false);
   const [drawerActiveTab, setDrawerActiveTab] = useState<'detail' | 'flow'>('detail');
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
   const [previewAttachmentList, setPreviewAttachmentList] = useState<Attachment[]>([]);
@@ -408,24 +409,27 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
         <div className="space-y-1.5">
           <div className="font-bold text-gray-900 text-xs">【同源地址】</div>
           <div className="bg-[#F4F8FF] border border-[#D9E7FD] rounded-lg p-3 flex items-center justify-between gap-3 text-xs">
-            <a
-              href={report.matchUrl || 'https://example.com/'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[#1E5ABB] font-mono truncate text-xs hover:underline"
+            <span
+              className="text-[#1E5ABB] font-mono truncate text-xs"
               title={report.matchUrl || 'https://example.com/'}
             >
               {report.matchUrl || 'https://example.com/'}
-            </a>
-            <a
-              href={report.matchUrl || 'https://example.com/'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-3 py-1 bg-white hover:bg-blue-50 text-[#1E5ABB] border border-[#BFD7FE] rounded-md font-medium text-xs shrink-0 flex items-center space-x-1 shadow-2xs cursor-pointer transition-colors"
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                const url = report.matchUrl || 'https://example.com/';
+                void navigator.clipboard.writeText(url).then(() => {
+                  setUrlCopied(true);
+                  window.setTimeout(() => setUrlCopied(false), 2000);
+                });
+              }}
+              className="px-3 py-1 bg-white hover:bg-blue-50 text-[#1E5ABB] border border-[#BFD7FE] rounded-md font-medium text-xs shrink-0 flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
+              title="复制同源地址"
             >
-              <span>访问链接</span>
-              <ExternalLink className="w-3.5 h-3.5 ml-0.5" />
-            </a>
+              {urlCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{urlCopied ? '已复制' : '复制'}</span>
+            </button>
           </div>
         </div>
       </div>

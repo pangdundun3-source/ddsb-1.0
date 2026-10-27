@@ -852,9 +852,11 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
       {isModalOpen && !editing && (
         <InviteUserModal
           orgNodes={orgNodes}
+          groups={groups}
           inviteCodes={inviteCodes}
           setInviteCodes={setInviteCodes}
           activatedCount={inRoster.length}
+          personnelList={personnelList}
           onClose={() => setIsModalOpen(false)}
           onToast={triggerToast}
           onOpenRecords={() => {

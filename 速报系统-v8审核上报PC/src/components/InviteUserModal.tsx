@@ -1,23 +1,26 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Copy, Download, History, KeyRound, Link2, QrCode, RefreshCw, X } from 'lucide-react';
-import type { OrgNode } from '../pages/ExternalOrgManagement';
+import type { OrgNode, PersonnelItem } from '../pages/ExternalOrgManagement';
 import {
   ACCOUNT_ROLE_OPTIONS,
+  buildOrgHeadcount,
   buildOrgIdPath,
-  EXTERNAL_APP,
   formatPersonOrgPaths,
   generateActivationCode,
+  getOrgNodeRemainingSeats,
   ORG_MAX_USER_COUNT,
-  type InviteCode
+  type InviteCode,
+  type PersonnelGroup
 } from '../data/userOrgShared';
 import { maskPhone } from './PersonAccountDisplay';
+import { MultiSelectDropdown } from './FormControls';
 import { OrgCascadeSelect } from './OrgCascadeSelect';
 import { ShareInvitePanel, type InviteValidityPresetId } from './ShareInvitePanel';
 
 const INVITE_VALIDITY_OPTIONS: Array<{ id: InviteValidityPresetId; label: string; hours: number }> = [
-  { id: '24h', label: '24 小时', hours: 24 },
-  { id: '3d', label: '3 天', hours: 72 },
-  { id: '7d', label: '7 天', hours: 168 }
+  { id: '24h', label: '24小时', hours: 24 },
+  { id: '3d', label: '3天', hours: 72 },
+  { id: '7d', label: '7天', hours: 168 }
 ];
 
 type InviteListFilter = 'all' | '待激活' | '已激活' | '已失效';
@@ -42,7 +45,22 @@ const toLocalDateTimeValue = (date: Date) =>
 const addHoursLocal = (hours: number) => toLocalDateTimeValue(new Date(Date.now() + hours * 3600 * 1000));
 const formatDateTimeLabel = (value: string) => (value ? value.replace('T', ' ') : '—');
 const formatYmd = (date: Date) => `${date.getFullYear()}${padTime(date.getMonth() + 1)}${padTime(date.getDate())}`;
-const defaultInviteBatchName = () => `邀请批次-${formatYmd(new Date())}`;
+const defaultInviteBatchName = (existing: InviteCode[] = []) => {
+  const base = `邀请批次-${formatYmd(new Date())}`;
+  const used = new Set(existing.map((item) => (item.batchName || '').trim()).filter(Boolean));
+  let maxSuffix = 0;
+  const suffixRe = new RegExp(`^${base}-(\\d{2})$`);
+  for (const name of used) {
+    const match = name.match(suffixRe);
+    if (match) maxSuffix = Math.max(maxSuffix, Number(match[1]));
+  }
+  for (let n = Math.max(1, maxSuffix + 1); n <= 99; n += 1) {
+    const candidate = `${base}-${padTime(n)}`;
+    if (!used.has(candidate)) return candidate;
+  }
+  const now = new Date();
+  return `${base}-${padTime(now.getHours())}${padTime(now.getMinutes())}`;
+};
 
 export const resolveInviteStatus = (item: InviteCode) => {
   if (item.status === '已使用') return '已激活' as const;
@@ -58,9 +76,12 @@ export const resolveInviteStatus = (item: InviteCode) => {
 
 interface InviteUserModalProps {
   orgNodes: OrgNode[];
+  groups?: PersonnelGroup[];
   inviteCodes: InviteCode[];
   setInviteCodes: React.Dispatch<React.SetStateAction<InviteCode[]>>;
   activatedCount: number;
+  /** 用于计算组织节点剩余可用额度 */
+  personnelList?: PersonnelItem[];
   /** 预先定位的组织节点，邀请加入后归属该节点 */
   initialOrgId?: string;
   onClose: () => void;
@@ -71,12 +92,13 @@ interface InviteUserModalProps {
 /** 邀请用户弹窗：二维码 / 激活码 / 链接三种方式，外部用户数据与外部组织管理共用 */
 export const InviteUserModal: React.FC<InviteUserModalProps> = ({
   orgNodes,
+  groups = [],
   inviteCodes,
   setInviteCodes,
   activatedCount,
+  personnelList = [],
   initialOrgId,
   onClose,
-  onToast,
   onOpenRecords
 }) => {
   const initialOrgPath = buildOrgIdPath(orgNodes, initialOrgId);
@@ -84,15 +106,44 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
   const [inviteMode, setInviteMode] = useState<InviteMode>(readStoredInviteMode);
   const [orgPath, setOrgPath] = useState<string[]>(initialOrgPath);
   const [pRoles, setPRoles] = useState<string[]>(['网格员']);
-  const [inviteBatchName, setInviteBatchName] = useState(defaultInviteBatchName);
+  const [pGroupIds, setPGroupIds] = useState<string[]>([]);
+  const [inviteBatchName, setInviteBatchName] = useState(() => defaultInviteBatchName(inviteCodes));
   const [inviteCount, setInviteCount] = useState(10);
   const [validityId, setValidityId] = useState<InviteValidityPresetId>('24h');
   const [inviteListFilter, setInviteListFilter] = useState<InviteListFilter>('all');
   const [freshCodeIds, setFreshCodeIds] = useState<string[]>([]);
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
+  const [modalToast, setModalToast] = useState('');
+  const modalToastTimerRef = useRef<number | null>(null);
 
-  const remainingSeats = Math.max(0, ORG_MAX_USER_COUNT - activatedCount);
+  const institutionRemaining = Math.max(0, ORG_MAX_USER_COUNT - activatedCount);
   const selectedLeafOrgId = orgPath[orgPath.length - 1];
+  const orgHeadcount = useMemo(
+    () => buildOrgHeadcount(orgNodes, personnelList),
+    [orgNodes, personnelList]
+  );
+  const nodeRemainingSeats = selectedLeafOrgId
+    ? getOrgNodeRemainingSeats(orgNodes, orgHeadcount, selectedLeafOrgId)
+    : null;
+  const remainingSeats =
+    nodeRemainingSeats !== null
+      ? Math.min(institutionRemaining, nodeRemainingSeats)
+      : institutionRemaining;
+  const quotaTip =
+    nodeRemainingSeats !== null
+      ? `本节点剩余可用额度 ${nodeRemainingSeats} 人，数量不可超过该额度`
+      : `本机构剩余可用额度 ${institutionRemaining} 人，数量不可超过该额度`;
+
+  const showToast = (message: string) => {
+    if (modalToastTimerRef.current) {
+      window.clearTimeout(modalToastTimerRef.current);
+    }
+    setModalToast(message);
+    modalToastTimerRef.current = window.setTimeout(() => {
+      setModalToast('');
+      modalToastTimerRef.current = null;
+    }, 2600);
+  };
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -102,14 +153,44 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
+  useEffect(
+    () => () => {
+      if (modalToastTimerRef.current) window.clearTimeout(modalToastTimerRef.current);
+    },
+    []
+  );
+
   const copyText = async (text: string, success: string) => {
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
-      onToast(success);
+      showToast(success);
     } catch {
-      onToast('复制失败，请手动复制');
+      showToast('复制失败，请手动复制');
     }
+  };
+
+  const resetLeftPanel = (extraCodes: InviteCode[] = []) => {
+    setOrgPath(initialOrgPath);
+    setPRoles(['网格员']);
+    setPGroupIds([]);
+    setInviteBatchName(defaultInviteBatchName([...extraCodes, ...inviteCodes]));
+    setInviteCount(10);
+    setValidityId('24h');
+  };
+
+  const validateLeftPanel = () => {
+    const name = inviteBatchName.trim();
+    if (!name) return '请填写邀请名称';
+    if (inviteCodes.some((item) => (item.batchName || '').trim() === name)) {
+      return '邀请名称已存在，请更换名称';
+    }
+    if (orgPath.length === 0 || !selectedLeafOrgId) return '请选择组织节点';
+    if (pGroupIds.length === 0) return '请至少选择一个用户群组';
+    if (pRoles.length === 0) return '请至少选择一个加入后角色';
+    if (!inviteCount || inviteCount < 1) return '生成数量需大于 0';
+    if (remainingSeats <= 0 || inviteCount > remainingSeats) return quotaTip;
+    return '';
   };
 
   const switchInviteMode = (mode: InviteMode) => {
@@ -128,26 +209,22 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
     });
   };
 
+  const toggleGroup = (groupId: string) => {
+    setPGroupIds((prev) =>
+      prev.includes(groupId) ? prev.filter((id) => id !== groupId) : [...prev, groupId]
+    );
+  };
+
   const handleGenerateBatch = () => {
     const validity = INVITE_VALIDITY_OPTIONS.find((item) => item.id === validityId) || INVITE_VALIDITY_OPTIONS[0];
     const inviteExpiry = addHoursLocal(validity.hours);
-    if (orgPath.length === 0) {
-      onToast('请选择组织节点');
-      return;
-    }
-    if (pRoles.length === 0) {
-      onToast('请至少选择一个加入后角色');
-      return;
-    }
-    if (!inviteCount || inviteCount < 1) {
-      onToast('生成数量需大于 0');
-      return;
-    }
-    if (inviteCount > remainingSeats) {
-      onToast(`生成数量不能超过机构剩余可用名额（剩余 ${remainingSeats} 人）`);
+    const error = validateLeftPanel();
+    if (error) {
+      showToast(error);
       return;
     }
 
+    const batchName = inviteBatchName.trim();
     const existing = new Set(inviteCodes.map((item) => item.code));
     const codes: string[] = [];
     while (codes.length < inviteCount) {
@@ -160,7 +237,6 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
 
     const now = toLocalDateTimeValue(new Date());
     const batchId = `batch-${Date.now()}`;
-    const batchName = inviteBatchName.trim() || defaultInviteBatchName();
     const created: InviteCode[] = codes.map((code, index) => ({
       id: `${batchId}-${index + 1}`,
       code,
@@ -168,6 +244,7 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
       batchName,
       orgIds: selectedLeafOrgId ? [selectedLeafOrgId] : [],
       roles: [...pRoles],
+      groupIds: pGroupIds.length ? [...pGroupIds] : undefined,
       expiresAt: inviteExpiry,
       createdAt: now,
       status: '未使用',
@@ -178,7 +255,8 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
     setFreshCodeIds(created.map((item) => item.id));
     setActiveBatchId(batchId);
     setInviteListFilter('all');
-    onToast(`已生成 ${created.length} 个激活码，有效期至 ${formatDateTimeLabel(inviteExpiry)}`);
+    resetLeftPanel(created);
+    showToast(`已生成 ${created.length} 个激活码，有效期至 ${formatDateTimeLabel(inviteExpiry)}`);
   };
 
   const roleChip = (active: boolean) =>
@@ -245,7 +323,7 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
 
   const copyUnusedCodes = () => {
     if (!unusedInviteCodes.length) {
-      onToast('当前批次没有待激活的激活码');
+      showToast('当前批次没有待激活的激活码');
       return;
     }
     copyText(unusedInviteCodes.map((item) => item.code).join('\n'), `已复制 ${unusedInviteCodes.length} 个待激活激活码`);
@@ -253,7 +331,7 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
 
   const exportInviteCodes = () => {
     if (!activeBatchCodes.length) {
-      onToast('当前批次暂无激活码可导出');
+      showToast('当前批次暂无激活码可导出');
       return;
     }
     const header = ['批次名称', '激活码', '状态', '组织节点', '角色', '有效期至', '使用人', '手机号'];
@@ -279,22 +357,18 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-    onToast('激活码表格已导出');
+    showToast('激活码表格已导出');
   };
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-[88vh] max-h-[780px] flex flex-col">
+      <div className="relative bg-white rounded-lg shadow-xl w-full max-w-6xl h-[88vh] max-h-[780px] flex flex-col">
         <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center shrink-0 gap-3">
           <div className="min-w-0">
             <h3 className="text-sm font-bold text-gray-800">
               邀请用户
               {initialOrgName && <span className="ml-1.5 font-normal text-[#1E5ABB]">至【{initialOrgName}】</span>}
             </h3>
-            <p className="text-[11px] text-gray-400 mt-0.5">
-              选择邀请方式，邀请外部人员关注「{EXTERNAL_APP.officialAccount}」并加入
-              {initialOrgName ? `「${initialOrgName}」` : '本机构'}
-            </p>
           </div>
           <button
             type="button"
@@ -359,6 +433,14 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
                 label="组织节点 *"
                 placeholder="请选择用户所在组织节点"
               />
+              <MultiSelectDropdown
+                label="用户群组 *"
+                hint="可多选"
+                placeholder="请选择用户群组"
+                options={groups.map((group) => ({ id: group.id, label: group.name }))}
+                selected={pGroupIds}
+                onToggle={toggleGroup}
+              />
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-gray-700 font-medium">加入后角色 *</label>
@@ -388,20 +470,20 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
                   onBlur={() => {
                     if (inviteCount > remainingSeats) {
                       setInviteCount(remainingSeats);
-                      onToast(`生成数量不能超过机构剩余可用名额（剩余 ${remainingSeats} 人）`);
+                      showToast(quotaTip);
                     }
                   }}
                   placeholder="请输入生成数量"
                   className="w-full px-3 py-1.5 border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
                 />
-                <div className="mt-1 text-[11px] text-gray-400">
-                  本机构剩余可用名额 {remainingSeats} 人，数量不可超过该额度
-                </div>
+                {selectedLeafOrgId && (
+                  <div className="mt-1 text-[11px] text-gray-400">{quotaTip}</div>
+                )}
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-gray-700 font-medium">邀请凭证有效期 *</label>
-                  <span className="text-[11px] text-gray-400">默认 24 小时，最长 7 天</span>
+                  <span className="text-[11px] text-gray-400">默认 24小时，最长 7天</span>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   {INVITE_VALIDITY_OPTIONS.map((option) => (
@@ -452,7 +534,12 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
                     <button
                       type="button"
                       onClick={copyUnusedCodes}
-                      className="h-7 px-2.5 rounded border border-blue-100 bg-blue-50 text-[#1E5ABB] font-medium hover:bg-blue-100 cursor-pointer inline-flex items-center gap-1"
+                      disabled={!unusedInviteCodes.length}
+                      className={`h-7 px-2.5 rounded border inline-flex items-center gap-1 font-medium ${
+                        unusedInviteCodes.length
+                          ? 'border-blue-100 bg-blue-50 text-[#1E5ABB] hover:bg-blue-100 cursor-pointer'
+                          : 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'
+                      }`}
                     >
                       <Copy className="w-3 h-3" />
                       一键复制
@@ -460,7 +547,12 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
                     <button
                       type="button"
                       onClick={exportInviteCodes}
-                      className="h-7 px-2.5 rounded border border-gray-200 text-gray-600 hover:border-[#1E5ABB]/40 hover:text-[#1E5ABB] cursor-pointer inline-flex items-center gap-1"
+                      disabled={!activeBatchCodes.length}
+                      className={`h-7 px-2.5 rounded border inline-flex items-center gap-1 ${
+                        activeBatchCodes.length
+                          ? 'border-gray-200 text-gray-600 hover:border-[#1E5ABB]/40 hover:text-[#1E5ABB] cursor-pointer'
+                          : 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'
+                      }`}
                     >
                       <Download className="w-3 h-3" />
                       导出表格
@@ -599,7 +691,7 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
                             <span>
                               已激活 {batch.activated} / {batch.total}
                             </span>
-                            <span>至 {formatDateTimeLabel(batch.sample.expiresAt).slice(0, 10)}</span>
+                            <span>至 {formatDateTimeLabel(batch.sample.expiresAt)}</span>
                           </div>
                         </button>
                       );
@@ -613,39 +705,43 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
               key={inviteMode}
               mode={inviteMode}
               orgNodes={orgNodes}
+              groups={groups}
               inviteCodes={inviteCodes}
               setInviteCodes={setInviteCodes}
               remainingSeats={remainingSeats}
+              quotaTip={selectedLeafOrgId ? quotaTip : ''}
               orgPath={orgPath}
               onOrgPathChange={setOrgPath}
               roles={pRoles}
               onRolesChange={setPRoles}
+              groupIds={pGroupIds}
+              onGroupIdsChange={setPGroupIds}
               batchName={inviteBatchName}
               onBatchNameChange={setInviteBatchName}
               limit={inviteCount}
               onLimitChange={setInviteCount}
               validityId={validityId}
               onValidityIdChange={setValidityId}
-              onToast={onToast}
+              onToast={showToast}
               onCopy={copyText}
+              onGenerated={resetLeftPanel}
             />
           )}
         </div>
-        <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between gap-2 shrink-0 text-[11px]">
-          <div className="flex items-center gap-3 text-gray-500">
-            <span>
-              本机构可用名额：已激活 <b className="text-gray-800">{activatedCount}</b> / {ORG_MAX_USER_COUNT} 人，剩余{' '}
-              <b className="text-[#1E5ABB]">{remainingSeats}</b> 人
-            </span>
-            <button
-              type="button"
-              onClick={onOpenRecords}
-              className="inline-flex items-center gap-1 text-[#1E5ABB] hover:underline cursor-pointer"
-            >
-              <History className="w-3.5 h-3.5" />
-              激活码管理
-            </button>
+        {modalToast && (
+          <div className="pointer-events-none absolute left-1/2 top-4 z-[60] -translate-x-1/2 rounded-lg bg-gray-900/95 px-4 py-2.5 text-xs font-medium text-white shadow-xl border border-gray-700">
+            {modalToast}
           </div>
+        )}
+        <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between gap-2 shrink-0 text-[11px]">
+          <button
+            type="button"
+            onClick={onOpenRecords}
+            className="inline-flex items-center gap-1 text-[#1E5ABB] hover:underline cursor-pointer"
+          >
+            <History className="w-3.5 h-3.5" />
+            激活码管理
+          </button>
           <button
             type="button"
             onClick={onClose}

@@ -167,7 +167,7 @@ export interface ScoringRuleOptionItem {
   grades: { name: string; score: number }[];
 }
 
-export const SCORING_RULE_OPTIONS: ScoringRuleOptionItem[] = [
+const SCORING_RULE_OPTIONS: ScoringRuleOptionItem[] = [
   {
     id: 'sr_100_standard',
     name: '标准五级百分制打分规则组',
@@ -219,7 +219,7 @@ export interface AuditFlowOptionItem {
   nodes: AuditFlowNodePreview[];
 }
 
-export const AUDIT_FLOW_PRESET_OPTIONS: AuditFlowOptionItem[] = [
+const AUDIT_FLOW_PRESET_OPTIONS: AuditFlowOptionItem[] = [
   {
     id: 'flow_adaptive_tree_3',
     name: '逐级审核流程（组织树自适应）（3级）',
@@ -776,6 +776,9 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   const [designerDesc, setDesignerDesc] = useState('');
   const [designerFields, setDesignerFields] = useState<TemplateFieldItem[]>([]);
   const [designerBaseline, setDesignerBaseline] = useState('');
+  const [designerNameError, setDesignerNameError] = useState(false);
+  const [designerFieldNameErrorId, setDesignerFieldNameErrorId] = useState<string | null>(null);
+  const designerNameInputRef = useRef<HTMLInputElement>(null);
   const [draggingFieldIndex, setDraggingFieldIndex] = useState<number | null>(null);
 
   // Drag and drop sorting for template designer fields
@@ -1139,30 +1142,36 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
       return;
     }
     if (mode === 'add') {
+      // 新增：名称/说明为空；报送仅带固定字段骨架，不预填业务示例字段
+      const emptyFields =
+        topTab === '报送'
+          ? normalizeFixedFieldConstraints(applyFixedFieldRule([], institutionId))
+          : [];
       const newTpl: BusinessTemplateItem = {
         id: `tpl_${Date.now()}`,
-        name: topTab === '报送' ? '重点应急事件处置报送' : '重点应急目标快速激活',
+        name: '',
         templateType: topTab,
         isDefault: false,
         status: '停用',
         updateTime: new Date().toISOString().replace('T', ' ').substring(0, 19),
         description: '',
-        fields:
-          topTab === '报送'
-            ? normalizeFixedFieldConstraints(applyFixedFieldRule(standardReportFields, institutionId))
-            : [...standardActivationFields],
+        fields: emptyFields,
       };
       setDesignerItem({ mode: 'add', template: newTpl });
       setDesignerName('');
       setDesignerDesc('');
-      setDesignerFields(newTpl.fields);
-      setDesignerBaseline(designerSnapshot('', '', newTpl.fields));
+      setDesignerNameError(false);
+      setDesignerFieldNameErrorId(null);
+      setDesignerFields(emptyFields);
+      setDesignerBaseline(designerSnapshot('', '', emptyFields));
     } else if (tpl) {
       setDesignerItem({ mode, template: tpl });
       const nextName = tpl.name;
       const nextDesc = tpl.description || '';
       setDesignerName(nextName);
       setDesignerDesc(nextDesc);
+      setDesignerNameError(false);
+      setDesignerFieldNameErrorId(null);
       const copied = tpl.fields.map(f => ({ ...f }));
       const nextFields =
         tpl.templateType === '报送'
@@ -1236,29 +1245,44 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
       return;
     }
     if (!designerName.trim()) {
-      alertDialog('请输入模板名称');
+      setDesignerNameError(true);
+      setDesignerFieldNameErrorId(null);
+      alertDialog('请填写模板名称', { title: '无法保存' });
+      window.setTimeout(() => designerNameInputRef.current?.focus(), 0);
       return;
     }
+    setDesignerNameError(false);
     if (designerFields.length === 0) {
-      alertDialog('至少需要配置一个表单字段');
+      alertDialog('至少需要配置一个表单字段', { title: '无法保存' });
       return;
     }
 
     if (!designerItem) return;
+    const emptyNamedField = designerFields.find(
+      f => f.type !== 'static_text' && !(f.name || '').trim()
+    );
+    if (emptyNamedField) {
+      setDesignerFieldNameErrorId(emptyNamedField.id);
+      alertDialog('存在未命名的表单字段，请完善字段名称', { title: '无法保存' });
+      return;
+    }
+    setDesignerFieldNameErrorId(null);
     const emptyOptionField = designerFields.find(
       f => OPTION_FIELD_TYPES.includes(f.type) && !(f.options || []).some(o => o.trim())
     );
     if (emptyOptionField) {
-      alertDialog(`字段「${emptyOptionField.name || '未命名字段'}」至少需要配置一个选项`);
+      alertDialog(`字段「${emptyOptionField.name || '未命名字段'}」至少需要配置一个选项`, { title: '无法保存' });
       return;
     }
     if (designerFields.some(f => f.type === 'static_text' && !(f.placeholder || '').trim())) {
-      alertDialog('请填写静态提示文本的内容');
+      alertDialog('请填写静态提示文本的内容', { title: '无法保存' });
       return;
     }
     const badLengthField = designerFields.find(f => f.type === 'text' && !isValidMaxLength(f.maxLength));
     if (badLengthField) {
-      alertDialog(`字段「${badLengthField.name || '未命名字段'}」的字数上限需为 1–${TEXT_MAX_LENGTH_LIMIT} 的整数`);
+      alertDialog(`字段「${badLengthField.name || '未命名字段'}」的字数上限需为 1–${TEXT_MAX_LENGTH_LIMIT} 的整数`, {
+        title: '无法保存'
+      });
       return;
     }
     if (
@@ -1268,9 +1292,12 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
         designerItem.mode === 'edit' ? designerItem.template.id : undefined
       )
     ) {
-      alertDialog(`模板名称「${designerName.trim()}」已存在，请更换名称`);
+      setDesignerNameError(true);
+      alertDialog(`模板名称「${designerName.trim()}」已存在，请更换名称`, { title: '无法保存' });
+      window.setTimeout(() => designerNameInputRef.current?.focus(), 0);
       return;
     }
+    setDesignerNameError(false);
     const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
     const fieldsToSave =
       designerItem.template.templateType === '报送'
@@ -1312,8 +1339,13 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     setDesignerItem(null);
   };
 
+  const TEMPLATE_FIELD_LIMIT = 20;
+  const fieldLimitReached = designerFields.length >= TEMPLATE_FIELD_LIMIT;
+  const fieldLimitTip = '当前模板最多支持20个表单字段，请删除已有字段后新增';
+
   // Add a new blank field in designer
   const handleAddField = () => {
+    if (designerFields.length >= TEMPLATE_FIELD_LIMIT) return;
     const newField: TemplateFieldItem = {
       id: `fld_${Date.now()}`,
       name: '自定义字段',
@@ -2273,12 +2305,23 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                 模板名称 <span className="text-red-500">*</span>
               </label>
               <input
+                ref={designerNameInputRef}
                 type="text"
                 value={designerName}
-                onChange={e => setDesignerName(e.target.value)}
+                onChange={e => {
+                  setDesignerName(e.target.value);
+                  if (e.target.value.trim()) setDesignerNameError(false);
+                }}
                 placeholder={isActivation ? '例如：重点应急目标快速激活' : '例如：重大突发事件应急处置报送'}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-[#1890ff] focus:ring-1 focus:ring-blue-100 bg-white"
+                className={`w-full px-3 py-2 border rounded-lg text-xs focus:outline-none focus:ring-1 bg-white ${
+                  designerNameError
+                    ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-100'
+                    : 'border-gray-200 focus:border-[#1890ff] focus:ring-blue-100'
+                }`}
               />
+              {designerNameError && (
+                <p className="mt-1 text-[11px] text-rose-500">请填写模板名称</p>
+              )}
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">
@@ -2400,10 +2443,20 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                             setDesignerFields(
                               designerFields.map(f => (f.id === field.id ? { ...f, name: nextName } : f))
                             );
+                            if (nextName.trim() && designerFieldNameErrorId === field.id) {
+                              setDesignerFieldNameErrorId(null);
+                            }
                           }}
-                          placeholder="字段标题"
-                          className="w-full px-3 py-2 border border-gray-200 rounded-md text-[13px] font-medium focus:outline-none bg-white text-gray-800 hover:border-gray-300 focus:border-[#1890ff]"
+                          placeholder="字段标题 *"
+                          className={`w-full px-3 py-2 border rounded-md text-[13px] font-medium focus:outline-none bg-white text-gray-800 ${
+                            designerFieldNameErrorId === field.id
+                              ? 'border-rose-400 focus:border-rose-500'
+                              : 'border-gray-200 hover:border-gray-300 focus:border-[#1890ff]'
+                          }`}
                         />
+                        {designerFieldNameErrorId === field.id && (
+                          <p className="mt-1 text-[11px] text-rose-500">请填写字段名称</p>
+                        )}
                       </div>
                       )}
 
@@ -2650,7 +2703,13 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
               <button
                 type="button"
                 onClick={handleAddField}
-                className="w-full mt-2 py-2.5 border border-dashed border-blue-300 bg-white/60 hover:bg-blue-50/60 hover:border-[#1890ff] text-[#1E5ABB] rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                disabled={fieldLimitReached}
+                title={fieldLimitReached ? fieldLimitTip : undefined}
+                className={`w-full mt-2 py-2.5 border border-dashed rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors ${
+                  fieldLimitReached
+                    ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+                    : 'border-blue-300 bg-white/60 hover:bg-blue-50/60 hover:border-[#1890ff] text-[#1E5ABB] cursor-pointer'
+                }`}
               >
                 <Plus className="w-4 h-4" />
                 <span>添加字段</span>

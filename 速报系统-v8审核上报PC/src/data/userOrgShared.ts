@@ -1465,6 +1465,41 @@ export const buildOrgIdPath = (orgNodes: OrgNode[], orgId?: string) => {
   return path;
 };
 
+/** 组织树根配额上限（与外部组织管理一致） */
+export const ORG_TREE_QUOTA_LIMIT = 500;
+
+/** 节点人员配额：本节点未设置时向上继承，最终回落根配额 */
+export const getOrgNodeCapacity = (orgNodes: OrgNode[], orgId?: string | null): number => {
+  if (!orgId) return ORG_TREE_QUOTA_LIMIT;
+  const node = getOrgById(orgNodes, orgId);
+  if (!node) return ORG_TREE_QUOTA_LIMIT;
+  return node.quota ?? getOrgNodeCapacity(orgNodes, node.parentId);
+};
+
+/** 各节点人数（含下级，挂到祖先链） */
+export const buildOrgHeadcount = (
+  orgNodes: OrgNode[],
+  personnel: Array<Pick<PersonnelItem, 'orgIds' | 'primaryOrgId' | 'recycled'>>
+): Record<string, number> => {
+  const acc: Record<string, number> = {};
+  for (const person of personnel) {
+    if (person.recycled) continue;
+    const personOrgId = getDeepestOrgId(orgNodes, person.orgIds, person.primaryOrgId);
+    if (!personOrgId) continue;
+    for (const id of buildOrgIdPath(orgNodes, personOrgId)) {
+      acc[id] = (acc[id] || 0) + 1;
+    }
+  }
+  return acc;
+};
+
+/** 组织节点剩余可用额度 */
+export const getOrgNodeRemainingSeats = (
+  orgNodes: OrgNode[],
+  orgHeadcount: Record<string, number>,
+  orgId: string
+) => Math.max(0, getOrgNodeCapacity(orgNodes, orgId) - (orgHeadcount[orgId] || 0));
+
 export const getOrgFullPath = (
   orgNodes: OrgNode[],
   orgId?: string,
