@@ -26,20 +26,14 @@ const DOC_ORDER: string[] = ['PRD'];
 const HOME_DOC_ORDER: string[] = [];
 const DOC_LABELS: Record<string, string> = { CHANGELOG: '更新记录', PRD: 'PRD' };
 
-/** 飞书 Wiki：有配置时 PRD 分栏直接打开飞书（不再提供「原生 PRD」切换） */
+/** 飞书 Wiki：四端统一打开同一份合并 PRD */
+const SUITE_FEISHU_PRD =
+  'https://bvhnst56r3r.feishu.cn/wiki/MHKmwpOo4iEMj1k08d1chz9bnuf';
 const EXTERNAL_DOC_URLS: Record<string, Partial<Record<string, string>>> = {
-  'mt-app': {
-    PRD: 'https://bvhnst56r3r.feishu.cn/wiki/Q8Q4wWyOuiUsWDkC2UHc5MYynCc',
-  },
-  'v8-client': {
-    PRD: 'https://bvhnst56r3r.feishu.cn/wiki/MZAVwhifyirxHjkj79acAd5RnTd',
-  },
-  'v8-audit-pc': {
-    PRD: 'https://bvhnst56r3r.feishu.cn/wiki/YDeYwAXZQinHULk15RWc9W14nf9',
-  },
-  'v8-audit-h5': {
-    PRD: 'https://bvhnst56r3r.feishu.cn/wiki/OLnSwFv7XiwgwOk4AdicYrcLndh',
-  },
+  'mt-app': { PRD: SUITE_FEISHU_PRD },
+  'v8-client': { PRD: SUITE_FEISHU_PRD },
+  'v8-audit-pc': { PRD: SUITE_FEISHU_PRD },
+  'v8-audit-h5': { PRD: SUITE_FEISHU_PRD },
 };
 
 /** Whether this doc name can open in-terminal (panel / hash ?doc=) */

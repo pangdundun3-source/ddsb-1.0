@@ -4,6 +4,9 @@ import path from 'node:path';
 import type { Plugin } from 'vite';
 
 const TERMINAL_IDS = ['v8-client', 'v8-audit-pc', 'v8-audit-h5', 'mt-app'];
+/** 四端合并的套件级文档（如原生 PRD），不参与门户终端切换 */
+const SUITE_DOC_IDS = ['suite'];
+const ALL_DOC_TERMINAL_IDS = [...TERMINAL_IDS, ...SUITE_DOC_IDS];
 const VIRTUAL_ID = 'virtual:terminal-docs';
 const RESOLVED_ID = `\0${VIRTUAL_ID}`;
 const UPDATE_EVENT = 'terminal-docs:update';
@@ -87,7 +90,7 @@ export function terminalDocsPlugin(docsDir: string): Plugin {
 
   const readBundle = () => {
     const docs: TerminalDocFile[] = [];
-    for (const terminalId of TERMINAL_IDS) {
+    for (const terminalId of ALL_DOC_TERMINAL_IDS) {
       const dir = path.join(docsDir, terminalId);
       if (!fs.existsSync(dir)) continue;
       for (const file of fs.readdirSync(dir)) {
@@ -147,7 +150,7 @@ export function terminalDocsPlugin(docsDir: string): Plugin {
           const { terminalId, name, content } = (await readBody(request)) as Record<string, unknown>;
           if (
             typeof terminalId !== 'string' ||
-            !TERMINAL_IDS.includes(terminalId) ||
+            !ALL_DOC_TERMINAL_IDS.includes(terminalId) ||
             typeof name !== 'string' ||
             !DOC_NAME_PATTERN.test(name) ||
             typeof content !== 'string'
