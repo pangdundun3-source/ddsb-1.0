@@ -23,7 +23,7 @@ export interface TerminalDocsBundle {
 /** 进入各端后顶栏 / 右侧分栏可见的文档入口；置空则隐藏 PRD 等入口 */
 const DOC_ORDER: string[] = ['PRD'];
 /** 门户首页卡片上的文档入口；置空则首页不展示 PRD / 更新记录 */
-const HOME_DOC_ORDER: string[] = ['PRD'];
+const HOME_DOC_ORDER: string[] = [];
 const DOC_LABELS: Record<string, string> = { CHANGELOG: '更新记录', PRD: 'PRD' };
 
 /** 飞书 Wiki：有配置时 PRD 分栏直接打开飞书（不再提供「原生 PRD」切换） */
