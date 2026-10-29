@@ -35,6 +35,7 @@ interface ReportSummaryProps {
   onOpenEditReport?: (report: ReportItem) => void;
   onOpenNewReport?: (templateData?: any) => void;
   onNavigate: (page: PageId) => void;
+  initialTab?: '待审核' | '审核中' | '已驳回';
   focusReport?: ReportItem | null;
   onFocusConsumed?: () => void;
 }
@@ -50,12 +51,13 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   onOpenEditReport,
   onOpenNewReport,
   onNavigate,
+  initialTab = '待审核',
   focusReport,
   onFocusConsumed
 }) => {
   // Filter States
   const [activeTab, setActiveTab] = useState<'待审核' | '审核中' | '已驳回'>(() =>
-    focusReport ? tabForStatus(focusReport.auditStatus) : '待审核'
+    focusReport ? tabForStatus(focusReport.auditStatus) : initialTab
   );
   const [keyword, setKeyword] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -71,6 +73,10 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
     setDrawerReport(focusReport);
     onFocusConsumed?.();
   }, [focusReport]);
+
+  useEffect(() => {
+    if (!focusReport) setActiveTab(initialTab);
+  }, [focusReport, initialTab]);
 
   // Statistics calculation
   const totalCount = reports.filter((r) => r.auditStatus !== '草稿').length;

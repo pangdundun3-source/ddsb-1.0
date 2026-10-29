@@ -33,6 +33,7 @@ import { getAuditArrivedAt, getRejectTime } from '../services/reportWorkflowServ
 interface ReportAuditProps {
   auditPendingList: ReportItem[];
   allReports?: ReportItem[];
+  initialTab?: '待审核' | '已驳回';
   onSelectAudit: (report: ReportItem) => void;
   onApproveAudit?: (id: number, score?: number, isBatch?: boolean) => void;
   onRejectAudit?: (id: number, reason: string, detail: string) => void;
@@ -45,6 +46,7 @@ interface ReportAuditProps {
 export const ReportAudit: React.FC<ReportAuditProps> = ({
   auditPendingList,
   allReports = [],
+  initialTab = '待审核',
   onSelectAudit,
   onApproveAudit,
   onRejectAudit,
@@ -52,7 +54,9 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
   onNavigate
 }) => {
   // Navigation tabs & Filter States
-  const [activeTab, setActiveTab] = useState<'待审核' | '已驳回' | '已通过' | '已采纳' | '全部'>('待审核');
+  const [activeTab, setActiveTab] = useState<'待审核' | '已驳回' | '已通过' | '全部'>(
+    initialTab
+  );
   const [keyword, setKeyword] = useState('');
   /** 上报机构：外部联系人组织树节点 id；null = 全部 */
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
@@ -81,7 +85,6 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
   const passedCount = sourceList.filter((r) => r.auditStatus === '已通过' || r.auditStatus === '已转办').length;
   const auditedCount = sourceList.filter((r) => r.auditStatus === '已通过' || r.auditStatus === '已转办' || r.auditStatus === '已采纳').length;
   const rejectedCount = sourceList.filter((r) => r.auditStatus === '被驳回' || r.auditStatus === '已驳回').length;
-  const adoptedCount = sourceList.filter((r) => r.auditStatus === '已采纳').length;
   const totalAuditPool = sourceList.length;
   const processedRate = totalAuditPool > 0 ? Math.round(((auditedCount + rejectedCount) / totalAuditPool) * 100) : 29;
 
@@ -91,7 +94,6 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
     if (activeTab === '待审核' && item.auditStatus !== '待审核') return false;
     if (activeTab === '已驳回' && item.auditStatus !== '被驳回' && item.auditStatus !== '已驳回') return false;
     if (activeTab === '已通过' && item.auditStatus !== '已通过' && item.auditStatus !== '已转办') return false;
-    if (activeTab === '已采纳' && item.auditStatus !== '已采纳') return false;
 
     // Search filters (智能综合模糊检索: 标题、内容描述、上报人、机构、地址等)
     if (keyword.trim()) {
@@ -136,6 +138,10 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
   useEffect(() => {
     setCurrentPage(1);
   }, [activeTab, keyword, selectedOrgId, selectedAuditor, startDate, endDate]);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);

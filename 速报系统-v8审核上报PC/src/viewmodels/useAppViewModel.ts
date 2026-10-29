@@ -123,6 +123,9 @@ export const useAppViewModel = () => {
     const hashRoute = getHashRoute();
     return hashRoute?.page === 'external-contacts' ? hashRoute.module || 'account' : 'account';
   });
+  const [reportSummaryInitialTab, setReportSummaryInitialTab] = useState<
+    '待审核' | '审核中' | '已驳回'
+  >('待审核');
 
   // Sync hash changes (e.g. browser back/forward, manual address bar edit) with app state
   useEffect(() => {
@@ -244,6 +247,11 @@ export const useAppViewModel = () => {
 
   const handleNavigate = (page: PageId, extraModule?: string) => {
     setActivePage(page);
+    if (page === 'report-summary') {
+      setReportSummaryInitialTab(
+        extraModule === 'rejected' ? '已驳回' : extraModule === 'reviewing' ? '审核中' : '待审核'
+      );
+    }
     try {
       localStorage.setItem('ddsb_active_page', page);
     } catch {
@@ -590,6 +598,7 @@ export const useAppViewModel = () => {
     currentOrg,
     businessConfigInitialModule,
     externalContactsInitialModule,
+    reportSummaryInitialTab,
     reports,
     reportTemplates,
     auditRecords,

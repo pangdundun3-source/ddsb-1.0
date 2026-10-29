@@ -1,8 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { PageId, ReportItem, OrgItem } from '../types';
 import { IdentificationBadge } from '../components/IdentificationBadge';
+import { getOrganizationPathText } from '../components/OrgPathDisplay';
 import { resolveIdentification } from '../services/identificationService';
-import { Building2, ChevronRight, RotateCcw, ArrowUpDown, Inbox } from 'lucide-react';
+import { getAuditArrivedAt } from '../services/reportWorkflowService';
+import { AuditDetail } from './AuditDetail';
+import { Building2, ChevronRight, RotateCcw, Inbox } from 'lucide-react';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -17,11 +20,18 @@ import {
 interface HomeProps {
   reports: ReportItem[];
   orgs: OrgItem[];
-  onNavigate: (page: PageId) => void;
-  onSelectReport: (report: ReportItem) => void;
-  onSelectAudit: (report: ReportItem) => void;
+  onNavigate: (page: PageId, extra?: string) => void;
+  onApproveAudit?: (
+    id: number,
+    score?: number,
+    isBatch?: boolean,
+    manualIdentification?: '首发' | '重复',
+    batchIds?: number[],
+    scoreMap?: Record<number, number>,
+    identMap?: Record<number, '首发' | '重复'>
+  ) => void;
+  onRejectAudit?: (id: number, reason: string, detail: string) => void;
   currentUser?: string;
-  currentOrg?: string;
 }
 
 const bottomChartData = [
@@ -53,13 +63,21 @@ const PENDING_ALERT = 5;
 const AVG_MINUTES_ALERT = 60;
 
 const SORT_OPTIONS = {
-  pending: '待审核量',
   submitted: '今日上报',
-  avgTime: '平均耗时'
+  pending: '待审核',
+  rejected: '驳回待重报',
+  reporterActive: '上报员活跃',
+  auditorActive: '审核员活跃',
+  avgTime: '平均审核耗时'
 } as const;
 type SortKey = keyof typeof SORT_OPTIONS;
 
 const TODO_LIMIT = 6;
+
+const parseActiveRatio = (value: string) => {
+  const [active, total] = value.split('/').map(Number);
+  return total > 0 ? active / total : 0;
+};
 
 const formatMinutes = (minutes: number) =>
   minutes >= 60 ? `${Math.floor(minutes / 60)}小时${minutes % 60 ? `${minutes % 60}分` : ''}` : `${minutes}分钟`;
@@ -84,12 +102,13 @@ const Card: React.FC<{ title: React.ReactNode; extra?: React.ReactNode; children
 export const Home: React.FC<HomeProps> = ({
   reports,
   onNavigate,
-  onSelectAudit,
-  currentUser = '张三',
-  currentOrg = '台中市网信办'
+  onApproveAudit,
+  onRejectAudit,
+  currentUser = '张三'
 }) => {
   const [currentTime, setCurrentTime] = useState('2026-09-04 17:25');
-  const [sortKey, setSortKey] = useState<SortKey>('pending');
+  const [sortKey, setSortKey] = useState<SortKey>('submitted');
+  const [drawerAuditReport, setDrawerAuditReport] = useState<ReportItem | null>(null);
 
   const pendingAudits = useMemo(
     () =>
@@ -104,14 +123,20 @@ export const Home: React.FC<HomeProps> = ({
 
   const sortedOrgs = useMemo(() => {
     const list = [...subOrgMatrixData];
-    if (sortKey === 'pending') list.sort((a, b) => b.pendingAudit - a.pendingAudit);
     if (sortKey === 'submitted') list.sort((a, b) => b.todaySubmitted - a.todaySubmitted);
+    if (sortKey === 'pending') list.sort((a, b) => b.pendingAudit - a.pendingAudit);
+    if (sortKey === 'rejected') list.sort((a, b) => b.rejectedResend - a.rejectedResend);
+    if (sortKey === 'reporterActive') {
+      list.sort((a, b) => parseActiveRatio(b.reporterActive) - parseActiveRatio(a.reporterActive));
+    }
+    if (sortKey === 'auditorActive') {
+      list.sort((a, b) => parseActiveRatio(b.auditorActive) - parseActiveRatio(a.auditorActive));
+    }
     if (sortKey === 'avgTime') list.sort((a, b) => b.avgMinutes - a.avgMinutes);
     return list;
   }, [sortKey]);
 
   const sortKeys = Object.keys(SORT_OPTIONS) as SortKey[];
-  const nextSortKey = sortKeys[(sortKeys.indexOf(sortKey) + 1) % sortKeys.length];
 
   const totals = bottomChartData.reduce(
     (acc, d) => ({ submitted: acc.submitted + d.submitted, passed: acc.passed + d.passed }),
@@ -121,18 +146,41 @@ export const Home: React.FC<HomeProps> = ({
   const avgDirectRate = bottomChartData.reduce((sum, d) => sum + d.directRate, 0) / bottomChartData.length;
 
   const handleQuickAudit = (report: ReportItem) => {
-    onSelectAudit(report);
-    onNavigate('audit-detail');
+    setDrawerAuditReport(report);
   };
 
   const displayName = currentUser.replace(/\s*\(.*\)$/, '');
   const hour = Number(currentTime.slice(11, 13));
 
-  const stats: { label: string; value: number; unit: string; tone: string; page: PageId }[] = [
-    { label: '待审核', value: pendingAudits.length, unit: '件', tone: 'text-[#1E5ABB]', page: 'report-audit' },
-    { label: '驳回待重报', value: rejectedCount, unit: '件', tone: 'text-amber-600', page: 'report-records' },
-    { label: '已采纳待转办', value: toTransferCount, unit: '件', tone: 'text-violet-600', page: 'negative-info' },
-    { label: '今日上报', value: todaySubmitted, unit: '件', tone: 'text-slate-900', page: 'statistics' }
+  const stats: {
+    label: string;
+    value: number;
+    unit: string;
+    tone: string;
+    onClick?: () => void;
+  }[] = [
+    {
+      label: '待我审核',
+      value: pendingAudits.length,
+      unit: '件',
+      tone: 'text-[#1E5ABB]',
+      onClick: () => onNavigate('report-audit')
+    },
+    {
+      label: '已驳回待重报',
+      value: rejectedCount,
+      unit: '件',
+      tone: 'text-amber-600',
+      onClick: () => onNavigate('report-audit', 'rejected')
+    },
+    {
+      label: '已采纳待转办',
+      value: toTransferCount,
+      unit: '件',
+      tone: 'text-violet-600',
+      onClick: () => onNavigate('audit-records')
+    },
+    { label: '今日上报', value: todaySubmitted, unit: '件', tone: 'text-slate-900' }
   ];
 
   return (
@@ -143,10 +191,9 @@ export const Home: React.FC<HomeProps> = ({
             <h1 className="text-base font-bold text-slate-900">
               {getGreeting(hour)}，{displayName}
             </h1>
-            <p className="text-xs text-slate-500 mt-0.5">{currentOrg} · 全域速报运行概况</p>
           </div>
           <div className="flex items-center gap-1.5 text-xs text-slate-400 tabular-nums">
-            <span>数据更新于 {currentTime}</span>
+            <span>统计更新 {currentTime}</span>
             <button
               onClick={() => {
                 const now = new Date();
@@ -163,22 +210,35 @@ export const Home: React.FC<HomeProps> = ({
           </div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-slate-100">
-          {stats.map((s) => (
-            <button
-              key={s.label}
-              onClick={() => onNavigate(s.page)}
-              className="group text-left px-5 py-4 hover:bg-slate-50 transition-colors cursor-pointer"
-            >
-              <span className="flex items-center justify-between text-xs text-slate-500">
-                {s.label}
-                <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-[#1E5ABB] transition-colors" />
-              </span>
-              <span className="mt-1.5 block">
-                <span className={`text-2xl font-bold tabular-nums ${s.tone}`}>{s.value}</span>
-                <span className="ml-1 text-xs text-slate-400">{s.unit}</span>
-              </span>
-            </button>
-          ))}
+          {stats.map((s) => {
+            const content = (
+              <>
+                <span className="flex items-center justify-between text-xs text-slate-500">
+                  {s.label}
+                  {s.onClick && (
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-[#1E5ABB] transition-colors" />
+                  )}
+                </span>
+                <span className="mt-1.5 block">
+                  <span className={`text-2xl font-bold tabular-nums ${s.tone}`}>{s.value}</span>
+                  <span className="ml-1 text-xs text-slate-400">{s.unit}</span>
+                </span>
+              </>
+            );
+            return s.onClick ? (
+              <button
+                key={s.label}
+                onClick={s.onClick}
+                className="group text-left px-5 py-4 hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                {content}
+              </button>
+            ) : (
+              <div key={s.label} className="px-5 py-4 text-left">
+                {content}
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -187,7 +247,7 @@ export const Home: React.FC<HomeProps> = ({
         className="xl:col-span-5 flex flex-col"
         title={
           <>
-            待审核
+            待我审核
             <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-1.5 py-px rounded tabular-nums">
               {pendingAudits.length}
             </span>
@@ -206,39 +266,60 @@ export const Home: React.FC<HomeProps> = ({
         {pendingAudits.length === 0 ? (
           <div className="py-14 text-center text-xs text-slate-400">
             <Inbox className="w-7 h-7 mx-auto mb-2 opacity-40" />
-            暂无待审核速报
+            暂无待我审核速报
           </div>
         ) : (
           <ul className="divide-y divide-slate-100">
-            {pendingAudits.slice(0, TODO_LIMIT).map((item) => {
+            {pendingAudits.slice(0, TODO_LIMIT).map((item, index) => {
               const ident = resolveIdentification(item, reports);
               return (
                 <li key={item.id}>
-                  <div
-                    onClick={() => handleQuickAudit(item)}
-                    className="group flex items-center gap-3 px-5 py-3 hover:bg-slate-50 transition-colors cursor-pointer"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-[13px] font-semibold text-slate-900 truncate group-hover:text-[#1E5ABB]">
-                          {item.title}
-                        </span>
-                        <IdentificationBadge status={ident.status} size="xs" showIcon />
+                  <div className="flex gap-3 px-5 py-3.5 transition-colors hover:bg-gray-50/70">
+                    <span className="mt-0.5 w-6 shrink-0 text-center font-mono text-xs text-gray-400">
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="shrink-0 rounded bg-amber-50 px-1.5 py-px text-[11px] font-medium text-amber-700">
+                            待审核
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleQuickAudit(item)}
+                            title={item.title}
+                            className="min-w-0 cursor-pointer truncate text-left text-sm font-semibold text-gray-900 hover:text-[#1E5ABB]"
+                          >
+                            {item.title}
+                          </button>
+                          <IdentificationBadge status={ident.status} size="xs" className="shrink-0" />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleQuickAudit(item)}
+                          className="shrink-0 cursor-pointer text-xs font-semibold text-[#1E5ABB] hover:underline"
+                        >
+                          审核
+                        </button>
                       </div>
-                      <p className="mt-1 text-xs text-slate-500 truncate">
-                        {item.organization} · {item.author}
-                        <span className="text-slate-400 tabular-nums"> · 提交于 {(item.submitTime || '').slice(5, 16)}</span>
+                      <p className="truncate text-xs text-gray-500" title={item.detailContent?.summary || item.title}>
+                        {item.detailContent?.summary || '暂无内容描述'}
                       </p>
+                      <div className="flex min-w-0 items-center gap-1.5 whitespace-nowrap text-[11px] text-gray-400">
+                        <span className="shrink-0 rounded bg-gray-100 px-1 text-gray-500">报送人</span>
+                        <span className="shrink-0 text-gray-600">{item.author || '—'}</span>
+                        <span className="shrink-0 text-gray-300">·</span>
+                        <span title={getOrganizationPathText(item.organization)} className="truncate">
+                          {item.organization}
+                        </span>
+                        <span className="shrink-0 text-gray-300">·</span>
+                        <span className="shrink-0 font-mono text-gray-500">{item.submitTime}</span>
+                        <span className="shrink-0 text-gray-300">·</span>
+                        <span className="shrink-0">
+                          提交时间 <span className="font-mono text-gray-500">{getAuditArrivedAt(item)}</span>
+                        </span>
+                      </div>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleQuickAudit(item);
-                      }}
-                      className="shrink-0 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-[#1E5ABB] hover:bg-[#1E5ABB] hover:text-white hover:border-[#1E5ABB] transition-colors cursor-pointer"
-                    >
-                      去审核
-                    </button>
                   </div>
                 </li>
               );
@@ -250,61 +331,76 @@ export const Home: React.FC<HomeProps> = ({
             onClick={() => onNavigate('report-audit')}
             className="mt-auto w-full py-2.5 border-t border-slate-100 text-xs text-slate-500 hover:text-[#1E5ABB] hover:bg-slate-50 transition-colors cursor-pointer"
           >
-            还有 {pendingAudits.length - TODO_LIMIT} 条待审核，去审核管理处理
+            还有 {pendingAudits.length - TODO_LIMIT} 条待我审核，去审核管理处理
           </button>
         )}
       </Card>
 
       <Card
-        className="xl:col-span-7 flex flex-col min-w-0"
+        className="xl:col-span-7 flex h-full min-h-0 flex-col min-w-0"
         title={
           <>
-            子机构运行矩阵
-            <span className="text-xs font-normal text-slate-400">{subOrgMatrixData.length} 个机构</span>
+            组织节点运行矩阵
+            <span className="text-xs font-normal text-slate-400">{subOrgMatrixData.length} 个组织节点</span>
           </>
         }
         extra={
-          <button
-            onClick={() => setSortKey(nextSortKey)}
-            className="text-xs text-slate-600 hover:text-[#1E5ABB] flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 hover:border-[#1E5ABB]/40 cursor-pointer"
-            title={`切换为按${SORT_OPTIONS[nextSortKey]}排序`}
-          >
-            <ArrowUpDown className="w-3.5 h-3.5" />
-            按{SORT_OPTIONS[sortKey]}排序
-          </button>
+          <label className="flex items-center gap-2 text-xs text-slate-600">
+            <span className="whitespace-nowrap">排序字段</span>
+            <select
+              value={sortKey}
+              onChange={(event) => setSortKey(event.target.value as SortKey)}
+              className="min-w-[132px] px-2.5 py-1 bg-white border border-slate-200 hover:border-[#1E5ABB]/40 focus:border-[#1E5ABB] rounded-lg text-xs text-slate-700 outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 cursor-pointer"
+            >
+              {sortKeys.map((key) => (
+                <option key={key} value={key}>
+                  {SORT_OPTIONS[key]}
+                </option>
+              ))}
+            </select>
+          </label>
         }
       >
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="text-slate-500 border-b border-slate-100 whitespace-nowrap">
+        <div className="min-h-0 flex-1 overflow-x-auto">
+          <table className="w-full min-w-[600px] table-fixed text-left text-xs">
+            <colgroup>
+              <col className="w-[24%]" />
+              <col className="w-[11%]" />
+              <col className="w-[11%]" />
+              <col className="w-[12%]" />
+              <col className="w-[13%]" />
+              <col className="w-[13%]" />
+              <col className="w-[16%]" />
+            </colgroup>
+            <thead className="text-slate-500 border-b border-slate-100">
               <tr>
-                <th className="py-2.5 px-5 font-medium">机构名称</th>
-                <th className="py-2.5 px-2.5 font-medium text-right">今日上报</th>
-                <th className="py-2.5 px-2.5 font-medium text-right">待审核</th>
-                <th className="py-2.5 px-2.5 font-medium text-right">驳回待重报</th>
-                <th className="py-2.5 px-2.5 font-medium text-right">上报员活跃</th>
-                <th className="py-2.5 px-2.5 font-medium text-right">审核员活跃</th>
-                <th className="py-2.5 px-5 font-medium text-right">平均审核耗时</th>
+                <th className="py-2.5 px-2 font-medium leading-tight">组织节点名称</th>
+                <th className="py-2.5 px-1.5 font-medium text-right leading-tight">今日上报</th>
+                <th className="py-2.5 px-1.5 font-medium text-right leading-tight">待审核</th>
+                <th className="py-2.5 px-1.5 font-medium text-right leading-tight">驳回待重报</th>
+                <th className="py-2.5 px-1.5 font-medium text-right leading-tight">上报员活跃</th>
+                <th className="py-2.5 px-1.5 font-medium text-right leading-tight">审核员活跃</th>
+                <th className="py-2.5 px-2 font-medium text-right leading-tight">平均审核耗时</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700 tabular-nums">
               {sortedOrgs.map((org) => (
                 <tr key={org.name} className="hover:bg-slate-50 transition-colors">
-                  <td className="py-2.5 px-5">
-                    <span className="flex items-center gap-2 font-medium text-slate-900 whitespace-nowrap">
+                  <td className="py-2.5 px-2">
+                    <span className="flex items-start gap-1.5 font-medium text-slate-900 leading-tight break-words">
                       <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       {org.name}
                     </span>
                   </td>
-                  <td className="py-2.5 px-2.5 text-right">{org.todaySubmitted}</td>
-                  <td className={`py-2.5 px-2.5 text-right ${org.pendingAudit >= PENDING_ALERT ? 'text-rose-600 font-semibold' : ''}`}>
+                  <td className="py-2.5 px-1.5 text-right">{org.todaySubmitted}</td>
+                  <td className={`py-2.5 px-1.5 text-right ${org.pendingAudit >= PENDING_ALERT ? 'text-rose-600 font-semibold' : ''}`}>
                     {org.pendingAudit}
                   </td>
-                  <td className="py-2.5 px-2.5 text-right">{org.rejectedResend}</td>
-                  <td className="py-2.5 px-2.5 text-right">{org.reporterActive}</td>
-                  <td className="py-2.5 px-2.5 text-right">{org.auditorActive}</td>
+                  <td className="py-2.5 px-1.5 text-right">{org.rejectedResend}</td>
+                  <td className="py-2.5 px-1.5 text-right">{org.reporterActive}</td>
+                  <td className="py-2.5 px-1.5 text-right">{org.auditorActive}</td>
                   <td
-                    className={`py-2.5 px-5 text-right whitespace-nowrap ${
+                    className={`py-2.5 px-2 text-right leading-tight ${
                       org.avgMinutes >= AVG_MINUTES_ALERT ? 'text-rose-600 font-semibold' : ''
                     }`}
                   >
@@ -315,7 +411,7 @@ export const Home: React.FC<HomeProps> = ({
             </tbody>
           </table>
         </div>
-        <p className="mt-auto px-5 py-2.5 border-t border-slate-100 text-[11px] text-slate-400">
+        <p className="shrink-0 px-5 py-2.5 border-t border-slate-100 text-[11px] text-slate-400">
           待审核 ≥ {PENDING_ALERT} 件或平均审核耗时超过 1 小时标红提示
         </p>
       </Card>
@@ -374,6 +470,31 @@ export const Home: React.FC<HomeProps> = ({
           </ResponsiveContainer>
         </div>
       </Card>
+
+      {drawerAuditReport && (
+        <AuditDetail
+          report={drawerAuditReport}
+          allReports={reports}
+          onNavigate={onNavigate}
+          onClose={() => setDrawerAuditReport(null)}
+          onApprove={(id, score, isBatch, manualIdentification, batchIds, scoreMap, identMap) => {
+            onApproveAudit?.(
+              id,
+              score,
+              isBatch,
+              manualIdentification,
+              batchIds,
+              scoreMap,
+              identMap
+            );
+            setDrawerAuditReport(null);
+          }}
+          onReject={(id, reason, detail) => {
+            onRejectAudit?.(id, reason, detail);
+            setDrawerAuditReport(null);
+          }}
+        />
+      )}
     </div>
   );
 };

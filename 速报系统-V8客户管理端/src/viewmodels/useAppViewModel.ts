@@ -179,6 +179,9 @@ export const useAppViewModel = () => {
     }
     return 'account';
   });
+  const [reportAuditInitialTab, setReportAuditInitialTab] = useState<
+    '待审核' | '已驳回'
+  >('待审核');
 
   const [reports, setReports] = useState<ReportItem[]>([
     ...initialAuditPending,
@@ -338,6 +341,11 @@ export const useAppViewModel = () => {
       return;
     }
     setActivePage(page);
+    if (page === 'report-audit') {
+      setReportAuditInitialTab(
+        extraModule === 'rejected' ? '已驳回' : '待审核'
+      );
+    }
     try {
       localStorage.setItem('ddsb_active_page', page);
     } catch {
@@ -675,6 +683,7 @@ export const useAppViewModel = () => {
     activePage,
     businessConfigInitialModule,
     userOrgInitialModule,
+    reportAuditInitialTab,
     reports,
     reportTemplates,
     auditRecords,

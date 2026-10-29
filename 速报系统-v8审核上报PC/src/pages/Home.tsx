@@ -24,15 +24,15 @@ import { ReportOriginBadge } from '../components/ReportOriginBadge';
 import { getOrganizationPathText } from '../components/OrgPathDisplay';
 import { HomeNotificationPanel } from '../components/HomeNotificationPanel';
 import { getAuditArrivedAt, getRejectTime } from '../services/reportWorkflowService';
+import { AuditDetail } from './AuditDetail';
+import { ReportDetail } from './ReportDetail';
 
 export type SystemRoleMode = 'all' | 'reporter' | 'auditor';
 
 interface HomeProps {
   reports: ReportItem[];
   orgs?: OrgItem[];
-  onNavigate: (page: PageId) => void;
-  onSelectReport?: (report: ReportItem) => void;
-  onSelectAudit?: (report: ReportItem) => void;
+  onNavigate: (page: PageId, extra?: string) => void;
   currentUser?: string;
   currentRoleTitle?: string;
   currentOrgName?: string;
@@ -40,6 +40,14 @@ interface HomeProps {
   onOpenNewReport?: (templateData?: ReportTemplateInput) => void;
   onOpenEditReport?: (report: ReportItem) => void;
   onDeleteReport?: (id: number) => void;
+  onApproveAudit?: (id: number, score?: number, isBatch?: boolean, batchIds?: number[]) => void;
+  onRejectAudit?: (
+    id: number,
+    reason: string,
+    detail: string,
+    isBatch?: boolean,
+    batchIds?: number[]
+  ) => void;
   notifications: NotificationItem[];
   onMarkNotificationsRead: (ids: string[]) => void;
   onOpenNotification: (item: NotificationItem) => void;
@@ -230,11 +238,11 @@ const Pager: React.FC<{
 export const Home: React.FC<HomeProps> = ({
   reports,
   onNavigate,
-  onSelectReport,
-  onSelectAudit,
   onOpenNewReport,
   onOpenEditReport,
   onDeleteReport,
+  onApproveAudit,
+  onRejectAudit,
   currentUser = '张三',
   currentRoleTitle = '超级管理员',
   currentOrgName,
@@ -252,6 +260,8 @@ export const Home: React.FC<HomeProps> = ({
   const [auditPage, setAuditPage] = useState(1);
   const [submitPage, setSubmitPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<ReportItem | null>(null);
+  const [drawerReport, setDrawerReport] = useState<ReportItem | null>(null);
+  const [drawerAuditReport, setDrawerAuditReport] = useState<ReportItem | null>(null);
   const [updatedAt, setUpdatedAt] = useState(() => new Date());
   const [refreshing, setRefreshing] = useState(false);
 
@@ -283,27 +293,20 @@ export const Home: React.FC<HomeProps> = ({
   ];
   const currentTab = tabs.some((t) => t.id === activeTab) ? activeTab : tabs[0]?.id;
 
-  const focusTodo = (tab: TodoTab) => {
-    setActiveTab(tab);
-    document.getElementById('home-todo-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
   const openReportDetail = (item: ReportItem) => {
-    onSelectReport?.(item);
-    onNavigate('report-summary');
+    setDrawerReport(item);
   };
 
   const openAuditDetail = (item: ReportItem) => {
-    onSelectAudit?.(item);
-    onNavigate('audit-detail');
+    setDrawerAuditReport(item);
   };
 
   const summaryCounts = [
     ...(showAuditor
-      ? [{ key: 'audit', label: '待我审核', value: pendingAudits.length, tone: 'text-[#1E5ABB]', onClick: () => focusTodo('audit') }]
+      ? [{ key: 'audit', label: '待我审核', value: pendingAudits.length, tone: 'text-[#1E5ABB]', onClick: () => onNavigate('report-audit') }]
       : []),
     ...(showReporter
-      ? [{ key: 'submit', label: '被驳回待修改', value: rejectedReports.length, tone: 'text-rose-600', onClick: () => focusTodo('submit') }]
+      ? [{ key: 'submit', label: '被驳回待修改', value: rejectedReports.length, tone: 'text-rose-600', onClick: () => onNavigate('report-summary', 'rejected') }]
       : []),
     {
       key: 'unread',
@@ -440,7 +443,11 @@ export const Home: React.FC<HomeProps> = ({
               </div>
             </div>
             <button
-              onClick={() => onNavigate(currentTab === 'audit' ? 'report-audit' : 'report-records')}
+              onClick={() =>
+                currentTab === 'audit'
+                  ? onNavigate('report-audit')
+                  : onNavigate('report-summary', 'rejected')
+              }
               className="text-xs text-slate-500 hover:text-[#1E5ABB] inline-flex items-center gap-0.5 cursor-pointer"
             >
               查看全部
@@ -701,6 +708,39 @@ export const Home: React.FC<HomeProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {drawerReport && (
+        <ReportDetail
+          report={drawerReport}
+          sourcePage="report-summary"
+          isDrawer
+          onClose={() => setDrawerReport(null)}
+          onNavigate={onNavigate}
+          onOpenEditReport={onOpenEditReport}
+          onDeleteReport={(id) => {
+            onDeleteReport?.(id);
+            setDrawerReport(null);
+          }}
+        />
+      )}
+
+      {drawerAuditReport && (
+        <AuditDetail
+          report={drawerAuditReport}
+          allReports={pendingAudits}
+          isDrawer
+          onClose={() => setDrawerAuditReport(null)}
+          onNavigate={onNavigate}
+          onApprove={(id, score, isBatch, batchIds) => {
+            onApproveAudit?.(id, score, isBatch, batchIds);
+            setDrawerAuditReport(null);
+          }}
+          onReject={(id, reason, detail, isBatch, batchIds) => {
+            onRejectAudit?.(id, reason, detail, isBatch, batchIds);
+            setDrawerAuditReport(null);
+          }}
+        />
       )}
     </div>
   );

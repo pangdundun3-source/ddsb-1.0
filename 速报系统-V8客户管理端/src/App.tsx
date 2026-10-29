@@ -45,6 +45,7 @@ export default function App() {
     handleLogout,
     businessConfigInitialModule,
     userOrgInitialModule,
+    reportAuditInitialTab,
     reports,
     auditRecords,
     orgs,
@@ -218,10 +219,9 @@ export default function App() {
             reports={reports}
             orgs={orgs}
             onNavigate={handleNavigate}
-            onSelectReport={setSelectedReport}
-            onSelectAudit={setSelectedAudit}
+            onApproveAudit={handleApproveAudit}
+            onRejectAudit={handleRejectAudit}
             currentUser="张三"
-            currentOrg={currentOrg}
           />
         )}
 
@@ -286,6 +286,7 @@ export default function App() {
             <ReportAudit
               auditPendingList={reports.filter((report) => report.auditStatus === '待审核')}
               allReports={reports}
+              initialTab={reportAuditInitialTab}
               onSelectAudit={setSelectedAudit}
               onApproveAudit={handleApproveAudit}
               onRejectAudit={handleRejectAudit}

@@ -39,6 +39,7 @@ export default function App() {
     currentOrg,
     businessConfigInitialModule,
     externalContactsInitialModule,
+    reportSummaryInitialTab,
     reports,
     auditRecords,
     orgs,
@@ -176,18 +177,14 @@ export default function App() {
             reports={reports}
             orgs={orgs}
             onNavigate={handleNavigate}
-            onSelectReport={(report) => {
-              setSelectedReport(report);
-              setReportDetailSourcePage('report-summary');
-              setSummaryFocusReport(report);
-            }}
-            onSelectAudit={setSelectedAudit}
             currentUser="张三"
             currentRoleTitle={currentOrg.role}
             currentOrgName={currentOrg.name}
             onOpenNewReport={handleOpenNewReport}
             onOpenEditReport={openEditReportModal}
             onDeleteReport={handleDeleteReport}
+            onApproveAudit={handleApproveAudit}
+            onRejectAudit={handleRejectAudit}
             notifications={notifications}
             onMarkNotificationsRead={markNotificationsRead}
             onOpenNotification={openNotificationTarget}
@@ -218,6 +215,7 @@ export default function App() {
             onOpenEditReport={openEditReportModal}
             onOpenNewReport={handleOpenNewReport}
             onNavigate={handleNavigate}
+            initialTab={reportSummaryInitialTab}
             focusReport={summaryFocusReport}
             onFocusConsumed={() => setSummaryFocusReport(null)}
           />

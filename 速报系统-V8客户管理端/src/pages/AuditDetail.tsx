@@ -62,6 +62,7 @@ interface AuditDetailProps {
   ) => void;
   onReject: (id: number, reason: string, detail: string) => void;
   onNavigate: (page: PageId) => void;
+  onClose?: () => void;
 }
 
 export const AuditDetail: React.FC<AuditDetailProps> = ({
@@ -70,7 +71,16 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
   onApprove,
   onReject,
   onNavigate,
+  onClose,
 }) => {
+  const handleClose = () => {
+    if (onClose) {
+      onClose();
+    } else {
+      onNavigate('report-audit');
+    }
+  };
+
   const defaultUrl = report?.matchUrl || 'https://news.example.com/topic-water';
   const [matchUrl, setMatchUrl] = useState(defaultUrl);
   const [isUrlMatched, setIsUrlMatched] = useState(true);
@@ -86,12 +96,12 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onNavigate('report-audit');
+        handleClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onNavigate]);
+  }, [onNavigate, onClose]);
 
   // Matched co-report inspecting modal state
   const [inspectingReport, setInspectingReport] = useState<ReportItem | null>(null);
@@ -283,13 +293,13 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
       <div className="fixed inset-0 z-50 overflow-hidden">
         <div
           className="fixed inset-0 bg-black/40 backdrop-blur-[2px] transition-opacity cursor-pointer"
-          onClick={() => onNavigate('report-audit')}
+          onClick={handleClose}
         />
         <div className="fixed inset-y-0 right-0 z-50 w-full md:w-1/2 lg:w-1/2 bg-white shadow-2xl flex flex-col border-l border-gray-200 p-8 text-center justify-center text-gray-500">
           <p className="text-sm">未找到相关审核记录</p>
           <button
             type="button"
-            onClick={() => onNavigate('report-audit')}
+            onClick={handleClose}
             className="mt-4 px-4 py-2 bg-[#1E5ABB] text-white rounded-lg text-xs font-semibold mx-auto cursor-pointer"
           >
             返回我的审核
@@ -406,7 +416,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
         onReject(report.id, rejectReason, rejectDetail);
       }
     }
-    onNavigate('report-audit');
+    handleClose();
   };
 
   const detail = report.detailContent || {
@@ -483,7 +493,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
       {/* 1. Backdrop Overlay */}
       <div
         className="fixed inset-0 bg-black/40 backdrop-blur-[2px] transition-opacity animate-in fade-in duration-200"
-        onClick={() => onNavigate('report-audit')}
+        onClick={handleClose}
       />
 
       {/* 2. 50% Right-side Drawer */}
@@ -524,7 +534,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
           <div className="flex items-center space-x-2">
             <button
               type="button"
-              onClick={() => onNavigate('report-audit')}
+              onClick={handleClose}
               className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
               title="关闭抽屉 (Esc)"
             >
@@ -585,7 +595,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
             selectedScore={selectedScore}
             handleSetScore={handleSetScore}
             handleBatchSetScore={handleBatchSetScore}
-            onClose={() => onNavigate('report-audit')}
+            onClose={handleClose}
             passExtra={
               <div className="pt-2.5 border-t border-slate-200/80 space-y-2">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
@@ -727,7 +737,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
             <div className="flex items-center space-x-2 shrink-0">
               <button
                 type="button"
-                onClick={() => onNavigate('report-audit')}
+                onClick={handleClose}
                 className="px-6 py-2 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg text-sm font-medium cursor-pointer shadow-xs transition-colors"
               >
                 关闭
