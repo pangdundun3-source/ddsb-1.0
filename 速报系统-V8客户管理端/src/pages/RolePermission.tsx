@@ -511,7 +511,7 @@ export const RolePermission: React.FC<{ embedded?: boolean }> = ({ embedded = fa
       {!embedded && (
         <div>
           <h2 className="text-xl font-bold text-gray-800 tracking-tight">角色管理</h2>
-          <p className="text-xs text-gray-400 mt-0.5">人员在审核上报 PC / H5 端的角色与功能权限，网格员、审核员、节点负责人、系统管理员为系统默认角色，不可修改</p>
+          <p className="text-xs text-gray-400 mt-0.5">统一管理角色信息与功能权限配置。</p>
         </div>
       )}
 

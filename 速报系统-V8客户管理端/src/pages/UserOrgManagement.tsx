@@ -25,7 +25,7 @@ const moduleList: Array<{ id: UserOrgModule; label: string; desc: string }> = [
   {
     id: 'account',
     label: '用户管理',
-    desc: '管理通过服务号接入的用户，查看关注与锁定状态，配置所属机构与角色'
+    desc: '统一管理用户信息、所属组织与角色配置。'
   },
   {
     id: 'org',
@@ -35,7 +35,7 @@ const moduleList: Array<{ id: UserOrgModule; label: string; desc: string }> = [
   {
     id: 'role',
     label: '角色管理',
-    desc: '人员在审核上报 PC / H5 端的角色与功能权限，网格员、审核员、节点负责人、系统管理员为系统默认角色，不可修改'
+    desc: '统一管理角色信息与功能权限配置。'
   },
   {
     id: 'group',
@@ -71,12 +71,15 @@ export const UserOrgManagement: React.FC<UserOrgManagementProps> = ({
     setActiveModule(moduleId);
     onNavigatePage?.('user-org-management', moduleId);
   };
+  const activeModuleMeta = moduleList.find((module) => module.id === activeModule) || moduleList[0];
 
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-bold text-gray-800 tracking-tight whitespace-nowrap">外部联系人</h2>
-        <p className="text-xs text-gray-400 mt-0.5">管理外部用户、组织节点、角色权限与激活码</p>
+        <h2 className="text-xl font-bold text-gray-800 tracking-tight whitespace-nowrap">
+          {activeModuleMeta.label}
+        </h2>
+        <p className="text-xs text-gray-400 mt-0.5">{activeModuleMeta.desc}</p>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-5 items-start">

@@ -640,7 +640,7 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
                   )}
                 </div>
                 <div className="px-4 py-3 bg-amber-50/70 border-t border-amber-100 text-[11px] text-amber-800/90 leading-relaxed">
-                  激活码规则为一码一人。用户在登录/注册时选择「激活码绑定」，输入任意未过期激活码后，将自动归属该码绑定的机构与角色。
+                  激活码规则为一码一人。用户在登录/注册时选择「激活码绑定」，输入任意未过期激活码后，将自动归属该码绑定的组织与角色。
                 </div>
               </div>
               <div className="flex flex-col min-h-0 bg-slate-50/40">
