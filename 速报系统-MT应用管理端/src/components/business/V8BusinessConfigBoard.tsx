@@ -1452,11 +1452,11 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
         { id: 'user' as const, label: '内部机构人员', hint: '固定由总机构内部的某个人员处理' },
       ];
     }
-    // 模式一/二第 2 阶段：仅外部组织角色、外部组织人员
+    // 模式一/二第 2 阶段：仅外部组织角色、外部组织联系人
     if (isMode12IntermediateNode(node)) {
       return [
         { id: 'role' as const, label: '外部组织角色', hint: '仅在上报人归属的外部组织内按角色匹配处理人员' },
-        { id: 'user' as const, label: '外部组织人员', hint: '指定外部组织人员，可跨机构选择' },
+        { id: 'org_owner' as const, label: '外部组织联系人', hint: '' },
       ];
     }
     return [
@@ -1528,7 +1528,9 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
           ? '上报功能人员暂无限制'
           : node.nodeName === adaptiveStepName
             ? adaptiveStepMechanism
-            : node.approverRole || (node.assigneeSource === 'org_owner' ? '归属机构负责人' : '指定角色');
+            : node.assigneeSource === 'org_owner' && (item.flowMode === 'adaptive' || item.flowMode === 'max_n')
+              ? '外部组织联系人'
+              : node.approverRole || (node.assigneeSource === 'org_owner' ? '归属机构负责人' : '指定角色');
         const timeText = node.timeLimitMinutes ? (node.timeLimitMinutes >= 60 ? `${node.timeLimitMinutes / 60}小时` : `${node.timeLimitMinutes}分`) : '15分';
         return {
           id: node.id || `node-${index}`,
@@ -1913,14 +1915,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
         if (!isMode12Intermediate) return node;
 
         let nextNode = node;
-        if (node.assigneeSource === 'org_owner') {
-          changed = true;
-          nextNode = {
-            ...nextNode,
-            assigneeSource: 'role' as const,
-            approverRole: externalAuditRoleOptions[0]
-          };
-        } else if (node.assigneeSource === 'role' || !node.assigneeSource) {
+        if (node.assigneeSource === 'role' || !node.assigneeSource) {
           const validRoles = getApproverRoles(node, externalAuditRoleOptions);
           if (validRoles.length === 0) {
             changed = true;
@@ -2896,12 +2891,27 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       setFormOwnerMissingFallbackUserName(item.ownerMissingFallbackUserName || '');
       resetOrgPickerState();
       const mappedFlowNodes = item.auditNodes && item.auditNodes.length > 0
-        ? item.auditNodes.map(node => ({
-            ...node,
-            assigneeSource: node.assigneeSource || 'role',
-            rejectStrategy: node.rejectStrategy || 'return_submitter',
-            missingRule: node.isFinalScoreNode ? 'block' : node.missingRule === 'transfer_admin' ? 'skip' : node.missingRule
-          }))
+        ? item.auditNodes.map(node => {
+            const isIntermediate =
+              (mode === 'adaptive' || mode === 'max_n') &&
+              !node.isSubmitStage &&
+              !node.isFinalScoreNode &&
+              node.nodeName !== '上报人' &&
+              node.nodeName !== '上报';
+            const migratedAssigneeSource = isIntermediate && node.assigneeSource === 'user'
+              ? 'org_owner' as const
+              : node.assigneeSource || 'role';
+            return {
+              ...node,
+              assigneeSource: migratedAssigneeSource,
+              assigneeUserName: isIntermediate && migratedAssigneeSource === 'org_owner' ? undefined : node.assigneeUserName,
+              assigneeOrgId: isIntermediate && migratedAssigneeSource === 'org_owner' ? undefined : node.assigneeOrgId,
+              assigneeUsers: isIntermediate && migratedAssigneeSource === 'org_owner' ? undefined : node.assigneeUsers,
+              approverRole: isIntermediate && migratedAssigneeSource === 'org_owner' ? '外部组织联系人' : node.approverRole,
+              rejectStrategy: node.rejectStrategy || 'return_submitter',
+              missingRule: node.isFinalScoreNode ? 'block' : node.missingRule === 'transfer_admin' ? 'skip' : node.missingRule
+            };
+          })
         : [
             { id: 'an_2', nodeName: '机构逐级审核', approverRole: '审核员', assigneeSource: 'role' as const, rejectStrategy: 'return_submitter' as const, timeLimitMinutes: 30, dynamicMechanism: '自上报机构逐级向上审核', missingRule: 'skip' as const, timeoutReminderEnabled: true },
             { id: 'an_3', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role' as const, rejectStrategy: 'return_submitter' as const, timeLimitMinutes: 60, dynamicMechanism: '固定总机构管理员终审+评分', missingRule: 'block' as const, isFinalScoreNode: true, timeoutReminderEnabled: true }
@@ -6542,7 +6552,9 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                         : isFinalScore
                                         ? (node.approverRole || '总机构管理员')
                                         : node.assigneeSource === 'org_owner'
-                                        ? '归属机构负责人'
+                                        ? (formFlowMode === 'adaptive' || formFlowMode === 'max_n') && !isFinalScore
+                                          ? '外部组织联系人'
+                                          : '归属机构负责人'
                                         : node.assigneeSource === 'user' && getAssigneeUsers(node).length > 0
                                         ? formatAssigneeUsersLabel(node, Boolean(isFinalScore))
                                         : (node.approverRole || '机构管理员')}
@@ -6615,12 +6627,16 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                       const source = e.target.value as AuditNode['assigneeSource'];
                                       handleUpdateAuditNode(selectedIndex, {
                                         assigneeSource: source,
-                                        assigneeUserName: source === 'user' ? '' : selectedNode.assigneeUserName,
-                                        assigneeOrgId: source === 'user' ? undefined : selectedNode.assigneeOrgId,
-                                        assigneeUsers: source === 'user' ? [] : selectedNode.assigneeUsers,
+                                        assigneeUserName: source === 'user' ? '' : undefined,
+                                        assigneeOrgId: undefined,
+                                        assigneeUsers: source === 'user' ? [] : undefined,
                                         ...(source === 'org_owner'
                                           ? {
-                                              approverRole: selectedNode.isFinalScoreNode ? '内部机构负责人' : '归属机构负责人',
+                                              approverRole: isMode12IntermediateNode(selectedNode)
+                                                ? '外部组织联系人'
+                                                : selectedNode.isFinalScoreNode
+                                                  ? '内部机构负责人'
+                                                  : '归属机构负责人',
                                               approverRoles: undefined
                                             }
                                           : source === 'role'
@@ -6650,12 +6666,28 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                               <div>
                                 <div>
                                   {getNodeSourceOption(selectedNode).id === 'org_owner' ? (
-                                    <>
-                                      <label className="block text-xs font-bold text-gray-800 mb-1">动态处理机制</label>
-                                      <div className="bg-emerald-50/70 border border-emerald-200 text-emerald-700 font-medium text-xs px-3 py-2 rounded-lg truncate">
-                                        {selectedNode.isFinalScoreNode ? '动态匹配总机构内部负责人' : '动态匹配归属外部机构负责人'}
-                                      </div>
-                                    </>
+                                    isMode12IntermediateNode(selectedNode) ? (
+                                      <>
+                                        <label className="block text-xs font-bold text-gray-800 mb-1">外部组织联系人 *</label>
+                                        <select
+                                          disabled
+                                          value="dynamic_org_contact"
+                                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-medium bg-gray-100 text-gray-500 cursor-not-allowed"
+                                        >
+                                          <option value="dynamic_org_contact">按上报组织节点自动匹配联系人</option>
+                                        </select>
+                                        <p className="text-[11px] text-gray-400 mt-1.5">
+                                          每个审核层级自动取对应组织节点的联系人，不支持在此固定选择人员。
+                                        </p>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <label className="block text-xs font-bold text-gray-800 mb-1">动态处理机制</label>
+                                        <div className="bg-emerald-50/70 border border-emerald-200 text-emerald-700 font-medium text-xs px-3 py-2 rounded-lg truncate">
+                                          {selectedNode.isFinalScoreNode ? '动态匹配总机构内部负责人' : '动态匹配归属外部机构负责人'}
+                                        </div>
+                                      </>
+                                    )
                                   ) : getNodeSourceOption(selectedNode).id === 'user' ? (
                                     <>
                                       <label className="block text-xs font-bold text-gray-800 mb-1">
@@ -6869,9 +6901,11 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                     </>
                                   )}
                                 </div>
-                                <p className="text-[11px] text-gray-400 mt-1.5">
-                                  {getNodeSourceOption(selectedNode).hint}
-                                </p>
+                                {getNodeSourceOption(selectedNode).hint && (
+                                  <p className="text-[11px] text-gray-400 mt-1.5">
+                                    {getNodeSourceOption(selectedNode).hint}
+                                  </p>
+                                )}
                               </div>
 
                               <div className="border border-amber-200 bg-amber-50/30 rounded-xl p-3.5 space-y-2">

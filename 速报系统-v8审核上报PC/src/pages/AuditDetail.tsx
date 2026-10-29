@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ReportItem, PageId, Attachment } from '../types';
 import {
   Info,
@@ -290,6 +290,26 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
   const isAdopted = report.auditStatus === '已采纳' || report.auditStatus === '已通过';
   const isWaitingTransfer = report.auditStatus === '待转办';
   const isTransferred = report.auditStatus === '已转办';
+  // 驳回原因展示与截图一致：优先短原因，无则回退明细/流转备注
+  const rejectReasonText =
+    report.rejectReason ||
+    report.rejectDetail ||
+    report.timeline?.find((node) => node.status === 'rejected')?.note ||
+    '信息不完整';
+
+  /** 详情信息导航下方、标题上方：驳回原因提示 */
+  const renderRejectBanner = () =>
+    isRejected ? (
+      <div className="p-3.5 bg-rose-50 rounded-xl border border-rose-200 flex items-start space-x-3">
+        <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+        <div className="min-w-0">
+          <p className="font-bold text-rose-900 text-xs">报送已驳回</p>
+          <p className="text-[11px] text-rose-700 mt-1 leading-normal">
+            <strong>驳回原因：</strong>{rejectReasonText}
+          </p>
+        </div>
+      </div>
+    ) : null;
 
   // 1. 报送基本信息与核心结构化内容卡片
   const renderMainContentCard = () => (
@@ -312,7 +332,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
               : 'bg-amber-50 text-amber-600 border-amber-200'
           }`}
         >
-          {report.auditStatus}
+          {isRejected ? '已驳回' : report.auditStatus}
         </span>
       </div>
 
@@ -562,18 +582,28 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
           <h3 className="text-sm font-bold text-gray-900 shrink-0">按链接地址精准匹配</h3>
           <span className="text-gray-300 shrink-0 text-xs">：</span>
           {matchUrl ? (
-            <a
-              href={matchUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center space-x-1 text-xs font-mono text-[#1E5ABB] hover:text-[#134092] transition-colors truncate min-w-0 max-w-[460px] group cursor-pointer"
-              title={`点击在新窗口跳转访问原文地址：\n${matchUrl}`}
-            >
-              <span className="truncate underline underline-offset-2 decoration-blue-300 group-hover:decoration-blue-600">
+            <div className="inline-flex items-center space-x-1.5 min-w-0 max-w-[460px]">
+              <span
+                className="truncate text-xs font-mono text-[#1E5ABB]"
+                title={matchUrl}
+              >
                 {matchUrl}
               </span>
-              <ExternalLink className="w-3.5 h-3.5 text-[#2563EB] shrink-0 group-hover:translate-x-0.5 transition-transform" />
-            </a>
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard.writeText(matchUrl).then(() => {
+                    setUrlCopied(true);
+                    window.setTimeout(() => setUrlCopied(false), 2000);
+                  });
+                }}
+                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 shrink-0 rounded-md text-[11px] font-medium text-[#1E5ABB] hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition-colors"
+                title="复制链接"
+              >
+                {urlCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{urlCopied ? '已复制' : '复制'}</span>
+              </button>
+            </div>
           ) : (
             <span className="text-xs text-gray-400 font-mono italic">暂无同源匹配链接</span>
           )}
@@ -680,20 +710,48 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
   // 4. 固定底部的审核操作控制栏 (精致高阶设计)
   const renderAuditActionBar = () => {
     if (!isPending) {
+      if (isRejected) {
+        return (
+          <div className="shrink-0 bg-slate-50 border-t border-slate-200/90 px-5 sm:px-6 py-4 z-20 flex items-center justify-between gap-4">
+            <div className="flex items-center space-x-3 min-w-0">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 border bg-rose-50 text-rose-600 border-rose-200 shadow-xs">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 space-y-1">
+                <div className="flex items-center flex-wrap gap-2">
+                  <span className="text-xs sm:text-sm font-bold text-gray-900">本节点审核结论记录：</span>
+                  <span className="text-xs sm:text-sm font-bold text-gray-900">已驳回</span>
+                </div>
+                <p className="text-[11px] sm:text-xs text-slate-500 truncate">
+                  审核人：{report.auditor || '王审核'}
+                  {' '}|{' '}
+                  审核机构：{report.organization || '台中市网信办'}
+                  {' '}|{' '}
+                  审核时间：{report.auditTime || '—'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleClose}
+              className="px-5 py-2 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded-lg shadow-xs cursor-pointer transition-colors shrink-0"
+            >
+              关闭
+            </button>
+          </div>
+        );
+      }
+
       return (
         <div className="shrink-0 bg-white/95 backdrop-blur-xs border-t border-slate-200/90 px-5 py-3.5 shadow-[0_-6px_20px_rgba(15,23,42,0.04)] z-20 flex items-center justify-between gap-3">
           <div className="flex items-center space-x-2.5 text-xs">
-            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-              isRejected ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'
-            }`}>
-              {isRejected ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-emerald-50 text-emerald-600">
+              <CheckCircle2 className="w-4 h-4" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
                 <span className="font-bold text-slate-800 text-xs">
-                  {isRejected
-                    ? '速报已被驳回'
-                    : isAdopted
+                  {isAdopted
                     ? report.auditStatus === '已通过'
                       ? '速报已通过初审'
                       : '速报已审核完成'
@@ -1206,14 +1264,16 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
           <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4.5">
             {drawerActiveTab === 'detail' ? (
               <div className="space-y-4.5 animate-in fade-in duration-150 pb-2">
+                {renderRejectBanner()}
                 {renderMainContentCard()}
                 {renderAttachmentsCard()}
-                {renderMatchInfoCard()}
+                {/* 已驳回详情不展示「按链接地址精准匹配」 */}
+                {!isRejected && renderMatchInfoCard()}
               </div>
             ) : (
               <div className="space-y-4.5 animate-in fade-in duration-150">
                 {/* 完整流转历程时间轴 */}
-                <AuditFlowTimeline report={report} />
+                <AuditFlowTimeline report={report} rejectedLabel="已驳回" />
               </div>
             )}
           </div>
@@ -1269,12 +1329,13 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
       {/* 2. Main Layout Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2 space-y-5">
+          {renderRejectBanner()}
           {renderMainContentCard()}
           {renderAttachmentsCard()}
-          {renderMatchInfoCard()}
+          {!isRejected && renderMatchInfoCard()}
         </div>
         <div className="space-y-5">
-          <AuditFlowTimeline report={report} />
+          <AuditFlowTimeline report={report} rejectedLabel="已驳回" />
         </div>
       </div>
 

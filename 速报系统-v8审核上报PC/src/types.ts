@@ -121,6 +121,42 @@ export interface NewReportFormData {
   demands: string;
   recommendations: string;
   attachments?: Attachment[];
+  templateId?: string;
+  templateName?: string;
+  templateFieldValues?: Record<string, TemplateFieldValue>;
+}
+
+export type TemplateFieldType =
+  | 'number'
+  | 'date'
+  | 'radio'
+  | 'checkbox'
+  | 'select'
+  | 'multi_select'
+  | 'link'
+  | 'attachment'
+  | 'static_text';
+
+export interface TemplateFieldOption {
+  label: string;
+  value: string;
+}
+
+export type TemplateFieldValue = string | string[] | number | null;
+
+export interface TemplateExtraField {
+  id: string;
+  label: string;
+  type: TemplateFieldType;
+  required?: boolean;
+  placeholder?: string;
+  options?: TemplateFieldOption[];
+  content?: string;
+  accept?: string;
+  multiple?: boolean;
+  min?: number;
+  max?: number;
+  defaultValue?: TemplateFieldValue;
 }
 
 export interface ReportTemplateDef {
@@ -138,9 +174,11 @@ export interface ReportTemplateDef {
   summaryTemplate: string;
   demandsTemplate: string;
   recommendationsTemplate: string;
+  extraFields: TemplateExtraField[];
 }
 
 export interface ReportTemplateInput {
+  templateId?: string;
   title?: string;
   source?: string;
   region?: string;
@@ -196,6 +234,7 @@ export interface ReportItem {
   originLabel?: OriginTypeLabel;
   originReason?: string;
   originSimilarReports?: SimilarReportMatch[];
+  templateFieldValues?: Record<string, TemplateFieldValue>;
 }
 
 export interface AuditRecordItem {

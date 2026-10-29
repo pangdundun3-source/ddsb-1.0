@@ -1,4 +1,4 @@
-import { ReportItem, AuditRecordItem, OrgItem, OrgUser, OrgNode, TemplateItem, LogItem, EvaluationItem, ReportTemplateDef } from '../types';
+﻿import { ReportItem, AuditRecordItem, OrgItem, OrgUser, OrgNode, TemplateItem, LogItem, EvaluationItem, ReportTemplateDef } from '../types';
 
 export const PRESET_REPORT_TEMPLATES: ReportTemplateDef[] = [
   {
@@ -917,7 +917,7 @@ export const INITIAL_REPORTS: ReportItem[] = [
     submitTime: '2026-08-13 09:10',
     arrivedAt: '2026-08-13 09:10',
     auditStatus: '待审核',
-    identificationStatus: '识别中',
+    identificationStatus: '疑似首发',
     score: '--',
     detailContent: {
       summary: '开学后校园周边早高峰拥堵加剧，家长和周边居民集中反映接送车辆临时停靠影响通行。',
@@ -1323,7 +1323,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     organization: '台中市网信办',
     submitTime: '2023-10-21 09:00',
     auditStatus: '待审核',
-    identificationStatus: '识别中'
+    identificationStatus: '疑似首发'
   },
   {
     id: 107,
@@ -1406,7 +1406,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     organization: '台中市网信办',
     submitTime: '2023-10-19 09:30',
     auditStatus: '待审核',
-    identificationStatus: '识别中'
+    identificationStatus: '疑似首发'
   },
   {
     id: 111,
@@ -1498,7 +1498,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     organization: '西屯区教育局',
     submitTime: '2023-10-15 15:45',
     auditStatus: '待审核',
-    identificationStatus: '识别中'
+    identificationStatus: '疑似首发'
   }
 ];
 

@@ -3,6 +3,7 @@ build/
 dist/
 coverage/
 .vite-cache/
+.runtime/
 backup/
 .DS_Store
 *.log

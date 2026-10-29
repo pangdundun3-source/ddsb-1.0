@@ -16,13 +16,14 @@ import {
   BarChart3,
   ClipboardCheck,
   PieChart,
+  ShieldAlert,
   RotateCw
 } from 'lucide-react';
 import { AuditStatusBadge } from '../components/AuditStatusBadge';
 import { ReportOriginBadge } from '../components/ReportOriginBadge';
-import { OrgPathDisplay } from '../components/OrgPathDisplay';
+import { getOrganizationPathText } from '../components/OrgPathDisplay';
 import { HomeNotificationPanel } from '../components/HomeNotificationPanel';
-import { getRejectTime } from '../services/reportWorkflowService';
+import { getAuditArrivedAt, getRejectTime } from '../services/reportWorkflowService';
 
 export type SystemRoleMode = 'all' | 'reporter' | 'auditor';
 
@@ -138,15 +139,7 @@ const TEMPLATE_SHORTCUTS: TemplateShortcut[] = [
     scope: '现场秩序、安全事故、应急研判',
     icon: Flame,
     tone: 'bg-rose-50 text-rose-500',
-    build: () => ({
-      title: '【紧急】关于某路段突发管网故障抢修进展的快报',
-      source: '网格巡查',
-      region: '西屯区',
-      infoType: '突发事件',
-      summary: `【突发时间】：${new Date().toLocaleDateString('zh-CN')} ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}\n【事发精准地点】：西屯区XX路与XX街交叉口\n【事件简述】：现场因市政施工突发管网渗漏，造成路面局部积水并影响早高峰通行。\n【伤亡及损失情况】：现场无人员伤亡，周边已设立安全警戒线。\n【当前处置进展】：抢修工程车辆及应急处置组已进场作业，正在进行分流抢修。`,
-      demands: '周边居民及过往车主高度关注积水排除与恢复通行的预计时间。',
-      recommendations: '1. 联动交警支队实施临时交通分流与道路交通疏导。\n2. 属地融媒体中心通过微信公众号发布临时通行提示，回应群众关切。'
-    })
+    build: () => ({ templateId: '突发事件速报模板' })
   },
   {
     id: 'livelihood',
@@ -154,15 +147,7 @@ const TEMPLATE_SHORTCUTS: TemplateShortcut[] = [
     scope: '物业维修、水电气热、市政诉求',
     icon: MessageSquare,
     tone: 'bg-amber-50 text-amber-500',
-    build: () => ({
-      title: '关于某小区业主反映物业擅自调高公摊费用的诉求专报',
-      source: '热线12345',
-      region: '北屯区',
-      infoType: '民生诉求',
-      summary: `一、诉求来源与规模：\n12345热线近3日内累计收到相关工单12件，涉及业主超过50户。\n\n二、诉求核心事实：\n业主反映物业管理处未履行公示与表决程序，直接在月度物业费账单中增列地下车库公共能耗费用。\n\n三、初步调解情况：\n社区居委会已介入搭建沟通平台，督促物业做好账目核算。`,
-      demands: '业主普遍要求物业撤回不合理收费项目，退还已代扣款项，并公开年度公摊水电账目。',
-      recommendations: '1. 建议街道城管科联合房管局约谈物业负责人，限期3日内自查自纠并出具整改说明。\n2. 社区居委会指导业主委员会依法召开业主代表沟通会。'
-    })
+    build: () => ({ templateId: '民生诉求核查模板' })
   },
   {
     id: 'rumor',
@@ -170,15 +155,15 @@ const TEMPLATE_SHORTCUTS: TemplateShortcut[] = [
     scope: '网络不实信息、虚假炒作辟谣',
     icon: Radio,
     tone: 'bg-emerald-50 text-emerald-500',
-    build: () => ({
-      title: '关于短视频平台流传“某小区突发不明气体泄漏”虚假信息的核查澄清报送',
-      source: '网络巡查',
-      region: '南屯区',
-      infoType: '网络谣言',
-      summary: `一、谣言源头与传播特征：\n抖音账号“XX市民热心事”于今晨发布15秒短视频，配文称“某小区疑似发生危化品气体泄漏”，截至目前点赞量达1.2万次，转发3500余次。\n\n二、官方部门实地核查：\n属地应急管理局与生态环境执法大队第一时间赶赴现场排查，实为周边市政自来水管道例行冲洗排放水雾，未检出任何有害气体。\n\n三、当前发酵态势：\n评论区存在个别恐慌情绪蔓延，急需权威声音辟谣。`,
-      demands: '网民关注官方权威调查结论与是否存在安全隐患。',
-      recommendations: '1. 建议网信办联合应急管理局在官方微博与抖音号发布权威辟谣通报。\n2. 对首发造谣账号予以限流并固定电子证据，移交公安部门进一步处理。'
-    })
+    build: () => ({ templateId: '网络谣言线索模板' })
+  },
+  {
+    id: 'risk',
+    name: '专项风险线索',
+    scope: '重点场所、生产经营、公共安全',
+    icon: ShieldAlert,
+    tone: 'bg-violet-50 text-violet-500',
+    build: () => ({ templateId: '专项风险线索模板' })
   }
 ];
 
@@ -197,7 +182,12 @@ const getGreeting = () => {
 };
 
 const resolveRoleMode = (roleTitle: string): SystemRoleMode => {
-  const isReporter = roleTitle.includes('上报') || roleTitle.includes('填报') || roleTitle.includes('速报');
+  const isReporter =
+    roleTitle.includes('上报') ||
+    roleTitle.includes('填报') ||
+    roleTitle.includes('速报') ||
+    roleTitle.includes('网格员') ||
+    roleTitle.includes('报送员');
   const isAuditor = roleTitle.includes('审核');
   if (roleTitle.includes('管理员') || roleTitle.includes('超级') || roleTitle.includes('全权')) return 'all';
   if (isReporter && isAuditor) return 'all';
@@ -419,33 +409,35 @@ export const Home: React.FC<HomeProps> = ({
           className="bg-white rounded-xl border border-slate-200 flex flex-col scroll-mt-4"
         >
           <div className="flex items-center justify-between px-5 border-b border-slate-100">
-            <div className="flex items-center gap-6" role="tablist">
-              {tabs.map((tab) => {
-                const active = currentTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`relative py-3.5 text-sm transition-colors cursor-pointer ${
-                      active ? 'font-bold text-slate-900' : 'font-medium text-slate-500 hover:text-slate-800'
-                    }`}
-                  >
-                    {tab.label}
-                    <span
-                      className={`ml-1.5 text-xs tabular-nums ${
-                        active ? 'text-[#1E5ABB]' : 'text-slate-400'
+            <div className="flex min-w-0 items-center gap-4">
+              <div className="flex min-w-0 items-center gap-6" role="tablist">
+                {tabs.map((tab) => {
+                  const active = currentTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`relative py-3.5 text-sm transition-colors cursor-pointer ${
+                        active ? 'font-bold text-slate-900' : 'font-medium text-slate-500 hover:text-slate-800'
                       }`}
                     >
-                      {tab.count}
-                    </span>
-                    {active && (
-                      <span className="absolute left-0 right-0 -bottom-px h-0.5 bg-[#1E5ABB] rounded-full" />
-                    )}
-                  </button>
-                );
-              })}
+                      {tab.label}
+                      <span
+                        className={`ml-1.5 text-xs tabular-nums ${
+                          active ? 'text-[#1E5ABB]' : 'text-slate-400'
+                        }`}
+                      >
+                        {tab.count}
+                      </span>
+                      {active && (
+                        <span className="absolute left-0 right-0 -bottom-px h-0.5 bg-[#1E5ABB] rounded-full" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <button
               onClick={() => onNavigate(currentTab === 'audit' ? 'report-audit' : 'report-records')}
@@ -465,32 +457,55 @@ export const Home: React.FC<HomeProps> = ({
                 </div>
               ) : (
                 <ul className="divide-y divide-slate-100">
-                  {pagedAudits.map((item) => (
+                  {pagedAudits.map((item, index) => (
                     <li key={item.id}>
-                      <button
-                        onClick={() => openAuditDetail(item)}
-                        className="w-full text-left px-5 py-3.5 hover:bg-slate-50 transition-colors cursor-pointer group"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="font-semibold text-sm text-slate-800 group-hover:text-[#1E5ABB] truncate">
-                              {item.title}
-                            </span>
-                            <ReportOriginBadge report={item} size="sm" className="shrink-0" />
+                      <div className="flex gap-3 px-5 py-3.5 transition-colors hover:bg-gray-50/70">
+                        <span className="mt-0.5 w-6 shrink-0 text-center font-mono text-xs text-gray-400">
+                          {(auditPage - 1) * PAGE_SIZE + index + 1}
+                        </span>
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span className="shrink-0 rounded bg-amber-50 px-1.5 py-px text-[11px] font-medium text-amber-700">
+                                待审核
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => openAuditDetail(item)}
+                                title={item.title}
+                                className="min-w-0 cursor-pointer truncate text-left text-sm font-semibold text-gray-900 hover:text-[#1E5ABB]"
+                              >
+                                {item.title}
+                              </button>
+                              <ReportOriginBadge report={item} size="sm" className="shrink-0" />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => openAuditDetail(item)}
+                              className="shrink-0 cursor-pointer text-xs font-semibold text-[#1E5ABB] hover:underline"
+                            >
+                              审核
+                            </button>
                           </div>
-                          <span className="shrink-0 text-xs text-[#1E5ABB] font-semibold inline-flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            去审核
-                            <ChevronRight className="w-3.5 h-3.5" />
-                          </span>
+                          <p className="truncate text-xs text-gray-500" title={item.detailContent?.summary || item.title}>
+                            {item.detailContent?.summary || '暂无内容描述'}
+                          </p>
+                          <div className="flex min-w-0 items-center gap-1.5 whitespace-nowrap text-[11px] text-gray-400">
+                            <span className="shrink-0 rounded bg-gray-100 px-1 text-gray-500">报送人</span>
+                            <span className="shrink-0 text-gray-600">{item.author || '—'}</span>
+                            <span className="shrink-0 text-gray-300">·</span>
+                            <span title={getOrganizationPathText(item.organization)} className="truncate">
+                              {item.organization}
+                            </span>
+                            <span className="shrink-0 text-gray-300">·</span>
+                            <span className="shrink-0 font-mono text-gray-500">{item.submitTime}</span>
+                            <span className="shrink-0 text-gray-300">·</span>
+                            <span className="shrink-0">
+                              提交时间 <span className="font-mono text-gray-500">{getAuditArrivedAt(item)}</span>
+                            </span>
+                          </div>
                         </div>
-                        <div className="mt-1.5 flex items-center gap-3 text-[11px] text-slate-400 min-w-0">
-                          <span className="shrink-0">
-                            提交人 <span className="text-slate-600 font-medium">{item.author}</span>
-                          </span>
-                          <OrgPathDisplay organization={item.organization} compact className="max-w-[220px]" />
-                          <span className="tabular-nums shrink-0 ml-auto">{item.submitTime}</span>
-                        </div>
-                      </button>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -504,58 +519,90 @@ export const Home: React.FC<HomeProps> = ({
                 </div>
               ) : (
                 <ul className="divide-y divide-slate-100">
-                  {pagedRejected.map((item) => (
-                    <li key={item.id} className="px-5 py-3.5 hover:bg-slate-50 transition-colors group">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <button
-                            onClick={() => openReportDetail(item)}
-                            className="font-semibold text-sm text-slate-800 hover:text-[#1E5ABB] truncate text-left cursor-pointer"
-                          >
-                            {item.title}
-                          </button>
-                          <ReportOriginBadge report={item} size="sm" className="shrink-0" />
-                        </div>
-                        <AuditStatusBadge status={item.auditStatus} audience="report" className="shrink-0" />
-                      </div>
-                      <p className="mt-1.5 text-xs text-rose-700 flex items-start gap-1.5">
-                        <AlertCircle className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-px" />
-                        <span className="line-clamp-2">
-                          驳回原因：{item.rejectReason || '信息要素不完整，请补充相关佐证材料后重新提交。'}
+                  {pagedRejected.map((item, index) => (
+                    <li key={item.id}>
+                      <div className="flex gap-3 px-5 py-3.5 transition-colors hover:bg-gray-50/70">
+                        <span className="mt-0.5 w-6 shrink-0 text-center font-mono text-xs text-gray-400">
+                          {(submitPage - 1) * PAGE_SIZE + index + 1}
                         </span>
-                      </p>
-                      <div className="mt-1.5 flex items-center gap-3 text-[11px] text-slate-400 min-w-0">
-                        <span className="text-slate-600 font-medium shrink-0">{item.author || '—'}</span>
-                        <OrgPathDisplay organization={item.organization} compact className="max-w-[200px]" />
-                        <span className="tabular-nums shrink-0">{item.submitTime}</span>
-                        <span className="shrink-0">
-                          驳回时间 <span className="tabular-nums text-slate-500">{getRejectTime(item)}</span>
-                        </span>
-                        <div className="ml-auto flex items-center gap-3 shrink-0 text-xs">
-                          {onOpenEditReport && (
-                            <button
-                              onClick={() => onOpenEditReport(item)}
-                              className="inline-flex items-center gap-0.5 text-[#1E5ABB] hover:underline font-semibold cursor-pointer"
-                            >
-                              <FileEdit className="w-3 h-3" />
-                              编辑
-                            </button>
-                          )}
-                          {onDeleteReport && (
-                            <button
-                              onClick={() => setDeleteTarget(item)}
-                              className="inline-flex items-center gap-0.5 text-slate-500 hover:text-rose-600 cursor-pointer"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                              删除
-                            </button>
-                          )}
-                          <button
-                            onClick={() => openReportDetail(item)}
-                            className="text-slate-500 hover:text-[#1E5ABB] cursor-pointer"
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <AuditStatusBadge
+                                status={item.auditStatus}
+                                audience="report"
+                                variant="chip"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => openReportDetail(item)}
+                                title={item.title}
+                                className="min-w-0 cursor-pointer truncate text-left text-sm font-semibold text-gray-900 hover:text-[#1E5ABB]"
+                              >
+                                {item.title}
+                              </button>
+                              <ReportOriginBadge report={item} size="sm" className="shrink-0" />
+                            </div>
+                            <div className="flex shrink-0 items-center gap-3 text-xs">
+                              <button
+                                type="button"
+                                onClick={() => openReportDetail(item)}
+                                className="cursor-pointer text-gray-500 hover:text-gray-800 hover:underline"
+                              >
+                                详情
+                              </button>
+                              {onOpenEditReport && (
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenEditReport(item)}
+                                  className="inline-flex cursor-pointer items-center gap-0.5 font-semibold text-indigo-600 hover:text-indigo-800 hover:underline"
+                                >
+                                  <FileEdit className="h-3 w-3" />
+                                  编辑
+                                </button>
+                              )}
+                              {onDeleteReport && (
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteTarget(item)}
+                                  className="inline-flex cursor-pointer items-center gap-0.5 text-rose-600 hover:text-rose-800 hover:underline"
+                                  title="删除此记录"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                  删除
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <p
+                            className="truncate text-xs text-gray-500"
+                            title={item.detailContent?.summary || item.occurAddress || ''}
                           >
-                            详情
-                          </button>
+                            {item.detailContent?.summary || item.occurAddress || '暂无详细描述'}
+                          </p>
+                          <div className="flex min-w-0 items-center gap-1.5 whitespace-nowrap text-[11px] text-gray-400">
+                            <span className="shrink-0 rounded bg-gray-100 px-1 text-gray-500">报送人</span>
+                            <span className="shrink-0 text-gray-600">{item.author || '—'}</span>
+                            <span className="shrink-0 text-gray-300">·</span>
+                            <span title={getOrganizationPathText(item.organization)} className="truncate">
+                              {item.organization}
+                            </span>
+                            <span className="shrink-0 text-gray-300">·</span>
+                            <span className="shrink-0 font-mono text-gray-500">{item.submitTime}</span>
+                            <span className="shrink-0 text-gray-300">·</span>
+                            <span className="shrink-0">
+                              驳回时间 <span className="font-mono text-gray-500">{getRejectTime(item)}</span>
+                            </span>
+                            <span
+                              className="ml-2 inline-flex min-w-0 cursor-help items-center gap-1 text-rose-500"
+                              title={`驳回原因：${item.rejectReason || '信息要素不完整，请补充政策依据与证明材料后重新提交。'}`}
+                            >
+                              <AlertCircle className="h-3 w-3 shrink-0" />
+                              <span className="truncate">
+                                驳回原因：{item.rejectReason || '信息不完整'}
+                              </span>
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </li>

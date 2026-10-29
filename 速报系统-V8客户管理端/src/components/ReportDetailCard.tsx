@@ -3,6 +3,7 @@ import { Attachment, ReportItem } from '../types';
 import { IdentificationBadge } from './IdentificationBadge';
 import { resolveIdentification } from '../services/identificationService';
 import {
+  AlertCircle,
   Check,
   Clock,
   Copy,
@@ -13,6 +14,9 @@ import {
   User,
 } from 'lucide-react';
 import { AttachmentPreviewModal } from './AttachmentPreviewModal';
+
+const DEFAULT_REJECT_REASON =
+  '信息不完整，请补充政策原文链接和现场排查核实依据后重新提交。';
 
 const defaultSummary =
   '今日（8月13日）上午8时许，多名网民在微博、微信群反映西坝区阳光花园一期、明月居等5个小区突发停水，早高峰生活用水受到影响，涉及居民约3万人。';
@@ -131,6 +135,11 @@ export const ReportDetailCard: React.FC<ReportDetailCardProps> = ({
   const isPending = report.auditStatus === '待审核';
   const isAdopted = report.auditStatus === '已采纳' || report.auditStatus === '已通过';
   const isRejected = report.auditStatus === '被驳回' || report.auditStatus === '已驳回';
+  const rejectReasonText =
+    report.rejectReason ||
+    report.rejectDetail ||
+    report.timeline?.find((node) => node.status === 'rejected')?.note ||
+    DEFAULT_REJECT_REASON;
 
   let statusBadgeClasses = 'bg-[#FEF9EE] text-[#D97706] border border-[#FDE68A]';
   if (isAdopted) {
@@ -152,6 +161,19 @@ export const ReportDetailCard: React.FC<ReportDetailCardProps> = ({
 
   return (
     <div className="space-y-4" id="report-detail-card-container">
+      {isRejected && (
+        <div className="p-3.5 bg-rose-50 rounded-xl border border-rose-200 flex items-start space-x-3">
+          <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+          <div className="min-w-0">
+              <p className="font-bold text-rose-900 text-xs">报送已驳回</p>
+              <p className="text-[11px] text-rose-700 mt-1 leading-normal">
+                <strong>驳回原因：</strong>
+                {rejectReasonText}
+              </p>
+          </div>
+        </div>
+      )}
+
       {/* 1. Main Article Information Card */}
       <div className="bg-white rounded-2xl border border-gray-200/80 shadow-2xs p-6 sm:p-7 space-y-4">
         {/* Title & Status Row */}
@@ -168,7 +190,7 @@ export const ReportDetailCard: React.FC<ReportDetailCardProps> = ({
             <span
               className={`text-xs font-medium px-3.5 py-1 rounded-md shadow-2xs ${statusBadgeClasses}`}
             >
-              {report.auditStatus || '待审核'}
+              {isRejected ? '已驳回' : report.auditStatus || '待审核'}
             </span>
           </div>
         </div>

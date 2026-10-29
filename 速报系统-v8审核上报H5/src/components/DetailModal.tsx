@@ -179,6 +179,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
 
   const [showTransferPicker, setShowTransferPicker] = useState<boolean>(false);
   const [showRecallConfirm, setShowRecallConfirm] = useState<boolean>(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
   const [selectedDept, setSelectedDept] = useState<string>(DEPARTMENT_OPTIONS[0]);
 
   // Mobile Audit Operations State (Matching PC layout)
@@ -590,7 +591,8 @@ export const DetailModal: React.FC<DetailModalProps> = ({
                 <span className="font-mono text-[10px] text-slate-400">{report.createTime}</span>
               </div>
 
-              {report.status === 'rejected' && currentRejectReason && (
+              {/* 审核列表已驳回详情：不在标题/人名下展示驳回原因；报送侧被驳回仍展示 */}
+              {rejectStatusLabel !== '已驳回' && report.status === 'rejected' && currentRejectReason && (
                 <div className="rounded-xl border border-red-200 bg-red-50/95 p-2 text-red-700">
                   <div className="flex items-start space-x-1.5">
                     <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0 mt-0.5" />
@@ -605,14 +607,11 @@ export const DetailModal: React.FC<DetailModalProps> = ({
 
             {showNodeConclusion && (
               <div className="bg-white rounded-2xl p-3.5 border border-slate-200/90 shadow-2xs space-y-2.5">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center">
                   <h3 className="text-xs font-bold text-slate-800 flex items-center space-x-1">
                     <UserCheck className="w-3.5 h-3.5 text-blue-600" />
                     <span>本节点审核结论</span>
                   </h3>
-                  <span className="rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-600">
-                    节点记录
-                  </span>
                 </div>
 
                 {nodeRejected ? (
@@ -1094,25 +1093,34 @@ export const DetailModal: React.FC<DetailModalProps> = ({
             </button>
           </div>
         ) : canEdit ? (
-          <button
-            onClick={() => {
-              onEditDraft(report);
-              onClose();
-            }}
-            className="w-full py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center justify-center space-x-1.5 shadow-sm transition-colors"
-          >
-            <Edit3 className="w-4 h-4" />
-            <span>修改补充并重新提交</span>
-          </button>
+          <div className="flex items-center space-x-2">
+            {onDeleteReport && (
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="flex-1 py-2.5 px-3 bg-red-50 hover:bg-red-100 text-red-600 font-semibold text-xs rounded-xl flex items-center justify-center space-x-1.5 transition-colors border border-red-200 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>删除</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                onEditDraft(report);
+                onClose();
+              }}
+              className={`${onDeleteReport ? 'flex-[1.4]' : 'w-full'} py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center justify-center space-x-1.5 shadow-sm transition-colors cursor-pointer`}
+            >
+              <Edit3 className="w-4 h-4" />
+              <span>修改补充并重新提交</span>
+            </button>
+          </div>
         ) : report.status === 'pending_audit' && onDeleteReport ? (
           <div className="flex items-center space-x-2">
             <button
-              onClick={() => {
-                if (window.confirm('确认删除这条待审核速报吗？删除后不可恢复。')) {
-                  onDeleteReport(report.id);
-                  onClose();
-                }
-              }}
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
               className="flex-1 py-2.5 px-3 bg-red-50 hover:bg-red-100 text-red-600 font-semibold text-xs rounded-xl flex items-center justify-center space-x-1 transition-colors border border-red-200 cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5 mr-1" />
@@ -1141,6 +1149,22 @@ export const DetailModal: React.FC<DetailModalProps> = ({
           message="撤回后将重新进入编辑状态，修改后可直接重新提交。"
           onCancel={() => setShowRecallConfirm(false)}
           onConfirm={handleConfirmRecall}
+        />
+      )}
+
+      {showDeleteConfirm && onDeleteReport && (
+        <RecallConfirmDialog
+          title={canEdit ? '确认删除这条被驳回速报？' : '确认删除这条待审核速报？'}
+          message="删除后不可恢复，请谨慎操作。"
+          cancelLabel="取消"
+          confirmLabel="确认删除"
+          variant="danger"
+          onCancel={() => setShowDeleteConfirm(false)}
+          onConfirm={() => {
+            onDeleteReport(report.id);
+            setShowDeleteConfirm(false);
+            onClose();
+          }}
         />
       )}
 

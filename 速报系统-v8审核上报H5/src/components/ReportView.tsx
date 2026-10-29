@@ -1,10 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { SpeedReport, ReportTemplate, UserProfile, ReportStatus, ReportType, ReportSource, IdentificationTag } from '../types';
+import { SpeedReport, ReportTemplate, UserProfile, ReportStatus, ReportType, ReportSource, IdentificationTag, TemplateFieldValue } from '../types';
 import { REPORT_TEMPLATES, DISTRICT_OPTIONS, TYPE_OPTIONS, SOURCE_OPTIONS } from '../data/mockData';
-import { Plus, Save, Send, ChevronRight, X, Sparkles, Filter, Link, FileText, Trash2, CheckCircle2, Clock, AlertCircle, PencilLine, Search } from 'lucide-react';
+import { Plus, Save, Send, ChevronRight, X, Sparkles, Filter, Link, FileText, Trash2, CheckCircle2, Clock, AlertCircle, PencilLine, Search, Camera, Loader2, RefreshCw } from 'lucide-react';
 import { BackNavigationBar } from './BackNavigationBar';
 import { IdentificationBadge } from './IdentificationBadge';
+import { RecallConfirmDialog } from './RecallConfirmDialog';
+import { getAuditAssignmentStatus, getAuditBlockTip } from '../utils/submitGuard';
 import { calculatePreJudgment } from '../utils/identification';
+import {
+  TemplateExtraFields,
+  createInitialTemplateFieldValues,
+  getTemplateFieldDomId,
+  getTemplateFieldError,
+} from './TemplateExtraFields';
 
 interface ReportViewProps {
   reports: SpeedReport[];
@@ -45,23 +53,138 @@ export const ReportView: React.FC<ReportViewProps> = ({
   onCloseForm,
 }) => {
   const [activeFilter, setActiveFilter] = useState<string>('pending');
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [isCreating, setIsCreating] = useState<boolean>(!!initialEditReport || !!isCreatingNew);
   const [selectedTemplate, setSelectedTemplate] = useState<ReportTemplate>(REPORT_TEMPLATES[0]);
-
-  // Form state
+  // Form state（新建进入模板时为空，仅用 placeholder 提示，不预填示例内容）
   const [editingId, setEditingId] = useState<string | null>(initialEditReport?.id || null);
-  const [formTitle, setFormTitle] = useState<string>(initialEditReport?.title || REPORT_TEMPLATES[0].titlePlaceholder.replace('例如：', ''));
-  const [formAddress, setFormAddress] = useState<string>(initialEditReport?.address || '西坝区实验幼儿园');
-  const [formSource, setFormSource] = useState<ReportSource>(initialEditReport?.source || REPORT_TEMPLATES[0].defaultSource);
-  const [formDistrict, setFormDistrict] = useState<string>(initialEditReport?.district || '西坝区');
-  const [formType, setFormType] = useState<ReportType>(initialEditReport?.type || REPORT_TEMPLATES[0].defaultType);
-  const [formSummary, setFormSummary] = useState<string>(initialEditReport?.summary || '家长群中出现关于托育服务收费标准的咨询和争议，正在补充政策依据。');
-  const [formCoreDemand, setFormCoreDemand] = useState<string>(initialEditReport?.coreDemand || '明确收费标准、退费规则和服务内容。');
-  const [formDisposalAdvice, setFormDisposalAdvice] = useState<string>(initialEditReport?.disposalAdvice || '建议教育部门准备统一答复口径。');
+  const [formTitle, setFormTitle] = useState<string>(initialEditReport?.title || '');
+  const [formAddress, setFormAddress] = useState<string>(initialEditReport?.address || '');
+  const [formSource, setFormSource] = useState<ReportSource | ''>(initialEditReport?.source || '');
+  const [formDistrict, setFormDistrict] = useState<string>(initialEditReport?.district || '');
+  const [formType, setFormType] = useState<ReportType | ''>(initialEditReport?.type || '');
+  const [formSummary, setFormSummary] = useState<string>(initialEditReport?.summary || '');
+  const [formCoreDemand, setFormCoreDemand] = useState<string>(initialEditReport?.coreDemand || '');
+  const [formDisposalAdvice, setFormDisposalAdvice] = useState<string>(initialEditReport?.disposalAdvice || '');
   const [formMatchedLink, setFormMatchedLink] = useState<string>(initialEditReport?.matchedLink || '');
+  type LinkShotState = {
+    status: 'loading' | 'done' | 'error' | 'empty' | 'invalid';
+    url: string;
+    shotAt?: string;
+    reason?: string;
+  };
+  const [linkShot, setLinkShot] = useState<LinkShotState | null>(null);
+  const [linkShotViewer, setLinkShotViewer] = useState<{ url: string; shotAt?: string } | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
+  const [submitBlockTip, setSubmitBlockTip] = useState<string | null>(null);
+  const [extraFieldValues, setExtraFieldValues] = useState<Record<string, TemplateFieldValue>>(
+    () => createInitialTemplateFieldValues(REPORT_TEMPLATES[0].extraFields)
+  );
+  const [extraFieldErrors, setExtraFieldErrors] = useState<Record<string, boolean>>({});
   const getTemplateById = (templateId?: string | null) =>
     REPORT_TEMPLATES.find((tpl) => tpl.id === templateId) ?? REPORT_TEMPLATES[0];
+  const resetExtraFields = (template: ReportTemplate) => {
+    setExtraFieldValues(createInitialTemplateFieldValues(template.extraFields));
+    setExtraFieldErrors({});
+  };
+  const buildBackfilledTemplateValues = (template: ReportTemplate, report: SpeedReport) => {
+    const values = createInitialTemplateFieldValues(template.extraFields);
+    const savedValues = report.templateFieldValues || {};
+    const reportDate = (report.createTime || report.updateTime || '').slice(0, 10);
+
+    template.extraFields.forEach((field) => {
+      if (Object.prototype.hasOwnProperty.call(savedValues, field.id)) {
+        values[field.id] = savedValues[field.id];
+        return;
+      }
+
+      const firstOption = field.options?.[0]?.value || '';
+      if (field.type === 'date') values[field.id] = reportDate;
+      if (field.type === 'number') values[field.id] = 1;
+      if (field.type === 'radio' || field.type === 'select') values[field.id] = firstOption;
+      if (field.type === 'checkbox' || field.type === 'multi_select') {
+        values[field.id] = firstOption ? [firstOption] : [];
+      }
+      if (field.type === 'link') {
+        values[field.id] = report.matchedLink || `https://example.com/reports/${report.id}`;
+      }
+      if (field.type === 'attachment') values[field.id] = ['佐证材料.pdf'];
+    });
+
+    return values;
+  };
+
+  const isValidLinkUrl = (value: string) => {
+    try {
+      const parsed = new URL(value.trim());
+      return /^https?:$/.test(parsed.protocol) && /\.[a-z]{2,}$/i.test(parsed.hostname);
+    } catch {
+      return false;
+    }
+  };
+
+  const simulateUnreachableReason = (value: string): string | null => {
+    try {
+      const host = new URL(value.trim()).hostname;
+      if (/404/.test(host)) return '页面不存在（404）';
+      if (/error/i.test(host)) return '网站服务器错误（500）';
+      if (/unreachable/i.test(host) || host.endsWith('.invalid')) return '无法连接到该网站，请求超时';
+      return null;
+    } catch {
+      return '网址无法解析';
+    }
+  };
+
+  const captureLinkShot = (url: string) => {
+    setLinkShot({ status: 'loading', url });
+    window.setTimeout(() => {
+      setLinkShot((prev) => {
+        if (!prev || prev.url !== url) return prev;
+        const reason = simulateUnreachableReason(url);
+        if (reason) return { status: 'error', url, reason };
+        const now = new Date();
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const shotAt = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+        return { status: 'done', url, shotAt };
+      });
+    }, 1200);
+  };
+
+  const removeLinkShot = () => setLinkShot(null);
+
+  const renderLinkShotMock = (url: string, large = false) => {
+    let host = url;
+    try {
+      host = new URL(url).hostname;
+    } catch {
+      /* keep raw */
+    }
+    return (
+      <div className="w-full h-full bg-white flex flex-col overflow-hidden">
+        <div className={`flex items-center gap-1 bg-slate-100 border-b border-slate-200 ${large ? 'px-3 py-2' : 'px-1.5 py-1'}`}>
+          <span className={`${large ? 'w-2 h-2' : 'w-1 h-1'} rounded-full bg-rose-300`} />
+          <span className={`${large ? 'w-2 h-2' : 'w-1 h-1'} rounded-full bg-amber-300`} />
+          <span className={`${large ? 'w-2 h-2' : 'w-1 h-1'} rounded-full bg-emerald-300`} />
+          <span className={`ml-1 flex-1 truncate bg-white rounded text-slate-400 ${large ? 'text-xs px-2 py-0.5' : 'text-[7px] px-1'}`}>
+            {host}
+          </span>
+        </div>
+        <div className={`flex-1 flex flex-col ${large ? 'p-6 gap-3' : 'p-2 gap-1'}`}>
+          <div className={`bg-slate-700 rounded-sm ${large ? 'h-4 w-3/4' : 'h-1.5 w-3/4'}`} />
+          <div className={`bg-slate-300 rounded-sm ${large ? 'h-2.5 w-1/3' : 'h-1 w-1/3'}`} />
+          <div className={`bg-blue-100 rounded-sm ${large ? 'h-40 mt-2' : 'h-6 mt-0.5'}`} />
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className={`bg-slate-200 rounded-sm ${large ? 'h-2.5' : 'h-1'}`}
+              style={{ width: `${[96, 88, 92, 60][i]}%` }}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   const filterTabs = showAllStatuses
     ? [
@@ -95,7 +218,9 @@ export const ReportView: React.FC<ReportViewProps> = ({
 
   useEffect(() => {
     if (initialEditReport) {
+      const editTemplate = getTemplateById(initialEditReport.templateId || initialTemplateId);
       setEditingId(initialEditReport.id);
+      setSelectedTemplate(editTemplate);
       setFormTitle(initialEditReport.title);
       setFormAddress(initialEditReport.address);
       setFormSource(initialEditReport.source);
@@ -104,7 +229,12 @@ export const ReportView: React.FC<ReportViewProps> = ({
       setFormSummary(initialEditReport.summary);
       setFormCoreDemand(initialEditReport.coreDemand);
       setFormDisposalAdvice(initialEditReport.disposalAdvice);
-      setFormMatchedLink(initialEditReport.matchedLink || '');
+      setLinkShot(null);
+      setLinkShotViewer(null);
+      setFieldErrors({});
+      setExtraFieldValues(buildBackfilledTemplateValues(editTemplate, initialEditReport));
+      setExtraFieldErrors({});
+      setSubmitBlockTip(null);
       setIsCreating(true);
     } else if (isCreatingNew) {
       handleOpenNewForm();
@@ -116,13 +246,20 @@ export const ReportView: React.FC<ReportViewProps> = ({
 
   const applyTemplate = (tpl: ReportTemplate) => {
     setSelectedTemplate(tpl);
-    setFormType(tpl.defaultType);
-    setFormSource(tpl.defaultSource);
+    resetExtraFields(tpl);
+    // 切换模板只更新占位提示与下拉默认倾向，不写入示例正文
     if (!editingId) {
-      setFormTitle(tpl.titlePlaceholder.replace('例如：', ''));
-      setFormSummary(tpl.summaryPlaceholder);
-      setFormCoreDemand(tpl.coreDemandPlaceholder);
-      setFormDisposalAdvice(tpl.advicePlaceholder);
+      setFormTitle('');
+      setFormAddress('');
+      setFormSummary('');
+      setFormCoreDemand('');
+      setFormDisposalAdvice('');
+      setFormMatchedLink('');
+      setFormSource('');
+      setFormDistrict('');
+      setFormType('');
+      setLinkShot(null);
+      setFieldErrors({});
     }
     onToast(`已切换为：${tpl.name}`);
   };
@@ -131,35 +268,88 @@ export const ReportView: React.FC<ReportViewProps> = ({
     const template = getTemplateById(initialTemplateId);
     setEditingId(null);
     setSelectedTemplate(template);
-    setFormTitle(template.titlePlaceholder.replace('例如：', ''));
-    setFormAddress('西坝区实验幼儿园');
-    setFormSource(template.defaultSource);
-    setFormDistrict('西坝区');
-    setFormType(template.defaultType);
-    setFormSummary(template.summaryPlaceholder);
-    setFormCoreDemand(template.coreDemandPlaceholder);
-    setFormDisposalAdvice(template.advicePlaceholder);
+    setFormTitle('');
+    setFormAddress('');
+    setFormSource('');
+    setFormDistrict('');
+    setFormType('');
+    setFormSummary('');
+    setFormCoreDemand('');
+    setFormDisposalAdvice('');
     setFormMatchedLink('');
+    setLinkShot(null);
+    setLinkShotViewer(null);
+    setFieldErrors({});
+    resetExtraFields(template);
+    setSubmitBlockTip(null);
     setIsCreating(true);
   }
 
   const handleSubmitForm = () => {
+    const errors: Record<string, boolean> = {};
+    const missing: string[] = [];
+
     if (!formTitle.trim()) {
-      onToast('请输入事件标题');
+      errors.title = true;
+      missing.push('标题名称');
+    }
+    if (!formSummary.trim()) {
+      errors.summary = true;
+      missing.push('内容描述');
+    }
+
+    const extraErrors: Record<string, boolean> = {};
+    const extraIssues = selectedTemplate.extraFields.flatMap((field) => {
+      const message = getTemplateFieldError(field, extraFieldValues[field.id]);
+      if (!message) return [];
+      extraErrors[field.id] = true;
+      return [{ field, message }];
+    });
+
+    setFieldErrors(errors);
+    setExtraFieldErrors(extraErrors);
+    if (missing.length > 0 || extraIssues.length > 0) {
+      onToast(
+        missing.length > 0
+          ? `请完善必填项：${missing[0]}${missing.length + extraIssues.length > 1 ? ` 等 ${missing.length + extraIssues.length} 项` : ''}`
+          : extraIssues[0].message
+      );
+      if (missing.length === 0 && extraIssues.length > 0) {
+        window.requestAnimationFrame(() => {
+          const fieldElement = document.getElementById(getTemplateFieldDomId(extraIssues[0].field.id));
+          fieldElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          const focusTarget = fieldElement?.querySelector(
+            'input:not(.sr-only), select, textarea, summary, label[for]'
+          ) as HTMLElement | null;
+          focusTarget?.focus();
+        });
+      }
       return;
     }
 
+    // 终审节点必须有审核人，否则阻断提交（民生诉求核查模板用于演示终审无人）
+    const auditOrg = user.department || user.subDepartment || '';
+    const blockTip = getAuditBlockTip(getAuditAssignmentStatus(auditOrg, selectedTemplate.id));
+    if (blockTip) {
+      setSubmitBlockTip(blockTip);
+      return;
+    }
+
+    const templateLink = selectedTemplate.extraFields.find((field) => field.type === 'link');
+    const templateLinkValue = templateLink ? extraFieldValues[templateLink.id] : '';
     const payload: Partial<SpeedReport> = {
       id: editingId || `rep_${Date.now()}`,
       title: formTitle,
       address: formAddress,
-      source: formSource,
-      district: formDistrict,
-      type: formType,
+      source: formSource || selectedTemplate.defaultSource,
+      district: formDistrict || '全市',
+      type: formType || selectedTemplate.defaultType,
       summary: formSummary,
-      coreDemand: formCoreDemand,
-      disposalAdvice: formDisposalAdvice,
-      matchedLink: formMatchedLink,
+      coreDemand: formCoreDemand || formSummary,
+      disposalAdvice: formDisposalAdvice || '待审核部门研判处置。',
+      matchedLink: formMatchedLink || (typeof templateLinkValue === 'string' ? templateLinkValue : ''),
+      templateId: selectedTemplate.id,
+      templateFieldValues: { ...extraFieldValues },
       author: user.name,
       authorDept: user.department,
       gridNo: user.gridCode,
@@ -176,6 +366,8 @@ export const ReportView: React.FC<ReportViewProps> = ({
     payload.identificationTime = payload.updateTime;
 
     onSaveReport(payload, true);
+    setLinkShot(null);
+    setLinkShotViewer(null);
     setIsCreating(false);
     onCloseForm?.();
   };
@@ -283,13 +475,13 @@ export const ReportView: React.FC<ReportViewProps> = ({
   };
 
   return (
-    <div className="flex-1 p-3 space-y-3 overflow-y-auto">
+    <div className={`relative flex-1 min-h-0 p-3 space-y-3 ${isCreating ? 'overflow-hidden' : 'overflow-y-auto'}`}>
       
       {/* Top Header / Mode Switcher */}
       {isCreating ? (
-        <div className="absolute inset-0 z-20 bg-slate-100 flex flex-col overflow-hidden">
+        <div className="absolute inset-0 z-20 bg-slate-100 grid grid-rows-[minmax(0,1fr)_auto] overflow-hidden">
           {/* Form Content Body (Scrollable) */}
-          <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5 pb-24">
+          <div className="min-h-0 overflow-y-auto p-3.5 space-y-3.5 pb-4">
             <BackNavigationBar onBack={handleReturnToPrevious} />
 
             {isResubmit && (
@@ -306,17 +498,45 @@ export const ReportView: React.FC<ReportViewProps> = ({
             <div className="bg-white rounded-xl p-3.5 border border-slate-200/90 shadow-2xs space-y-3 text-xs">
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                  事件标题 <span className="text-red-500">*</span>
+                  标题名称 <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={formTitle}
-                  onChange={(e) => setFormTitle(e.target.value)}
+                  onChange={(e) => {
+                    setFormTitle(e.target.value);
+                    if (fieldErrors.title) setFieldErrors((prev) => ({ ...prev, title: false }));
+                  }}
                   placeholder={selectedTemplate.titlePlaceholder}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                  className={`w-full px-3 py-2 bg-slate-50 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:bg-white border ${
+                    fieldErrors.title ? 'border-rose-400 focus:ring-rose-200' : 'border-slate-200 focus:ring-blue-500'
+                  }`}
                 />
               </div>
 
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-semibold text-slate-700">
+                    内容描述 <span className="text-red-500">*</span>
+                  </label>
+                  {editingReport && <span className="text-[10px] text-slate-400">已带入上次提交内容，可直接修改补充</span>}
+                </div>
+                <textarea
+                  rows={3}
+                  value={formSummary}
+                  onChange={(e) => {
+                    setFormSummary(e.target.value);
+                    if (fieldErrors.summary) setFieldErrors((prev) => ({ ...prev, summary: false }));
+                  }}
+                  placeholder={selectedTemplate.summaryPlaceholder}
+                  className={`w-full px-3 py-2 bg-slate-50 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:bg-white resize-none border ${
+                    fieldErrors.summary ? 'border-rose-400 focus:ring-rose-200' : 'border-slate-200 focus:ring-blue-500'
+                  }`}
+                />
+              </div>
+
+              {false && (
+                <>
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">发生地址</label>
                 <input
@@ -328,41 +548,63 @@ export const ReportView: React.FC<ReportViewProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">事件来源</label>
-                  <select
-                    value={formSource}
-                    onChange={(e) => setFormSource(e.target.value as ReportSource)}
-                    className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {reportSourceOptions.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">涉及区域</label>
-                  <select
-                    value={formDistrict}
-                    onChange={(e) => setFormDistrict(e.target.value)}
-                    className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {DISTRICT_OPTIONS.map((d) => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  事件来源 <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formSource}
+                  onChange={(e) => {
+                    setFormSource(e.target.value as ReportSource | '');
+                    if (fieldErrors.source) setFieldErrors((prev) => ({ ...prev, source: false }));
+                  }}
+                  className={`w-full px-2.5 py-2 bg-slate-50 rounded-xl text-slate-800 focus:outline-none focus:ring-2 border ${
+                    fieldErrors.source ? 'border-rose-400 focus:ring-rose-200' : 'border-slate-200 focus:ring-blue-500'
+                  }`}
+                >
+                  <option value="">请选择</option>
+                  {reportSourceOptions.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1">信息类型</label>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  涉及区域 <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formDistrict}
+                  onChange={(e) => {
+                    setFormDistrict(e.target.value);
+                    if (fieldErrors.district) setFieldErrors((prev) => ({ ...prev, district: false }));
+                  }}
+                  className={`w-full px-2.5 py-2 bg-slate-50 rounded-xl text-slate-800 focus:outline-none focus:ring-2 border ${
+                    fieldErrors.district ? 'border-rose-400 focus:ring-rose-200' : 'border-slate-200 focus:ring-blue-500'
+                  }`}
+                >
+                  <option value="">请选择</option>
+                  {DISTRICT_OPTIONS.map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  信息类型 <span className="text-red-500">*</span>
+                </label>
                 <select
                   value={formType}
-                  onChange={(e) => setFormType(e.target.value as ReportType)}
-                  className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => {
+                    setFormType(e.target.value as ReportType | '');
+                    if (fieldErrors.type) setFieldErrors((prev) => ({ ...prev, type: false }));
+                  }}
+                  className={`w-full px-2.5 py-2 bg-slate-50 rounded-xl text-slate-800 focus:outline-none focus:ring-2 border ${
+                    fieldErrors.type ? 'border-rose-400 focus:ring-rose-200' : 'border-slate-200 focus:ring-blue-500'
+                  }`}
                 >
+                  <option value="">请选择</option>
                   {TYPE_OPTIONS.map((t) => (
                     <option key={t} value={t}>{t}</option>
                   ))}
@@ -370,59 +612,205 @@ export const ReportView: React.FC<ReportViewProps> = ({
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[11px] font-semibold text-slate-700">内容摘要</label>
-                  {editingReport && <span className="text-[10px] text-slate-400">已带入上次提交内容，可直接修改补充</span>}
-                </div>
-                <textarea
-                  rows={3}
-                  value={formSummary}
-                  onChange={(e) => setFormSummary(e.target.value)}
-                  placeholder={selectedTemplate.summaryPlaceholder}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1">核心诉求</label>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  核心诉求 <span className="text-red-500">*</span>
+                </label>
                 <textarea
                   rows={2}
                   value={formCoreDemand}
-                  onChange={(e) => setFormCoreDemand(e.target.value)}
+                  onChange={(e) => {
+                    setFormCoreDemand(e.target.value);
+                    if (fieldErrors.coreDemand) setFieldErrors((prev) => ({ ...prev, coreDemand: false }));
+                  }}
                   placeholder={selectedTemplate.coreDemandPlaceholder}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white resize-none"
+                  className={`w-full px-3 py-2 bg-slate-50 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:bg-white resize-none border ${
+                    fieldErrors.coreDemand ? 'border-rose-400 focus:ring-rose-200' : 'border-slate-200 focus:ring-blue-500'
+                  }`}
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1">处置建议</label>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  处置建议 <span className="text-red-500">*</span>
+                </label>
                 <textarea
                   rows={2}
                   value={formDisposalAdvice}
-                  onChange={(e) => setFormDisposalAdvice(e.target.value)}
+                  onChange={(e) => {
+                    setFormDisposalAdvice(e.target.value);
+                    if (fieldErrors.disposalAdvice) setFieldErrors((prev) => ({ ...prev, disposalAdvice: false }));
+                  }}
                   placeholder={selectedTemplate.advicePlaceholder}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white resize-none"
+                  className={`w-full px-3 py-2 bg-slate-50 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:bg-white resize-none border ${
+                    fieldErrors.disposalAdvice ? 'border-rose-400 focus:ring-rose-200' : 'border-slate-200 focus:ring-blue-500'
+                  }`}
                 />
               </div>
 
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center space-x-1">
-                  <Link className="w-3 h-3 text-slate-400" />
-                  <span>匹配网络链接/存证URL（可选）</span>
-                </label>
-                <input
-                  type="url"
-                  value={formMatchedLink}
-                  onChange={(e) => setFormMatchedLink(e.target.value)}
-                  placeholder="https://..."
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-[11px]"
-                />
-              </div>
+              {(() => {
+                const linkValue = formMatchedLink.trim();
+                const linkValid = linkValue !== '' && isValidLinkUrl(linkValue);
+                const linkInvalid = linkValue !== '' && !linkValid;
+                return (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center space-x-1">
+                      <Link className="w-3 h-3 text-slate-400" />
+                      <span>匹配网络链接/存证URL（可选）</span>
+                    </label>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex-1 min-w-0">
+                          <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                            <Link className={`w-3.5 h-3.5 ${linkInvalid ? 'text-rose-400' : 'text-slate-400'}`} />
+                          </div>
+                          <input
+                            type="url"
+                            value={formMatchedLink}
+                            onChange={(e) => {
+                              setFormMatchedLink(e.target.value);
+                              removeLinkShot();
+                              if (fieldErrors.matchedLink) {
+                                setFieldErrors((prev) => ({ ...prev, matchedLink: false }));
+                              }
+                            }}
+                            placeholder="https://..."
+                            className={`w-full pl-8 pr-3 py-2 bg-slate-50 rounded-xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:bg-white font-mono text-[11px] transition-colors border ${
+                              linkInvalid || fieldErrors.matchedLink
+                                ? 'border-rose-300 focus:ring-2 focus:ring-rose-200'
+                                : 'border-slate-200 focus:ring-2 focus:ring-blue-500'
+                            }`}
+                          />
+                        </div>
+                        {linkShot?.status !== 'done' && (
+                          <button
+                            type="button"
+                            disabled={linkShot?.status === 'loading'}
+                            onClick={() => {
+                              if (!linkValue) {
+                                setLinkShot({ status: 'empty', url: '' });
+                                return;
+                              }
+                              if (linkInvalid) {
+                                setLinkShot({ status: 'invalid', url: linkValue });
+                                return;
+                              }
+                              captureLinkShot(linkValue);
+                            }}
+                            className="shrink-0 self-stretch px-3 flex items-center gap-1 rounded-xl border text-[11px] font-semibold transition-colors cursor-pointer border-blue-600 text-blue-600 bg-white hover:bg-blue-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300 disabled:bg-slate-50"
+                          >
+                            {linkShot?.status === 'loading' ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span>截图中</span>
+                              </>
+                            ) : (
+                              <>
+                                <Camera className="w-3.5 h-3.5" />
+                                <span>截图</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+
+                      {linkInvalid &&
+                        (linkShot?.status === 'invalid' ? (
+                          <p className="flex items-center gap-1 text-[11px] text-rose-500">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            <span>网址格式不正确，无法截图，请修改为以 http:// 或 https:// 开头的正确网址</span>
+                          </p>
+                        ) : (
+                          <p className="text-[11px] text-rose-500">请输入正确的网址，需以 http:// 或 https:// 开头</p>
+                        ))}
+
+                      {linkShot?.status === 'empty' && !linkValue && (
+                        <p className="flex items-center gap-1 text-[11px] text-amber-600">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span>原文地址为空，请先输入原文链接再截图</span>
+                        </p>
+                      )}
+
+                      {linkShot?.status === 'error' && (
+                        <div className="flex items-start justify-between gap-2 px-2.5 py-2 rounded-xl bg-rose-50 border border-rose-100 text-[11px] text-rose-600">
+                          <div className="flex items-start gap-1.5 min-w-0">
+                            <AlertCircle className="w-3.5 h-3.5 mt-px shrink-0" />
+                            <div className="min-w-0">
+                              <div className="font-medium">原文地址不可访问</div>
+                              {linkShot.reason && (
+                                <div className="truncate text-rose-500/90">访问反馈：{linkShot.reason}</div>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => captureLinkShot(linkValue)}
+                            className="shrink-0 font-medium hover:underline cursor-pointer"
+                          >
+                            重试
+                          </button>
+                        </div>
+                      )}
+
+                      {linkShot?.status === 'done' && (
+                        <div className="flex items-start gap-3 p-2 rounded-xl bg-slate-50 border border-slate-200">
+                          <button
+                            type="button"
+                            onClick={() => setLinkShotViewer({ url: linkShot.url, shotAt: linkShot.shotAt })}
+                            className="w-28 h-[72px] shrink-0 rounded-md overflow-hidden border border-slate-200 cursor-zoom-in hover:border-blue-600 transition-colors"
+                            title="查看原图"
+                          >
+                            {renderLinkShotMock(linkShot.url)}
+                          </button>
+                          <div className="flex-1 min-w-0 space-y-1.5">
+                            <div className="flex items-center gap-1 text-[11px] font-medium text-emerald-600">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>已截取原文</span>
+                            </div>
+                            <div className="text-[11px] text-slate-400">{linkShot.shotAt}</div>
+                            <div className="flex items-center gap-3 text-[11px]">
+                              <button
+                                type="button"
+                                onClick={() => captureLinkShot(linkShot.url)}
+                                className="flex items-center gap-0.5 text-blue-600 hover:underline cursor-pointer"
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                                <span>重新截图</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={removeLinkShot}
+                                className="flex items-center gap-0.5 text-slate-500 hover:text-rose-500 cursor-pointer"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                <span>删除</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+                </>
+              )}
+
+              <TemplateExtraFields
+                fields={selectedTemplate.extraFields}
+                values={extraFieldValues}
+                errors={extraFieldErrors}
+                onChange={(fieldId, value) => {
+                  setExtraFieldValues((prev) => ({ ...prev, [fieldId]: value }));
+                  if (extraFieldErrors[fieldId]) {
+                    setExtraFieldErrors((prev) => ({ ...prev, [fieldId]: false }));
+                  }
+                }}
+              />
             </div>
           </div>
 
           {/* Fixed Bottom Action Bar: 取消, 提交 */}
-          <div className="bg-white border-t border-slate-200 p-3 shrink-0 shadow-lg grid grid-cols-2 gap-2.5 z-50">
+          <div className="bg-white border-t border-slate-200 px-3 pt-3 pb-[max(0.25rem,env(safe-area-inset-bottom))] shadow-lg grid grid-cols-2 gap-2.5 z-50">
             <button
               type="button"
               onClick={handleReturnToPrevious}
@@ -441,6 +829,52 @@ export const ReportView: React.FC<ReportViewProps> = ({
               <span>{isResubmit ? '重新提交审核' : '提交审核'}</span>
             </button>
           </div>
+
+          {linkShotViewer && (
+            <div
+              className="absolute inset-0 z-[70] bg-black/50 flex items-center justify-center p-4"
+              onClick={() => setLinkShotViewer(null)}
+            >
+              <div
+                className="w-full max-w-[22rem] bg-white rounded-2xl shadow-2xl overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="px-3.5 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-800">原文截图</div>
+                    <div className="text-[11px] text-slate-400 truncate">
+                      {linkShotViewer.url}
+                      {linkShotViewer.shotAt ? ` · ${linkShotViewer.shotAt}` : ''}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setLinkShotViewer(null)}
+                    className="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="p-3 bg-slate-50">
+                  <div className="h-[280px] rounded-xl overflow-hidden border border-slate-200">
+                    {renderLinkShotMock(linkShotViewer.url, true)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {submitBlockTip && (
+            <RecallConfirmDialog
+              title="暂时无法提交"
+              message={submitBlockTip}
+              cancelLabel="关闭"
+              confirmLabel="我知道了"
+              variant="warning"
+              onCancel={() => setSubmitBlockTip(null)}
+              onConfirm={() => setSubmitBlockTip(null)}
+            />
+          )}
         </div>
       ) : (
         <>
@@ -587,9 +1021,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            if (window.confirm('确认删除这条速报吗？删除后不可恢复。')) {
-                              onDeleteReport(report.id);
-                            }
+                            setDeleteTargetId(report.id);
                           }}
                           className="-my-1 -mx-1 px-1.5 py-1 text-red-500 hover:text-red-700 font-medium flex items-center gap-0.5 rounded-md hover:bg-red-50 active:scale-95 transition-all cursor-pointer"
                           aria-label="删除速报"
@@ -628,6 +1060,21 @@ export const ReportView: React.FC<ReportViewProps> = ({
             </p>
           </div>
         </>
+      )}
+
+      {deleteTargetId && (
+        <RecallConfirmDialog
+          title="确认删除这条速报？"
+          message="删除后不可恢复，请谨慎操作。"
+          cancelLabel="取消"
+          confirmLabel="确认删除"
+          variant="danger"
+          onCancel={() => setDeleteTargetId(null)}
+          onConfirm={() => {
+            onDeleteReport(deleteTargetId);
+            setDeleteTargetId(null);
+          }}
+        />
       )}
 
     </div>

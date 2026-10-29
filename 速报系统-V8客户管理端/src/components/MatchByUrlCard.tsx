@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link as LinkIcon, ExternalLink, Ban, User, Clock } from 'lucide-react';
+import { Link as LinkIcon, Copy, Check, Ban, User, Clock } from 'lucide-react';
 import { ReportItem } from '../types';
 import { IdentificationBadge } from './IdentificationBadge';
 import { toPreAdoptionIdentLabel } from '../services/identificationService';
@@ -43,6 +43,8 @@ export const MatchByUrlCard: React.FC<MatchByUrlCardProps> = ({
   const displayList = currentReportId !== undefined
     ? matchedList.filter((item) => String(item.id) !== String(currentReportId))
     : matchedList;
+
+  const [urlCopied, setUrlCopied] = useState(false);
 
   // 已勾选的列表项 ID 数组（支持外部受控与内部自管）
   const [internalSelectedBatchIds, setInternalSelectedBatchIds] = useState<(number | string)[]>(
@@ -105,18 +107,28 @@ export const MatchByUrlCard: React.FC<MatchByUrlCardProps> = ({
           <h3 className="text-sm font-bold text-gray-900 shrink-0">按链接地址精准匹配</h3>
           <span className="text-gray-300 shrink-0 text-xs">：</span>
           {matchUrl ? (
-            <a
-              href={matchUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center space-x-1 text-xs font-mono text-[#1E5ABB] hover:text-[#134092] transition-colors truncate min-w-0 max-w-[460px] group cursor-pointer"
-              title={`点击在新窗口跳转访问原文：\n${matchUrl}`}
-            >
-              <span className="truncate underline underline-offset-2 decoration-blue-300 group-hover:decoration-blue-600">
+            <div className="inline-flex items-center space-x-1.5 min-w-0 max-w-[460px]">
+              <span
+                className="truncate text-xs font-mono text-[#1E5ABB]"
+                title={matchUrl}
+              >
                 {matchUrl}
               </span>
-              <ExternalLink className="w-3.5 h-3.5 text-[#2563EB] shrink-0 group-hover:translate-x-0.5 transition-transform" />
-            </a>
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard.writeText(matchUrl).then(() => {
+                    setUrlCopied(true);
+                    window.setTimeout(() => setUrlCopied(false), 2000);
+                  });
+                }}
+                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 shrink-0 rounded-md text-[11px] font-medium text-[#1E5ABB] hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition-colors"
+                title="复制链接"
+              >
+                {urlCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{urlCopied ? '已复制' : '复制'}</span>
+              </button>
+            </div>
           ) : (
             <span className="text-xs text-gray-400 font-mono italic">暂无同源匹配链接</span>
           )}

@@ -319,7 +319,7 @@ export const useAppViewModel = () => {
       ),
       ...previous
     ]);
-    showToast(`新速报提交成功（智能识别：${createdItem.originLabel || '疑似首发'}），已进入待审核队列！`);
+    showToast(`速报已成功提交送审 (${createdItem.originLabel || '疑似首发'}) !`);
   };
 
   const handleDeleteReport = (id: number) => {
@@ -359,7 +359,7 @@ export const useAppViewModel = () => {
     });
     if (selectedReport?.id === updated.id) setSelectedReport(updated);
     if (selectedAudit?.id === updated.id) setSelectedAudit(updated);
-    showToast(`速报已成功提交送审（标识为：${updated.originLabel || '疑似首发'}）！`);
+    showToast(`速报已成功提交送审 (${updated.originLabel || '疑似首发'}) !`);
   };
 
   const handleApproveAudit = (id: number, score?: number, isBatch = false) => {

@@ -199,7 +199,6 @@ export const AuditView: React.FC<AuditViewProps> = ({
         <button
           onClick={() => {
             setActiveFilter('pending');
-            setShowBatchGroups(false);
           }}
           className={`flex-1 py-1.5 rounded-xl font-medium transition-all text-center ${
             activeFilter === 'pending'
@@ -213,7 +212,6 @@ export const AuditView: React.FC<AuditViewProps> = ({
         <button
           onClick={() => {
             setActiveFilter('completed');
-            setShowBatchGroups(false);
           }}
           className={`flex-1 py-1.5 rounded-xl font-medium transition-all text-center ${
             activeFilter === 'completed'
@@ -227,7 +225,6 @@ export const AuditView: React.FC<AuditViewProps> = ({
         <button
           onClick={() => {
             setActiveFilter('rejected');
-            setShowBatchGroups(false);
           }}
           className={`flex-1 py-1.5 rounded-xl font-medium transition-all text-center ${
             activeFilter === 'rejected'

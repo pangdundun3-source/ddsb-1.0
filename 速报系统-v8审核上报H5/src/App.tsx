@@ -26,7 +26,7 @@ import { Toast, ToastMessage } from './components/Toast';
 import { OfficialAccountEntryView } from './components/OfficialAccountEntryView';
 import { ActivationH5View } from './components/ActivationH5View';
 import { AnnouncementDetailView } from './components/AnnouncementDetailView';
-import { calculatePreJudgment, resolveOfficialTag } from './utils/identification';
+import { calculatePreJudgment, IDENTIFICATION_CONFIG, resolveOfficialTag } from './utils/identification';
 
 export default function App() {
   // Application State with LocalStorage Persistence
@@ -100,16 +100,32 @@ export default function App() {
   };
 
   // Handlers
+  const resetModuleViewState = () => {
+    setIsActivationH5View(false);
+    setViewMode('main');
+    setIsFormMode(false);
+    setIsCreatingNewReport(false);
+    setEditingReport(null);
+    setPendingTemplateId(null);
+    setSelectedReport(null);
+    setSelectedReportEntry(null);
+    setSelectedAnnouncement(null);
+    setProfileSubPage(null);
+    setIsProfileDetail(false);
+    setIsActivationDetail(false);
+    setPreviousTab(null);
+  };
+
   const handleLoginSuccess = (account: string, role: UserRole) => {
     setUser((prev) => ({
       ...prev,
       account,
       role,
     }));
+    resetModuleViewState();
     setIsLoggedIn(true);
     setIsOfficialAccount(false);
     setCurrentTab('home');
-    setViewMode('main');
   };
 
   const handleLogout = () => {
@@ -168,7 +184,9 @@ export default function App() {
       };
       setReports((prev) => [newReport, ...prev]);
 
-      showToast('速报已成功提交审核');
+      showToast(
+        `操作成功\n速报已成功提交送审 (${IDENTIFICATION_CONFIG[identificationTag || 'identifying'].shortLabel}) !`
+      );
       // Add notification for audit (提醒审核人审核)
       const newNotif: AppNotification = {
         id: `notif_${Date.now()}`,
@@ -197,7 +215,9 @@ export default function App() {
         )
       );
 
-      showToast('已重新提交审核并完成查重打标');
+      showToast(
+        `操作成功\n速报已成功提交送审 (${IDENTIFICATION_CONFIG[identificationTag || 'identifying'].shortLabel}) !`
+      );
     }
 
     setEditingReport(null);
@@ -695,49 +715,46 @@ export default function App() {
         ) : isOfficialAccount ? (
           <OfficialAccountEntryView
             onEnterReport={() => {
+              resetModuleViewState();
               setIsOfficialAccount(false);
               setIsLoggedIn(true);
               setCurrentTab('report');
               setIsCreatingNewReport(true);
-              setViewMode('main');
               showToast('已进入“快速上报”通道');
             }}
             onEnterReportList={() => {
+              resetModuleViewState();
               setIsOfficialAccount(false);
               setIsLoggedIn(true);
               setCurrentTab('report');
-              setIsCreatingNewReport(false);
-              setViewMode('main');
               showToast('已打开快速上报列表');
             }}
             onEnterWorkbench={(targetRole) => {
               if (targetRole) {
                 setUser((prev) => ({ ...prev, role: targetRole }));
               }
+              resetModuleViewState();
               setIsLoggedIn(true);
               setIsOfficialAccount(false);
               setCurrentTab('home');
-              setViewMode('main');
               showToast('已进入工作台首页');
             }}
             onEnterAuditList={() => {
+              resetModuleViewState();
               setIsLoggedIn(true);
               setIsOfficialAccount(false);
               setCurrentTab('audit');
-              setViewMode('main');
               showToast('已打开快速审核列表');
             }}
             onEnterProfile={() => {
+              resetModuleViewState();
               setIsLoggedIn(true);
               setIsOfficialAccount(false);
               setCurrentTab('profile');
-              setViewMode('main');
-              setProfileSubPage(null);
-              setIsProfileDetail(false);
-              setIsActivationDetail(false);
               showToast('已进入个人中心（我的）');
             }}
             onEnterLogin={() => {
+              resetModuleViewState();
               setIsLoggedIn(false);
               setIsOfficialAccount(false);
             }}

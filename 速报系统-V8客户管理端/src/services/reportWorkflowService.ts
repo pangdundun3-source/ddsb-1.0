@@ -88,12 +88,12 @@ export const createSubmittedReport = (
   const baseReport = createReportFromForm(input, id, submitTime);
   const report: ReportItem = {
     ...baseReport,
-    identificationStatus: '识别中',
+    identificationStatus: '疑似首发',
     identificationDetail: {
-      status: '识别中',
-      similarity: 50,
-      matchReason: '系统正在并发检索不良信息库、待审件与全网线索指纹...',
-      checkTime: '正在比对'
+      status: '疑似首发',
+      similarity: 18,
+      matchReason: '比对不良信息库与全部待审及审核中数据，未检索到相同或高相似度件，预判为疑似首发。',
+      checkTime: '智能预判'
     }
   };
 

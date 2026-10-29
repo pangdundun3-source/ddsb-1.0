@@ -1,6 +1,6 @@
 import React from 'react';
 import { IdentificationStatus } from '../types';
-import { Copy, Sparkles, Loader2, CheckCircle2, Layers } from 'lucide-react';
+import { Copy, Sparkles, CheckCircle2, Layers } from 'lucide-react';
 
 interface IdentificationBadgeProps {
   status?: IdentificationStatus | string | null;
@@ -20,14 +20,17 @@ export const IdentificationBadge: React.FC<IdentificationBadgeProps> = ({
 }) => {
   if (!status) return null;
 
-  const normalized = status.trim();
+  // 不再展示「识别中」：统一收口为「疑似首发」
+  const raw = status.trim();
+  const normalized =
+    raw === '识别中' || raw === '正在识别' || raw === '比对中' || raw === '预判' || raw === '智能预判'
+      ? '疑似首发'
+      : raw;
 
   const isFormalFirst = normalized === '首发' || normalized === '首发报送';
   const isFormalDuplicate = normalized === '重复' || normalized === '重复报送';
   const isSuspectedFirst = normalized === '疑似首发';
   const isSuspectedDuplicate = normalized === '疑似重复' || normalized === '疑似重复识别';
-  const isAnalyzing = normalized === '识别中' || normalized === '正在识别' || normalized === '比对中';
-  const isPredicting = normalized === '预判' || normalized === '智能预判';
 
   const sizeClasses = {
     xs: 'text-[10px] px-1.5 py-0.5 gap-1',
@@ -64,16 +67,6 @@ export const IdentificationBadge: React.FC<IdentificationBadgeProps> = ({
     badgeStyle = 'bg-blue-50 text-blue-700 border border-blue-300/90 shadow-2xs';
     defaultTitle = '智能识别：疑似首发（审核过程标识，待最终审核通过定标）';
     iconElement = <Sparkles className={`${iconSizeClass} shrink-0 text-blue-600`} />;
-  } else if (isAnalyzing || isPredicting) {
-    badgeStyle = 'bg-purple-50 text-purple-700 border border-purple-300/80 shadow-2xs';
-    defaultTitle = isAnalyzing
-      ? '系统智能识别中：正在自动比对不良信息库与在审数据...'
-      : '系统预判中';
-    iconElement = isAnalyzing ? (
-      <Loader2 className={`${iconSizeClass} shrink-0 text-purple-600 animate-spin`} />
-    ) : (
-      <Sparkles className={`${iconSizeClass} shrink-0 text-purple-600`} />
-    );
   } else {
     badgeStyle = 'bg-gray-50 text-gray-700 border border-gray-200 shadow-2xs';
     weightClass = 'font-medium';

@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ReportItem } from '../types';
 import {
   Link as LinkIcon,
-  ExternalLink,
+  Copy,
+  Check,
   Ban,
   User,
   Clock,
@@ -42,6 +43,7 @@ export const MatchedClusterPanel: React.FC<MatchedClusterPanelProps> = ({
   onInspectReport,
   auditMode = 'pass',
 }) => {
+  const [urlCopied, setUrlCopied] = useState(false);
   const currentUrl = matchUrl || report.matchUrl || 'https://news.example.com/';
   const totalCount = allCluster.length;
   const currentSelectedCount = selectedBatchIds.length;
@@ -72,20 +74,30 @@ export const MatchedClusterPanel: React.FC<MatchedClusterPanelProps> = ({
       className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-200/80 shadow-2xs space-y-3.5"
       id="matched-cluster-panel"
     >
-      {/* 1. Header: 🔗 按链接地址精准匹配 ： url ↗ */}
+      {/* 1. Header: 🔗 按链接地址精准匹配 ： url + 复制 */}
       <div className="flex items-center space-x-2 text-xs sm:text-sm text-gray-900 flex-wrap gap-y-1">
         <LinkIcon className="w-4 h-4 text-[#1E5ABB] shrink-0 -rotate-45" />
         <span className="font-bold text-gray-900 shrink-0">按链接地址精准匹配 ：</span>
-        <a
-          href={currentUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-[#1E5ABB] hover:underline font-mono truncate max-w-[280px] sm:max-w-md inline-flex items-center space-x-1"
+        <span
+          className="text-[#1E5ABB] font-mono truncate max-w-[280px] sm:max-w-md"
           title={currentUrl}
         >
-          <span>{currentUrl}</span>
-          <ExternalLink className="w-3.5 h-3.5 ml-1 shrink-0" />
-        </a>
+          {currentUrl}
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            void navigator.clipboard.writeText(currentUrl).then(() => {
+              setUrlCopied(true);
+              window.setTimeout(() => setUrlCopied(false), 2000);
+            });
+          }}
+          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 shrink-0 rounded-md text-[11px] font-medium text-[#1E5ABB] hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition-colors"
+          title="复制链接"
+        >
+          {urlCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+          <span>{urlCopied ? '已复制' : '复制'}</span>
+        </button>
       </div>
 
       <div className="border-t border-gray-100" />

@@ -54,10 +54,49 @@ export interface SpeedReport {
   identificationTag?: IdentificationTag; // 预判断/正式定标标识（草稿不算，不打标）
   identificationReason?: string;        // 判定比对依据/关联线索
   identificationTime?: string;          // 预判或正式定标时间
+  templateId?: TemplateType;
+  templateFieldValues?: Record<string, TemplateFieldValue>;
   tags: string[];
 }
 
-export type TemplateType = '突发事件速报模板' | '民生诉求核查模板' | '网络谣言线索模板';
+export type TemplateType =
+  | '突发事件速报模板'
+  | '民生诉求核查模板'
+  | '网络谣言线索模板'
+  | '专项风险线索模板';
+
+export type TemplateFieldType =
+  | 'number'
+  | 'date'
+  | 'radio'
+  | 'checkbox'
+  | 'select'
+  | 'multi_select'
+  | 'link'
+  | 'attachment'
+  | 'static_text';
+
+export interface TemplateFieldOption {
+  label: string;
+  value: string;
+}
+
+export type TemplateFieldValue = string | string[] | number | null;
+
+export interface TemplateExtraField {
+  id: string;
+  label: string;
+  type: TemplateFieldType;
+  required?: boolean;
+  placeholder?: string;
+  options?: TemplateFieldOption[];
+  content?: string;
+  accept?: string;
+  multiple?: boolean;
+  min?: number;
+  max?: number;
+  defaultValue?: TemplateFieldValue;
+}
 
 export interface ReportTemplate {
   id: TemplateType;
@@ -68,6 +107,7 @@ export interface ReportTemplate {
   summaryPlaceholder: string;
   coreDemandPlaceholder: string;
   advicePlaceholder: string;
+  extraFields: TemplateExtraField[];
 }
 
 export type NotificationType =

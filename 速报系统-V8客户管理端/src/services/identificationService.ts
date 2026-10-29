@@ -23,7 +23,7 @@ export const toPreAdoptionIdentLabel = (
 ): IdentificationStatus => {
   if (!status) return '疑似重复';
   const s = status.trim();
-  if (s === '识别中' || s === '正在识别' || s === '比对中') return '识别中';
+  if (s === '识别中' || s === '正在识别' || s === '比对中') return '疑似首发';
   if (s.includes('重复')) return '疑似重复';
   return '疑似首发';
 };
@@ -79,25 +79,21 @@ export const resolveIdentification = (
       };
     }
 
-    // 在审/待办阶段：如果之前是正式的，转为预判标识
-    if (current === '首发') {
+    // 在审/待办阶段：正式标识改为预判；「识别中」已取消，统一收口为疑似首发
+    if (current === '首发' || current === '识别中' || (current as string) === '正在识别' || (current as string) === '比对中') {
       current = '疑似首发';
     } else if (current === '重复') {
       current = '疑似重复';
-    } else if ((current as string) === '正在识别' || (current as string) === '比对中') {
-      current = '识别中';
     }
 
     return {
       status: current,
       detail: report.identificationDetail || {
         status: current,
-        similarity: current === '疑似重复' ? 86 : current === '识别中' ? 50 : 18,
+        similarity: current === '疑似重复' ? 86 : 18,
         matchReason:
           current === '疑似重复'
             ? '系统自动快判：命中同源链接、关键词及事发时间窗，存在重复上报可能'
-            : current === '识别中'
-            ? '系统智能识别中：正在并发检索不良信息库、待审件与全网线索指纹...'
             : '系统自动快判：暂无高度相似历史速报，预判为首发',
         checkTime: report.submitTime || '刚刚'
       }
@@ -135,19 +131,6 @@ export const resolveIdentification = (
           : '采纳定标：未发现先发同类记录，正式定标入库为首发件',
         manualConfirmed: true,
         checkTime: report.auditTime || '审核通过定标'
-      }
-    };
-  }
-
-  // 针对特定测试件（如刚刚提交的）：可呈现“识别中”
-  if (report.id && report.id > 1700000000000 && Date.now() - report.id < 15000) {
-    return {
-      status: '识别中',
-      detail: {
-        status: '识别中',
-        similarity: 45,
-        matchReason: '系统正在并发检索不良信息库、待审件与附件指纹...',
-        checkTime: '正在比对'
       }
     };
   }

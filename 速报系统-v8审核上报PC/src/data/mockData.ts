@@ -1,4 +1,5 @@
 import { ReportItem, AuditRecordItem, OrgItem, OrgUser, OrgNode, TemplateItem, LogItem, ReportTemplateDef } from '../types';
+import { REPORT_TEMPLATE_EXTRA_FIELDS } from './templateFieldConfigs';
 import type { OrgAccount } from '../types';
 
 export const AVAILABLE_ORGS: OrgAccount[] = [
@@ -30,14 +31,14 @@ export const AVAILABLE_ORGS: OrgAccount[] = [
 
 export const PRESET_REPORT_TEMPLATES: ReportTemplateDef[] = [
   {
-    id: 'emergency',
-    name: '突发事件急报模板',
+    id: '突发事件速报模板',
+    name: '突发事件速报模板',
     badge: '紧急快报',
     badgeColor: 'bg-rose-50 text-rose-700 border-rose-200',
     iconName: 'zap',
     description: '适用于自然灾害、安全事故、公共卫生及突发社会治安事件的紧急快速报送',
     recommendedFor: '第一发现人 / 网格员 / 应急指挥',
-    defaultSource: '网格巡查',
+    defaultSource: '群众举报',
     defaultRegion: '西屯区',
     defaultInfoType: '突发事件',
     defaultTitle: '【紧急】关于某路段突发管网故障抢修进展的快报',
@@ -47,41 +48,19 @@ export const PRESET_REPORT_TEMPLATES: ReportTemplateDef[] = [
 【伤亡及损失情况】：现场无人员伤亡，周边已设立安全警戒线。
 【当前处置进展】：抢修工程车辆及应急处置组已进场作业，正在进行分流抢修。`,
     demandsTemplate: '周边居民及过往车主高度关注积水排除与恢复通行的预计时间。',
-    recommendationsTemplate: '1. 联动交警支队实施临时交通分流与道路交通疏导。\n2. 属地融媒体中心通过微信公众号发布临时通行提示，回应群众关切。'
+    recommendationsTemplate: '1. 联动交警支队实施临时交通分流与道路交通疏导。\n2. 属地融媒体中心通过微信公众号发布临时通行提示，回应群众关切。',
+    extraFields: REPORT_TEMPLATE_EXTRA_FIELDS['突发事件速报模板']
   },
   {
-    id: 'standard',
-    name: '标准图文报送模板',
-    badge: '常用推荐',
-    badgeColor: 'bg-blue-50 text-blue-700 border-blue-200',
-    iconName: 'file-text',
-    description: '适用于日常综合舆情、社情民意核查及一般性事件的标准图文规范上报',
-    recommendedFor: '各区县信息员 / 直属部门报送员',
-    defaultSource: '群众举报',
-    defaultRegion: '西屯区',
-    defaultInfoType: '舆情动态',
-    defaultTitle: '关于某社区居民集中反映公共设施老化问题的舆情动态',
-    summaryTemplate: `一、基本事实概述：
-近期多名市民在社交平台及微信群反映西屯区部分老旧住宅楼公共排污管道破损老化问题。
-
-二、网络舆情发酵态势：
-目前主要在社区业主群内传播讨论，暂无大规模负面舆情外溢。
-
-三、部门初步核实：
-属地街道与物业管理处已完成现场踏勘与登记。`,
-    demandsTemplate: '业主普遍希望明确排污管网彻底维修翻新的时间节点与出资方案。',
-    recommendationsTemplate: '1. 建议街道城管科联合物业召开现场业主代表沟通会。\n2. 在单元宣传栏公示维修进度与联系人电话。'
-  },
-  {
-    id: 'livelihood',
-    name: '民生诉求保障模板',
+    id: '民生诉求核查模板',
+    name: '民生诉求核查模板',
     badge: '民生专报',
     badgeColor: 'bg-amber-50 text-amber-700 border-amber-200',
     iconName: 'help',
-    description: '针对教育、医疗、物业纠纷、交通出行等民生急难愁盼诉求的专项分析上报',
+    description: '针对教育、医疗、物业纠纷、交通出行等民生急难愁盼诉求的核查上报',
     recommendedFor: '12345热线对接 / 综合服务专员',
-    defaultSource: '热线12345',
-    defaultRegion: '北屯区',
+    defaultSource: '网格巡查',
+    defaultRegion: '西屯区',
     defaultInfoType: '民生诉求',
     defaultTitle: '关于某小区业主反映物业擅自调高公摊费用的诉求专报',
     summaryTemplate: `一、诉求来源与规模：
@@ -93,15 +72,16 @@ export const PRESET_REPORT_TEMPLATES: ReportTemplateDef[] = [
 三、初步调解情况：
 社区居委会已介入搭建沟通平台，督促物业做好账目核算。`,
     demandsTemplate: '业主诉求要求暂缓收费、退回多扣费用，并公开公摊电量明细台账。',
-    recommendationsTemplate: '1. 建议住建局物业监管科指导街道综治办介入监督。\n2. 督促物业公司严格按《物业管理条例》进行账务核算与公示。'
+    recommendationsTemplate: '1. 建议住建局物业监管科指导街道综治办介入监督。\n2. 督促物业公司严格按《物业管理条例》进行账务核算与公示。',
+    extraFields: REPORT_TEMPLATE_EXTRA_FIELDS['民生诉求核查模板']
   },
   {
-    id: 'rumor',
-    name: '网络辟谣与核查模板',
+    id: '网络谣言线索模板',
+    name: '网络谣言线索模板',
     badge: '辟谣专报',
     badgeColor: 'bg-purple-50 text-purple-700 border-purple-200',
     iconName: 'shield',
-    description: '针对短视频、微信群恶意摆拍、造谣传谣及虚假宣传的信息取证与官方辟谣',
+    description: '针对短视频、微信群造谣传谣及虚假宣传的信息取证与官方辟谣',
     recommendedFor: '网信网安 / 辟谣专班',
     defaultSource: '社交媒体',
     defaultRegion: '全市',
@@ -112,29 +92,25 @@ export const PRESET_REPORT_TEMPLATES: ReportTemplateDef[] = [
 2. 权威核实：经向市应急管理局及消防救援支队核实，当日全市无此类险情，视频实为外省数年前旧闻拼接剪辑。
 3. 危害评估：评论区存在误导性言论，容易引发公众恐慌。`,
     demandsTemplate: '广大网民期待官方查明真相，澄清事实，并对恶意造谣账号依法处置。',
-    recommendationsTemplate: '1. 联合公安网安部门依法对首发账号及恶意推流者进行溯源固定证据。\n2. 由市网信办联合网警巡查执法账号发布权威辟谣声明。\n3. 协调各大平台对相关不实违规短视频进行限流与下架标记。'
+    recommendationsTemplate: '1. 联合公安网安部门依法对首发账号及恶意推流者进行溯源固定证据。\n2. 由市网信办联合网警巡查执法账号发布权威辟谣声明。\n3. 协调各大平台对相关不实违规短视频进行限流与下架标记。',
+    extraFields: REPORT_TEMPLATE_EXTRA_FIELDS['网络谣言线索模板']
   },
   {
-    id: 'policy',
-    name: '政策解读反馈模板',
-    badge: '政策调研',
-    badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    iconName: 'book',
-    description: '用于重大政策法规或惠民措施发布后，跟踪社会反响、焦点疑问与释疑引导',
-    recommendedFor: '宣传部 / 政策研究室',
-    defaultSource: '新闻网站',
+    id: '专项风险线索模板',
+    name: '专项风险线索模板',
+    badge: '专项风险',
+    badgeColor: 'bg-blue-50 text-blue-700 border-blue-200',
+    iconName: 'file-text',
+    description: '用于重点场所、生产经营及公共安全风险的专项协查与联合处置上报',
+    recommendedFor: '风险排查专班 / 属地管理部门',
+    defaultSource: '部门转办',
     defaultRegion: '全市',
-    defaultInfoType: '政策解读',
-    defaultTitle: '关于《新一轮老旧小区改造补贴政策》发布后的社会反响与舆情专报',
-    summaryTemplate: `一、政策发布背景与传播面：
-自政策正式公布以来，各级主流媒体及政务发布平台累计转载报道30余篇次。
-
-二、各方反馈焦点：
-1. 赞成声音占比约70%，普遍认可政府改善人居环境的普惠举措。
-2. 关切焦点集中在加装电梯出资比例及低楼层采光补偿指导标准（占比22%）。
-3. 申报具体流程及办理时效咨询占8%。`,
-    demandsTemplate: '希望出台更加细致的实操指引和问答手册（Q&A）。',
-    recommendationsTemplate: '1. 组织专家和政策起草人开展线上“一图读懂”宣传解读。\n2. 设置区级政策咨询专窗，专人专岗解答群众疑惑。'
+    defaultInfoType: '舆情动态',
+    defaultTitle: '关于重点场所安全隐患线索的专项协查',
+    summaryTemplate: '请说明线索来源、涉及对象、风险表现及初步核实情况。',
+    demandsTemplate: '希望相关部门尽快开展协查并反馈处置进展。',
+    recommendationsTemplate: '1. 建立联合核查机制。\n2. 明确责任部门和反馈时限。',
+    extraFields: REPORT_TEMPLATE_EXTRA_FIELDS['专项风险线索模板']
   }
 ];
 
@@ -150,6 +126,8 @@ export const INITIAL_REPORTS: ReportItem[] = [
     submitTime: '2023-10-24 14:30',
     auditStatus: '被驳回',
     auditTime: '2023-10-24 16:05',
+    auditor: '王审核',
+    rejectReason: '信息不完整',
     score: '--',
     originLabel: '疑似首发',
     originReason: '系统智能比对：自动比对不良信息库与在审历史库，未发现重合线索，初判为首发报送。',
@@ -257,6 +235,8 @@ export const INITIAL_REPORTS: ReportItem[] = [
     submitTime: '2023-10-21 15:55',
     auditStatus: '被驳回',
     auditTime: '2023-10-21 17:20',
+    auditor: '王审核',
+    rejectReason: '信息不完整',
     score: '--',
     originLabel: '疑似首发',
     originReason: '系统智能比对：线索源比对为首次报送。',
@@ -316,6 +296,8 @@ export const INITIAL_REPORTS: ReportItem[] = [
     submitTime: '2023-10-19 14:40',
     auditStatus: '被驳回',
     auditTime: '2023-10-19 16:10',
+    auditor: '王审核',
+    rejectReason: '信息不完整',
     score: '--',
     originLabel: '首发'
   },
@@ -1121,9 +1103,11 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     submitTime: '2023-10-22 16:45',
     auditStatus: '被驳回',
     auditTime: '2023-10-22 18:05',
+    auditor: '王审核',
+    rejectReason: '信息不完整',
     originLabel: '疑似重复',
     originReason: '系统智能比对：与已通过记录存在同源URL。',
-    matchUrl: 'https://example.com/'
+    matchUrl: 'https://news.example.com/'
   },
   {
     id: 104,
@@ -1151,7 +1135,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     submitTime: '2023-10-21 15:55',
     arrivedAt: '2023-10-21 16:40',
     auditStatus: '待审核',
-    originLabel: '识别中',
+    originLabel: '疑似首发',
     originReason: '系统智能比对中：正在自动比对不良信息库与在审历史库，识别首发/重复状态...',
     matchUrl: 'https://example.com/'
   },
@@ -1251,7 +1235,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     submitTime: '2023-10-19 09:30',
     arrivedAt: '2023-10-19 10:15',
     auditStatus: '待审核',
-    originLabel: '识别中',
+    originLabel: '疑似首发',
     originReason: '系统智能比对中：正在全网比对同类舆情事件与重合度...'
   },
   {
@@ -1336,7 +1320,7 @@ export const INITIAL_AUDIT_PENDING: ReportItem[] = [
     submitTime: '2023-10-15 15:45',
     arrivedAt: '2023-10-15 16:20',
     auditStatus: '待审核',
-    originLabel: '识别中',
+    originLabel: '疑似首发',
     originReason: '系统智能比对中：正在自动比对不良信息库与在审历史库，识别首发/重复状态...'
   }
 ];

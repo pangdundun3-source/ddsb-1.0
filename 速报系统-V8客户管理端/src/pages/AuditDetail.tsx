@@ -545,8 +545,8 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
                 onPreviewAttachment={(att) => setPreviewAttachment(att)}
               />
 
-              {/* Matched Reports Cluster Panel (for co-agency reporting) */}
-              {matchedCoReports.length > 0 && (
+              {/* 已驳回详情不展示「按链接地址精准匹配」 */}
+              {!isRejected && matchedCoReports.length > 0 && (
                 <MatchByUrlCard
                   matchUrl={matchUrl}
                   matchedList={allCluster}
@@ -563,7 +563,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
             </div>
           ) : (
             /* 流转状态 Timeline View */
-            <AuditFlowTimeline report={report} />
+            <AuditFlowTimeline report={report} rejectedLabel="已驳回" />
           )}
         </div>
 
@@ -705,15 +705,13 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
                   <span className="text-sm font-bold text-gray-900">
                     本节点审核结论记录：
                   </span>
-                  <span
-                    className={`px-2 py-0.5 rounded text-xs font-semibold border ${
-                      isRejected
-                        ? 'bg-rose-50 text-rose-700 border-rose-200'
-                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    }`}
-                  >
-                    {isRejected ? '已驳回' : '已通过'}
-                  </span>
+                  {isRejected ? (
+                    <span className="text-xs font-semibold text-gray-900">已驳回</span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded text-xs font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
+                      已通过
+                    </span>
+                  )}
                   {!isRejected && (
                     <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-300 text-xs font-semibold">
                       评分：{finalScore !== undefined ? finalScore : (report.score ?? 92)}分

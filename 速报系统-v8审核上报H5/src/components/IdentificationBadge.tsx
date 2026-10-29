@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Copy, Loader2, CheckCircle2, CheckCheck } from 'lucide-react';
+import { Sparkles, Copy, CheckCircle2, CheckCheck } from 'lucide-react';
 import { IdentificationTag } from '../types';
 import { IDENTIFICATION_CONFIG } from '../utils/identification';
 
@@ -18,7 +18,9 @@ export const IdentificationBadge: React.FC<IdentificationBadgeProps> = ({
 }) => {
   if (!tag) return null;
 
-  const config = IDENTIFICATION_CONFIG[tag];
+  // 不再展示「识别中」：统一按疑似首发展示
+  const resolvedTag = tag === 'identifying' ? 'suspected_first' : tag;
+  const config = IDENTIFICATION_CONFIG[resolvedTag];
   if (!config) return null;
 
   const sizeClass =
@@ -37,13 +39,11 @@ export const IdentificationBadge: React.FC<IdentificationBadgeProps> = ({
 
   const renderIcon = () => {
     if (!showIcon) return null;
-    switch (tag) {
+    switch (resolvedTag) {
       case 'suspected_first':
         return <Sparkles className={iconClass} />;
       case 'suspected_repeat':
         return <Copy className={iconClass} />;
-      case 'identifying':
-        return <Loader2 className={`${iconClass} animate-spin`} />;
       case 'official_first':
         return <CheckCircle2 className={iconClass} />;
       case 'official_repeat':

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, QrCode, RefreshCw, LayoutGrid, CheckCircle2 } from 'lucide-react';
+import { RefreshCw, LayoutGrid } from 'lucide-react';
 import { UserRole } from '../types';
 
 interface LoginViewProps {
@@ -56,34 +56,6 @@ export const LoginView: React.FC<LoginViewProps> = ({
             <div>
               <h2 className="text-base font-bold text-slate-800">点点速豹 · 上报审核端</h2>
               <p className="text-xs text-slate-500">台中市网信办速报系统</p>
-            </div>
-          </div>
-
-          {/* QR Code Validation Box */}
-          <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200/90 flex items-center space-x-3.5">
-            <div className="w-14 h-14 bg-white p-1 rounded-lg border border-slate-200 flex items-center justify-center shrink-0">
-              {/* QR Pattern visual mock */}
-              <div className="w-full h-full border border-dashed border-slate-300 rounded flex flex-wrap p-0.5 gap-0.5 bg-slate-50">
-                <div className="w-3 h-3 bg-slate-800 rounded-xs"></div>
-                <div className="w-1.5 h-1.5 bg-slate-400"></div>
-                <div className="w-3 h-3 bg-slate-800 rounded-xs ml-auto"></div>
-                <div className="w-2 h-2 bg-slate-700"></div>
-                <div className="w-3 h-3 bg-slate-800 rounded-xs mt-auto"></div>
-                <div className="w-2 h-2 bg-blue-600 ml-auto mt-auto"></div>
-              </div>
-            </div>
-
-            <div>
-              <div className="text-xs font-bold text-slate-800 flex items-center space-x-1">
-                <span>后台二维码校验</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              </div>
-              <p className="text-[11px] text-slate-500 mt-0.5 font-mono">
-                票据 V8-H5-20260813-001
-              </p>
-              <p className="text-[10px] text-emerald-600 mt-1 font-medium flex items-center">
-                <CheckCircle2 className="w-3 h-3 mr-1" /> 已通过安全签章校验
-              </p>
             </div>
           </div>
 

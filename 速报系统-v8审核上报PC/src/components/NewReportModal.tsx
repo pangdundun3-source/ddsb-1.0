@@ -14,7 +14,6 @@ import {
   BookOpen,
   Check,
   SlidersHorizontal,
-  MapPin,
   Eye,
   Download,
   FileSpreadsheet,
@@ -25,11 +24,21 @@ import {
   NewReportFormData,
   ReportTemplateDef,
   ReportTemplateInput,
-  ReportItem
+  ReportItem,
+  TemplateFieldValue
 } from '../types';
 import { PRESET_REPORT_TEMPLATES as PRESET_TEMPLATES } from '../data/mockData';
 import { getReportAttachments, getReportDetailContent, getRejectReasonText } from '../data/reportContent';
 import { AttachmentPreviewModal } from './AttachmentPreviewModal';
+import {
+  PCTemplateExtraFields,
+  createInitialTemplateValues,
+  getFieldError
+} from './PCTemplateExtraFields';
+import {
+  getAuditAssignmentStatus,
+  getAuditBlockTip
+} from '../utils/submitGuard';
 
 const DEFAULT_ATTACHMENTS: Attachment[] = [
   {
@@ -46,6 +55,34 @@ const DEFAULT_ATTACHMENTS: Attachment[] = [
     type: 'pdf'
   }
 ];
+
+const MAX_ATTACHMENT_COUNT = 5;
+const MAX_ATTACHMENT_SIZE_BYTES = 20 * 1024 * 1024;
+const allowedAttachmentExtensions = new Set([
+  'pdf',
+  'doc',
+  'docx',
+  'xls',
+  'xlsx',
+  'ppt',
+  'pptx',
+  'txt',
+  'csv',
+  'zip',
+  'rar',
+]);
+
+const formatFileSize = (bytes: number) => {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
+};
+
+const isAllowedAttachment = (file: File) => {
+  if (file.type.startsWith('image/')) return true;
+  const extension = file.name.split('.').pop()?.toLowerCase() || '';
+  return allowedAttachmentExtensions.has(extension);
+};
 
 interface NewReportModalProps {
   isOpen: boolean;
@@ -67,7 +104,9 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
   const isEditMode = !!editingReport;
 
   // Selected Template ID
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('standard');
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
+    PRESET_TEMPLATES[0]?.id || '突发事件速报模板'
+  );
 
   // Form Field States
   const [title, setTitle] = useState('');
@@ -82,28 +121,101 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
   const [recommendations, setRecommendations] = useState('');
 
   const [toastNotice, setToastNotice] = useState<string | null>(null);
+  const [coreFieldErrors, setCoreFieldErrors] = useState({ title: false, summary: false });
+  const [extraFieldValues, setExtraFieldValues] = useState<Record<string, TemplateFieldValue>>({});
+  const [extraFieldErrors, setExtraFieldErrors] = useState<Record<string, boolean>>({});
+  const [submitBlockTip, setSubmitBlockTip] = useState<string | null>(null);
 
   // Attachments State
   const [attachments, setAttachments] = useState<Attachment[]>(DEFAULT_ATTACHMENTS);
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
+  const [attachmentWarning, setAttachmentWarning] = useState('');
+
+  const addAttachmentFiles = (files: File[]) => {
+    const remainingSlots = Math.max(MAX_ATTACHMENT_COUNT - attachments.length, 0);
+    const supportedFiles = files.filter(isAllowedAttachment);
+    const rejectedTypeCount = files.length - supportedFiles.length;
+    const sizeEligibleFiles = supportedFiles.filter(
+      (file) => file.size <= MAX_ATTACHMENT_SIZE_BYTES
+    );
+    const rejectedSizeCount = supportedFiles.length - sizeEligibleFiles.length;
+    const acceptedFiles = sizeEligibleFiles.slice(0, remainingSlots);
+    const rejectedCount = sizeEligibleFiles.length - acceptedFiles.length;
+    const newAttachments: Attachment[] = acceptedFiles.map((file, index) => {
+      const isImage = file.type.startsWith('image/');
+      const objectUrl = isImage ? URL.createObjectURL(file) : undefined;
+      return {
+        id: `att-upload-${Date.now()}-${index}`,
+        name: file.name,
+        size: formatFileSize(file.size),
+        type: isImage ? 'image' : file.name.toLowerCase().endsWith('.pdf') ? 'pdf' : 'link',
+        url: objectUrl,
+        thumbnailUrl: objectUrl,
+      };
+    });
+    const warnings = [
+      rejectedTypeCount > 0 ? `已忽略${rejectedTypeCount}个不支持的文件类型。` : '',
+      rejectedSizeCount > 0
+        ? `单个文件不能超过20MB，已忽略${rejectedSizeCount}个超限文件。`
+        : '',
+      rejectedCount > 0
+        ? `最多上传${MAX_ATTACHMENT_COUNT}个文件，已忽略${rejectedCount}个超出数量限制的文件。`
+        : '',
+    ].filter(Boolean);
+
+    if (newAttachments.length > 0) {
+      setAttachments((previous) => [...previous, ...newAttachments]);
+    }
+    setAttachmentWarning(warnings.join(''));
+  };
+
+  const getTemplateById = (templateId?: string) =>
+    PRESET_TEMPLATES.find((template) => template.id === templateId) || PRESET_TEMPLATES[0];
+
+  const backfillTemplateValues = (template: ReportTemplateDef, report: ReportItem) => {
+    const values = createInitialTemplateValues(template.extraFields);
+    const savedValues = report.templateFieldValues || {};
+    const reportDate = (report.submitTime || '').slice(0, 10);
+
+    template.extraFields.forEach((field) => {
+      if (field.type === 'attachment') {
+        values[field.id] = (report.attachments || []).map((attachment) => attachment.name);
+        return;
+      }
+      if (Object.prototype.hasOwnProperty.call(savedValues, field.id)) {
+        values[field.id] = savedValues[field.id];
+        return;
+      }
+      const firstOption = field.options?.[0]?.value || '';
+      if (field.type === 'date') values[field.id] = reportDate;
+      if (field.type === 'number') values[field.id] = 1;
+      if (field.type === 'radio' || field.type === 'select') values[field.id] = firstOption;
+      if (field.type === 'checkbox' || field.type === 'multi_select') {
+        values[field.id] = firstOption ? [firstOption] : [];
+      }
+      if (field.type === 'link') {
+        values[field.id] = report.matchUrl || `https://example.com/reports/${report.id}`;
+      }
+    });
+    return values;
+  };
 
   // Apply a template definition to the form fields
-  const applyTemplate = (template: ReportTemplateDef, forceOverride = true) => {
+  const applyTemplate = (template: ReportTemplateDef) => {
     setSelectedTemplateId(template.id);
-    if (forceOverride) {
-      if (template.defaultTitle) setTitle(template.defaultTitle);
-      if (template.defaultSource) setSource(template.defaultSource);
-      if (template.defaultRegion) setRegion(template.defaultRegion);
-      if (template.defaultInfoType) setInfoType(template.defaultInfoType);
-      setSummary(template.summaryTemplate);
-      setDemands(template.demandsTemplate);
-      setRecommendations(template.recommendationsTemplate);
-    } else {
-      // Only fill if empty
-      if (!title && template.defaultTitle) setTitle(template.defaultTitle);
-      if (!summary && template.summaryTemplate) setSummary(template.summaryTemplate);
-      if (!demands && template.demandsTemplate) setDemands(template.demandsTemplate);
-      if (!recommendations && template.recommendationsTemplate) setRecommendations(template.recommendationsTemplate);
+    setExtraFieldValues(createInitialTemplateValues(template.extraFields));
+    setExtraFieldErrors({});
+    setCoreFieldErrors({ title: false, summary: false });
+    setAttachmentWarning('');
+    setPreviewAttachment(null);
+    setAttachments([]);
+    setSubmitBlockTip(null);
+    setTitle('');
+    setSummary('');
+    setDemands('');
+    setRecommendations('');
+    setOccurAddress('');
+    if (!isEditMode) {
       setSource(template.defaultSource);
       setRegion(template.defaultRegion);
       setInfoType(template.defaultInfoType);
@@ -117,9 +229,15 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
 
     // Reset transient panel states on every open
     setPreviewAttachment(null);
+    setSubmitBlockTip(null);
+    setCoreFieldErrors({ title: false, summary: false });
+    setExtraFieldErrors({});
+    setAttachmentWarning('');
 
     if (editingReport) {
       // Edit mode: prefill from the existing draft / rejected report
+      const editTemplate = getTemplateById(editingReport.templateId);
+      setSelectedTemplateId(editTemplate.id);
       setTitle(editingReport.title || '');
       setSource(editingReport.source || '群众举报');
       setRegion(editingReport.region || '西屯区');
@@ -135,29 +253,37 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
         Array.isArray(recommendations) ? recommendations.join('\n') : recommendations || ''
       );
       setAttachments(getReportAttachments(editingReport));
-      setSelectedTemplateId('standard');
+      setExtraFieldValues(backfillTemplateValues(editTemplate, editingReport));
     } else if (initialTemplate) {
-      setTitle(initialTemplate.title || '');
-      if (initialTemplate.source) setSource(initialTemplate.source);
-      if (initialTemplate.region) setRegion(initialTemplate.region);
-      if (initialTemplate.occurAddress) setOccurAddress(initialTemplate.occurAddress);
-      if (initialTemplate.infoType) setInfoType(initialTemplate.infoType);
-      if (initialTemplate.summary) setSummary(initialTemplate.summary);
-      if (initialTemplate.demands) setDemands(initialTemplate.demands);
-      if (initialTemplate.recommendations) setRecommendations(initialTemplate.recommendations);
-      setAttachments([...DEFAULT_ATTACHMENTS]);
+      const initialSelectedTemplate = getTemplateById(initialTemplate.templateId);
+      setSelectedTemplateId(initialSelectedTemplate.id);
+      setExtraFieldValues(createInitialTemplateValues(initialSelectedTemplate.extraFields));
+      setTitle('');
+      setSource(initialSelectedTemplate.defaultSource);
+      setRegion(initialSelectedTemplate.defaultRegion);
+      setOccurAddress('');
+      setInfoType(initialSelectedTemplate.defaultInfoType);
+      setAuthor('张三');
+      setOrganization('台中市网信办');
+      setSummary('');
+      setDemands('');
+      setRecommendations('');
+      setAttachments([]);
     } else {
-      // If no initial template, load default standard template
-      const defaultTpl = PRESET_TEMPLATES.find((t) => t.id === 'standard') || PRESET_TEMPLATES[0];
+      const defaultTpl = PRESET_TEMPLATES[0];
       setSelectedTemplateId(defaultTpl.id);
-      setTitle(defaultTpl.defaultTitle);
+      setExtraFieldValues(createInitialTemplateValues(defaultTpl.extraFields));
+      setTitle('');
       setSource(defaultTpl.defaultSource);
       setRegion(defaultTpl.defaultRegion);
       setInfoType(defaultTpl.defaultInfoType);
-      setSummary(defaultTpl.summaryTemplate);
-      setDemands(defaultTpl.demandsTemplate);
-      setRecommendations(defaultTpl.recommendationsTemplate);
-      setAttachments([...DEFAULT_ATTACHMENTS]);
+      setOccurAddress('');
+      setAuthor('张三');
+      setOrganization('台中市网信办');
+      setSummary('');
+      setDemands('');
+      setRecommendations('');
+      setAttachments([]);
     }
   }, [isOpen, editingReport, initialTemplate]);
 
@@ -168,9 +294,72 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
 
   if (!isOpen) return null;
 
+  const selectedTemplate = getTemplateById(selectedTemplateId);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+
+    const nextCoreErrors = {
+      title: !title.trim(),
+      summary: !summary.trim(),
+    };
+    const missingFields = [
+      nextCoreErrors.title ? '标题名称' : '',
+      nextCoreErrors.summary ? '内容描述' : '',
+    ].filter(Boolean);
+    setCoreFieldErrors(nextCoreErrors);
+
+    const attachmentField = selectedTemplate.extraFields.find(
+      (field) => field.type === 'attachment'
+    );
+    const templateFieldValues: Record<string, TemplateFieldValue> = {
+      ...extraFieldValues,
+      ...(attachmentField
+        ? { [attachmentField.id]: attachments.map((attachment) => attachment.name) }
+        : {})
+    };
+    const extraErrors: Record<string, boolean> = {};
+    const extraIssues = selectedTemplate.extraFields.flatMap((field) => {
+      const message = getFieldError(field, templateFieldValues[field.id]);
+      if (!message) return [];
+      extraErrors[field.id] = true;
+      return [{ field, message }];
+    });
+    setExtraFieldErrors(extraErrors);
+    const issueCount = missingFields.length + extraIssues.length;
+    if (issueCount > 0) {
+      triggerToast(
+        missingFields.length > 0
+          ? `请完善必填项：${missingFields[0]}${issueCount > 1 ? ` 等 ${issueCount} 项` : ''}`
+          : extraIssues[0].message
+      );
+      window.requestAnimationFrame(() => {
+        const firstElementId = missingFields.length > 0
+          ? nextCoreErrors.title
+            ? 'pc-report-title'
+            : 'pc-report-summary'
+          : `pc-template-field-${extraIssues[0].field.id}`;
+        const fieldElement = document.getElementById(firstElementId);
+        fieldElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const focusTarget = fieldElement?.querySelector(
+          'input:not(.sr-only), select, textarea, button'
+        ) as HTMLElement | null;
+        if (fieldElement instanceof HTMLInputElement || fieldElement instanceof HTMLTextAreaElement) {
+          fieldElement.focus();
+        } else {
+          focusTarget?.focus();
+        }
+      });
+      return;
+    }
+
+    const blockTip = getAuditBlockTip(
+      getAuditAssignmentStatus(organization, selectedTemplate.id)
+    );
+    if (blockTip) {
+      setSubmitBlockTip(blockTip);
+      return;
+    }
 
     if (isEditMode && editingReport && onUpdate) {
       onUpdate({
@@ -185,14 +374,17 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
         detailContent: {
           ...editingReport.detailContent,
           summary: summary || '暂无详细摘要描述。',
-          coreDemands: demands || '',
+          coreDemands: demands || summary || '待审核部门研判处置。',
           publicOpinionTrend:
             editingReport.detailContent?.publicOpinionTrend || '话题关注度一般，总体舆情可控。',
           recommendations: recommendations
             ? recommendations.split('\n').filter((line) => line.trim())
-            : []
+            : ['待审核部门研判处置。']
         },
-        attachments
+        attachments,
+        templateId: selectedTemplate.id,
+        templateName: selectedTemplate.name,
+        templateFieldValues
       });
     } else {
       onSubmit({
@@ -204,9 +396,12 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
         author,
         organization,
         summary,
-        demands,
-        recommendations,
-        attachments
+        demands: demands || summary,
+        recommendations: recommendations || '待审核部门研判处置。',
+        attachments,
+        templateId: selectedTemplate.id,
+        templateName: selectedTemplate.name,
+        templateFieldValues
       });
     }
 
@@ -305,14 +500,14 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
             </div>
 
             {/* Quick Template Chips Carousel/Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               {PRESET_TEMPLATES.map((tpl) => {
                 const isSelected = selectedTemplateId === tpl.id;
                 return (
                   <button
                     key={tpl.id}
                     type="button"
-                    onClick={() => applyTemplate(tpl, true)}
+                    onClick={() => applyTemplate(tpl)}
                     className={`p-2.5 rounded-lg border text-left transition-all relative cursor-pointer group ${
                       isSelected
                         ? 'bg-white border-[#1E5ABB] shadow-md ring-2 ring-blue-100'
@@ -327,7 +522,7 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
                     <div className="flex items-center space-x-1.5">
                       {renderTemplateIcon(tpl.iconName)}
                       <span className={`text-[11px] font-bold truncate ${isSelected ? 'text-[#1E5ABB]' : 'text-gray-700'}`}>
-                        {tpl.name.replace('模板', '')}
+                        {tpl.name}
                       </span>
                     </div>
                   </button>
@@ -342,189 +537,114 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
           <form onSubmit={handleSubmit} id="new-report-form" className="space-y-4 text-xs">
             {/* Title */}
             <div>
-              <div className="flex justify-between items-center mb-1">
+              <div className="mb-1">
                 <label className="text-gray-700 font-bold flex items-center space-x-1">
-                  <span>事件标题</span>
+                  <span>标题名称</span>
                   <span className="text-rose-500 font-bold">*</span>
                 </label>
-                <span className="text-[10px] text-gray-400">建议包含地点、事件核心要素及性质</span>
               </div>
               <input
+                id="pc-report-title"
                 type="text"
-                required
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  if (coreFieldErrors.title) {
+                    setCoreFieldErrors((previous) => ({ ...previous, title: false }));
+                  }
+                }}
                 placeholder="请输入清晰的速报事件标题（如：关于某社区突发停水事件的舆情上报）"
-                className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/20 focus:border-[#1E5ABB] text-xs transition-all font-medium text-gray-900 bg-white"
+                className={`w-full px-3.5 py-2.5 border rounded-lg focus:outline-none focus:ring-2 text-xs transition-all font-medium text-gray-900 bg-white ${
+                  coreFieldErrors.title
+                    ? 'border-rose-400 focus:ring-rose-200'
+                    : 'border-gray-300 focus:ring-[#1E5ABB]/20 focus:border-[#1E5ABB]'
+                }`}
               />
-            </div>
-
-            {/* 4-Field Row: Source, Region, Occur Address, InfoType */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-              <div>
-                <label className="block text-gray-700 font-bold mb-1">事件来源</label>
-                <select
-                  value={source}
-                  onChange={(e) => setSource(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white text-xs text-gray-800"
-                >
-                  <option value="群众举报">群众举报</option>
-                  <option value="网格巡查">网格巡查</option>
-                  <option value="热线12345">热线12345</option>
-                  <option value="社交媒体">社交媒体</option>
-                  <option value="新闻网站">新闻网站</option>
-                  <option value="政府官网">政府官网</option>
-                  <option value="内部系统">内部系统</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-bold mb-1">涉及区域</label>
-                <select
-                  value={region}
-                  onChange={(e) => setRegion(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white text-xs text-gray-800"
-                >
-                  <option value="西屯区">西屯区</option>
-                  <option value="西坝区">西坝区</option>
-                  <option value="北屯区">北屯区</option>
-                  <option value="南屯区">南屯区</option>
-                  <option value="南坝区">南坝区</option>
-                  <option value="全市">全市范围</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-bold mb-1">信息类型</label>
-                <select
-                  value={infoType}
-                  onChange={(e) => setInfoType(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white text-xs text-gray-800"
-                >
-                  <option value="突发事件">突发事件</option>
-                  <option value="舆情动态">舆情动态</option>
-                  <option value="民生诉求">民生诉求</option>
-                  <option value="网络谣言">网络谣言</option>
-                  <option value="政策解读">政策解读</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-bold mb-1 flex items-center space-x-1">
-                  <MapPin className="w-3 h-3 text-gray-500" />
-                  <span>发生地址 (选填)</span>
-                </label>
-                <input
-                  type="text"
-                  value={occurAddress}
-                  onChange={(e) => setOccurAddress(e.target.value)}
-                  placeholder="如：西屯路38号小区"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] text-xs text-gray-800"
-                />
-              </div>
-            </div>
-
-            {/* Author & Organization Info */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-50/80 p-3 rounded-lg border border-gray-200">
-              <div>
-                <label className="block text-gray-600 font-semibold mb-1">上报人员</label>
-                <input
-                  type="text"
-                  value={author}
-                  onChange={(e) => setAuthor(e.target.value)}
-                  className="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white text-xs"
-                />
-              </div>
-              <div>
-                <label className="block text-gray-600 font-semibold mb-1">所属机构 / 部门</label>
-                <input
-                  type="text"
-                  value={organization}
-                  onChange={(e) => setOrganization(e.target.value)}
-                  className="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] bg-white text-xs"
-                />
-              </div>
+              {coreFieldErrors.title && (
+                <p className="mt-1 text-[11px] text-rose-500">请填写标题名称</p>
+              )}
             </div>
 
             {/* Summary */}
             <div>
-              <div className="flex justify-between items-center mb-1">
+              <div className="mb-1">
                 <label className="text-gray-700 font-bold flex items-center space-x-1">
-                  <span>速报内容详情 / 事件经过</span>
+                  <span>内容描述</span>
                   <span className="text-rose-500 font-bold">*</span>
                 </label>
-                <span className="text-[10px] text-gray-400">
-                  {isEditMode ? '已带入上次提交内容，可直接修改补充' : '支持直接根据模板编辑或粘贴'}
-                </span>
               </div>
               <textarea
+                id="pc-report-summary"
                 rows={4}
-                required
                 value={summary}
-                onChange={(e) => setSummary(e.target.value)}
+                onChange={(e) => {
+                  setSummary(e.target.value);
+                  if (coreFieldErrors.summary) {
+                    setCoreFieldErrors((previous) => ({ ...previous, summary: false }));
+                  }
+                }}
                 placeholder="请输入详细的事件背景、发生经过、现场核实情况及当前处置动态..."
-                className="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/20 focus:border-[#1E5ABB] text-xs leading-relaxed text-gray-900 bg-white"
+                className={`w-full px-3.5 py-2.5 border rounded-lg focus:outline-none focus:ring-2 text-xs leading-relaxed text-gray-900 bg-white ${
+                  coreFieldErrors.summary
+                    ? 'border-rose-400 focus:ring-rose-200'
+                    : 'border-gray-300 focus:ring-[#1E5ABB]/20 focus:border-[#1E5ABB]'
+                }`}
               />
+              {coreFieldErrors.summary && (
+                <p className="mt-1 text-[11px] text-rose-500">请填写内容描述</p>
+              )}
             </div>
 
-            {/* Demands */}
-            <div>
-              <label className="block text-gray-700 font-bold mb-1">核心诉求 / 争议焦点</label>
-              <input
-                type="text"
-                value={demands}
-                onChange={(e) => setDemands(e.target.value)}
-                placeholder="简明概括群众核心诉求、网民关注焦点或社会影响..."
-                className="w-full px-3.5 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] text-xs text-gray-800 bg-white"
-              />
-            </div>
-
-            {/* Recommendations */}
-            <div>
-              <label className="block text-gray-700 font-bold mb-1">建议处置举措 (每行一条建议)</label>
-              <textarea
-                rows={2}
-                value={recommendations}
-                onChange={(e) => setRecommendations(e.target.value)}
-                placeholder="1. 立即协调相关主管部门实地核查处置...&#10;2. 官方渠道统一答复口径，防范负面炒作..."
-                className="w-full px-3.5 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] text-xs leading-relaxed text-gray-800 bg-white"
-              />
-            </div>
+            {/* Template-defined fields synced from the H5 report form */}
+            <PCTemplateExtraFields
+              fields={selectedTemplate.extraFields}
+              values={extraFieldValues}
+              errors={extraFieldErrors}
+              onChange={(fieldId, value) => {
+                setExtraFieldValues((previous) => ({ ...previous, [fieldId]: value }));
+                if (extraFieldErrors[fieldId]) {
+                  setExtraFieldErrors((previous) => ({ ...previous, [fieldId]: false }));
+                }
+              }}
+            />
 
             {/* Attachment upload & preview */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-gray-700 font-bold">上传证据附件 (图片 / PDF / 现场截图)</label>
+                <label className="block text-gray-700 font-bold">
+                  {selectedTemplate.extraFields.find((field) => field.type === 'attachment')?.label ||
+                    '上传证据附件'}
+                </label>
                 <span className="text-[11px] text-gray-400">已添加 {attachments.length} 个附件</span>
               </div>
 
               {/* Upload Drop Area */}
-              <div
-                onClick={() => {
-                  const sampleNames = [
-                    { name: '社区应急网格巡查核实记录表.pdf', type: 'pdf', size: '3.2 MB' },
-                    { name: '涉事小区现场排查照片_02.jpg', type: 'image', size: '1.8 MB', thumbnailUrl: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=800&auto=format&fit=crop' },
-                    { name: '停水停电影响住户统计明细表.xlsx', type: 'sheet', size: '920 KB' }
-                  ];
-                  const randomSample = sampleNames[attachments.length % sampleNames.length];
-                  const newAtt: Attachment = {
-                    id: `att-upload-${Date.now()}`,
-                    name: randomSample.name,
-                    size: randomSample.size,
-                    type: randomSample.type as any,
-                    thumbnailUrl: randomSample.thumbnailUrl
-                  };
-                  setAttachments([...attachments, newAtt]);
-                  triggerToast(`已添加附件: ${newAtt.name}`);
+              <label
+                htmlFor="pc-report-attachment-input"
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  addAttachmentFiles(Array.from(event.dataTransfer.files));
                 }}
-                className="border-2 border-dashed border-gray-300 hover:border-[#1E5ABB] hover:bg-blue-50/20 rounded-xl p-4 text-center transition-all cursor-pointer bg-gray-50/60 group"
+                className="block border-2 border-dashed border-gray-300 hover:border-[#1E5ABB] hover:bg-blue-50/20 rounded-xl p-4 text-center transition-all cursor-pointer bg-gray-50/60 group"
               >
+                <input
+                  id="pc-report-attachment-input"
+                  type="file"
+                  multiple
+                  accept={selectedTemplate.extraFields.find((field) => field.type === 'attachment')?.accept}
+                  className="hidden"
+                  onChange={(event) => {
+                    addAttachmentFiles(Array.from(event.target.files || []));
+                    event.currentTarget.value = '';
+                  }}
+                />
                 <UploadCloud className="w-7 h-7 text-gray-400 group-hover:text-[#1E5ABB] mx-auto mb-1 transition-colors" />
-                <p className="text-gray-700 font-semibold text-xs group-hover:text-[#1E5ABB]">点击选择或拖拽文件至此处上传 (点击添加示例附件)</p>
+                <p className="text-gray-700 font-semibold text-xs group-hover:text-[#1E5ABB]">点击选择或拖拽文件至此处上传</p>
                 <p className="text-gray-400 text-[10px] mt-0.5 leading-relaxed text-left sm:text-center">
-                  ①图片：jpg、jpeg、png、bmp，单文件上限 20MB；②文档：pdf、doc、docx、xls、xlsx，单文件上限 20MB；单条上报全部附件总和上限 100MB；图片支持预览，附件仅支持下载
+                  支持图片和常见文档，最多上传5个文件，单个文件不能超过20MB；图片支持预览，附件仅支持下载
                 </p>
-              </div>
+              </label>
 
               {/* Uploaded Attachments List */}
               {attachments.length > 0 && (
@@ -599,7 +719,25 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
                   </div>
                 </div>
               )}
+              {attachmentWarning && (
+                <p className="mt-1.5 text-[10px] text-amber-600">{attachmentWarning}</p>
+              )}
             </div>
+
+            {selectedTemplate.extraFields
+              .filter((field) => field.type === 'static_text')
+              .map((field) => (
+                <div
+                  key={field.id}
+                  className="flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50/70 px-3 py-2 text-[11px] text-blue-800"
+                >
+                  <HelpCircle className="w-3.5 h-3.5 mt-px shrink-0 text-blue-600" />
+                  <span>
+                    <span>{field.label}：</span>
+                    {field.content}
+                  </span>
+                </div>
+              ))}
           </form>
         </div>
 
@@ -632,6 +770,31 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
         attachments={attachments}
         onSelectAttachment={(att) => setPreviewAttachment(att)}
       />
+
+      {submitBlockTip && (
+        <div className="fixed inset-0 z-[90] bg-black/55 flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">暂时无法提交</h3>
+                <p className="text-xs text-gray-600 leading-relaxed mt-1">{submitBlockTip}</p>
+              </div>
+            </div>
+            <div className="px-5 py-3 bg-gray-50 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSubmitBlockTip(null)}
+                className="px-4 py-1.5 rounded-lg bg-[#1E5ABB] text-white text-xs font-semibold"
+              >
+                我知道了
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

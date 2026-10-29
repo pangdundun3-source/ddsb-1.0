@@ -48,7 +48,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
 }) => {
   // Filter States
   const [activeTab, setActiveTab] = useState<'待审核' | '审核中' | '已驳回'>('待审核');
-  const [identFilter, setIdentFilter] = useState<'全部' | '疑似首发' | '疑似重复' | '识别中' | '首发报送' | '重复报送'>('全部');
+  const [identFilter, setIdentFilter] = useState<'全部' | '疑似首发' | '疑似重复' | '首发报送' | '重复报送'>('全部');
   const [keyword, setKeyword] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -70,21 +70,19 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   const identCounts = useMemo(() => {
     let suspectedFirst = 0;
     let suspectedDuplicate = 0;
-    let analyzing = 0;
     let formalFirst = 0;
     let formalDuplicate = 0;
 
     reports.forEach((r) => {
       const ident = reportIdentMap.get(r.id);
       const st = ident?.status;
-      if (st === '疑似首发') suspectedFirst++;
+      if (st === '疑似首发' || st === '识别中') suspectedFirst++;
       else if (st === '疑似重复') suspectedDuplicate++;
-      else if (st === '识别中') analyzing++;
       else if (st === '首发') formalFirst++;
       else if (st === '重复') formalDuplicate++;
     });
 
-    return { suspectedFirst, suspectedDuplicate, analyzing, formalFirst, formalDuplicate };
+    return { suspectedFirst, suspectedDuplicate, formalFirst, formalDuplicate };
   }, [reports, reportIdentMap]);
 
   // Statistics calculation
@@ -114,9 +112,8 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
     if (identFilter !== '全部') {
       const ident = reportIdentMap.get(item.id);
       const st = ident?.status;
-      if (identFilter === '疑似首发' && st !== '疑似首发') return false;
+      if (identFilter === '疑似首发' && st !== '疑似首发' && st !== '识别中') return false;
       if (identFilter === '疑似重复' && st !== '疑似重复') return false;
-      if (identFilter === '识别中' && st !== '识别中') return false;
       if (identFilter === '首发报送' && st !== '首发') return false;
       if (identFilter === '重复报送' && st !== '重复') return false;
     }

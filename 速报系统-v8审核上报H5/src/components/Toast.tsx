@@ -33,7 +33,7 @@ export const Toast: React.FC<ToastProps> = ({ toast, onClose }) => {
         {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
         {toast.type === 'error' && <AlertCircle className="w-4 h-4 text-red-300 shrink-0" />}
         {toast.type === 'info' && <Info className="w-4 h-4 text-blue-300 shrink-0" />}
-        <span className="leading-snug">{toast.text}</span>
+        <span className="leading-snug whitespace-pre-line text-left">{toast.text}</span>
         <button onClick={onClose} className="p-0.5 hover:bg-white/20 rounded-md transition-colors ml-1">
           <X className="w-3.5 h-3.5 opacity-80" />
         </button>

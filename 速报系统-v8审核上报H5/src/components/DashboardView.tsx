@@ -17,6 +17,7 @@ const cardToneClasses = [
   'from-blue-50 via-sky-50 to-cyan-50 border-blue-100 text-blue-700',
   'from-amber-50 via-orange-50 to-rose-50 border-amber-100 text-amber-700',
   'from-emerald-50 via-teal-50 to-cyan-50 border-emerald-100 text-emerald-700',
+  'from-violet-50 via-fuchsia-50 to-pink-50 border-violet-100 text-violet-700',
 ];
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -87,9 +88,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <Sparkles className="w-3.5 h-3.5 text-cyan-100 shrink-0" />
               <h2 className="text-sm font-black tracking-tight truncate">选择上报模板</h2>
             </div>
-            <p className="text-[11px] text-blue-50/90 mt-1 leading-relaxed">
-              先选模板，再进入填报。不同场景一键直达，减少重复填写。
-            </p>
           </div>
           <div className="shrink-0 rounded-full bg-white/18 border border-white/20 px-2.5 py-1">
             <span className="text-[10px] font-bold text-white/90">{displayRole}</span>

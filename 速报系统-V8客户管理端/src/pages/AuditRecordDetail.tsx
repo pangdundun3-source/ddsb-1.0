@@ -178,6 +178,19 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
     return flowAuditStatus;
   })();
 
+  const showRejectBanner = isRejected || titleStatusText === '已驳回' || record.auditResult === '被驳回';
+  const rejectReasonText = (() => {
+    const reason = record.rejectReason || report.rejectReason;
+    const detail = record.rejectDetail || report.rejectDetail;
+    if (reason && detail && !reason.includes(detail)) return `${reason}。${detail}`;
+    if (reason) return reason;
+    if (detail) return detail;
+    return (
+      report.timeline?.find((node) => node.status === 'rejected')?.note ||
+      '信息不完整，请补充政策原文链接和现场排查核实依据后重新提交。'
+    );
+  })();
+
   const resolvedFinalScore =
     getFinalAuditScore(report) ??
     (record.auditResult === '已通过' && record.score !== undefined ? record.score : undefined);
@@ -299,6 +312,19 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-[#F8FAFC] space-y-4">
           {activeTab === 'detail' ? (
             <div className="space-y-4">
+              {showRejectBanner && (
+                <div className="p-3.5 bg-rose-50 rounded-xl border border-rose-200 flex items-start space-x-3">
+                  <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <p className="font-bold text-rose-900 text-xs">报送已驳回</p>
+                    <p className="text-[11px] text-rose-700 mt-1 leading-normal">
+                      <strong>驳回原因：</strong>
+                      {rejectReasonText}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* 1. 速报主要信息卡片 */}
               <div className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-100/90 shadow-2xs space-y-4">
                 {/* Title & Status */}
@@ -586,15 +612,13 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
                     <span className="text-sm font-bold text-gray-900">
                       本节点审核结论记录：
                     </span>
-                    <span
-                      className={`px-2 py-0.5 rounded text-xs font-semibold border ${
-                        isRejected
-                          ? 'bg-rose-50 text-rose-700 border-rose-200'
-                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      }`}
-                    >
-                      {isRejected ? '已驳回' : '已通过'}
-                    </span>
+                    {isRejected ? (
+                      <span className="text-xs font-semibold text-gray-900">已驳回</span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-xs font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
+                        已通过
+                      </span>
+                    )}
                     {!isRejected && (
                       <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-300 text-xs font-semibold">
                         评分：{finalScore !== undefined ? finalScore : (record.score || 92)}分

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Copy, Loader2, CheckCircle2, Layers } from 'lucide-react';
+import { Sparkles, Copy, CheckCircle2, Layers } from 'lucide-react';
 import { OriginTypeLabel } from '../types';
 
 export function getEffectiveOriginLabel(
@@ -16,7 +16,8 @@ export function getEffectiveOriginLabel(
       if (label === '疑似重复') return '重复';
       return label;
     } else {
-      // 待审核、审核中、被驳回 / 已驳回
+      // 待审核、审核中、被驳回 / 已驳回（不再展示「识别中」）
+      if (label === '识别中') return '疑似首发';
       if (label === '首发') return '疑似首发';
       if (label === '重复') return '疑似重复';
       return label;
@@ -106,21 +107,6 @@ export const ReportOriginBadge: React.FC<ReportOriginBadgeProps> = ({
           title="智能识别：疑似重复（已比对到相似线索或同源地址）"
         >
           {showIcon && <Copy className={`${iconSizes} text-orange-600 shrink-0`} />}
-          <span className="whitespace-nowrap">{displayText}</span>
-        </span>
-      );
-
-    case '识别中':
-      return (
-        <span
-          id={`origin-badge-${activeLabel}`}
-          onClick={onClick}
-          className={`inline-flex items-center font-semibold rounded-md bg-purple-50 text-purple-700 border border-purple-300/80 shadow-2xs ${sizeClasses} ${
-            interactive ? 'cursor-pointer hover:bg-purple-100 transition-colors' : ''
-          } ${className}`}
-          title="系统智能识别中：正在自动比对不良信息库与在审数据..."
-        >
-          {showIcon && <Loader2 className={`${iconSizes} text-purple-600 animate-spin shrink-0`} />}
           <span className="whitespace-nowrap">{displayText}</span>
         </span>
       );
