@@ -957,7 +957,8 @@ export const useUserOrgSharedState = (): UserOrgSharedState => {
   const [orgNodes, setOrgNodes] = useState<OrgNode[]>(INITIAL_ORG_NODES);
   const [personnelList, setPersonnelList] = useState<PersonnelItem[]>(INITIAL_PERSONNEL);
   const [groups, setGroups] = useState<PersonnelGroup[]>(INITIAL_GROUPS);
-  const [inviteCodes, setInviteCodes] = useState<InviteCode[]>(INITIAL_INVITE_CODES);
+  // 邀请用户历史记录默认从空状态开始；后续邀请在当前会话中正常累计。
+  const [inviteCodes, setInviteCodes] = useState<InviteCode[]>([]);
   const [followers, setFollowers] = useState<OfficialAccountFollower[]>(INITIAL_FOLLOWERS);
 
   return {

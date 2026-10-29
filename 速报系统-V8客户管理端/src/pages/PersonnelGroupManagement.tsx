@@ -865,7 +865,7 @@ export const PersonnelGroupManagement: React.FC<PersonnelGroupManagementProps> =
                       <span className="inline-flex items-center gap-1"><Circle className="w-3 h-3" />角色名称</span>
                     </th>
                     <th className="py-2.5 px-3 whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1"><Users className="w-3 h-3" />当前分组</span>
+                      <span className="inline-flex items-center gap-1"><Users className="w-3 h-3" />用户群组</span>
                     </th>
                     <th className="py-2.5 px-3 whitespace-nowrap">账号状态</th>
                   </tr>

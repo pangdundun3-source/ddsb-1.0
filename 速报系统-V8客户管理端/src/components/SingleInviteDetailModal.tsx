@@ -81,7 +81,7 @@ export const SingleInviteDetailModal: React.FC<SingleInviteDetailModalProps> = (
       value: (invite.roles?.length ? invite.roles : ['—']).join('、')
     },
     { label: '发放时间', value: formatTime(invite.createdAt) },
-    { label: '有效期至', value: formatTime(invite.expiresAt) },
+    { label: '截止时间', value: formatTime(invite.expiresAt) },
     {
       label: '激活时间',
       value: tab === 'activated' ? formatTime(invite.usedAt || invite.createdAt) : '—'

@@ -757,7 +757,8 @@ export const InviteRecords: React.FC<InviteRecordsProps> = ({ shared }) => {
                       value: resolveValidityLabel(configRow.createdAt, configRow.expiresAt)
                     },
                     { label: '发起人', value: configRow.createdBy },
-                    { label: '发放时间', value: formatTime(configRow.createdAt) }
+                    { label: '发放时间', value: formatTime(configRow.createdAt) },
+                    { label: '截止时间', value: formatTime(configRow.expiresAt) }
                   ] as const
                 ).map((row) => (
                   <div key={row.label} className="flex items-start justify-between gap-3 px-3 py-2.5 bg-white">
