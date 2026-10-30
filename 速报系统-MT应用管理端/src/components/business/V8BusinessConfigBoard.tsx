@@ -772,7 +772,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
         ownerMissingStrategy: 'skip_to_next',
         auditNodes: [
           { id: 'an0', nodeName: '上报人', approverRole: '上报功能人员暂无限制', rejectStrategy: 'return_submitter', timeLimitMinutes: 10, dynamicMechanism: '上报功能人员暂无限制', missingRule: 'skip', timeoutReminderEnabled: false, isSubmitStage: true },
-          { id: 'an2', nodeName: '机构逐级审核', approverRole: '审核员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 30, dynamicMechanism: '自上报机构逐级向上审核', missingRule: 'skip', timeoutReminderEnabled: true },
+          { id: 'an2', nodeName: '外部组织逐级审核', approverRole: '审核员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 30, dynamicMechanism: '自上报机构逐级向上审核', missingRule: 'skip', timeoutReminderEnabled: true },
           { id: 'an3', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, dynamicMechanism: '固定总机构管理员终审+评分', missingRule: 'block', isFinalScoreNode: true, timeoutReminderEnabled: true }
         ],
         orgSettings: [
@@ -799,7 +799,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
         ownerMissingStrategy: 'skip_to_next',
         auditNodes: [
           { id: 'an200', nodeName: '上报人', approverRole: '上报功能人员暂无限制', rejectStrategy: 'return_submitter', timeLimitMinutes: 10, dynamicMechanism: '上报功能人员暂无限制', missingRule: 'skip', timeoutReminderEnabled: false, isSubmitStage: true },
-          { id: 'an202', nodeName: '中间机构流转', approverRole: '审核员', assigneeSource: 'role', rejectStrategy: 'return_previous', timeLimitMinutes: 20, dynamicMechanism: '含本级初审，最多经过设定级数，超出直达总机构', missingRule: 'skip', timeoutReminderEnabled: true },
+          { id: 'an202', nodeName: '外部组织流转', approverRole: '审核员', assigneeSource: 'role', rejectStrategy: 'return_previous', timeLimitMinutes: 20, dynamicMechanism: '含本级初审，最多经过设定级数，超出直达总机构', missingRule: 'skip', timeoutReminderEnabled: true },
           { id: 'an203', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role', rejectStrategy: 'return_submitter', timeLimitMinutes: 60, dynamicMechanism: '固定总机构管理员终审+评分', missingRule: 'block', isFinalScoreNode: true, timeoutReminderEnabled: true }
         ],
         orgSettings: [
@@ -1502,7 +1502,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       ? rawNodes.flatMap(node => {
           const name = node.nodeName || '';
           if (!node.isSubmitStage && !node.isFinalScoreNode && name.includes('初审') && !name.includes('中间')) return [];
-          if (name.includes('中间') || name.includes('中继')) {
+          if (name.includes('中间') || name.includes('中继') || name.includes('外部组织流转')) {
             const direction = item.flowLevelDirection === 'down' ? 'down' : 'up';
             return [{ ...node, nodeName: maxNMiddleNodeName(item.flowDepth || 3, direction), dynamicMechanism: maxNMiddleNodeMechanism(direction) }];
           }
@@ -1522,15 +1522,13 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
         ]
       : nodes;
     const flowSteps = [
-      { id: 'start', type: 'start' as const, title: '开始', description: '发起上报' },
+      { id: 'start', type: 'start' as const, title: '开始', description: '' },
       ...previewNodes.map((node, index) => {
         const roleText = node.isSubmitStage
-          ? '上报功能人员暂无限制'
-          : node.nodeName === adaptiveStepName
-            ? adaptiveStepMechanism
-            : node.assigneeSource === 'org_owner' && (item.flowMode === 'adaptive' || item.flowMode === 'max_n')
-              ? '外部组织联系人'
-              : node.approverRole || (node.assigneeSource === 'org_owner' ? '归属机构负责人' : '指定角色');
+          ? '发起上报'
+          : node.assigneeSource === 'org_owner' && (item.flowMode === 'adaptive' || item.flowMode === 'max_n')
+            ? '外部组织联系人'
+            : node.approverRole || (node.assigneeSource === 'org_owner' ? '归属机构负责人' : '指定角色');
         const timeText = node.timeLimitMinutes ? (node.timeLimitMinutes >= 60 ? `${node.timeLimitMinutes / 60}小时` : `${node.timeLimitMinutes}分`) : '15分';
         return {
           id: node.id || `node-${index}`,
@@ -1541,7 +1539,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
           ruleDescription: '',
         };
       }),
-      { id: 'end', type: 'end' as const, title: '结束', description: '审核+评分+流程全完成' },
+      { id: 'end', type: 'end' as const, title: '结束', description: '' },
     ];
     const stepsPerRow = flowSteps.length;
     const flowRows = [flowSteps];
@@ -1626,9 +1624,11 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                   <div className="mt-2 w-full text-xs font-bold text-gray-900 leading-snug break-words">
                     {step.title}
                   </div>
-                  <div className="mt-1 w-full text-[11px] text-gray-500 leading-normal break-words">
-                    {step.description}
-                  </div>
+                  {step.description ? (
+                    <div className="mt-1 w-full text-[11px] text-gray-500 leading-normal break-words">
+                      {step.description}
+                    </div>
+                  ) : null}
                 </div>
                 {index < flowSteps.length - 1 && (
                   <div className="w-4 shrink-0 h-[2px] bg-gray-200 mt-[17px] rounded-full" />
@@ -1641,7 +1641,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
     );
   };
 
-  const adaptiveStepName = '机构逐级审核';
+  const adaptiveStepName = '外部组织逐级审核';
   const adaptiveStepMechanism = '自上报机构逐级向上审核';
 
   const collapseAdaptiveMiddleNodes = (nodes: AuditNode[]): AuditNode[] => {
@@ -1665,7 +1665,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
   };
 
   const maxNMiddleNodeName = (_depth?: number, _direction: 'up' | 'down' = 'up') =>
-    '中间机构流转';
+    '外部组织流转';
 
   const maxNMiddleNodeMechanism = (direction: 'up' | 'down' = 'up') =>
     direction === 'down'
@@ -1835,7 +1835,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
   const renameMaxNMiddleNode = (depth: number, direction: 'up' | 'down') => {
     setFormAuditNodes(prev =>
       prev.map(node => {
-        if (node.id === 'an_202' || node.id === 'an202' || (node.nodeName || '').includes('中间机构') || (node.nodeName || '').includes('中继')) {
+        if (node.id === 'an_202' || node.id === 'an202' || (node.nodeName || '').includes('中间机构') || (node.nodeName || '').includes('中继') || (node.nodeName || '').includes('外部组织流转')) {
           return { ...node, nodeName: maxNMiddleNodeName(depth, direction), dynamicMechanism: maxNMiddleNodeMechanism(direction) };
         }
         return node;
@@ -2913,7 +2913,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
             };
           })
         : [
-            { id: 'an_2', nodeName: '机构逐级审核', approverRole: '审核员', assigneeSource: 'role' as const, rejectStrategy: 'return_submitter' as const, timeLimitMinutes: 30, dynamicMechanism: '自上报机构逐级向上审核', missingRule: 'skip' as const, timeoutReminderEnabled: true },
+            { id: 'an_2', nodeName: '外部组织逐级审核', approverRole: '审核员', assigneeSource: 'role' as const, rejectStrategy: 'return_submitter' as const, timeLimitMinutes: 30, dynamicMechanism: '自上报机构逐级向上审核', missingRule: 'skip' as const, timeoutReminderEnabled: true },
             { id: 'an_3', nodeName: '总机构终审并评分', approverRole: '总机构管理员', assigneeSource: 'role' as const, rejectStrategy: 'return_submitter' as const, timeLimitMinutes: 60, dynamicMechanism: '固定总机构管理员终审+评分', missingRule: 'block' as const, isFinalScoreNode: true, timeoutReminderEnabled: true }
           ];
       const maxNDepth = item.flowDepth || 3;
@@ -2921,7 +2921,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
         ? mappedFlowNodes.flatMap(node => {
             const name = node.nodeName || '';
             if (!node.isSubmitStage && !node.isFinalScoreNode && name.includes('初审') && !name.includes('中间')) return [];
-            if (name.includes('中间') || name.includes('中继')) {
+            if (name.includes('中间') || name.includes('中继') || name.includes('外部组织流转')) {
               const direction = item.flowLevelDirection === 'down' ? 'down' : 'up';
               return [{ ...node, nodeName: maxNMiddleNodeName(maxNDepth, direction), dynamicMechanism: maxNMiddleNodeMechanism(direction) }];
             }
@@ -2979,7 +2979,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
   };
 
   // Handle Save
-  const handleSaveModal = (e: React.FormEvent) => {
+  const handleSaveModal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim()) return;
 
@@ -3236,6 +3236,14 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
     }
 
     if (activeModule === 'audit_flow') {
+      if (editingItem) {
+        const confirmed = await confirmDialog(
+          '改动的流程只影响后续新增的相关上报，已经上报的流程不受影响。',
+          { title: '保存确认', okText: '确认保存', cancelText: '取消' }
+        );
+        if (!confirmed) return;
+      }
+
       const selTpl = (dataStore.report_template || []).find(t => t.id === formRelatedTemplateId);
       const relTplId = formTemplateApplyMode === 'all_report_templates'
         ? 'all_report_templates'
@@ -6069,7 +6077,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                           </span>
                         </div>
                         <p className="text-xs text-gray-500 leading-relaxed">
-                          下级提报后至多经过 {formFlowDepth || 3} 级中间机构审核，超出部分直接穿透至总机构。
+                          提报后至多经过 {formFlowDepth || 3} 级外部组织节点，超出部分直接穿透至总机构。
                         </p>
                       </button>
 
@@ -6089,7 +6097,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                           </span>
                         </div>
                         <p className="text-xs text-gray-500 leading-relaxed">
-                          跳过所有下级中间机构，提报后直接由总机构管理员终审并评分结案。
+                          跳过所有外部组织节点，提报后直接由总机构终审并评分结案。
                         </p>
                       </button>
                     </div>
@@ -6098,7 +6106,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                       <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 space-y-2 mt-2">
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                           <div className="flex items-center space-x-2">
-                            <span className="text-xs font-bold text-amber-900">中间机构上限</span>
+                            <span className="text-xs font-bold text-amber-900">外部组织上限</span>
                             <div className="flex items-center space-x-1.5">
                               {[1, 2, 3, 4, 5].map(depth => (
                                 <button
@@ -6481,7 +6489,6 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                             {formAuditNodes.map((node, index) => {
                               const isSelected = (selectedNode?.id || formAuditNodes[0]?.id) === node.id;
                               const isFinalScore = !!node.isFinalScoreNode;
-                              const isAdaptiveStep = node.nodeName === adaptiveStepName;
 
                               return (
                                 <div
@@ -6531,15 +6538,13 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                       <h4 className="text-sm font-bold text-gray-900 truncate">
                                         {node.nodeName}
                                       </h4>
-                                      {!isAdaptiveStep && (
-                                        <p className="text-xs text-gray-500 mt-0.5 truncate">
-                                          {node.isSubmitStage ? '不限固定角色' : getNodeSourceOption(node).label}
-                                        </p>
-                                      )}
+                                      <p className="text-xs text-gray-500 mt-0.5 truncate">
+                                        {node.isSubmitStage ? '不限固定角色' : getNodeSourceOption(node).label}
+                                      </p>
                                     </div>
 
                                     <div className={`rounded-lg p-2 text-xs font-medium mt-2.5 ${
-                                      node.isSubmitStage || isAdaptiveStep ? 'leading-relaxed' : 'truncate'
+                                      node.isSubmitStage ? 'leading-relaxed' : 'truncate'
                                     } ${
                                       isFinalScore
                                         ? 'bg-amber-50/70 border border-amber-200 text-amber-900'
@@ -6547,8 +6552,6 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                     }`}>
                                       {node.isSubmitStage
                                         ? '上报功能人员暂无限制'
-                                        : isAdaptiveStep
-                                        ? adaptiveStepMechanism
                                         : isFinalScore
                                         ? (node.approverRole || '总机构管理员')
                                         : node.assigneeSource === 'org_owner'
@@ -6557,7 +6560,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                           : '归属机构负责人'
                                         : node.assigneeSource === 'user' && getAssigneeUsers(node).length > 0
                                         ? formatAssigneeUsersLabel(node, Boolean(isFinalScore))
-                                        : (node.approverRole || '机构管理员')}
+                                        : (node.approverRole || '审核员')}
                                     </div>
                                   </div>
 
