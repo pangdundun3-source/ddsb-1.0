@@ -52,13 +52,13 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         }, 400);
       }, 500);
     } else {
-      // 审核上报员：扫码后不跳转系统后台
+      // 个人登录：扫码后不跳转系统后台
       setTimeout(() => {
         setIsScanning(false);
         setScanSuccess(true);
         setTimeout(() => {
           setScanSuccess(false);
-          setReporterFeedback('审核上报员微信扫码鉴权已完成！该角色为移动端专属上报通道，暂不跳转PC管理中枢后台。');
+          setReporterFeedback('个人登录微信扫码鉴权已完成！该角色为移动端专属上报通道，暂不跳转PC管理中枢后台。');
         }, 800);
       }, 600);
     }
@@ -85,7 +85,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         onLogin('张三 (系统管理员)', 'portal');
       }, 250);
     } else {
-      setReporterFeedback('审核上报员微信扫码鉴权已完成！该角色为移动端专属上报通道，暂不跳转PC管理中枢后台。');
+      setReporterFeedback('个人登录微信扫码鉴权已完成！该角色为移动端专属上报通道，暂不跳转PC管理中枢后台。');
     }
   };
 
@@ -539,7 +539,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 </p>
               </div>
 
-              {/* 身份切换导航 (管理员 / 审核上报员) */}
+              {/* 身份切换导航 (机构登录 / 个人登录) */}
               <div className="w-full bg-[#EDF3FA] p-1 rounded-xl flex items-center mb-4 border border-[#D5E3F3]">
                 <button
                   type="button"
@@ -554,7 +554,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   }`}
                 >
                   <ShieldCheck className={`w-3.5 h-3.5 ${roleTab === 'admin' ? 'text-[#153863]' : 'text-slate-400'}`} />
-                  <span>管理员</span>
+                  <span>机构登录</span>
                 </button>
                 <button
                   type="button"
@@ -569,7 +569,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   }`}
                 >
                   <UserCheck className={`w-3.5 h-3.5 ${roleTab === 'reporter' ? 'text-blue-600' : 'text-slate-400'}`} />
-                  <span>审核上报员</span>
+                  <span>个人登录</span>
                 </button>
               </div>
 
@@ -578,7 +578,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 <div
                   onClick={handleSimulateScan}
                   className="relative group cursor-pointer p-3.5 bg-white rounded-2xl shadow-[0_4px_20px_rgba(30,70,130,0.08)] border border-slate-100/90 transition-transform duration-300 hover:scale-[1.02]"
-                  title={roleTab === 'admin' ? '点击微信扫码登录后台' : '点击微信扫码 (审核上报员)'}
+                  title={roleTab === 'admin' ? '点击微信扫码机构登录' : '点击微信扫码个人登录'}
                 >
                   {/* High-Fidelity SVG QR Code */}
                   <svg
@@ -669,7 +669,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                     <div className="absolute inset-0 bg-white/95 backdrop-blur-xs rounded-2xl flex flex-col items-center justify-center space-y-2 text-emerald-600 animate-in zoom-in-95">
                       <CheckCircle2 className="w-9 h-9 text-emerald-600 animate-bounce" />
                       <span className="text-xs font-bold text-slate-800">
-                        {roleTab === 'admin' ? '扫码成功，正在进入系统...' : '扫码成功（审核上报员身份）'}
+                        {roleTab === 'admin' ? '扫码成功，正在进入系统...' : '扫码成功（个人登录）'}
                       </span>
                     </div>
                   )}
@@ -677,7 +677,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
                 {/* Micro Subtext (1:1 with photo) */}
                 <div className="mt-4 text-[12px] text-[#6985A9] font-medium tracking-wide">
-                  {roleTab === 'admin' ? '—— 请使用管理员微信扫码登录 ——' : '—— 请使用审核上报员微信扫码 ——'}
+                  {roleTab === 'admin' ? '—— 请使用机构账号微信扫码 ——' : '—— 请使用个人微信扫码 ——'}
                 </div>
 
                 {/* Reporter Notice Box */}

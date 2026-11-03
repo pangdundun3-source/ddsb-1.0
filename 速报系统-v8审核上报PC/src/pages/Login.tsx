@@ -37,7 +37,7 @@ interface LoginProps {
 }
 
 export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
-  // Role switcher: 'admin' (管理员) or 'reviewer' (审核上报员)
+  // Role switcher: 'admin' (机构登录) or 'reviewer' (个人登录)
   const [activeRole, setActiveRole] = useState<'admin' | 'reviewer'>('reviewer');
   const [isScanning, setIsScanning] = useState(false);
   const [scanSuccess, setScanSuccess] = useState(false);
@@ -90,10 +90,10 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     }
     const isAdmin = activeRole === 'admin';
     setIsScanning(true);
-    showToast(`📱 已检测到微信扫码，正在授权${isAdmin ? '管理员' : '审核上报员'}账号...`);
+    showToast(`📱 已检测到微信扫码，正在授权${isAdmin ? '机构' : '个人'}账号...`);
     setTimeout(() => {
       setScanSuccess(true);
-      showToast(isAdmin ? '✓ 管理员微信授权成功，正在进入网络生态综合治理平台...' : '✓ 审核上报员微信授权成功，正在进入工作台...');
+      showToast(isAdmin ? '✓ 机构登录微信授权成功，正在进入网络生态综合治理平台...' : '✓ 个人登录微信授权成功，正在进入工作台...');
       setTimeout(() => {
         if (isAdmin) {
           openClientApp();
@@ -597,7 +597,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
             {/* Role Switcher Tab (1:1 segmented control) */}
             <div className="w-full bg-[#ebf2fa] p-1 rounded-xl flex items-center mb-6 border border-[#e2ecf7]">
-              {/* Option 1: 管理员 */}
+              {/* Option 1: 机构登录 */}
               <button
                 type="button"
                 onClick={() => {
@@ -612,10 +612,10 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 }`}
               >
                 <Shield className="w-3.5 h-3.5 mr-1.5 shrink-0" />
-                <span>管理员</span>
+                <span>机构登录</span>
               </button>
 
-              {/* Option 2: 审核上报员 (Default Active) */}
+              {/* Option 2: 个人登录 (Default Active) */}
               <button
                 type="button"
                 onClick={() => {
@@ -630,7 +630,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 }`}
               >
                 <UserCheck className="w-3.5 h-3.5 mr-1.5 shrink-0" />
-                <span>审核上报员</span>
+                <span>个人登录</span>
               </button>
             </div>
 
@@ -680,13 +680,13 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 </div>
               </div>
 
-              {/* Subtext: —— 请使用审核上报员微信扫码 —— / —— 请使用管理员微信扫码 —— */}
+              {/* Subtext: —— 请使用个人微信扫码 —— / —— 请使用机构账号微信扫码 —— */}
               <div className="mt-6 flex items-center justify-center w-full text-xs text-[#788da6] select-none tracking-wide">
                 <span className="h-[1px] w-6 bg-slate-300 mr-2" />
                 <span>
                   {activeRole === 'reviewer'
-                    ? '请使用审核上报员微信扫码'
-                    : '请使用管理员微信扫码'}
+                    ? '请使用个人微信扫码'
+                    : '请使用机构账号微信扫码'}
                 </span>
                 <span className="h-[1px] w-6 bg-slate-300 ml-2" />
               </div>
