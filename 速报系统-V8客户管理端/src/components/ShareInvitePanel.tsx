@@ -5,10 +5,8 @@ import {
   ACCOUNT_ROLE_OPTIONS,
   EXTERNAL_APP,
   formatPersonOrgPaths,
-  type InviteCode,
-  type PersonnelGroup
+  type InviteCode
 } from '../data/userOrgShared';
-import { MultiSelectDropdown } from './FormControls';
 import { OrgCascadeSelect } from './OrgCascadeSelect';
 import { InviteQrCode, downloadQrCardImage } from './InviteQrCode';
 
@@ -52,7 +50,6 @@ export type InviteValidityPresetId = (typeof VALIDITY_OPTIONS)[number]['id'];
 interface ShareInvitePanelProps {
   mode: ShareInviteMode;
   orgNodes: OrgNode[];
-  groups?: PersonnelGroup[];
   inviteCodes: InviteCode[];
   setInviteCodes: React.Dispatch<React.SetStateAction<InviteCode[]>>;
   remainingSeats: number;
@@ -63,8 +60,6 @@ interface ShareInvitePanelProps {
   onOrgPathChange: (path: string[]) => void;
   roles: string[];
   onRolesChange: (roles: string[]) => void;
-  groupIds?: string[];
-  onGroupIdsChange?: (groupIds: string[]) => void;
   batchName: string;
   onBatchNameChange: (name: string) => void;
   limit: number;
@@ -81,7 +76,6 @@ interface ShareInvitePanelProps {
 export const ShareInvitePanel: React.FC<ShareInvitePanelProps> = ({
   mode,
   orgNodes,
-  groups = [],
   inviteCodes,
   setInviteCodes,
   remainingSeats,
@@ -90,8 +84,6 @@ export const ShareInvitePanel: React.FC<ShareInvitePanelProps> = ({
   onOrgPathChange,
   roles,
   onRolesChange,
-  groupIds = [],
-  onGroupIdsChange,
   batchName,
   onBatchNameChange,
   limit,
@@ -116,13 +108,6 @@ export const ShareInvitePanel: React.FC<ShareInvitePanelProps> = ({
     onRolesChange([...roles, option]);
   };
 
-  const toggleGroup = (groupId: string) => {
-    if (!onGroupIdsChange) return;
-    onGroupIdsChange(
-      groupIds.includes(groupId) ? groupIds.filter((id) => id !== groupId) : [...groupIds, groupId]
-    );
-  };
-
   const getOrgName = (item: InviteCode) => {
     const leafId = [...(item.orgIds || [])].reverse().find((id) => orgNodes.some((node) => node.id === id));
     const nodeName = leafId ? orgNodes.find((node) => node.id === leafId)?.name : undefined;
@@ -143,15 +128,13 @@ export const ShareInvitePanel: React.FC<ShareInvitePanelProps> = ({
         ? '邀请名称已存在，请更换名称'
         : !leafOrgId
           ? '请选择组织节点'
-          : groupIds.length === 0
-            ? '请至少选择一个用户群组'
-            : roles.length === 0
-              ? '请至少选择一个加入后角色'
-              : !limit || limit < 1
-                ? '生成数量需大于 0'
-                : remainingSeats <= 0 || limit > remainingSeats
-                  ? quotaTip || `本节点剩余可用额度 ${remainingSeats} 人，数量不可超过该额度`
-                  : '';
+          : roles.length === 0
+            ? '请至少选择一个加入后角色'
+            : !limit || limit < 1
+              ? '生成数量需大于 0'
+              : remainingSeats <= 0 || limit > remainingSeats
+                ? quotaTip || `本节点剩余可用额度 ${remainingSeats} 人，数量不可超过该额度`
+                : '';
     if (message) {
       onToast(message);
       return;
@@ -168,7 +151,6 @@ export const ShareInvitePanel: React.FC<ShareInvitePanelProps> = ({
       batchName: name,
       orgIds: [leafOrgId],
       roles: [...roles],
-      groupIds: groupIds.length ? [...groupIds] : undefined,
       expiresAt,
       createdAt: toLocalDateTime(now),
       status: '未使用',
@@ -200,8 +182,8 @@ export const ShareInvitePanel: React.FC<ShareInvitePanelProps> = ({
     }`;
 
   return (
-    <>
-      <div className="rounded-lg border border-blue-100 bg-[#F4F8FE] p-4 space-y-3 overflow-visible relative z-20 flex flex-col">
+    <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-4 items-stretch">
+      <div className="rounded-lg border border-blue-100 bg-[#F4F8FE] p-4 space-y-3 overflow-visible relative z-20">
         <div className="flex items-center gap-1.5 text-[#1E5ABB] font-bold">
           <ModeIcon className="w-3.5 h-3.5" />
           {meta.label}设置
@@ -221,14 +203,6 @@ export const ShareInvitePanel: React.FC<ShareInvitePanelProps> = ({
           onChange={(path) => onOrgPathChange(path.filter(Boolean))}
           label="组织节点 *"
           placeholder="请选择用户所在组织节点"
-        />
-        <MultiSelectDropdown
-          label="用户群组 *"
-          hint="可多选"
-          placeholder="请选择用户群组"
-          options={groups.map((group) => ({ id: group.id, label: group.name }))}
-          selected={groupIds}
-          onToggle={toggleGroup}
         />
         <div>
           <div className="flex items-center justify-between mb-1.5">
@@ -292,41 +266,41 @@ export const ShareInvitePanel: React.FC<ShareInvitePanelProps> = ({
         <button
           type="button"
           onClick={handleGenerate}
-          className="mt-auto w-full h-9 rounded bg-[#1E5ABB] text-white font-bold hover:bg-[#134092] cursor-pointer flex items-center justify-center gap-1.5"
+          className="w-full h-9 rounded bg-[#1E5ABB] text-white font-bold hover:bg-[#134092] cursor-pointer flex items-center justify-center gap-1.5"
         >
           <RefreshCw className="w-3.5 h-3.5" />
           生成邀请{meta.label}
         </button>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white min-h-0 min-w-0 overflow-hidden grid grid-cols-[minmax(0,1fr)_240px]">
-        <div className="p-4 flex flex-col items-center justify-center bg-slate-50/60 min-w-0">
+      <div className="rounded-lg border border-gray-200 bg-white min-w-0 overflow-hidden grid grid-cols-[minmax(0,1fr)_240px] lg:h-0 lg:min-h-full">
+        <div className="p-3 flex flex-col items-center justify-center bg-slate-50/60 min-w-0 min-h-0 overflow-y-auto">
           {active ? (
-            <div className="w-full max-w-[340px] rounded-xl border border-gray-200 bg-white shadow-sm p-5 flex flex-col items-center">
+            <div className="w-full max-w-[300px] rounded-xl border border-gray-200 bg-white shadow-sm p-4 flex flex-col items-center">
               <div className="text-sm font-bold text-gray-900 text-center">{getOrgName(active)}</div>
               <div className="mt-1 text-[11px] text-gray-400 text-center">
                 {meta.joinVerb}关注「{EXTERNAL_APP.officialAccount}」· 自动加入并绑定
               </div>
-              <div className={`mt-4 ${getShareStatus(active) === '待激活' ? '' : 'opacity-40 grayscale'}`}>
+              <div className={`mt-3 ${getShareStatus(active) === '待激活' ? '' : 'opacity-40 grayscale'}`}>
                 {mode === 'qrcode' ? (
-                  <InviteQrCode value={buildShareInviteLink('qrcode', active.code)} size={180} />
+                  <InviteQrCode value={buildShareInviteLink('qrcode', active.code)} size={148} />
                 ) : (
-                  <div className="w-[260px] rounded-lg border border-dashed border-[#1E5ABB]/40 bg-[#F4F8FE] px-3 py-4 text-center">
-                    <Link2 className="w-6 h-6 mx-auto text-[#1E5ABB]" />
-                    <div className="mt-2 font-mono text-[12px] text-[#1E5ABB] break-all">
+                  <div className="w-full max-w-[240px] rounded-lg border border-dashed border-[#1E5ABB]/40 bg-[#F4F8FE] px-3 py-3 text-center">
+                    <Link2 className="w-5 h-5 mx-auto text-[#1E5ABB]" />
+                    <div className="mt-2 font-mono text-[11px] text-[#1E5ABB] break-all">
                       {buildShareInviteLink('link', active.code)}
                     </div>
                   </div>
                 )}
               </div>
-              <div className="mt-3 text-[11px] text-gray-500 text-center space-y-0.5">
+              <div className="mt-2.5 text-[11px] text-gray-500 text-center space-y-0.5">
                 <div>
                   角色：<span className="font-bold text-gray-800">{(active.roles || []).join('、')}</span>　上限：
                   <span className="font-bold text-gray-800">{active.qrLimit || 0}</span> 人
                 </div>
                 <div>截止：{formatTime(active.expiresAt)}</div>
               </div>
-              <div className="mt-4 w-full">
+              <div className="mt-3 w-full">
                 {mode === 'qrcode' ? (
                   <button
                     type="button"
@@ -350,19 +324,19 @@ export const ShareInvitePanel: React.FC<ShareInvitePanelProps> = ({
             </div>
           ) : (
             <div className="text-center text-gray-400">
-              <ModeIcon className="w-10 h-10 mx-auto mb-2 text-gray-300" />
+              <ModeIcon className="w-8 h-8 mx-auto mb-2 text-gray-300" />
               在左侧完成设置后生成邀请{meta.label}
             </div>
           )}
         </div>
         <div className="border-l border-gray-100 flex flex-col min-h-0">
-          <div className="px-3 py-2.5 border-b border-gray-100 font-bold text-gray-800">
+          <div className="px-3 py-2.5 border-b border-gray-100 font-bold text-gray-800 shrink-0">
             已生成{meta.label}
             <span className="ml-1 font-normal text-gray-400">({records.length})</span>
           </div>
-          <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
+          <div className="flex-1 overflow-y-auto p-2 space-y-1.5 min-h-0">
             {records.length === 0 ? (
-              <div className="py-10 text-center text-gray-400">暂无记录</div>
+              <div className="h-full flex items-center justify-center text-gray-400">暂无记录</div>
             ) : (
               records.map((item) => {
                 const status = getShareStatus(item);
@@ -407,6 +381,6 @@ export const ShareInvitePanel: React.FC<ShareInvitePanelProps> = ({
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 };

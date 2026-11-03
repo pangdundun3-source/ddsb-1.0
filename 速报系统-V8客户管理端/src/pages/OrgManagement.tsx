@@ -59,8 +59,7 @@ import {
   PersonGroupCell,
   PersonIdentityCell,
   PersonOrgPathCell,
-  PersonRoleBadges,
-  StatusSwitch
+  PersonRoleBadges
 } from '../components/PersonAccountDisplay';
 import { ExternalUserTable, FollowStatusBadges } from '../components/ExternalUserTable';
 import { OrgCascadeSelect } from '../components/OrgCascadeSelect';
@@ -1376,13 +1375,6 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
     );
   };
 
-  const handleRemoveFromOrg = (person: PersonnelItem) => {
-    const nodeName = isRootSelected ? '全部组织节点' : orgNodes.find((node) => node.id === selectedOrgId)?.name || '当前节点';
-    if (!confirm(`确定将【${person.realName}】移出「${nodeName}」吗？账号本身保留，可在外部用户管理中重新分配。`)) return;
-    reassignPersonOrg(person);
-    triggerToast(`已将【${person.realName}】移出「${nodeName}」`);
-  };
-
   const openMoveOrg = (person: PersonnelItem) => {
     const current = getDeepestOrgId(orgNodes, person.orgIds, person.primaryOrgId);
     setMoveOrgTarget(person);
@@ -1394,10 +1386,6 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
     const nextOrgId = moveOrgPath[moveOrgPath.length - 1];
     if (!nextOrgId) {
       triggerToast('请选择组织节点');
-      return;
-    }
-    if (isOrgDisabled(nextOrgId)) {
-      triggerToast('目标节点已停用，不能调入人员');
       return;
     }
     const currentOrgId = getDeepestOrgId(orgNodes, moveOrgTarget.orgIds, moveOrgTarget.primaryOrgId);
@@ -1548,8 +1536,6 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
       .filter((node) => (node.parentId ?? null) === parentId && node.id !== excludeId)
       .reduce((sum, node) => sum + (node.quota ?? 0), 0);
 
-  const isOrgDisabled = (orgId: string) => getOrgPath(orgId).some((node) => node.disabled);
-
   const openQuotaModal = (node: OrgNode) => {
     setQuotaModalOrgId(node.id);
     setQuotaUnlimited(node.quota === undefined);
@@ -1589,32 +1575,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
     );
   };
 
-  const toggleOrgDisabled = (node: OrgNode) => {
-    const descendantIds = getAllDescendantIds(node.id);
-    if (node.disabled) {
-      const disabledAncestor = getOrgPath(node.id).slice(0, -1).find((item) => item.disabled);
-      if (disabledAncestor) {
-        triggerToast(`上级节点「${disabledAncestor.name}」已停用，请先启用上级节点`);
-        return;
-      }
-    } else if (
-      !confirm(
-        `确定停用「${node.name}」吗？${descendantIds.length ? `下级 ${descendantIds.length} 个节点将同时停用，` : ''}停用后节点内人员无法登录，也不能继续邀请用户。`
-      )
-    ) {
-      return;
-    }
-    const affected = new Set([node.id, ...descendantIds]);
-    const nextDisabled = !node.disabled;
-    setOrgNodes((prev) => prev.map((item) => (affected.has(item.id) ? { ...item, disabled: nextDisabled } : item)));
-    triggerToast(nextDisabled ? `已停用「${node.name}」${descendantIds.length ? `及下级 ${descendantIds.length} 个节点` : ''}` : `已启用「${node.name}」${descendantIds.length ? `及下级 ${descendantIds.length} 个节点` : ''}`);
-  };
-
   const openInviteForOrg = (node: OrgNode) => {
-    if (isOrgDisabled(node.id)) {
-      triggerToast(`「${node.name}」已停用，启用后才能邀请用户`);
-      return;
-    }
     const used = orgHeadcount[node.id] || 0;
     const capacity = getNodeCapacity(node.id);
     if (used >= capacity) {
@@ -1669,7 +1630,6 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
           const canDropHere = Boolean(dragNode && dragNode.id !== node.id && sameOrgParent(dragNode, node));
           const hintHere = dropHint?.id === node.id ? dropHint.position : null;
           const nodeLeaderNames = getOrgLeaderNames(node);
-          const nodeDisabled = isOrgDisabled(node.id);
 
           return (
             <div key={node.id}>
@@ -1762,10 +1722,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                     renderRenameOrgInput()
                   ) : (
                     <>
-                      <span
-                        className={`truncate min-w-[2em] text-xs ${nodeDisabled ? 'text-gray-400 line-through' : ''}`}
-                        title={nodeDisabled ? `${node.name}（已停用）` : node.name}
-                      >
+                      <span className="truncate min-w-[2em] text-xs" title={node.name}>
                         {node.name}
                       </span>
                       <span
@@ -1782,9 +1739,6 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                         {orgHeadcount[node.id] || 0}
                         {node.quota !== undefined && `/${node.quota}`}
                       </span>
-                      {node.disabled && (
-                        <span className="shrink-0 px-1 rounded bg-rose-50 border border-rose-100 text-[10px] font-normal text-rose-500">停用</span>
-                      )}
                       {nodeLeaderNames.length > 0 && (
                         <span
                           className={`${isSelected ? 'hidden' : 'inline-flex group-hover/org:hidden'} shrink-[3] min-w-[22px] items-center gap-0.5 max-w-[64px] px-1 rounded bg-amber-50 border border-amber-100 text-[10px] font-normal text-amber-700`}
@@ -2178,12 +2132,7 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
             <div className="flex items-center justify-between gap-3 pt-1">
               <div className="flex items-center space-x-2 text-base font-bold text-gray-800 min-w-0 whitespace-nowrap">
                 <Building2 className="w-5 h-5 text-[#1E5ABB] shrink-0" />
-                <span className={`truncate ${isOrgDisabled(currentOrg.id) ? 'text-gray-400' : ''}`}>{currentOrg.name}</span>
-                {isOrgDisabled(currentOrg.id) && (
-                  <span className="shrink-0 text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
-                    {currentOrg.disabled ? '已停用' : '上级已停用'}
-                  </span>
-                )}
+                <span className="truncate">{currentOrg.name}</span>
                 <button
                   type="button"
                   onClick={() => openLeaderModal(currentOrg)}
@@ -2224,10 +2173,6 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
               </div>
 
               <div className="flex items-center space-x-2 shrink-0 whitespace-nowrap">
-                <span className="inline-flex items-center gap-1.5 text-xs text-gray-500">
-                  节点状态
-                  <StatusSwitch enabled={!currentOrg.disabled} onToggle={() => toggleOrgDisabled(currentOrg)} />
-                </span>
                 <button
                   type="button"
                   onClick={() => openInviteForOrg(currentOrg)}
@@ -2322,22 +2267,13 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                   );
                 }}
                 renderExtraActions={(item) => (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => openMoveOrg(item)}
-                      className="h-6 px-2 rounded border border-blue-100 text-[11px] font-bold text-[#1E5ABB] hover:bg-blue-50 cursor-pointer"
-                    >
-                      修改节点
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveFromOrg(item)}
-                      className="h-6 px-2 rounded border border-rose-100 text-[11px] font-bold text-rose-600 hover:bg-rose-50 cursor-pointer"
-                    >
-                      移出
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    onClick={() => openMoveOrg(item)}
+                    className="h-6 px-2 rounded border border-blue-100 text-[11px] font-bold text-[#1E5ABB] hover:bg-blue-50 cursor-pointer"
+                  >
+                    修改节点
+                  </button>
                 )}
               />
             </div>
@@ -2483,7 +2419,6 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
         <InviteUserModal
           key={inviteTarget.orgId || 'root'}
           orgNodes={orgNodes}
-          groups={groups}
           inviteCodes={inviteCodes}
           setInviteCodes={setInviteCodes}
           activatedCount={personnelList.filter((person) => !person.recycled).length}

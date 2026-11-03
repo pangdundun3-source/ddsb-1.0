@@ -17,7 +17,8 @@ import {
   SlidersHorizontal,
   Trash2,
   AlertTriangle,
-  IdCard
+  IdCard,
+  CirclePause
 } from 'lucide-react';
 import { InviteRecordModal } from './InviteRecordModal';
 import { OrgCascadeSelect } from '../components/OrgCascadeSelect';
@@ -102,6 +103,7 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
   const [openFilter, setOpenFilter] = useState<'org' | 'role' | 'group' | 'status' | 'realName' | null>(null);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [batchModifyOpen, setBatchModifyOpen] = useState(false);
+  const [batchDisableOpen, setBatchDisableOpen] = useState(false);
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false);
   const [batchChangeOrg, setBatchChangeOrg] = useState(false);
   const [batchChangeGroup, setBatchChangeGroup] = useState(false);
@@ -181,32 +183,6 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
   const updateDraftQuery = (patch: Partial<ReturnType<typeof createEmptyAccountQuery>>) => {
     setDraftQuery((prev) => ({ ...prev, ...patch }));
   };
-
-  const orgPeopleCount = useMemo(() => {
-    const map: Record<string, number> = {};
-    orgNodes.forEach((org) => {
-      map[org.id] = inRoster.filter((item) =>
-        item.orgIds.some((id) => id === org.id || buildOrgIdPath(orgNodes, id).includes(org.id))
-      ).length;
-    });
-    return map;
-  }, [orgNodes, inRoster]);
-
-  const rolePeopleCount = useMemo(() => {
-    const map: Record<string, number> = {};
-    ACCOUNT_ROLE_OPTIONS.forEach((role) => {
-      map[role] = inRoster.filter((item) => (item.roles || []).includes(role)).length;
-    });
-    return map;
-  }, [inRoster]);
-
-  const groupPeopleCount = useMemo(() => {
-    const map: Record<string, number> = {};
-    groups.forEach((group) => {
-      map[group.id] = inRoster.filter((item) => (item.groupIds || []).includes(group.id)).length;
-    });
-    return map;
-  }, [groups, inRoster]);
 
   const handleQuery = () => {
     setOpenFilter(null);
@@ -338,6 +314,14 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
     setBatchModifyOpen(true);
   };
 
+  const openBatchDisable = () => {
+    if (selectedItems.length === 0) {
+      triggerToast('请先勾选要停用的账号');
+      return;
+    }
+    setBatchDisableOpen(true);
+  };
+
   const openBatchDelete = () => {
     if (selectedItems.length === 0) {
       triggerToast('请先勾选要删除的账号');
@@ -381,6 +365,19 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
     setBatchModifyOpen(false);
     setSelectedIds([]);
     triggerToast(`已批量修改 ${ids.size} 个账号`);
+  };
+
+  const handleConfirmBatchDisable = () => {
+    const targets = selectedItems;
+    if (targets.length === 0) return;
+    const ids = new Set(selectedIds);
+    setPersonnelList((prev) =>
+      prev.map((row) => (ids.has(row.id) ? { ...row, status: '禁用' as const } : row))
+    );
+    const count = targets.length;
+    setBatchDisableOpen(false);
+    setSelectedIds([]);
+    triggerToast(`已批量停用 ${count} 个账号`);
   };
 
   const handleConfirmBatchDelete = () => {
@@ -504,7 +501,6 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
                 orgNodes={orgNodes}
                 selected={pending}
                 onToggle={toggle}
-                counts={orgPeopleCount}
               />
             )}
           </AccountFilterShell>
@@ -527,8 +523,7 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
               <FilterOptionList
                 options={ACCOUNT_ROLE_OPTIONS.map((role) => ({
                   id: role,
-                  label: role,
-                  countLabel: `${rolePeopleCount[role] || 0} 人`
+                  label: role
                 }))}
                 selected={pending}
                 onToggle={toggle}
@@ -562,13 +557,11 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
               <FilterOptionList
                 options={groups.map((group) => ({
                   id: group.id,
-                  label: group.name,
-                  countLabel: `${groupPeopleCount[group.id] || 0} 人`
+                  label: group.name
                 }))}
                 selected={pending}
                 onToggle={toggle}
                 shape="square"
-                countAsBadge
               />
             )}
           </AccountFilterShell>
@@ -697,11 +690,15 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
             </button>
             <button
               type="button"
-              onClick={handleBatchExport}
-              className="h-8 px-2.5 rounded-lg border border-gray-200 bg-white text-emerald-600 text-xs font-medium inline-flex items-center gap-1 cursor-pointer hover:bg-emerald-50"
+              onClick={openBatchDisable}
+              className={`h-8 px-2.5 rounded-lg border text-xs font-medium inline-flex items-center gap-1 cursor-pointer transition-colors ${
+                selectedIds.length
+                  ? 'bg-white border-amber-200 text-amber-700 hover:bg-amber-50'
+                  : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'
+              }`}
             >
-              <Download className="w-3.5 h-3.5" />
-              导出 ({selectedIds.length || filteredList.length})
+              <CirclePause className="w-3.5 h-3.5" />
+              批量停用{selectedIds.length ? ` (${selectedIds.length})` : ''}
             </button>
             <button
               type="button"
@@ -714,6 +711,14 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
             >
               <Trash2 className="w-3.5 h-3.5" />
               批量删除{selectedIds.length ? ` (${selectedIds.length})` : ''}
+            </button>
+            <button
+              type="button"
+              onClick={handleBatchExport}
+              className="h-8 px-2.5 rounded-lg border border-gray-200 bg-white text-emerald-600 text-xs font-medium inline-flex items-center gap-1 cursor-pointer hover:bg-emerald-50"
+            >
+              <Download className="w-3.5 h-3.5" />
+              导出 ({selectedIds.length || filteredList.length})
             </button>
             {selectedIds.length > 0 && (
               <button
@@ -856,7 +861,6 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
       {isModalOpen && !editing && (
         <InviteUserModal
           orgNodes={orgNodes}
-          groups={groups}
           inviteCodes={inviteCodes}
           setInviteCodes={setInviteCodes}
           activatedCount={inRoster.length}
@@ -1038,6 +1042,70 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
               >
                 <Check className="w-3.5 h-3.5" />
                 确认批量修改
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {batchDisableOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-xl overflow-hidden">
+            <div className="px-5 py-4 flex items-start gap-3">
+              <span className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                <CirclePause className="w-5 h-5" />
+              </span>
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-gray-900">批量停用外部用户账号确认</h3>
+                <p className="text-xs text-amber-700 font-medium mt-0.5">
+                  本次将批量停用 {selectedItems.length} 名账号
+                </p>
+              </div>
+            </div>
+            <div className="px-5 pb-4 space-y-3 text-xs">
+              <div className="rounded-xl border border-gray-200 bg-slate-50/80 px-3.5 py-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-gray-500">待停用的人员名单：</span>
+                  <span className="text-gray-400">共 {selectedItems.length} 人</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
+                  {selectedItems.map((item) => (
+                    <span
+                      key={item.id}
+                      className="px-2 py-1 rounded-md border border-gray-200 bg-white text-gray-700"
+                    >
+                      {item.realName} ({(item.phone || '').replace(/\D/g, '').slice(-4) || '—'})
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-amber-800">
+                <div className="font-bold inline-flex items-center gap-1.5 mb-1">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  说明
+                </div>
+                <ul className="list-disc pl-4 space-y-0.5 text-[11px] leading-relaxed">
+                  <li>停用后账号将无法登录，列表中显示为「停用」状态。</li>
+                  <li>账号与组织、群组归属仍保留，可随时在行内重新启用。</li>
+                  <li>已处于停用状态的账号会保持停用，不受影响。</li>
+                </ul>
+              </div>
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setBatchDisableOpen(false)}
+                className="px-4 py-1.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 cursor-pointer text-xs"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmBatchDisable}
+                className="px-4 py-1.5 bg-amber-600 text-white rounded-lg font-bold hover:bg-amber-700 cursor-pointer text-xs inline-flex items-center gap-1.5"
+              >
+                <CirclePause className="w-3.5 h-3.5" />
+                确认批量停用 ({selectedItems.length})
               </button>
             </div>
           </div>
@@ -1357,8 +1425,7 @@ const OrgFilterTree: React.FC<{
   orgNodes: OrgNode[];
   selected: string[];
   onToggle: (id: string) => void;
-  counts: Record<string, number>;
-}> = ({ orgNodes, selected, onToggle, counts }) => {
+}> = ({ orgNodes, selected, onToggle }) => {
   const expandableIds = useMemo(
     () => orgNodes.filter((node) => getOrgChildrenOf(orgNodes, node.id).length > 0).map((node) => node.id),
     [orgNodes]
@@ -1374,8 +1441,6 @@ const OrgFilterTree: React.FC<{
     const hasChildren = children.length > 0;
     const isExpanded = expanded.includes(node.id);
     const checked = selected.includes(node.id);
-    const used = counts[node.id] || 0;
-    const quota = node.quota;
     return (
       <div key={node.id}>
         <div
@@ -1401,9 +1466,6 @@ const OrgFilterTree: React.FC<{
             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${node.disabled ? 'bg-orange-400' : 'bg-emerald-500'}`} />
             <CircleCheck checked={checked} shape="square" />
             <span className="flex-1 min-w-0 truncate text-xs font-medium">{node.name}</span>
-            <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-[10px] font-bold text-slate-500 shrink-0 tabular-nums">
-              {quota !== undefined ? `${used} | ${quota}` : `${used} 人`}
-            </span>
           </button>
         </div>
         {hasChildren && isExpanded && children.map((child) => renderNode(child, depth + 1))}
