@@ -22,7 +22,6 @@ const INVITE_VALIDITY_OPTIONS: Array<{ id: InviteValidityPresetId; label: string
   { id: '7d', label: '7天', hours: 168 }
 ];
 
-type InviteListFilter = 'all' | '待激活' | '已激活' | '已失效';
 type InviteMode = 'qrcode' | 'code' | 'link';
 
 const INVITE_MODE_TABS: Array<{ id: InviteMode; label: string; desc: string }> = [
@@ -106,7 +105,6 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
   const [inviteBatchName, setInviteBatchName] = useState(() => defaultInviteBatchName(inviteCodes));
   const [inviteCount, setInviteCount] = useState(10);
   const [validityId, setValidityId] = useState<InviteValidityPresetId>('24h');
-  const [inviteListFilter, setInviteListFilter] = useState<InviteListFilter>('all');
   const [freshCodeIds, setFreshCodeIds] = useState<string[]>([]);
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
   const [modalToast, setModalToast] = useState('');
@@ -241,7 +239,6 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
     setInviteCodes((prev) => [...created, ...prev]);
     setFreshCodeIds(created.map((item) => item.id));
     setActiveBatchId(batchId);
-    setInviteListFilter('all');
     resetLeftPanel(created);
     showToast(`已生成 ${created.length} 个激活码，有效期至 ${formatDateTimeLabel(inviteExpiry)}`);
   };
@@ -303,10 +300,7 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
   const activeBatch = codeBatches.find((batch) => batch.batchId === activeBatchId) || codeBatches[0] || null;
   const activeBatchCodes = activeBatch?.codes || [];
   const unusedInviteCodes = activeBatchCodes.filter((item) => resolveInviteStatus(item) === '待激活');
-  const visibleInviteCodes = activeBatchCodes.filter((item) => {
-    if (inviteListFilter === 'all') return true;
-    return resolveInviteStatus(item) === inviteListFilter;
-  });
+  const visibleInviteCodes = activeBatchCodes;
 
   const copyUnusedCodes = () => {
     if (!unusedInviteCodes.length) {
@@ -500,8 +494,7 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
                         <>
                           <span className="truncate">{activeBatch.sample.batchName}</span>
                           <span className="ml-1.5 font-normal text-gray-400">
-                            （共 {visibleInviteCodes.length} 条
-                            {inviteListFilter === 'all' ? `，待激活 ${unusedInviteCodes.length}` : ''}）
+                            （共 {visibleInviteCodes.length} 条，待激活 {unusedInviteCodes.length}）
                           </span>
                         </>
                       ) : (
@@ -537,31 +530,10 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
                       </button>
                     </div>
                   </div>
-                  <div className="px-4 py-2 border-b border-gray-50 flex flex-wrap gap-1.5 shrink-0">
-                    {([
-                      { id: 'all', label: '全部' },
-                      { id: '待激活', label: '待激活' },
-                      { id: '已激活', label: '已激活' },
-                      { id: '已失效', label: '已失效' }
-                    ] as const).map((option) => (
-                      <button
-                        key={option.id}
-                        type="button"
-                        onClick={() => setInviteListFilter(option.id)}
-                        className={`h-6 px-2 rounded-full text-[11px] cursor-pointer ${
-                          inviteListFilter === option.id
-                            ? 'bg-[#1E5ABB] text-white'
-                            : 'bg-gray-50 text-gray-500 hover:text-[#1E5ABB]'
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
                   <div className="flex-1 overflow-y-auto px-2 py-1 min-h-0">
                     {visibleInviteCodes.length === 0 ? (
                       <div className="h-full flex items-center justify-center text-gray-400 px-4 text-center">
-                        {codeBatches.length ? '当前批次暂无匹配激活码' : '尚未生成激活码，请在左侧完成设置后生成'}
+                        {codeBatches.length ? '当前批次暂无激活码' : '尚未生成激活码，请在左侧完成设置后生成'}
                       </div>
                     ) : (
                       visibleInviteCodes.map((item, index) => {
@@ -635,10 +607,7 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({
                           <button
                             key={batch.batchId}
                             type="button"
-                            onClick={() => {
-                              setActiveBatchId(batch.batchId);
-                              setInviteListFilter('all');
-                            }}
+                            onClick={() => setActiveBatchId(batch.batchId)}
                             className={`w-full text-left rounded-lg border px-2.5 py-2 cursor-pointer ${
                               selected ? 'border-[#1E5ABB] bg-[#F4F8FE]' : 'border-gray-100 bg-white hover:border-gray-200'
                             }`}
