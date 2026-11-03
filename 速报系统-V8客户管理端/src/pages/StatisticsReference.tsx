@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   BarChart3,
-  Calendar,
   Clock,
   Download,
   RefreshCw,
-  RotateCcw,
   TrendingUp,
+  UsersRound,
 } from 'lucide-react';
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
   Cell,
   Line,
@@ -22,14 +23,16 @@ import {
 } from 'recharts';
 import { PageId } from '../types';
 import { DateRangeField } from '../components/DateRangeField';
+import { OrgFilterSelect } from '../components/OrgFilterSelect';
+import { getOrgFullPath, INITIAL_ORG_NODES } from '../data/userOrgShared';
 
 interface StatisticsReferenceProps {
   onNavigate?: (page: PageId) => void;
 }
 
-type TimeRange = 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
+type TimeRange = 'day' | 'week' | 'month' | 'custom';
 
-const reportTrend = [
+const reportTrendBase = [
   { label: '周一 (08-04)', total: 1280, passed: 1150, rejected: 85, directRate: 75.2, passRate: 89.8, score: 86.5, processRate: 96.2, avgTime: 14.8 },
   { label: '周二 (08-05)', total: 1420, passed: 1280, rejected: 92, directRate: 76, passRate: 90.1, score: 87.2, processRate: 96.8, avgTime: 14.2 },
   { label: '周三 (08-06)', total: 1650, passed: 1490, rejected: 110, directRate: 78.4, passRate: 90.3, score: 88.6, processRate: 97.4, avgTime: 13.5 },
@@ -39,25 +42,45 @@ const reportTrend = [
   { label: '周日 (08-10)', total: 1430, passed: 1210, rejected: 180, directRate: 77.4, passRate: 89.4, score: 88.5, processRate: 98.8, avgTime: 13.8 },
 ];
 
-const reportDonut = [
+const reportDonutBase = [
   { name: '一次性通过', value: 8110, color: '#08B889' },
   { name: '返修通过', value: 1260, color: '#2C6BE0' },
   { name: '待审核', value: 660, color: '#9BA9BB' },
   { name: '驳回', value: 450, color: '#F04453' },
 ];
 
-const auditDonut = [
+const auditDonutBase = [
   { name: '审核通过', value: 9240, color: '#08B889' },
   { name: '审核驳回', value: 620, color: '#F04453' },
   { name: '待审核', value: 120, color: '#9BA9BB' },
 ];
 
-const orgOptions = [
-  '统计主体: 全平台所有机构 (28家)',
-  '机构穿透: 中共台中市委宣传部',
-  '机构穿透: 台中市网信办',
-  '机构穿透: 西屯区网信办',
+const groupOptions = [
+  { id: 'all', label: '全部用户群组' },
+  { id: 'grp-emergency', label: '突发舆情应急响应专班' },
+  { id: 'grp-cybersecurity', label: '重点网络安全联络员组' },
+  { id: 'grp-districts', label: '区县宣传舆情快报群' },
+  { id: 'grp-duty', label: '节假日24小时值守专班' },
+  { id: 'grp-media', label: '融媒联合宣发协同群' },
+  { id: 'grp-hotspot', label: '政务民生热点导控专班' },
+  { id: 'grp-xb-env', label: '西坝区环保舆情联动组' },
+  { id: 'grp-xb-river', label: '河长制速报联络群' },
+  { id: 'grp-xb-night', label: '西坝夜间值班备勤组' },
 ];
+
+const groupStatsBase = [
+  { id: 'grp-emergency', name: '突发舆情应急响应专班', members: 42, total: 1860, passed: 1688, passRate: 90.8, processRate: 98.6, score: 91.2, avgTime: 11.4 },
+  { id: 'grp-districts', name: '区县宣传舆情快报群', members: 86, total: 2420, passed: 2145, passRate: 88.6, processRate: 97.9, score: 87.8, avgTime: 13.2 },
+  { id: 'grp-cybersecurity', name: '重点网络安全联络员组', members: 38, total: 1520, passed: 1398, passRate: 92.0, processRate: 98.2, score: 90.4, avgTime: 12.1 },
+  { id: 'grp-media', name: '融媒联合宣发协同群', members: 54, total: 1280, passed: 1164, passRate: 90.9, processRate: 97.4, score: 89.6, avgTime: 12.8 },
+  { id: 'grp-hotspot', name: '政务民生热点导控专班', members: 47, total: 1180, passed: 1042, passRate: 88.3, processRate: 96.8, score: 86.9, avgTime: 14.6 },
+  { id: 'grp-duty', name: '节假日24小时值守专班', members: 28, total: 860, passed: 792, passRate: 92.1, processRate: 99.1, score: 91.8, avgTime: 9.8 },
+  { id: 'grp-xb-env', name: '西坝区环保舆情联动组', members: 22, total: 640, passed: 568, passRate: 88.8, processRate: 96.2, score: 85.4, avgTime: 15.2 },
+  { id: 'grp-xb-river', name: '河长制速报联络群', members: 18, total: 420, passed: 378, passRate: 90.0, processRate: 97.1, score: 86.2, avgTime: 14.0 },
+  { id: 'grp-xb-night', name: '西坝夜间值班备勤组', members: 16, total: 300, passed: 255, passRate: 85.0, processRate: 95.4, score: 84.1, avgTime: 16.5 },
+];
+
+const scaleCount = (value: number, factor: number) => Math.max(1, Math.round(value * factor));
 
 const chartColors = {
   blue: '#1B5BD6',
@@ -195,11 +218,12 @@ const DonutPanel: React.FC<{
   </section>
 );
 
-export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavigate }) => {
+export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavigate: _onNavigate }) => {
   const [timeRange, setTimeRange] = useState<TimeRange>('week');
   const [startDate, setStartDate] = useState('2026-08-04');
   const [endDate, setEndDate] = useState('2026-08-11');
-  const [selectedOrg, setSelectedOrg] = useState(orgOptions[0]);
+  const [selectedOrg, setSelectedOrg] = useState<string | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState(groupOptions[0].id);
   const [toast, setToast] = useState<string | null>(null);
   const [reportLines, setReportLines] = useState({
     total: true,
@@ -213,6 +237,72 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
   });
 
   const periodLabel = `${startDate.replaceAll('-', '/')} - ${endDate.replaceAll('-', '/')}`;
+  const scopeFactor = useMemo(() => {
+    let factor = 1;
+    if (selectedOrg) factor *= 0.28;
+    if (selectedGroup !== 'all') factor *= 0.22;
+    return factor;
+  }, [selectedOrg, selectedGroup]);
+
+  const reportTrend = useMemo(
+    () =>
+      reportTrendBase.map((row) => ({
+        ...row,
+        total: scaleCount(row.total, scopeFactor),
+        passed: scaleCount(row.passed, scopeFactor),
+        rejected: scaleCount(row.rejected, scopeFactor),
+      })),
+    [scopeFactor],
+  );
+
+  const reportDonut = useMemo(
+    () => reportDonutBase.map((item) => ({ ...item, value: scaleCount(item.value, scopeFactor) })),
+    [scopeFactor],
+  );
+
+  const auditDonut = useMemo(
+    () => auditDonutBase.map((item) => ({ ...item, value: scaleCount(item.value, scopeFactor) })),
+    [scopeFactor],
+  );
+
+  const reportTotal = reportDonut.reduce((sum, item) => sum + item.value, 0);
+  const auditTotal = auditDonut.reduce((sum, item) => sum + item.value, 0);
+
+  const groupRows = useMemo(() => {
+    const rows =
+      selectedGroup === 'all'
+        ? groupStatsBase
+        : groupStatsBase.filter((row) => row.id === selectedGroup);
+    const orgFactor = selectedOrg ? 0.35 : 1;
+    return rows
+      .map((row) => ({
+        ...row,
+        total: scaleCount(row.total, orgFactor),
+        passed: scaleCount(row.passed, orgFactor),
+      }))
+      .sort((a, b) => b.total - a.total);
+  }, [selectedGroup, selectedOrg]);
+
+  const groupBarData = useMemo(
+    () =>
+      groupRows.map((row) => ({
+        name: row.name.length > 8 ? `${row.name.slice(0, 8)}…` : row.name,
+        fullName: row.name,
+        total: row.total,
+        passed: row.passed,
+      })),
+    [groupRows],
+  );
+
+  const scopeBadge =
+    !selectedOrg && selectedGroup === 'all'
+      ? '全部组织节点 · 全部用户群组'
+      : [
+          selectedOrg ? getOrgFullPath(INITIAL_ORG_NODES, selectedOrg, ' / ') || '组织节点' : '全部组织节点',
+          selectedGroup === 'all' ? '全部用户群组' : groupOptions.find((item) => item.id === selectedGroup)?.label,
+        ]
+          .filter(Boolean)
+          .join(' · ');
 
   const showToast = (message: string) => {
     setToast(message);
@@ -230,12 +320,6 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
     } else if (next === 'month') {
       setStartDate('2026-08-01');
       setEndDate('2026-08-31');
-    } else if (next === 'quarter') {
-      setStartDate('2026-07-01');
-      setEndDate('2026-09-30');
-    } else if (next === 'year') {
-      setStartDate('2026-01-01');
-      setEndDate('2026-12-31');
     }
   };
 
@@ -243,7 +327,8 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
     setTimeRange('week');
     setStartDate('2026-08-04');
     setEndDate('2026-08-11');
-    setSelectedOrg(orgOptions[0]);
+    setSelectedOrg(null);
+    setSelectedGroup(groupOptions[0].id);
   };
 
   return (
@@ -295,11 +380,9 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
                 <span className="font-normal text-slate-500">统计周期:</span>
               </div>
               {[
-                ['day', '日(今日)'],
-                ['week', '周(本周)'],
-                ['month', '月(本月)'],
-                ['quarter', '季度'],
-                ['year', '年度'],
+                ['day', '今日'],
+                ['week', '本周'],
+                ['month', '本月'],
                 ['custom', '自定义'],
               ].map(([key, label]) => (
                 <button
@@ -317,10 +400,11 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
               ))}
             </div>
 
-            {/* 日期选择器卡片 */}
             <DateRangeField
               startValue={startDate}
               endValue={endDate}
+              readOnly={timeRange !== 'custom'}
+              onRequestEdit={() => setTimeRange('custom')}
               onStartChange={(value) => {
                 setStartDate(value);
                 setTimeRange('custom');
@@ -335,111 +419,181 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
               inputClassName="w-24 flex-none font-mono text-[11px]"
             />
 
-              <select
-                value={selectedOrg}
-                onChange={(event) => {
-                  const next = event.target.value;
-                  setSelectedOrg(next);
-                }}
-                className="min-h-8 max-w-full rounded-xl border border-blue-200 bg-white px-2.5 text-[11px] font-semibold text-blue-800 outline-none"
-              >
-                {orgOptions.map((option) => (
-                  <option key={option}>{option}</option>
-                ))}
-              </select>
+            <OrgFilterSelect
+              value={selectedOrg}
+              onChange={setSelectedOrg}
+              allLabel="全部组织节点"
+              title="按组织树穿透筛选"
+            />
+
+            <select
+              value={selectedGroup}
+              onChange={(event) => setSelectedGroup(event.target.value)}
+              aria-label="用户群组"
+              title="用户群组"
+              className="h-[34px] min-w-[160px] max-w-[240px] px-2.5 rounded-lg border border-gray-300 bg-white text-xs text-gray-700 shadow-2xs hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] cursor-pointer"
+            >
+              {groupOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <button
             type="button"
             onClick={resetFilters}
-            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-xs hover:text-slate-800 transition"
+            className="inline-flex min-h-8 cursor-pointer items-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 shadow-xs transition hover:text-slate-800"
             title="重置筛选"
           >
-            <RotateCcw className="h-3.5 w-3.5" />
+            重置
           </button>
         </div>
       </section>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] sm:p-5">
-            <PanelTitle
-              icon={<TrendingUp className="h-3.5 w-3.5" />}
-              title="全域机构指标趋势图"
-              badge="全域 28 家机构全量走势"
-              right={<span className="text-[10px] text-slate-400">数据更新于 2026/08/11 09:00</span>}
-            />
-            <div className="flex flex-wrap gap-1.5 py-3">
-              <ChartLegendButton label="全域上报量" color={chartColors.blue} active={reportLines.total} onClick={() => setReportLines((prev) => ({ ...prev, total: !prev.total }))} />
-              <ChartLegendButton label="有效采纳量" color={chartColors.green} active={reportLines.passed} onClick={() => setReportLines((prev) => ({ ...prev, passed: !prev.passed }))} />
-              <ChartLegendButton label="驳回整改量" color={chartColors.red} active={reportLines.rejected} onClick={() => setReportLines((prev) => ({ ...prev, rejected: !prev.rejected }))} />
-              <ChartLegendButton label="首审直通率(%)" color={chartColors.purple} active={reportLines.directRate} onClick={() => setReportLines((prev) => ({ ...prev, directRate: !prev.directRate }))} />
-              <ChartLegendButton label="整体采纳率(%)" color={chartColors.teal} active={reportLines.passRate} onClick={() => setReportLines((prev) => ({ ...prev, passRate: !prev.passRate }))} />
-              <ChartLegendButton label="综合考核均分" color={chartColors.amber} active={reportLines.score} onClick={() => setReportLines((prev) => ({ ...prev, score: !prev.score }))} />
-              <ChartLegendButton label="审核处理率(%)" color={chartColors.cyan} active={reportLines.processRate} onClick={() => setReportLines((prev) => ({ ...prev, processRate: !prev.processRate }))} />
-              <ChartLegendButton label="审核响应平均耗时(分钟)" color="#EC4899" active={reportLines.avgTime} onClick={() => setReportLines((prev) => ({ ...prev, avgTime: !prev.avgTime }))} />
-            </div>
-            <div className="h-[270px] w-full sm:h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={reportTrend} margin={{ top: 8, right: 18, left: -12, bottom: 6 }}>
-                  <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="count" tick={{ fill: '#64748b', fontSize: 9 }} axisLine={false} tickLine={false} unit="件" />
-                  <YAxis yAxisId="rate" orientation="right" domain={[0, 100]} tick={{ fill: '#64748b', fontSize: 9 }} axisLine={false} tickLine={false} unit="%" />
-                  <YAxis yAxisId="time" orientation="right" domain={[0, 30]} tick={{ fill: '#64748b', fontSize: 9 }} axisLine={false} tickLine={false} unit="分" hide />
-                  <Tooltip
-                    contentStyle={{ border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 11 }}
-                    formatter={(value: number, name: string) => [
-                      name.includes('率') || name.includes('均分')
-                        ? `${value}%`
-                        : name.includes('耗时')
-                          ? `${value} 分钟`
-                          : `${formatNumber(value)} 件`,
-                      name,
-                    ]}
-                  />
-                  {reportLines.total && <Line yAxisId="count" type="monotone" dataKey="total" name="全域上报量" stroke={chartColors.blue} strokeWidth={2.2} dot={{ r: 3, fill: chartColors.blue }} />}
-                  {reportLines.passed && <Line yAxisId="count" type="monotone" dataKey="passed" name="有效采纳量" stroke={chartColors.green} strokeWidth={2.2} dot={{ r: 3, fill: chartColors.green }} />}
-                  {reportLines.rejected && <Line yAxisId="count" type="monotone" dataKey="rejected" name="驳回整改量" stroke={chartColors.red} strokeWidth={1.6} dot={{ r: 2, fill: chartColors.red }} />}
-                  {reportLines.directRate && <Line yAxisId="rate" type="monotone" dataKey="directRate" name="首审直通率" stroke={chartColors.purple} strokeDasharray="4 4" strokeWidth={1.6} dot={{ r: 2, fill: chartColors.purple }} />}
-                  {reportLines.passRate && <Line yAxisId="rate" type="monotone" dataKey="passRate" name="整体采纳率" stroke={chartColors.teal} strokeWidth={1.6} dot={{ r: 2, fill: chartColors.teal }} />}
-                  {reportLines.score && <Line yAxisId="rate" type="monotone" dataKey="score" name="综合考核均分" stroke={chartColors.amber} strokeDasharray="3 3" strokeWidth={1.6} dot={{ r: 2, fill: chartColors.amber }} />}
-                  {reportLines.processRate && <Line yAxisId="rate" type="monotone" dataKey="processRate" name="审核处理率" stroke={chartColors.cyan} strokeDasharray="3 3" strokeWidth={1.6} dot={{ r: 2, fill: chartColors.cyan }} />}
-                  {reportLines.avgTime && <Line yAxisId="time" type="monotone" dataKey="avgTime" name="审核响应平均耗时" stroke="#EC4899" strokeWidth={1.6} dot={{ r: 2, fill: '#EC4899' }} />}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </section>
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] sm:p-5">
+        <PanelTitle
+          icon={<TrendingUp className="h-3.5 w-3.5" />}
+          title="组织节点指标趋势图"
+          badge={scopeBadge}
+          right={<span className="text-[10px] text-slate-400">数据更新于 2026/08/11 09:00</span>}
+        />
+        <div className="flex flex-wrap gap-1.5 py-3">
+          <ChartLegendButton label="上报量" color={chartColors.blue} active={reportLines.total} onClick={() => setReportLines((prev) => ({ ...prev, total: !prev.total }))} />
+          <ChartLegendButton label="有效采纳量" color={chartColors.green} active={reportLines.passed} onClick={() => setReportLines((prev) => ({ ...prev, passed: !prev.passed }))} />
+          <ChartLegendButton label="驳回整改量" color={chartColors.red} active={reportLines.rejected} onClick={() => setReportLines((prev) => ({ ...prev, rejected: !prev.rejected }))} />
+          <ChartLegendButton label="首审直通率(%)" color={chartColors.purple} active={reportLines.directRate} onClick={() => setReportLines((prev) => ({ ...prev, directRate: !prev.directRate }))} />
+          <ChartLegendButton label="整体采纳率(%)" color={chartColors.teal} active={reportLines.passRate} onClick={() => setReportLines((prev) => ({ ...prev, passRate: !prev.passRate }))} />
+          <ChartLegendButton label="综合考核均分" color={chartColors.amber} active={reportLines.score} onClick={() => setReportLines((prev) => ({ ...prev, score: !prev.score }))} />
+          <ChartLegendButton label="审核处理率(%)" color={chartColors.cyan} active={reportLines.processRate} onClick={() => setReportLines((prev) => ({ ...prev, processRate: !prev.processRate }))} />
+          <ChartLegendButton label="审核响应平均耗时(分钟)" color="#EC4899" active={reportLines.avgTime} onClick={() => setReportLines((prev) => ({ ...prev, avgTime: !prev.avgTime }))} />
+        </div>
+        <div className="h-[270px] w-full sm:h-[300px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={reportTrend} margin={{ top: 8, right: 18, left: -12, bottom: 6 }}>
+              <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis yAxisId="count" tick={{ fill: '#64748b', fontSize: 9 }} axisLine={false} tickLine={false} unit="件" />
+              <YAxis yAxisId="rate" orientation="right" domain={[0, 100]} tick={{ fill: '#64748b', fontSize: 9 }} axisLine={false} tickLine={false} unit="%" />
+              <YAxis yAxisId="time" orientation="right" domain={[0, 30]} tick={{ fill: '#64748b', fontSize: 9 }} axisLine={false} tickLine={false} unit="分" hide />
+              <Tooltip
+                contentStyle={{ border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 11 }}
+                formatter={(value: number, name: string) => [
+                  name.includes('率') || name.includes('均分')
+                    ? `${value}%`
+                    : name.includes('耗时')
+                      ? `${value} 分钟`
+                      : `${formatNumber(value)} 件`,
+                  name,
+                ]}
+              />
+              {reportLines.total && <Line yAxisId="count" type="monotone" dataKey="total" name="上报量" stroke={chartColors.blue} strokeWidth={2.2} dot={{ r: 3, fill: chartColors.blue }} />}
+              {reportLines.passed && <Line yAxisId="count" type="monotone" dataKey="passed" name="有效采纳量" stroke={chartColors.green} strokeWidth={2.2} dot={{ r: 3, fill: chartColors.green }} />}
+              {reportLines.rejected && <Line yAxisId="count" type="monotone" dataKey="rejected" name="驳回整改量" stroke={chartColors.red} strokeWidth={1.6} dot={{ r: 2, fill: chartColors.red }} />}
+              {reportLines.directRate && <Line yAxisId="rate" type="monotone" dataKey="directRate" name="首审直通率" stroke={chartColors.purple} strokeDasharray="4 4" strokeWidth={1.6} dot={{ r: 2, fill: chartColors.purple }} />}
+              {reportLines.passRate && <Line yAxisId="rate" type="monotone" dataKey="passRate" name="整体采纳率" stroke={chartColors.teal} strokeWidth={1.6} dot={{ r: 2, fill: chartColors.teal }} />}
+              {reportLines.score && <Line yAxisId="rate" type="monotone" dataKey="score" name="综合考核均分" stroke={chartColors.amber} strokeDasharray="3 3" strokeWidth={1.6} dot={{ r: 2, fill: chartColors.amber }} />}
+              {reportLines.processRate && <Line yAxisId="rate" type="monotone" dataKey="processRate" name="审核处理率" stroke={chartColors.cyan} strokeDasharray="3 3" strokeWidth={1.6} dot={{ r: 2, fill: chartColors.cyan }} />}
+              {reportLines.avgTime && <Line yAxisId="time" type="monotone" dataKey="avgTime" name="审核响应平均耗时" stroke="#EC4899" strokeWidth={1.6} dot={{ r: 2, fill: '#EC4899' }} />}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <DonutPanel
-              title="全域上报员报送统计"
-              iconColor="#1D58C9"
-              data={reportDonut}
-              total={10480}
-              centerLabel="累计上报"
-              periodLabel={periodLabel}
-              footer={[
-                { label: '整体通过率', value: '89.4%', color: '#08B889' },
-                { label: '一次性通过率', value: '77.4%', color: '#1D58C9' },
-                { label: '在册上报员', value: '486人', color: '#8656F4' },
-                { label: '人均上报量', value: '21.6件', color: '#F5A400' },
-                { label: '人均考核均分', value: '88.5分', color: '#5C6FE7' },
-              ]}
-            />
-            <DonutPanel
-              title="全域审核员审核统计"
-              iconColor="#08B889"
-              data={auditDonut}
-              total={9860}
-              centerLabel="累计审核"
-              periodLabel={periodLabel}
-              footer={[
-                { label: '平均耗时', value: '13.8分', color: '#08B889' },
-                { label: '审核处理率', value: '98.8%', color: '#1D58C9' },
-                { label: '在册审核员', value: '168人', color: '#8656F4' },
-                { label: '人均负荷', value: '58.7件', color: '#F5A400' },
-              ]}
-            />
-          </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <DonutPanel
+          title="上报员报送统计"
+          iconColor="#1D58C9"
+          data={reportDonut}
+          total={reportTotal}
+          centerLabel="累计上报"
+          periodLabel={periodLabel}
+          footer={[
+            { label: '整体通过率', value: '89.4%', color: '#08B889' },
+            { label: '一次性通过率', value: '77.4%', color: '#1D58C9' },
+            { label: '在册上报员', value: scopeFactor < 1 ? `${Math.max(8, Math.round(486 * scopeFactor))}人` : '486人', color: '#8656F4' },
+            { label: '人均上报量', value: '21.6件', color: '#F5A400' },
+            { label: '人均考核均分', value: '88.5分', color: '#5C6FE7' },
+          ]}
+        />
+        <DonutPanel
+          title="审核员审核统计"
+          iconColor="#08B889"
+          data={auditDonut}
+          total={auditTotal}
+          centerLabel="累计审核"
+          periodLabel={periodLabel}
+          footer={[
+            { label: '平均耗时', value: '13.8分', color: '#08B889' },
+            { label: '审核处理率', value: '98.8%', color: '#1D58C9' },
+            { label: '在册审核员', value: scopeFactor < 1 ? `${Math.max(4, Math.round(168 * scopeFactor))}人` : '168人', color: '#8656F4' },
+            { label: '人均负荷', value: '58.7件', color: '#F5A400' },
+          ]}
+        />
+      </div>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] sm:p-5">
+        <PanelTitle
+          icon={<UsersRound className="h-3.5 w-3.5" />}
+          title="群组统计"
+          badge={selectedGroup === 'all' ? `共 ${groupRows.length} 个用户群组` : '已筛选 1 个群组'}
+          right={<span className="text-[10px] text-slate-400">与上方组织节点 / 周期筛选联动</span>}
+        />
+
+        <div className="mt-3 h-[220px] w-full sm:h-[240px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={groupBarData} margin={{ top: 8, right: 12, left: -8, bottom: 8 }}>
+              <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} interval={0} />
+              <YAxis tick={{ fill: '#64748b', fontSize: 9 }} axisLine={false} tickLine={false} unit="件" />
+              <Tooltip
+                contentStyle={{ border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 11 }}
+                labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName || ''}
+                formatter={(value: number, name: string) => [`${formatNumber(value)} 件`, name]}
+              />
+              <Bar dataKey="total" name="上报量" fill={chartColors.blue} radius={[4, 4, 0, 0]} maxBarSize={36} />
+              <Bar dataKey="passed" name="采纳量" fill={chartColors.green} radius={[4, 4, 0, 0]} maxBarSize={36} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="mt-3 overflow-x-auto rounded-lg border border-slate-100">
+          <table className="w-full min-w-[860px] text-left text-xs">
+            <thead className="border-b border-slate-200 bg-slate-50/90 text-slate-500">
+              <tr>
+                <th className="px-3 py-2.5 text-center font-semibold text-slate-700">排名</th>
+                <th className="px-3 py-2.5 font-semibold text-slate-700">用户群组</th>
+                <th className="px-3 py-2.5 text-center font-semibold text-slate-700">成员数</th>
+                <th className="px-3 py-2.5 text-center font-semibold text-slate-700">上报量</th>
+                <th className="px-3 py-2.5 text-center font-semibold text-slate-700">采纳量</th>
+                <th className="px-3 py-2.5 text-center font-semibold text-slate-700">采纳率</th>
+                <th className="px-3 py-2.5 text-center font-semibold text-slate-700">审核处理率</th>
+                <th className="px-3 py-2.5 text-center font-semibold text-slate-700">综合均分</th>
+                <th className="px-3 py-2.5 text-center font-semibold text-slate-700">平均响应</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {groupRows.map((row, index) => (
+                <tr
+                  key={row.id}
+                  className={`transition hover:bg-violet-50/40 ${selectedGroup === row.id ? 'bg-violet-50/60' : ''}`}
+                >
+                  <td className="px-3 py-2.5 text-center font-mono font-semibold text-slate-700">{index + 1}</td>
+                  <td className="px-3 py-2.5 font-semibold text-slate-900">{row.name}</td>
+                  <td className="px-3 py-2.5 text-center font-mono text-slate-700">{row.members}</td>
+                  <td className="px-3 py-2.5 text-center font-mono text-slate-800">{formatNumber(row.total)}</td>
+                  <td className="px-3 py-2.5 text-center font-mono text-emerald-700">{formatNumber(row.passed)}</td>
+                  <td className="px-3 py-2.5 text-center font-mono text-slate-700">{row.passRate.toFixed(1)}%</td>
+                  <td className="px-3 py-2.5 text-center font-mono text-slate-700">{row.processRate.toFixed(1)}%</td>
+                  <td className="px-3 py-2.5 text-center font-mono text-amber-700">{row.score.toFixed(1)}</td>
+                  <td className="px-3 py-2.5 text-center font-mono text-slate-700">{row.avgTime.toFixed(1)} 分</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 };

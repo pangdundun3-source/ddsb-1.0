@@ -4,12 +4,10 @@ import {
   Building2,
   Calendar,
   CheckCircle2,
-  ChevronDown,
   Clock,
   Download,
   FileText,
   Globe2,
-  RotateCcw,
   Search,
   Send,
   ShieldCheck,
@@ -21,6 +19,8 @@ import {
 import { EvaluationProfileModal, ProfileDetailData } from '../components/EvaluationProfileModal';
 import { PaginationBar } from '../components/PaginationBar';
 import { DateRangeField } from '../components/DateRangeField';
+import { OrgFilterSelect } from '../components/OrgFilterSelect';
+import { getOrgById, INITIAL_ORG_NODES } from '../data/userOrgShared';
 import { PageId } from '../types';
 
 interface EvaluationReferenceProps {
@@ -28,7 +28,7 @@ interface EvaluationReferenceProps {
 }
 
 type EvalTab = 'org' | 'person';
-type Period = 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
+type Period = 'day' | 'week' | 'month' | 'custom';
 type Perspective = 'report' | 'audit';
 type Grade = '卓越' | '优秀' | '良好' | '合格';
 
@@ -305,7 +305,8 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
   const [period, setPeriod] = useState<Period>('week');
   const [startDate, setStartDate] = useState('2026/08/04');
   const [endDate, setEndDate] = useState('2026/08/11');
-  const [orgFilter, setOrgFilter] = useState('');
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
+  const orgFilter = selectedOrgId ? getOrgById(INITIAL_ORG_NODES, selectedOrgId)?.name ?? '' : '';
   const [keyword, setKeyword] = useState('');
   const [personPage, setPersonPage] = useState(1);
   const [personPageSize, setPersonPageSize] = useState(10);
@@ -344,7 +345,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
     setPeriod('week');
     setStartDate('2026/08/04');
     setEndDate('2026/08/11');
-    setOrgFilter('');
+    setSelectedOrgId(null);
     setKeyword('');
     setReporterSort('score');
     setAuditorSort('audited');
@@ -363,12 +364,6 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
     } else if (p === 'month') {
       setStartDate('2026/08/01');
       setEndDate('2026/08/31');
-    } else if (p === 'quarter') {
-      setStartDate('2026/07/01');
-      setEndDate('2026/09/30');
-    } else if (p === 'year') {
-      setStartDate('2026/01/01');
-      setEndDate('2026/12/31');
     }
   };
 
@@ -419,7 +414,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
 
   const scopedReporters = reporterRecords.filter((r) => !orgFilter || r.org === orgFilter);
   const scopedAuditors = auditorRecords.filter((r) => !orgFilter || r.org === orgFilter);
-  const scopeLabel = orgFilter || `全域 ${orgRecords.length} 家机构`;
+  const scopeLabel = orgFilter || `全域 ${orgRecords.length} 个组织节点`;
 
   const reporterStats = useMemo(() => {
     const list = scopedReporters;
@@ -600,7 +595,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
         </div>
       )}
 
-      {/* 页头：标题 + 机构考核 / 人员考核 + 导出 */}
+      {/* 页头：标题 + 组织节点考核 / 人员考核 + 导出 */}
       <section className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.03)] sm:px-5">
         <div className="flex flex-col gap-3 border-b border-slate-100 pb-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-center gap-3">
@@ -614,7 +609,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
             <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50 p-0.5" role="tablist">
               <button type="button" role="tab" aria-selected={tab === 'org'} onClick={() => setTab('org')} className={tabButtonClass(tab === 'org')}>
                 <Building2 className="h-3.5 w-3.5" />
-                机构考核
+                组织节点考核
               </button>
               <button type="button" role="tab" aria-selected={tab === 'person'} onClick={() => setTab('person')} className={tabButtonClass(tab === 'person')}>
                 <UsersRound className="h-3.5 w-3.5" />
@@ -624,7 +619,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
 
             <button
               type="button"
-              onClick={() => showToast(`${tab === 'org' ? '机构' : '人员'}考核数据导出成功`)}
+              onClick={() => showToast(`${tab === 'org' ? '组织节点' : '人员'}考核数据导出成功`)}
               className="inline-flex min-h-8 items-center gap-1.5 rounded-xl bg-[#1D58C9] px-3.5 text-xs font-semibold text-white shadow-xs transition hover:bg-blue-700"
             >
               <Download className="h-3.5 w-3.5" />
@@ -633,108 +628,99 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
           </div>
         </div>
 
-        {/* 筛选栏（两个页签共用） */}
-          <div className="flex flex-wrap items-center gap-2.5 pt-3">
-            <div className="flex items-center rounded-2xl border border-[#E4EDF7] bg-[#F0F5FA] p-1 text-xs">
-              <span className="flex items-center gap-1 pl-2.5 pr-1.5 text-slate-500 select-none">
-                <Clock className="h-3.5 w-3.5 text-[#2F74FF]" />
-                <span>统计周期:</span>
-              </span>
+        {/* 筛选栏（两个页签共用，样式对齐统计管理） */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-[#E4EDF7] bg-[#F0F5FA] p-1 text-xs">
+              <div className="flex items-center gap-1.5 pl-2.5 pr-1.5 text-slate-500">
+                <Clock className="h-3.5 w-3.5 text-[#2F74FF] shrink-0" />
+                <span className="font-normal text-slate-500">统计周期:</span>
+              </div>
               {[
-                ['day', '日(今日)'],
-                ['week', '周(本周)'],
-                ['month', '月(本月)'],
-                ['quarter', '季度'],
-                ['year', '年度'],
+                ['day', '今日'],
+                ['week', '本周'],
+                ['month', '本月'],
                 ['custom', '自定义'],
-              ].map(([key, label]) => {
-                const active = period === key;
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => handlePeriodChange(key as Period)}
-                    className={`rounded-xl px-3 py-1 text-xs transition-all ${
-                    active ? 'bg-white font-semibold text-[#1B5BD6] shadow-xs' : 'text-slate-700 hover:text-slate-900'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
+              ].map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => handlePeriodChange(key as Period)}
+                  className={`min-h-7 cursor-pointer rounded-xl px-3 py-1 text-xs transition select-none ${
+                    period === key
+                      ? 'bg-white font-semibold text-[#1B5BD6] shadow-xs'
+                      : 'font-normal text-slate-700 hover:text-slate-900'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
 
-          <DateRangeField
-            startValue={startDate.replaceAll('/', '-')}
-            endValue={endDate.replaceAll('/', '-')}
-            onStartChange={(value) => {
-              setStartDate(value.replaceAll('-', '/'));
-                  setPeriod('custom');
-                }}
-            onEndChange={(value) => {
-              setEndDate(value.replaceAll('-', '/'));
-                  setPeriod('custom');
-                }}
-            title="考核时间区间"
-            startTitle="选择开始日期"
-            endTitle="选择结束日期"
-            inputClassName="w-24 flex-none font-mono text-[11px]"
-              />
+            <DateRangeField
+              startValue={startDate.replaceAll('/', '-')}
+              endValue={endDate.replaceAll('/', '-')}
+              readOnly={period !== 'custom'}
+              onRequestEdit={() => setPeriod('custom')}
+              onStartChange={(value) => {
+                setStartDate(value.replaceAll('-', '/'));
+                setPeriod('custom');
+              }}
+              onEndChange={(value) => {
+                setEndDate(value.replaceAll('-', '/'));
+                setPeriod('custom');
+              }}
+              title="考核时间区间"
+              startTitle="开始日期"
+              endTitle="结束日期"
+              inputClassName="w-24 flex-none font-mono text-[11px]"
+            />
 
-            <div className="relative flex items-center">
-              <select
-              aria-label="机构范围"
-              value={orgFilter}
-              onChange={(e) => setOrgFilter(e.target.value)}
-                className="appearance-none cursor-pointer rounded-2xl border border-blue-200 bg-white pl-3.5 pr-8 py-1.5 text-xs font-semibold text-[#1D58C9] outline-none shadow-xs"
-              >
-              <option value="">机构范围: 全部机构 ({orgRecords.length}家)</option>
-              {orgRecords.map((o) => (
-                <option key={o.name} value={o.name}>
-                  机构范围: {o.name}
-                </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-[#1D58C9]" />
-            </div>
-
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-xs transition hover:text-slate-800"
-              title="重置筛选"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-            </button>
+            <OrgFilterSelect
+              value={selectedOrgId}
+              onChange={setSelectedOrgId}
+              allLabel="全部组织节点"
+              title="按组织树穿透筛选"
+            />
           </div>
+
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="inline-flex min-h-8 cursor-pointer items-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 shadow-xs transition hover:text-slate-800"
+            title="重置筛选"
+          >
+            重置
+          </button>
+        </div>
       </section>
 
       {tab === 'org' ? (
         <>
-          {/* 全域机构考核指标 */}
+          {/* 全域组织节点考核指标 */}
           <section className={sectionClass}>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#1D58C9] text-white shadow-xs">
                   <Target className="h-4 w-4" />
                 </span>
-                <h2 className="text-sm font-bold text-slate-800">全域机构考核指标</h2>
+                <h2 className="text-sm font-bold text-slate-800">全域组织节点考核指标</h2>
               </div>
               <span className="rounded-xl bg-[#EBF3FF] px-3.5 py-1 text-xs font-semibold text-[#1D58C9]">
-                全域 28 家参评机构 · 654 名在册人员
+                全域 28 个参评组织节点 · 654 名在册人员
               </span>
             </div>
 
             <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-6 lg:[&>*]:col-span-2 lg:[&>*:nth-child(n+4)]:col-span-3 xl:grid-cols-5 xl:[&>*]:col-span-1 xl:[&>*:nth-child(n+4)]:col-span-1">
               <GlobalKpiCard
-                title="全域参评机构"
+                title="全域参评组织节点"
                 icon={<Globe2 className="h-4 w-4" />}
                 color="#1D58C9"
                 badge="达标率 100%"
                 badgeBg="#EDFAF5"
                 badgeColor="#08B889"
                 value="28"
-                unit="家"
+                unit="个"
                 subDetail={
                   <div className="font-mono">
                     <span className="font-medium text-[#1D58C9]">上报 486</span>
@@ -821,22 +807,22 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
 
           </section>
 
-          {/* 机构考核榜 */}
+          {/* 组织节点考核榜 */}
           <section className={sectionClass}>
             <div className="flex flex-col gap-3 border-b border-slate-100 pb-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex items-center gap-2">
                 <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
                   <BarChart3 className="h-3.5 w-3.5" />
                 </span>
-                <h2 className="text-sm font-bold text-slate-900">全域机构考核榜</h2>
+                <h2 className="text-sm font-bold text-slate-900">全域组织节点考核榜</h2>
                 <span className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">
-                  {orgFilter ? '已筛选 1 家' : `共 ${orgRecords.length} 家展示`}
+                  {orgFilter ? '已筛选 1 个' : `共 ${orgRecords.length} 个展示`}
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-500 font-medium">排序维度:</span>
                 <select
-                  aria-label="机构排名排序"
+                  aria-label="组织节点排名排序"
                   value={orgSort}
                   onChange={(e) => setOrgSort(e.target.value)}
                   className="min-h-8 cursor-pointer rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 outline-none shadow-xs hover:border-slate-300 focus:border-[#1D58C9] transition"
@@ -859,7 +845,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                 <thead className="bg-slate-50/90 text-slate-500 select-none border-b border-slate-200">
                   <tr>
                     <th className="px-3 py-3.5 text-center font-semibold text-slate-700">排名</th>
-                    <th className="px-3 py-3.5 font-semibold text-slate-700">机构名称 / 所属类型</th>
+                    <th className="px-3 py-3.5 font-semibold text-slate-700">组织节点名称 / 所属类型</th>
                     {[
                       ['participation', '人员参与 (参与/在册)', 'text-[#1D58C9]', '↓'],
                       ['total', '累计报送 (采纳/驳回/待审)', 'text-[#1D58C9]', '↓'],
@@ -897,7 +883,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                           {row.name}
                           {row.isMine && (
                             <span className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
-                              本机构
+                              本组织节点
                             </span>
                           )}
                         </div>
@@ -983,7 +969,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                   <Target className="h-4 w-4" />
                 </span>
                 <h2 className="text-sm font-bold text-slate-800">
-                  {orgFilter ? '机构' : '全域'}
+                  {orgFilter ? '组织节点' : '全域'}
                   {perspective === 'report' ? '上报员' : '审核员'}考核指标
                 </h2>
                 <span className="rounded-xl bg-[#EBF3FF] px-3 py-1 text-xs font-semibold text-[#1D58C9]">
@@ -1022,7 +1008,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                   title="参评上报员"
                   icon={<UsersRound className="h-4 w-4" />}
                   color="#1D58C9"
-                  badge={`覆盖 ${reporterStats.orgCount} 家机构`}
+                  badge={`覆盖 ${reporterStats.orgCount} 个组织节点`}
                   badgeBg="#EBF3FF"
                   badgeColor="#1D58C9"
                   value={String(reporterStats.count)}
@@ -1109,7 +1095,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                   title="参评审核员"
                   icon={<UsersRound className="h-4 w-4" />}
                   color="#08B889"
-                  badge={`覆盖 ${auditorStats.orgCount} 家机构`}
+                  badge={`覆盖 ${auditorStats.orgCount} 个组织节点`}
                   badgeBg="#EDFAF5"
                   badgeColor="#08B889"
                   value={String(auditorStats.count)}
@@ -1191,9 +1177,9 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                 {orgFilter && (
                   <button
                     type="button"
-                    onClick={() => setOrgFilter('')}
+                    onClick={() => setSelectedOrgId(null)}
                     className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 hover:bg-blue-100"
-                    title="清除机构筛选"
+                    title="清除组织节点筛选"
                   >
                     {orgFilter} ×
                   </button>
@@ -1246,7 +1232,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                   <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-700">
                     <tr>
                       <th className="w-24 px-3 py-3.5 text-center font-semibold">全域排名</th>
-                      <th className="px-3 py-3.5 font-semibold">上报员 / 所属机构</th>
+                      <th className="px-3 py-3.5 font-semibold">上报员 / 所属组织节点</th>
                       <th className="px-3 py-3.5 text-center font-semibold">累计采纳数 (首发/重复)</th>
                       <th className="px-3 py-3.5 text-center font-semibold">一次性通过率 (通过/总件数)</th>
                       <th className="px-3 py-3.5 text-center font-semibold">整体通过率 (通过/总件数)</th>
@@ -1315,7 +1301,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                   <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-700">
                     <tr>
                       <th className="w-24 px-3 py-3.5 text-center font-semibold">全域排名</th>
-                      <th className="px-3 py-3.5 font-semibold">审核员 / 所属机构</th>
+                      <th className="px-3 py-3.5 font-semibold">审核员 / 所属组织节点</th>
                       <th className="px-3 py-3.5 text-center font-semibold">累计审核数 (通过/驳回)</th>
                       <th className="px-3 py-3.5 text-center font-semibold">审核处理率 (已办/待审)</th>
                       <th className="px-3 py-3.5 text-center font-semibold">平均审核响应时长</th>
