@@ -362,18 +362,13 @@ export const DetailModal: React.FC<DetailModalProps> = ({
     const pad = (value: number) => String(value).padStart(2, '0');
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
   };
-  const hasFullReviewHistory = report.status === 'approved';
-  const firstRejectTime = shiftTime(report.updateTime, -90);
-  const resubmitTime = shiftTime(report.updateTime, -45);
-  const firstAuditHandled = report.status !== 'pending_audit';
-  const secondAuditHandled = report.status === 'approved';
-  const thirdAuditHandled = report.status === 'approved';
   const finalReviewScore = report.score ?? (report.status === 'approved' ? 92 : undefined);
   const showNodeConclusion =
     allowAuditActions && report.status !== 'pending_audit' && report.status !== 'draft';
   const nodeRejected = report.status === 'rejected';
   const nodeAuditorText = '王主任 · 市委宣传部舆情科';
-  const flowNodes: Array<{
+
+  type FlowNodeItem = {
     title: string;
     actor: string;
     people?: FlowPerson[];
@@ -392,133 +387,216 @@ export const DetailModal: React.FC<DetailModalProps> = ({
       reason?: string;
       scoreText?: string;
     }>;
-  }> = [
-    {
-      title: '提交上报',
-      actor: `${report.author} · ${report.authorDept}`,
-      people: [{ name: report.author, org: report.authorDept, time: report.createTime }],
-      status: hasFullReviewHistory ? '' : '已提交',
-      state: 'done',
-      time: report.createTime,
-      records: hasFullReviewHistory
-        ? [
-            {
-              label: '',
-              actor: `${report.author} · ${report.authorDept}`,
-              people: [{ name: report.author, org: report.authorDept, time: report.createTime }],
-              time: report.createTime,
-              status: '已提交',
-              state: 'done',
-            },
-            {
-              label: '',
-              actor: `${report.author} · ${report.authorDept}`,
-              people: [{ name: report.author, org: report.authorDept, time: resubmitTime }],
-              time: resubmitTime,
-              status: '已提交',
-              state: 'done',
-            },
-          ]
-        : undefined,
-    },
-    {
-      title: '审核处理',
-      actor: firstAuditHandled
-        ? `王主任 · 市委宣传部舆情科 · ${report.updateTime}`
-        : '王主任 · 市委宣传部舆情科、李审核 · 市委宣传部舆情科',
-      people: firstAuditHandled
-        ? [{ name: '王主任', org: '市委宣传部舆情科', time: report.updateTime }]
-        : [
+  };
+
+  const reporterPeople = (time?: string): FlowPerson[] => [
+    { name: report.author, org: report.authorDept, time },
+  ];
+
+  /** 按时间先后构建完整流转：上报→驳回→上报→通过→驳回→上报→通过→通过→通过→终审结束 */
+  const buildApprovedTimeline = (): FlowNodeItem[] => {
+    const t0 = report.createTime;
+    const t1 = shiftTime(report.createTime, 40);
+    const t2 = shiftTime(report.createTime, 80);
+    const t3 = shiftTime(report.createTime, 120);
+    const t4 = shiftTime(report.createTime, 160);
+    const t5 = shiftTime(report.createTime, 200);
+    const t6 = shiftTime(report.updateTime, -90);
+    const t7 = shiftTime(report.updateTime, -45);
+    const t8 = report.updateTime;
+    return [
+      {
+        title: '提交上报',
+        actor: `${report.author} · ${report.authorDept}`,
+        people: reporterPeople(t0),
+        status: '已提交',
+        state: 'done',
+        time: t0,
+      },
+      {
+        title: '审核处理',
+        actor: `王主任 · 市委宣传部舆情科 · ${t1}`,
+        people: [{ name: '王主任', org: '市委宣传部舆情科', time: t1 }],
+        status: rejectStatusLabel,
+        state: 'rejected',
+        time: t1,
+        rejectReason: fallbackRejectReason,
+      },
+      {
+        title: '提交上报',
+        actor: `${report.author} · ${report.authorDept}`,
+        people: reporterPeople(t2),
+        status: '已提交',
+        state: 'done',
+        time: t2,
+      },
+      {
+        title: '审核处理',
+        actor: `王主任 · 市委宣传部舆情科 · ${t3}`,
+        people: [{ name: '王主任', org: '市委宣传部舆情科', time: t3 }],
+        status: '已通过',
+        state: 'done',
+        time: t3,
+      },
+      {
+        title: '审核处理',
+        actor: `李明 · 市网信办复核组 · ${t4}`,
+        people: [{ name: '李明', org: '市网信办复核组', time: t4 }],
+        status: rejectStatusLabel,
+        state: 'rejected',
+        time: t4,
+        rejectReason: '复核未通过，请补充现场处置佐证材料后重新提交。',
+      },
+      {
+        title: '提交上报',
+        actor: `${report.author} · ${report.authorDept}`,
+        people: reporterPeople(t5),
+        status: '已提交',
+        state: 'done',
+        time: t5,
+      },
+      {
+        title: '审核处理',
+        actor: `王主任 · 市委宣传部舆情科 · ${t6}`,
+        people: [{ name: '王主任', org: '市委宣传部舆情科', time: t6 }],
+        status: '已通过',
+        state: 'done',
+        time: t6,
+      },
+      {
+        title: '审核处理',
+        actor: `李明 · 市网信办复核组 · ${t7}`,
+        people: [{ name: '李明', org: '市网信办复核组', time: t7 }],
+        status: '已通过',
+        state: 'done',
+        time: t7,
+      },
+      {
+        title: '审核处理',
+        actor: `赵宁 · 市网信办终审组 · ${t8}`,
+        people: [{ name: '赵宁', org: '市网信办终审组', time: t8 }],
+        status: '已通过',
+        state: 'done',
+        time: t8,
+        scoreText: `评分：${finalReviewScore}分`,
+      },
+      {
+        title: '结束',
+        actor: '流程结束',
+        people: [{ name: '流程结束' }],
+        status: '已采纳',
+        state: 'done',
+        time: t8,
+      },
+    ];
+  };
+
+  const buildSimpleTimeline = (): FlowNodeItem[] => {
+    const firstAuditHandled = report.status !== 'pending_audit';
+
+    // 待审核：只展示已提交 + 下一步待审核处理环节
+    if (report.status === 'pending_audit') {
+      return [
+        {
+          title: '提交上报',
+          actor: `${report.author} · ${report.authorDept}`,
+          people: reporterPeople(report.createTime),
+          status: '已提交',
+          state: 'done',
+          time: report.createTime,
+        },
+        {
+          title: '审核处理',
+          actor: '王主任 · 市委宣传部舆情科、李审核 · 市委宣传部舆情科',
+          people: [
             { name: '王主任', org: '市委宣传部舆情科' },
             { name: '李审核', org: '市委宣传部舆情科' },
           ],
-      status: hasFullReviewHistory
-        ? ''
-        : report.status === 'pending_audit'
-        ? '待审核'
-        : report.status === 'rejected'
-        ? rejectStatusLabel
-        : '已通过',
-      state:
-        report.status === 'pending_audit'
-          ? 'active'
-          : report.status === 'rejected'
-          ? 'rejected'
-          : 'done',
-      time: report.status === 'pending_audit' ? undefined : report.updateTime,
-      rejectReason: report.status === 'rejected' ? currentRejectReason : undefined,
-      records: hasFullReviewHistory
-        ? [
-            {
-              label: '',
-              actor: `王主任 · 市委宣传部舆情科 · ${firstRejectTime}`,
-              people: [{ name: '王主任', org: '市委宣传部舆情科', time: firstRejectTime }],
-              time: firstRejectTime,
-              status: rejectStatusLabel,
-              state: 'rejected',
-              reason: fallbackRejectReason,
-            },
-            {
-              label: '',
-              actor: `王主任 · 市委宣传部舆情科 · ${report.updateTime}`,
-              people: [{ name: '王主任', org: '市委宣传部舆情科', time: report.updateTime }],
-              time: report.updateTime,
-              status: '已通过',
-              state: 'done',
-              scoreText: report.status === 'approved' ? `评分：${finalReviewScore}分` : undefined,
-            },
-          ]
-        : undefined,
-    },
-    {
-      title: '审核处理',
-      actor: secondAuditHandled
-        ? `李明 · 市网信办复核组 · ${report.updateTime}`
-        : '李明 · 市网信办复核组、周复核 · 市网信办复核组',
-      people: secondAuditHandled
-        ? [{ name: '李明', org: '市网信办复核组', time: report.updateTime }]
-        : [
-            { name: '李明', org: '市网信办复核组' },
-            { name: '周复核', org: '市网信办复核组' },
-          ],
-      status:
-        report.status === 'auditing'
-          ? '待审核'
-          : report.status === 'approved'
-          ? '已通过'
-          : '等待处理',
-      state:
-        report.status === 'auditing'
-          ? 'active'
-          : report.status === 'approved'
-          ? 'done'
-          : 'waiting',
-      time: report.status === 'approved' ? report.updateTime : undefined,
-    },
-    {
-      title: '审核处理',
-      actor: thirdAuditHandled
-        ? `赵宁 · 市网信办终审组 · ${report.updateTime}`
-        : '赵宁 · 市网信办终审组、陈终审 · 市网信办终审组',
-      people: thirdAuditHandled
-        ? [{ name: '赵宁', org: '市网信办终审组', time: report.updateTime }]
-        : [
-            { name: '赵宁', org: '市网信办终审组' },
-            { name: '陈终审', org: '市网信办终审组' },
-          ],
-      status: report.status === 'approved' ? '已通过' : '等待处理',
-      state: report.status === 'approved' ? 'done' : 'waiting',
-      time: report.status === 'approved' ? report.updateTime : undefined,
-      scoreText: report.status === 'approved' ? `评分：${finalReviewScore}分` : undefined,
-    },
-    {
-      title: '结束',
-      actor: '流程结束',
-      people: [{ name: '流程结束' }],
-      status: report.status === 'approved' ? '已采纳' : '',
-      state: report.status === 'approved' ? 'done' : 'waiting',
-    },
-  ];
+          status: '待审核',
+          state: 'active',
+        },
+      ];
+    }
+
+    const nodes: FlowNodeItem[] = [
+      {
+        title: '提交上报',
+        actor: `${report.author} · ${report.authorDept}`,
+        people: reporterPeople(report.createTime),
+        status: '已提交',
+        state: 'done',
+        time: report.createTime,
+      },
+      {
+        title: '审核处理',
+        actor: firstAuditHandled
+          ? `王主任 · 市委宣传部舆情科 · ${report.updateTime}`
+          : '王主任 · 市委宣传部舆情科、李审核 · 市委宣传部舆情科',
+        people: firstAuditHandled
+          ? [{ name: '王主任', org: '市委宣传部舆情科', time: report.updateTime }]
+          : [
+              { name: '王主任', org: '市委宣传部舆情科' },
+              { name: '李审核', org: '市委宣传部舆情科' },
+            ],
+        status: report.status === 'rejected' ? rejectStatusLabel : '已通过',
+        state: report.status === 'rejected' ? 'rejected' : 'done',
+        time: report.updateTime,
+        rejectReason: report.status === 'rejected' ? currentRejectReason : undefined,
+      },
+    ];
+
+    if (report.status === 'auditing') {
+      // 审核中：已完成的环节 + 下一步待审核，不展示更后面的等待节点
+      nodes.push({
+        title: '审核处理',
+        actor: '李明 · 市网信办复核组、周复核 · 市网信办复核组',
+        people: [
+          { name: '李明', org: '市网信办复核组' },
+          { name: '周复核', org: '市网信办复核组' },
+        ],
+        status: '待审核',
+        state: 'active',
+      });
+      return nodes;
+    }
+
+    if (report.status === 'rejected') {
+      return nodes;
+    }
+
+    nodes.push(
+      {
+        title: '审核处理',
+        actor: `李明 · 市网信办复核组 · ${report.updateTime}`,
+        people: [{ name: '李明', org: '市网信办复核组', time: report.updateTime }],
+        status: '已通过',
+        state: 'done',
+        time: report.updateTime,
+      },
+      {
+        title: '审核处理',
+        actor: `赵宁 · 市网信办终审组 · ${report.updateTime}`,
+        people: [{ name: '赵宁', org: '市网信办终审组', time: report.updateTime }],
+        status: '已通过',
+        state: 'done',
+        time: report.updateTime,
+        scoreText: `评分：${finalReviewScore}分`,
+      },
+      {
+        title: '结束',
+        actor: '流程结束',
+        people: [{ name: '流程结束' }],
+        status: '已采纳',
+        state: 'done',
+      }
+    );
+    return nodes;
+  };
+
+  // 时间正序节点；展示时倒序，最早节点在页面下方
+  const flowNodes =
+    report.status === 'approved' ? buildApprovedTimeline() : buildSimpleTimeline();
+  const displayFlowNodes = [...flowNodes].reverse();
 
   const getFlowStatusClass = (state: string) => {
     if (state === 'done') return 'text-emerald-600 font-bold';
@@ -947,11 +1025,11 @@ export const DetailModal: React.FC<DetailModalProps> = ({
           </div>
 
           <div className="space-y-3 pl-2 pt-1 relative">
-            {flowNodes.map((node, index) => (
+            {displayFlowNodes.map((node, index) => (
               <div
                 key={`${node.title}-${index}`}
                 className={`flex items-start space-x-2.5 relative ${
-                  index < flowNodes.length - 1
+                  index < displayFlowNodes.length - 1
                     ? "after:absolute after:left-[7px] after:top-4 after:bottom-[-12px] after:w-0.5 after:bg-slate-200"
                     : ''
                 }`}

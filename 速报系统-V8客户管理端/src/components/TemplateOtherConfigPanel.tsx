@@ -93,7 +93,10 @@ interface TemplateOtherConfigPanelProps {
   };
   scoreRules?: ScoreRuleItem[];
   auditFlows?: AuditFlowItem[];
-  onSave: (updatedConfig: Partial<TemplateOtherConfigData>) => void;
+  /** 返回 false 表示保存被拦截，面板保持未保存态 */
+  onSave: (
+    updatedConfig: Partial<TemplateOtherConfigData>
+  ) => boolean | void | Promise<boolean | void>;
   onNavigateToModule?: (moduleId: string) => void;
 }
 
@@ -194,14 +197,25 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
 }) => {
   const isActivationTemplate = template.templateType === '激活';
 
+  // 只展示启用中的打分规则 / 审核流程（停用项不出现在下拉）
+  const enabledScoreRules = scoreRules.filter((item) => !item.status || item.status === '启用');
+  const enabledAuditFlows = auditFlows.filter((item) => !item.status || item.status === '启用');
+
   // 1. Report template state (Score rules & Audit flows)
   const [activeTab, setActiveTab] = useState<'score' | 'flow'>('score');
 
-  const initialScoreRuleId = template.relatedScoreRuleId || (
-    template.id === '3' ? '202' : '201'
+  const pickAvailableId = (preferred: string | undefined, options: { id: string }[], fallback = 'none') => {
+    if (preferred && options.some((item) => item.id === preferred)) return preferred;
+    return options[0]?.id || fallback;
+  };
+
+  const initialScoreRuleId = pickAvailableId(
+    template.relatedScoreRuleId || (template.id === '3' ? '202' : '201'),
+    enabledScoreRules
   );
-  const initialFlowId = template.relatedFlowId || (
-    template.id === '3' ? '602' : '601'
+  const initialFlowId = pickAvailableId(
+    template.relatedFlowId || (template.id === '3' ? '602' : '601'),
+    enabledAuditFlows
   );
 
   const [selectedScoreRuleId, setSelectedScoreRuleId] = useState<string>(initialScoreRuleId);
@@ -227,11 +241,13 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   useEffect(() => {
-    const nextScoreRuleId = template.relatedScoreRuleId || (
-      template.id === '3' ? '202' : '201'
+    const nextScoreRuleId = pickAvailableId(
+      template.relatedScoreRuleId || (template.id === '3' ? '202' : '201'),
+      enabledScoreRules
     );
-    const nextFlowId = template.relatedFlowId || (
-      template.id === '3' ? '602' : '601'
+    const nextFlowId = pickAvailableId(
+      template.relatedFlowId || (template.id === '3' ? '602' : '601'),
+      enabledAuditFlows
     );
     setSelectedScoreRuleId(nextScoreRuleId);
     setScoreTiming(template.scoreTiming || 'final_audit');
@@ -263,25 +279,39 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
     template.adaptedRoles
   ]);
 
-  const activeScoreRule = scoreRules.find(r => r.id === selectedScoreRuleId);
-  const activeFlow = auditFlows.find(f => f.id === selectedFlowId);
+  const activeScoreRule = enabledScoreRules.find((r) => r.id === selectedScoreRuleId);
+  const activeFlow = enabledAuditFlows.find((f) => f.id === selectedFlowId);
 
-  const handleSave = () => {
-    if (isActivationTemplate) {
-      onSave({
-        verifyPhone,
-        verifyIdCard,
-        verifyBankCard,
-        adaptedRoles
-      });
-    } else {
-      onSave({
-        relatedScoreRuleId: selectedScoreRuleId,
-        scoreTiming,
-        syncToPerformance,
-        relatedFlowId: selectedFlowId
-      });
+  const enabledScoreRuleIds = enabledScoreRules.map((item) => item.id).join(',');
+  const enabledAuditFlowIds = enabledAuditFlows.map((item) => item.id).join(',');
+
+  useEffect(() => {
+    if (selectedScoreRuleId !== 'none' && !enabledScoreRules.some((item) => item.id === selectedScoreRuleId)) {
+      setSelectedScoreRuleId(enabledScoreRules[0]?.id || 'none');
+      setIsDirty(true);
     }
+    if (selectedFlowId !== 'none' && !enabledAuditFlows.some((item) => item.id === selectedFlowId)) {
+      setSelectedFlowId(enabledAuditFlows[0]?.id || 'none');
+      setIsDirty(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在启用列表 ID 变化时校正选中项
+  }, [enabledScoreRuleIds, enabledAuditFlowIds]);
+
+  const handleSave = async () => {
+    const result = isActivationTemplate
+      ? await onSave({
+          verifyPhone,
+          verifyIdCard,
+          verifyBankCard,
+          adaptedRoles
+        })
+      : await onSave({
+          relatedScoreRuleId: selectedScoreRuleId,
+          scoreTiming,
+          syncToPerformance,
+          relatedFlowId: selectedFlowId
+        });
+    if (result === false) return;
     setIsDirty(false);
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2000);
@@ -298,16 +328,20 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
           : ['上报员', '审核员']
       );
     } else {
-      const nextScoreRuleId = template.relatedScoreRuleId || (
-        template.id === '3' ? '202' : '201'
+      setSelectedScoreRuleId(
+        pickAvailableId(
+          template.relatedScoreRuleId || (template.id === '3' ? '202' : '201'),
+          enabledScoreRules
+        )
       );
-      const nextFlowId = template.relatedFlowId || (
-        template.id === '3' ? '602' : '601'
-      );
-      setSelectedScoreRuleId(nextScoreRuleId);
       setScoreTiming(template.scoreTiming || 'final_audit');
       setSyncToPerformance(template.syncToPerformance ?? true);
-      setSelectedFlowId(nextFlowId);
+      setSelectedFlowId(
+        pickAvailableId(
+          template.relatedFlowId || (template.id === '3' ? '602' : '601'),
+          enabledAuditFlows
+        )
+      );
     }
     setIsDirty(false);
   };
@@ -607,7 +641,7 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
                     className="w-full px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white font-medium text-gray-800 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
                   >
                     <option value="none">不关联评分规则 (免评分)</option>
-                    {scoreRules.map(r => (
+                    {enabledScoreRules.map((r) => (
                       <option key={r.id} value={r.id}>
                         {r.name} {r.totalScore ? `(${r.totalScore}分)` : ''}
                       </option>
@@ -701,7 +735,7 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
                     className="w-full px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white font-medium text-gray-800 focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer"
                   >
                     <option value="none">免审批流程 (直接入库)</option>
-                    {auditFlows.map(f => (
+                    {enabledAuditFlows.map((f) => (
                       <option key={f.id} value={f.id}>
                         {f.name} ({f.flowDepth || f.auditNodes?.length || 1}级)
                       </option>

@@ -12,6 +12,11 @@ import { DateRangeField } from '../components/DateRangeField';
 import { OrgFilterSelect } from '../components/OrgFilterSelect';
 import { INITIAL_ORG_NODES, matchOrganizationByFilter } from '../data/userOrgShared';
 import { resolveIdentification } from '../services/identificationService';
+import { alertDialog } from '../components/common/ConfirmDialog';
+import {
+  INSTRUCTION_FLOW_TRANSFER_TIP,
+  isInstructionFlowEnabled,
+} from '../shared/valueAddedClientStatus';
 
 /** 与数据仓库一致：除「已转办」外均视为待转办 */
 const getTransferStatus = (report?: ReportItem | null) =>
@@ -376,7 +381,16 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
                       {reportMatch ? (
                         <button
                           type="button"
-                          onClick={() => setTransferTarget(reportMatch)}
+                          onClick={() => {
+                            if (!isInstructionFlowEnabled()) {
+                              void alertDialog(INSTRUCTION_FLOW_TRANSFER_TIP, {
+                                title: '增值业务未开通',
+                                okText: '知道了',
+                              });
+                              return;
+                            }
+                            setTransferTarget(reportMatch);
+                          }}
                           className={`hover:underline cursor-pointer ${
                             transferPending
                               ? 'text-[#1E5ABB] hover:text-[#184A9C] font-semibold'

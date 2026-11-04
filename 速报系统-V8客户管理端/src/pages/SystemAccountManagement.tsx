@@ -739,7 +739,6 @@ export const SystemAccountManagement: React.FC<SystemAccountManagementProps> = (
             getGroupName={getGroupName}
             startIndex={(currentPage - 1) * pageSize}
             emptyText="暂无匹配的系统账号"
-            onAvatarClick={setViewing}
             onToggleStatus={handleToggleStatus}
             onEdit={openEditModal}
             onDelete={handleDelete}

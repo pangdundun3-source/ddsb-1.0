@@ -36,6 +36,12 @@ import {
   ReportItem,
   ReportTemplateInput
 } from '../types';
+import {
+  AUDIT_MODULE_PAGES,
+  EXTERNAL_AUDIT_MODULE_TIP,
+  isExternalAuditEnabled,
+} from '../shared/valueAddedAccess';
+import { alertDialog } from '../components/common/ConfirmDialog';
 
 const VALID_PAGES: PageId[] = [
   'login',
@@ -99,14 +105,17 @@ export const useAppViewModel = () => {
 
   const [activePage, setActivePage] = useState<PageId>(() => {
     try {
+      const resolvePage = (page: PageId): PageId =>
+        AUDIT_MODULE_PAGES.has(page) && !isExternalAuditEnabled() ? 'home' : page;
       const hashRoute = getHashRoute();
       if (hashRoute) {
-        localStorage.setItem('ddsb_active_page', hashRoute.page);
-        return hashRoute.page;
+        const page = resolvePage(hashRoute.page);
+        localStorage.setItem('ddsb_active_page', page);
+        return page;
       }
       const savedPage = localStorage.getItem('ddsb_active_page') as PageId | null;
       if (savedPage && VALID_PAGES.includes(savedPage)) {
-        return savedPage;
+        return resolvePage(savedPage);
       }
       return 'login';
     } catch {
@@ -132,6 +141,13 @@ export const useAppViewModel = () => {
     const syncFromHash = () => {
       const hashRoute = getHashRoute();
       if (hashRoute) {
+        if (AUDIT_MODULE_PAGES.has(hashRoute.page) && !isExternalAuditEnabled()) {
+          if (window.location.hash !== '#/home') {
+            window.location.hash = '#/home';
+          }
+          setActivePage('home');
+          return;
+        }
         setActivePage((prev) => {
           if (prev !== hashRoute.page) {
             try {
@@ -246,6 +262,14 @@ export const useAppViewModel = () => {
   };
 
   const handleNavigate = (page: PageId, extraModule?: string) => {
+    // 外部审核未开通/停用：拦截审核管理模块入口
+    if (AUDIT_MODULE_PAGES.has(page) && !isExternalAuditEnabled()) {
+      void alertDialog(EXTERNAL_AUDIT_MODULE_TIP, {
+        title: '增值业务未开通',
+        okText: '知道了',
+      });
+      return;
+    }
     setActivePage(page);
     if (page === 'report-summary') {
       setReportSummaryInitialTab(

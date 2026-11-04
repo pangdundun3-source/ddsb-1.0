@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>速报系统 · 流转状态设计说明</title>
+  <style>
+    @page { size: A4; margin: 16mm 14mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+      color: #1f2937;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    h1 {
+      margin: 0 0 6px;
+      font-size: 22px;
+      color: #0f172a;
+    }
+    .sub {
+      color: #64748b;
+      font-size: 12px;
+      margin-bottom: 18px;
+    }
+    h2 {
+      margin: 22px 0 10px;
+      font-size: 15px;
+      color: #1e3a8a;
+      border-bottom: 1.5px solid #dbeafe;
+      padding-bottom: 4px;
+    }
+    h3 {
+      margin: 16px 0 8px;
+      font-size: 13px;
+      color: #0f172a;
+    }
+    p { margin: 6px 0; }
+    ul { margin: 6px 0 10px 18px; padding: 0; }
+    li { margin: 3px 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0 12px;
+      font-size: 11.5px;
+    }
+    th, td {
+      border: 1px solid #e2e8f0;
+      padding: 7px 8px;
+      vertical-align: top;
+      text-align: left;
+    }
+    th {
+      background: #f1f5f9;
+      color: #334155;
+      font-weight: 700;
+    }
+    .note {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin: 8px 0 12px;
+    }
+    .tag {
+      display: inline-block;
+      padding: 1px 7px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .tag-done { background: #ecfdf5; color: #047857; }
+    .tag-active { background: #fffbeb; color: #b45309; }
+    .tag-reject { background: #fff1f2; color: #be123c; }
+    .flow {
+      font-family: Consolas, "Courier New", monospace;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 11.5px;
+      margin: 8px 0 12px;
+      letter-spacing: 0.2px;
+    }
+    .section-keep { page-break-inside: avoid; }
+    .footer {
+      margin-top: 24px;
+      padding-top: 10px;
+      border-top: 1px solid #e2e8f0;
+      color: #94a3b8;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <h1>速报系统 · 流转状态设计说明</h1>
+  <div class="sub">适用端：审核上报 H5 / 审核上报 PC / 客户管理端详情页 · 模块名称：流转状态</div>
+
+  <h2>一、通用规则</h2>
+  <div class="section-keep">
+    <ol>
+      <li><strong>模块标题</strong>：流转状态</li>
+      <li><strong>展示顺序</strong>：时间倒序——最新节点在上，最早节点在下</li>
+      <li><strong>原则</strong>：未发生的后续环节不预展示（例如「审核中」不出现终审、结束等待节点）</li>
+      <li><strong>节点结构</strong>：左侧时间轴圆点 + 节点标题 + 内容卡片</li>
+    </ol>
+
+    <h3>1. 节点态视觉</h3>
+    <table>
+      <thead>
+        <tr><th>节点态</th><th>含义</th><th>建议视觉</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="tag tag-done">已完成</span></td><td>已办结环节</td><td>绿色勾</td></tr>
+        <tr><td><span class="tag tag-active">进行中 / 待处理</span></td><td>当前待办</td><td>橙色时钟</td></tr>
+        <tr><td><span class="tag tag-reject">已驳回</span></td><td>驳回环节</td><td>红色感叹号</td></tr>
+      </tbody>
+    </table>
+
+    <h3>2. 卡片字段</h3>
+    <table>
+      <thead>
+        <tr><th>字段</th><th>说明</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>处理人</td><td>姓名；已办结可带头像；多人时并排/多行展示</td></tr>
+        <tr><td>组织</td><td>部门路径，如「市委宣传部舆情科」</td></tr>
+        <tr><td>时间</td><td>已办结显示；待办可不显示时间</td></tr>
+        <tr><td>状态文案</td><td>右上角：已提交 / 已通过 / 待审核 / 被驳回(或已驳回) / 已采纳 等</td></tr>
+        <tr><td>驳回原因</td><td>仅驳回节点，红底说明块</td></tr>
+        <tr><td>评分</td><td>仅终审通过节点，绿底「评分：xx分」</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>二、各业务状态下的节点清单</h2>
+
+  <div class="section-keep">
+    <h3>1）待审核</h3>
+    <table>
+      <thead>
+        <tr><th>正序</th><th>节点标题</th><th>状态文案</th><th>展示信息</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>提交上报</td><td>已提交</td><td>报送人 · 组织 · 提交时间</td></tr>
+        <tr><td>2</td><td>审核处理</td><td>待审核</td><td>多人待办（示例：王主任、李审核 · 市委宣传部舆情科）；可不显示时间</td></tr>
+      </tbody>
+    </table>
+    <div class="note">页面倒序展示：先「待审核」，下为「已提交」。</div>
+  </div>
+
+  <div class="section-keep">
+    <h3>2）审核中</h3>
+    <table>
+      <thead>
+        <tr><th>正序</th><th>节点标题</th><th>状态文案</th><th>展示信息</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>提交上报</td><td>已提交</td><td>报送人 · 组织 · 时间</td></tr>
+        <tr><td>2</td><td>审核处理</td><td>已通过</td><td>王主任 · 市委宣传部舆情科 · 时间</td></tr>
+        <tr><td>3</td><td>审核处理</td><td>待审核</td><td>多人待办（示例：李明、周复核 · 市网信办复核组）</td></tr>
+      </tbody>
+    </table>
+    <div class="note">不展示终审、结束等后续未发生节点。</div>
+  </div>
+
+  <div class="section-keep">
+    <h3>3）已驳回 / 被驳回</h3>
+    <table>
+      <thead>
+        <tr><th>正序</th><th>节点标题</th><th>状态文案</th><th>展示信息</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>提交上报</td><td>已提交</td><td>报送人 · 组织 · 时间</td></tr>
+        <tr><td>2</td><td>审核处理</td><td>被驳回 / 已驳回</td><td>审核人 · 组织 · 时间 + 驳回原因（红底说明）</td></tr>
+      </tbody>
+    </table>
+    <div class="note">报送侧常用「被驳回」，审核侧常用「已驳回」。</div>
+  </div>
+
+  <div class="section-keep">
+    <h3>4）已采纳（及已通过 / 待转办 / 已转办）——完整链路</h3>
+    <div class="flow">上报 → 驳回 → 上报 → 通过 → 驳回 → 上报 → 通过 → 通过 → 通过 → 结束</div>
+    <table>
+      <thead>
+        <tr><th>#</th><th>节点标题</th><th>状态文案</th><th>展示信息</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>提交上报</td><td>已提交</td><td>报送人 · 组织 · 时间</td></tr>
+        <tr><td>2</td><td>审核处理</td><td>被驳回/已驳回</td><td>王主任 · 市委宣传部舆情科 · 时间 + 驳回原因</td></tr>
+        <tr><td>3</td><td>提交上报</td><td>已提交</td><td>报送人 · 组织 · 时间（再次上报）</td></tr>
+        <tr><td>4</td><td>审核处理</td><td>已通过</td><td>王主任 · 市委宣传部舆情科 · 时间</td></tr>
+        <tr><td>5</td><td>审核处理</td><td>被驳回/已驳回</td><td>李明 · 市网信办复核组 · 时间 + 驳回原因</td></tr>
+        <tr><td>6</td><td>提交上报</td><td>已提交</td><td>报送人 · 组织 · 时间（第三次上报）</td></tr>
+        <tr><td>7</td><td>审核处理</td><td>已通过</td><td>王主任 · 市委宣传部舆情科 · 时间</td></tr>
+        <tr><td>8</td><td>审核处理</td><td>已通过</td><td>李明 · 市网信办复核组 · 时间</td></tr>
+        <tr><td>9</td><td>审核处理</td><td>已通过</td><td>赵宁 · 市网信办终审组 · 时间 + 评分：xx分</td></tr>
+        <tr><td>10</td><td>结束</td><td>见下表</td><td>流程结束</td></tr>
+      </tbody>
+    </table>
+
+    <h3>结束节点状态文案</h3>
+    <table>
+      <thead>
+        <tr><th>速报整体状态</th><th>结束节点文案</th><th>补充说明</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>已采纳</td><td>已采纳</td><td>—</td></tr>
+        <tr><td>已通过</td><td>待采纳</td><td>—</td></tr>
+        <tr><td>待转办</td><td>待转办</td><td>可加说明：已进入不良信息库，等待责任单位转办</td></tr>
+        <tr><td>已转办</td><td>已转办</td><td>可显示转办时间</td></tr>
+      </tbody>
+    </table>
+    <div class="note">页面倒序展示：最上为「结束 / 已采纳」，最下为最早一次「提交上报」。</div>
+  </div>
+
+  <h2>三、建议设计稿覆盖场景（4 张）</h2>
+  <ol>
+    <li><strong>待审核</strong>（2 节点，含多人待办）</li>
+    <li><strong>审核中</strong>（3 节点，含已通过 + 多人待办）</li>
+    <li><strong>已驳回</strong>（含驳回原因块）</li>
+    <li><strong>已采纳完整链路</strong>（10 节点倒序，含两次驳回、三次上报、终审评分）</li>
+  </ol>
+
+  <h2>四、设计提示</h2>
+  <ul>
+    <li>同一标题「审核处理」「提交上报」会多次出现，不要做成固定 5 步模板，应按真实发生节点纵向堆叠。</li>
+    <li>待办多人：头像 + 姓名并排，状态「待审核」。</li>
+    <li>已办结单人：头像 + 姓名 · 组织 · 时间，状态「已通过 / 已提交」。</li>
+    <li>驳回必须露出原因文案区；终审通过额外露出评分区。</li>
+    <li>H5 与 PC / 客户管理端信息结构一致，可一套组件两端适配。</li>
+  </ul>
+
+  <div class="footer">文档用途：提供给 UI 设计同事输出「流转状态」设计图 · 不含草稿状态</div>
+</body>
+</html>

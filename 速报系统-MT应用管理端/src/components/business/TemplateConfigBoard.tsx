@@ -158,6 +158,17 @@ interface TemplateConfigBoardProps {
   onNavigateToScoring?: () => void;
   titleMode?: 'card' | 'plain' | 'hidden';
   titleExtra?: React.ReactNode;
+  /** 来自审核打分规则模块的启用项（停用项不传） */
+  scoringRuleOptions?: ScoringRuleOptionItem[];
+  /** 来自审核流程配置模块的启用项（停用项不传） */
+  auditFlowOptions?: AuditFlowOptionItem[];
+  /**
+   * 为 true 时：模板若绑定模式一/二流程则禁止启用。
+   * 机构侧在外部审核未启用时应传 true。
+   */
+  blockExternalDependentFlows?: boolean;
+  /** 模式一/二审核流程 id（不论启停），用于启用模板时校验 */
+  externalDependentFlowIds?: string[];
 }
 
 export interface ScoringRuleOptionItem {
@@ -217,6 +228,8 @@ export interface AuditFlowOptionItem {
   fallbackText: string;
   applyScopeText: string;
   nodes: AuditFlowNodePreview[];
+  /** adaptive/max_n 依赖外部审核；direct 不依赖 */
+  flowMode?: 'adaptive' | 'max_n' | 'direct';
 }
 
 const AUDIT_FLOW_PRESET_OPTIONS: AuditFlowOptionItem[] = [
@@ -525,10 +538,10 @@ const initialDefaultTemplates: BusinessTemplateItem[] = [
     updateTime: '2023-10-24 10:00:00',
     description: '适用于日常标准文字、图片、附件类线索报送场景',
     fields: standardReportFields,
-    scoreRuleId: 'sr_100_standard',
+    scoreRuleId: '201',
     scoreTiming: '终审打分',
     includeInEvaluation: true,
-    auditFlowId: 'flow_adaptive_tree_3'
+    auditFlowId: '601'
   },
   {
     id: 'tpl_report_quick',
@@ -544,10 +557,10 @@ const initialDefaultTemplates: BusinessTemplateItem[] = [
       { id: 'qf_3', name: '现场图片/证据附件', type: 'file', required: true, placeholder: '支持图片、视频、PDF证明文档' },
       { id: 'qf_4', name: '事件分类', type: 'select', required: true, placeholder: '请选择事件分类', options: ['突发敏感事件', '网络舆情动态', '民生诉求建议'] }
     ],
-    scoreRuleId: 'sr_100_standard',
+    scoreRuleId: '201',
     scoreTiming: '初审打分',
     includeInEvaluation: true,
-    auditFlowId: 'flow_max_3_fast'
+    auditFlowId: '602'
   },
   {
     id: 'tpl_act_std',
@@ -591,6 +604,87 @@ const initialDefaultTemplates: BusinessTemplateItem[] = [
 ];
 
 const GLOBAL_TEMPLATE_STORAGE_KEY = 'v8_template_board_data_global';
+export const TEMPLATE_BOARD_UPDATED_EVENT = 'v8-template-board-updated';
+
+export const getTemplateBoardStorageKey = (institutionId?: string | number | null) =>
+  `v8_template_board_data_${institutionId ?? 'global'}`;
+
+const readBoardTemplates = (storageKey: string): BusinessTemplateItem[] => {
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return normalizeTemplateFields(parsed);
+    }
+  } catch {
+    // ignore malformed store
+  }
+  return storageKey === GLOBAL_TEMPLATE_STORAGE_KEY ? initialDefaultTemplates : readGlobalTemplates();
+};
+
+/** 打分规则 / 审核流程停用时：解绑并停用模板配置板中的关联报送模板 */
+export const unbindAndDisableBoardTemplates = (options: {
+  institutionId?: string | number | null;
+  bindKey: 'scoreRuleId' | 'auditFlowId';
+  sourceId: string;
+  applyAllReportTemplates?: boolean;
+  linkedNames?: string[];
+  nowStr: string;
+}): { count: number; names: string[] } => {
+  const storageKey = getTemplateBoardStorageKey(options.institutionId);
+  const templates = readBoardTemplates(storageKey);
+  const nameSet = new Set((options.linkedNames || []).filter(Boolean));
+  const linked: BusinessTemplateItem[] = [];
+
+  templates.forEach((item) => {
+    if ((item.templateType || '报送') !== '报送') return;
+    const boundById = item[options.bindKey] === options.sourceId;
+    const boundByApplyAll = Boolean(options.applyAllReportTemplates);
+    const boundByName = nameSet.has(item.name);
+    if (boundById || boundByApplyAll || boundByName) linked.push(item);
+  });
+
+  if (linked.length === 0) return { count: 0, names: [] };
+
+  const linkedIds = new Set(linked.map((item) => item.id));
+  const next = templates.map((item) => {
+    if (!linkedIds.has(item.id)) return item;
+    return {
+      ...item,
+      [options.bindKey]: undefined,
+      status: '停用' as const,
+      updateTime: options.nowStr
+    };
+  });
+  localStorage.setItem(storageKey, JSON.stringify(next));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent(TEMPLATE_BOARD_UPDATED_EVENT, { detail: { storageKey } })
+    );
+  }
+  return { count: linked.length, names: linked.map((item) => item.name) };
+};
+
+/** 预览将受停用影响的模板（不解绑，仅查询） */
+export const findLinkedBoardTemplates = (options: {
+  institutionId?: string | number | null;
+  bindKey: 'scoreRuleId' | 'auditFlowId';
+  sourceId: string;
+  applyAllReportTemplates?: boolean;
+  linkedNames?: string[];
+}): BusinessTemplateItem[] => {
+  const storageKey = getTemplateBoardStorageKey(options.institutionId);
+  const templates = readBoardTemplates(storageKey);
+  const nameSet = new Set((options.linkedNames || []).filter(Boolean));
+  return templates.filter((item) => {
+    if ((item.templateType || '报送') !== '报送') return false;
+    return (
+      item[options.bindKey] === options.sourceId ||
+      Boolean(options.applyAllReportTemplates) ||
+      nameSet.has(item.name)
+    );
+  });
+};
 
 const readGlobalTemplates = (): BusinessTemplateItem[] => {
   try {
@@ -640,7 +734,37 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   onNavigateToScoring,
   titleMode = 'card',
   titleExtra,
+  scoringRuleOptions,
+  auditFlowOptions,
+  blockExternalDependentFlows = false,
+  externalDependentFlowIds,
 }) => {
+  // 传入 props 时只展示真实启用项（可为空）；未传时才回退本地预置
+  const scoringRules = scoringRuleOptions !== undefined ? scoringRuleOptions : SCORING_RULE_OPTIONS;
+  const allAuditFlows = auditFlowOptions !== undefined ? auditFlowOptions : AUDIT_FLOW_PRESET_OPTIONS;
+  const externalDependentFlowIdSet = new Set(externalDependentFlowIds || []);
+  const KNOWN_MODE12_FLOW_IDS = new Set([
+    '601',
+    '602',
+    'flow_adaptive_tree_3',
+    'flow_max_3_fast',
+    'flow_multi_4_level'
+  ]);
+  const isExternalDependentFlowId = (flowId?: string) => {
+    if (!flowId) return false;
+    if (externalDependentFlowIdSet.has(flowId)) return true;
+    if (KNOWN_MODE12_FLOW_IDS.has(flowId)) return true;
+    const matched = allAuditFlows.find((f) => f.id === flowId || f.name === flowId);
+    if (matched?.flowMode === 'adaptive' || matched?.flowMode === 'max_n') return true;
+    if (matched?.flowMode === 'direct') return false;
+    const label = matched?.name || flowId;
+    if (/直达/.test(label)) return false;
+    return /逐级|最多|自适应|组织树/.test(label);
+  };
+  // 外部审核未开通时，下拉中不提供模式一/二，避免误选后仍能启用
+  const auditFlows = blockExternalDependentFlows
+    ? allAuditFlows.filter((f) => !isExternalDependentFlowId(f.id))
+    : allAuditFlows;
   const storageKey = `v8_template_board_data_${institutionId ?? 'global'}`;
 
   // State: Templates data store
@@ -673,8 +797,24 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
         // ignore malformed payloads
       }
     };
+    const syncFromSameWindow = (event: Event) => {
+      const detail = (event as CustomEvent<{ storageKey?: string }>).detail;
+      if (detail?.storageKey && detail.storageKey !== storageKey) return;
+      try {
+        const saved = localStorage.getItem(storageKey);
+        if (!saved) return;
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setTemplates(normalizeTemplateFields(parsed));
+      } catch {
+        // ignore malformed payloads
+      }
+    };
     window.addEventListener('storage', syncFromOtherWindow);
-    return () => window.removeEventListener('storage', syncFromOtherWindow);
+    window.addEventListener(TEMPLATE_BOARD_UPDATED_EVENT, syncFromSameWindow as EventListener);
+    return () => {
+      window.removeEventListener('storage', syncFromOtherWindow);
+      window.removeEventListener(TEMPLATE_BOARD_UPDATED_EVENT, syncFromSameWindow as EventListener);
+    };
   }, [storageKey]);
 
   // Desktop 3-column widths (mouse-draggable)
@@ -1041,15 +1181,32 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     const target = templates.find(t => t.id === id);
     if (!target) return;
     const nextStatus: '启用' | '停用' = target.status === '启用' ? '停用' : '启用';
-    if (nextStatus === '启用' && target.templateType === '报送' && (!target.scoreRuleId || !target.auditFlowId)) {
-      const missing =
-        !target.scoreRuleId && !target.auditFlowId
-          ? '打分规则和审核流程'
-          : !target.scoreRuleId
-            ? '打分规则'
-            : '审核流程';
-      alertDialog(`请先在右侧「其他业务配置」关联${missing}并保存，再启用该模板`);
-      return;
+    if (nextStatus === '启用' && target.templateType === '报送') {
+      const effectiveScoreRuleId =
+        pendingOtherConfig?.templateId === target.id && pendingOtherConfig.scoreRuleId !== undefined
+          ? pendingOtherConfig.scoreRuleId
+          : target.scoreRuleId;
+      const effectiveAuditFlowId =
+        pendingOtherConfig?.templateId === target.id && pendingOtherConfig.auditFlowId !== undefined
+          ? pendingOtherConfig.auditFlowId
+          : target.auditFlowId;
+
+      if (!effectiveScoreRuleId || !effectiveAuditFlowId) {
+        const missing =
+          !effectiveScoreRuleId && !effectiveAuditFlowId
+            ? '打分规则和审核流程'
+            : !effectiveScoreRuleId
+              ? '打分规则'
+              : '审核流程';
+        await alertDialog(`请先在右侧「其他业务配置」关联${missing}并保存，再启用该模板`);
+        return;
+      }
+      if (blockExternalDependentFlows && isExternalDependentFlowId(effectiveAuditFlowId)) {
+        await alertDialog(
+          '未开通外部审核功能，当前模板关联的审核流程依赖外部审核，暂时无法启用。请先开通外部审核，或更换流程后再启用。'
+        );
+        return;
+      }
     }
     const dropPreset = isGlobalScope && target.isPreset && nextStatus === '停用';
     if (
@@ -1414,8 +1571,18 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   };
 
   // Update right side business config (score rules / verification switches / adapted roles)
-  const handleSaveOtherConfig = () => {
+  const handleSaveOtherConfig = async () => {
     if (!activeTemplate) return;
+    if (
+      activeTemplate.templateType === '报送' &&
+      blockExternalDependentFlows &&
+      isExternalDependentFlowId(currentAuditFlowId)
+    ) {
+      await alertDialog(
+        '未开通外部审核功能，该流程所依赖的外部审核暂不可用，暂时无法关联到模板。'
+      );
+      return;
+    }
     const updatedTpl: BusinessTemplateItem = {
       ...activeTemplate,
       scoreRuleId: currentScoreRuleId || undefined,
@@ -3231,10 +3398,10 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
           {/* Right Body */}
           <div className="p-4 flex-1 overflow-y-auto space-y-4 bg-white">
             {!isActivationMode && (() => {
-              const selectedFlow = AUDIT_FLOW_PRESET_OPTIONS.find(
+              const selectedFlow = auditFlows.find(
                 f => f.id === currentAuditFlowId || f.name === currentAuditFlowId
               );
-              const selectedScoreRule = SCORING_RULE_OPTIONS.find(r => r.id === currentScoreRuleId);
+              const selectedScoreRule = scoringRules.find(r => r.id === currentScoreRuleId);
 
               return (
                 <div className="space-y-3.5">
@@ -3284,7 +3451,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                             <option value="" disabled>
                               请选择打分规则
                             </option>
-                            {SCORING_RULE_OPTIONS.map((rule) => (
+                            {scoringRules.map((rule) => (
                               <option key={rule.id} value={rule.id}>
                                 {rule.name} ({rule.maxScore}分)
                               </option>
@@ -3372,7 +3539,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                             <option value="" disabled>
                               请选择审核流程
                             </option>
-                            {AUDIT_FLOW_PRESET_OPTIONS.map((flow) => (
+                            {auditFlows.map((flow) => (
                               <option key={flow.id} value={flow.id}>
                                 {flow.name}
                               </option>

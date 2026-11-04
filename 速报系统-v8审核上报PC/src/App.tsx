@@ -28,6 +28,7 @@ import { BusinessConfig } from './pages/BusinessConfig';
 import { SystemLogs } from './pages/SystemLogs';
 import { Login } from './pages/Login';
 import { MessageCenter } from './pages/MessageCenter';
+import { ConfirmDialogHost } from './components/common/ConfirmDialog';
 
 const SYSTEM_LOGS_VIEW_VERSION = 'system-logs-filter-risk-clean-20260814';
 
@@ -92,15 +93,19 @@ export default function App() {
 
   if (activePage === 'login') {
     return (
-      <Login
-        onLoginSuccess={() => handleNavigate('home')}
-        onNavigate={handleNavigate}
-      />
+      <>
+        <ConfirmDialogHost />
+        <Login
+          onLoginSuccess={() => handleNavigate('home')}
+          onNavigate={handleNavigate}
+        />
+      </>
     );
   }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F0F4F8] text-gray-800 font-sans antialiased selection:bg-blue-100 selection:text-blue-900">
+      <ConfirmDialogHost />
       {(toastInfo || toastMessage) && (
         <div
           id="global-toast-notification"

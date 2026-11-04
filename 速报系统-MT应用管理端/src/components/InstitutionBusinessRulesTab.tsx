@@ -1338,6 +1338,7 @@ export const InstitutionBusinessRulesTab: React.FC<Props> = ({
               initialModule={activeV8Module}
               storageKey={v8StorageKey}
               fallbackStorageKey={v8FallbackStorageKey}
+              institutionName={isGlobalScope ? undefined : institution?.name}
               valueAddedAllOperable
               templateTitleMode={navPosition === 'top' ? 'inline' : 'card'}
               hideValueAddedStatusBadge={isGlobalScope}

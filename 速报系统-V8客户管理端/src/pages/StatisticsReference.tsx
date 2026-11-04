@@ -8,8 +8,6 @@ import {
   UsersRound,
 } from 'lucide-react';
 import {
-  Bar,
-  BarChart,
   CartesianGrid,
   Cell,
   Line,
@@ -31,25 +29,28 @@ interface StatisticsReferenceProps {
 }
 
 type TimeRange = 'day' | 'week' | 'month' | 'custom';
+type TrendView = 'org' | 'group' | 'grid' | 'auditor';
+
+type DonutItem = { name: string; value: number; color: string };
 
 const reportTrendBase = [
-  { label: '周一 (08-04)', total: 1280, passed: 1150, rejected: 85, directRate: 75.2, passRate: 89.8, score: 86.5, processRate: 96.2, avgTime: 14.8 },
-  { label: '周二 (08-05)', total: 1420, passed: 1280, rejected: 92, directRate: 76, passRate: 90.1, score: 87.2, processRate: 96.8, avgTime: 14.2 },
-  { label: '周三 (08-06)', total: 1650, passed: 1490, rejected: 110, directRate: 78.4, passRate: 90.3, score: 88.6, processRate: 97.4, avgTime: 13.5 },
-  { label: '周四 (08-07)', total: 1560, passed: 1410, rejected: 98, directRate: 77.8, passRate: 90.4, score: 88.2, processRate: 97.8, avgTime: 13.6 },
-  { label: '周五 (08-08)', total: 1820, passed: 1650, rejected: 125, directRate: 79.5, passRate: 90.7, score: 89.5, processRate: 98.5, avgTime: 12.9 },
-  { label: '周六 (08-09)', total: 1320, passed: 1180, rejected: 90, directRate: 76.5, passRate: 89.4, score: 87.8, processRate: 98.2, avgTime: 14.5 },
-  { label: '周日 (08-10)', total: 1430, passed: 1210, rejected: 180, directRate: 77.4, passRate: 89.4, score: 88.5, processRate: 98.8, avgTime: 13.8 },
+  { label: '周一 (08-04)', total: 1280, passed: 1150, rejected: 85, directRate: 75.2, passRate: 89.8, score: 86.5, processRate: 96.2, avgTime: 14.8, audited: 1180 },
+  { label: '周二 (08-05)', total: 1420, passed: 1280, rejected: 92, directRate: 76, passRate: 90.1, score: 87.2, processRate: 96.8, avgTime: 14.2, audited: 1310 },
+  { label: '周三 (08-06)', total: 1650, passed: 1490, rejected: 110, directRate: 78.4, passRate: 90.3, score: 88.6, processRate: 97.4, avgTime: 13.5, audited: 1520 },
+  { label: '周四 (08-07)', total: 1560, passed: 1410, rejected: 98, directRate: 77.8, passRate: 90.4, score: 88.2, processRate: 97.8, avgTime: 13.6, audited: 1440 },
+  { label: '周五 (08-08)', total: 1820, passed: 1650, rejected: 125, directRate: 79.5, passRate: 90.7, score: 89.5, processRate: 98.5, avgTime: 12.9, audited: 1690 },
+  { label: '周六 (08-09)', total: 1320, passed: 1180, rejected: 90, directRate: 76.5, passRate: 89.4, score: 87.8, processRate: 98.2, avgTime: 14.5, audited: 1210 },
+  { label: '周日 (08-10)', total: 1430, passed: 1210, rejected: 180, directRate: 77.4, passRate: 89.4, score: 88.5, processRate: 98.8, avgTime: 13.8, audited: 1320 },
 ];
 
-const reportDonutBase = [
+const reportDonutBase: DonutItem[] = [
   { name: '一次性通过', value: 8110, color: '#08B889' },
   { name: '返修通过', value: 1260, color: '#2C6BE0' },
   { name: '待审核', value: 660, color: '#9BA9BB' },
   { name: '驳回', value: 450, color: '#F04453' },
 ];
 
-const auditDonutBase = [
+const auditDonutBase: DonutItem[] = [
   { name: '审核通过', value: 9240, color: '#08B889' },
   { name: '审核驳回', value: 620, color: '#F04453' },
   { name: '待审核', value: 120, color: '#9BA9BB' },
@@ -78,6 +79,13 @@ const groupStatsBase = [
   { id: 'grp-xb-env', name: '西坝区环保舆情联动组', members: 22, total: 640, passed: 568, passRate: 88.8, processRate: 96.2, score: 85.4, avgTime: 15.2 },
   { id: 'grp-xb-river', name: '河长制速报联络群', members: 18, total: 420, passed: 378, passRate: 90.0, processRate: 97.1, score: 86.2, avgTime: 14.0 },
   { id: 'grp-xb-night', name: '西坝夜间值班备勤组', members: 16, total: 300, passed: 255, passRate: 85.0, processRate: 95.4, score: 84.1, avgTime: 16.5 },
+];
+
+const trendViewOptions: { id: TrendView; label: string }[] = [
+  { id: 'org', label: '组织节点' },
+  { id: 'group', label: '群组' },
+  { id: 'grid', label: '网格员' },
+  { id: 'auditor', label: '审核员' },
 ];
 
 const scaleCount = (value: number, factor: number) => Math.max(1, Math.round(value * factor));
@@ -139,7 +147,7 @@ const PanelTitle: React.FC<{
 const DonutPanel: React.FC<{
   title: string;
   iconColor: string;
-  data: typeof reportDonut;
+  data: DonutItem[];
   total: number;
   centerLabel: string;
   footer: Array<{ label: string; value: string; color: string }>;
@@ -224,6 +232,7 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
   const [endDate, setEndDate] = useState('2026-08-11');
   const [selectedOrg, setSelectedOrg] = useState<string | null>(null);
   const [selectedGroup, setSelectedGroup] = useState(groupOptions[0].id);
+  const [trendView, setTrendView] = useState<TrendView>('org');
   const [toast, setToast] = useState<string | null>(null);
   const [reportLines, setReportLines] = useState({
     total: true,
@@ -234,6 +243,7 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
     score: true,
     processRate: true,
     avgTime: true,
+    audited: true,
   });
 
   const periodLabel = `${startDate.replaceAll('-', '/')} - ${endDate.replaceAll('-', '/')}`;
@@ -244,15 +254,19 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
     return factor;
   }, [selectedOrg, selectedGroup]);
 
+  const viewFactor =
+    trendView === 'group' ? 0.85 : trendView === 'grid' ? 0.72 : trendView === 'auditor' ? 0.78 : 1;
+
   const reportTrend = useMemo(
     () =>
       reportTrendBase.map((row) => ({
         ...row,
-        total: scaleCount(row.total, scopeFactor),
-        passed: scaleCount(row.passed, scopeFactor),
-        rejected: scaleCount(row.rejected, scopeFactor),
+        total: scaleCount(row.total, scopeFactor * viewFactor),
+        passed: scaleCount(row.passed, scopeFactor * viewFactor),
+        rejected: scaleCount(row.rejected, scopeFactor * viewFactor),
+        audited: scaleCount(row.audited, scopeFactor * viewFactor),
       })),
-    [scopeFactor],
+    [scopeFactor, viewFactor],
   );
 
   const reportDonut = useMemo(
@@ -283,17 +297,6 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
       .sort((a, b) => b.total - a.total);
   }, [selectedGroup, selectedOrg]);
 
-  const groupBarData = useMemo(
-    () =>
-      groupRows.map((row) => ({
-        name: row.name.length > 8 ? `${row.name.slice(0, 8)}…` : row.name,
-        fullName: row.name,
-        total: row.total,
-        passed: row.passed,
-      })),
-    [groupRows],
-  );
-
   const scopeBadge =
     !selectedOrg && selectedGroup === 'all'
       ? '全部组织节点 · 全部用户群组'
@@ -303,6 +306,15 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
         ]
           .filter(Boolean)
           .join(' · ');
+
+  const trendTitle =
+    trendView === 'org'
+      ? '指标趋势图'
+      : trendView === 'group'
+        ? '群组指标趋势图'
+        : trendView === 'grid'
+          ? '网格员指标趋势图'
+          : '审核员指标趋势图';
 
   const showToast = (message: string) => {
     setToast(message);
@@ -329,6 +341,11 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
     setEndDate('2026-08-11');
     setSelectedOrg(null);
     setSelectedGroup(groupOptions[0].id);
+    setTrendView('org');
+  };
+
+  const toggleLine = (key: keyof typeof reportLines) => {
+    setReportLines((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   return (
@@ -373,7 +390,6 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
 
         <div className="flex flex-wrap items-center justify-between gap-3 pt-3">
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* 统计周期胶囊盒 */}
             <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-[#E4EDF7] bg-[#F0F5FA] p-1 text-xs">
               <div className="flex items-center gap-1.5 pl-2.5 pr-1.5 text-slate-500">
                 <Clock className="h-3.5 w-3.5 text-[#2F74FF] shrink-0" />
@@ -455,20 +471,67 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] sm:p-5">
         <PanelTitle
           icon={<TrendingUp className="h-3.5 w-3.5" />}
-          title="组织节点指标趋势图"
+          title={trendTitle}
           badge={scopeBadge}
-          right={<span className="text-[10px] text-slate-400">数据更新于 2026/08/11 09:00</span>}
+          right={
+            <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50 p-0.5" role="tablist" aria-label="趋势视角">
+              {trendViewOptions.map((option) => {
+                const active = trendView === option.id;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setTrendView(option.id)}
+                    className={`min-h-7 cursor-pointer rounded-lg px-2.5 text-[11px] transition ${
+                      active
+                        ? 'bg-white font-semibold text-[#1B5BD6] shadow-xs'
+                        : 'font-medium text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          }
         />
+
         <div className="flex flex-wrap gap-1.5 py-3">
-          <ChartLegendButton label="上报量" color={chartColors.blue} active={reportLines.total} onClick={() => setReportLines((prev) => ({ ...prev, total: !prev.total }))} />
-          <ChartLegendButton label="有效采纳量" color={chartColors.green} active={reportLines.passed} onClick={() => setReportLines((prev) => ({ ...prev, passed: !prev.passed }))} />
-          <ChartLegendButton label="驳回整改量" color={chartColors.red} active={reportLines.rejected} onClick={() => setReportLines((prev) => ({ ...prev, rejected: !prev.rejected }))} />
-          <ChartLegendButton label="首审直通率(%)" color={chartColors.purple} active={reportLines.directRate} onClick={() => setReportLines((prev) => ({ ...prev, directRate: !prev.directRate }))} />
-          <ChartLegendButton label="整体采纳率(%)" color={chartColors.teal} active={reportLines.passRate} onClick={() => setReportLines((prev) => ({ ...prev, passRate: !prev.passRate }))} />
-          <ChartLegendButton label="综合考核均分" color={chartColors.amber} active={reportLines.score} onClick={() => setReportLines((prev) => ({ ...prev, score: !prev.score }))} />
-          <ChartLegendButton label="审核处理率(%)" color={chartColors.cyan} active={reportLines.processRate} onClick={() => setReportLines((prev) => ({ ...prev, processRate: !prev.processRate }))} />
-          <ChartLegendButton label="审核响应平均耗时(分钟)" color="#EC4899" active={reportLines.avgTime} onClick={() => setReportLines((prev) => ({ ...prev, avgTime: !prev.avgTime }))} />
+          {(trendView === 'org' || trendView === 'group') && (
+            <>
+              <ChartLegendButton label="上报量" color={chartColors.blue} active={reportLines.total} onClick={() => toggleLine('total')} />
+              <ChartLegendButton label="有效采纳量" color={chartColors.green} active={reportLines.passed} onClick={() => toggleLine('passed')} />
+              <ChartLegendButton label="驳回整改量" color={chartColors.red} active={reportLines.rejected} onClick={() => toggleLine('rejected')} />
+              <ChartLegendButton label="首审直通率(%)" color={chartColors.purple} active={reportLines.directRate} onClick={() => toggleLine('directRate')} />
+              <ChartLegendButton label="整体采纳率(%)" color={chartColors.teal} active={reportLines.passRate} onClick={() => toggleLine('passRate')} />
+              <ChartLegendButton label="综合考核均分" color={chartColors.amber} active={reportLines.score} onClick={() => toggleLine('score')} />
+              <ChartLegendButton label="审核处理率(%)" color={chartColors.cyan} active={reportLines.processRate} onClick={() => toggleLine('processRate')} />
+              <ChartLegendButton label="审核响应平均耗时(分钟)" color="#EC4899" active={reportLines.avgTime} onClick={() => toggleLine('avgTime')} />
+            </>
+          )}
+          {trendView === 'grid' && (
+            <>
+              <ChartLegendButton label="上报量" color={chartColors.blue} active={reportLines.total} onClick={() => toggleLine('total')} />
+              <ChartLegendButton label="有效采纳量" color={chartColors.green} active={reportLines.passed} onClick={() => toggleLine('passed')} />
+              <ChartLegendButton label="驳回整改量" color={chartColors.red} active={reportLines.rejected} onClick={() => toggleLine('rejected')} />
+              <ChartLegendButton label="首审直通率(%)" color={chartColors.purple} active={reportLines.directRate} onClick={() => toggleLine('directRate')} />
+              <ChartLegendButton label="整体通过率(%)" color={chartColors.teal} active={reportLines.passRate} onClick={() => toggleLine('passRate')} />
+              <ChartLegendButton label="人均考核均分" color={chartColors.amber} active={reportLines.score} onClick={() => toggleLine('score')} />
+            </>
+          )}
+          {trendView === 'auditor' && (
+            <>
+              <ChartLegendButton label="审核量" color={chartColors.blue} active={reportLines.audited} onClick={() => toggleLine('audited')} />
+              <ChartLegendButton label="审核通过量" color={chartColors.green} active={reportLines.passed} onClick={() => toggleLine('passed')} />
+              <ChartLegendButton label="审核驳回量" color={chartColors.red} active={reportLines.rejected} onClick={() => toggleLine('rejected')} />
+              <ChartLegendButton label="审核处理率(%)" color={chartColors.cyan} active={reportLines.processRate} onClick={() => toggleLine('processRate')} />
+              <ChartLegendButton label="平均响应耗时(分钟)" color="#EC4899" active={reportLines.avgTime} onClick={() => toggleLine('avgTime')} />
+            </>
+          )}
         </div>
+
         <div className="h-[270px] w-full sm:h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={reportTrend} margin={{ top: 8, right: 18, left: -12, bottom: 6 }}>
@@ -488,14 +551,31 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
                   name,
                 ]}
               />
-              {reportLines.total && <Line yAxisId="count" type="monotone" dataKey="total" name="上报量" stroke={chartColors.blue} strokeWidth={2.2} dot={{ r: 3, fill: chartColors.blue }} />}
-              {reportLines.passed && <Line yAxisId="count" type="monotone" dataKey="passed" name="有效采纳量" stroke={chartColors.green} strokeWidth={2.2} dot={{ r: 3, fill: chartColors.green }} />}
-              {reportLines.rejected && <Line yAxisId="count" type="monotone" dataKey="rejected" name="驳回整改量" stroke={chartColors.red} strokeWidth={1.6} dot={{ r: 2, fill: chartColors.red }} />}
-              {reportLines.directRate && <Line yAxisId="rate" type="monotone" dataKey="directRate" name="首审直通率" stroke={chartColors.purple} strokeDasharray="4 4" strokeWidth={1.6} dot={{ r: 2, fill: chartColors.purple }} />}
-              {reportLines.passRate && <Line yAxisId="rate" type="monotone" dataKey="passRate" name="整体采纳率" stroke={chartColors.teal} strokeWidth={1.6} dot={{ r: 2, fill: chartColors.teal }} />}
-              {reportLines.score && <Line yAxisId="rate" type="monotone" dataKey="score" name="综合考核均分" stroke={chartColors.amber} strokeDasharray="3 3" strokeWidth={1.6} dot={{ r: 2, fill: chartColors.amber }} />}
-              {reportLines.processRate && <Line yAxisId="rate" type="monotone" dataKey="processRate" name="审核处理率" stroke={chartColors.cyan} strokeDasharray="3 3" strokeWidth={1.6} dot={{ r: 2, fill: chartColors.cyan }} />}
-              {reportLines.avgTime && <Line yAxisId="time" type="monotone" dataKey="avgTime" name="审核响应平均耗时" stroke="#EC4899" strokeWidth={1.6} dot={{ r: 2, fill: '#EC4899' }} />}
+              {(trendView === 'org' || trendView === 'group' || trendView === 'grid') && (
+                <>
+                  {reportLines.total && <Line yAxisId="count" type="monotone" dataKey="total" name="上报量" stroke={chartColors.blue} strokeWidth={2.2} dot={{ r: 3, fill: chartColors.blue }} />}
+                  {reportLines.passed && <Line yAxisId="count" type="monotone" dataKey="passed" name="有效采纳量" stroke={chartColors.green} strokeWidth={2.2} dot={{ r: 3, fill: chartColors.green }} />}
+                  {reportLines.rejected && <Line yAxisId="count" type="monotone" dataKey="rejected" name="驳回整改量" stroke={chartColors.red} strokeWidth={1.6} dot={{ r: 2, fill: chartColors.red }} />}
+                  {reportLines.directRate && <Line yAxisId="rate" type="monotone" dataKey="directRate" name="首审直通率" stroke={chartColors.purple} strokeDasharray="4 4" strokeWidth={1.6} dot={{ r: 2, fill: chartColors.purple }} />}
+                  {reportLines.passRate && <Line yAxisId="rate" type="monotone" dataKey="passRate" name={trendView === 'grid' ? '整体通过率' : '整体采纳率'} stroke={chartColors.teal} strokeWidth={1.6} dot={{ r: 2, fill: chartColors.teal }} />}
+                  {reportLines.score && <Line yAxisId="rate" type="monotone" dataKey="score" name={trendView === 'grid' ? '人均考核均分' : '综合考核均分'} stroke={chartColors.amber} strokeDasharray="3 3" strokeWidth={1.6} dot={{ r: 2, fill: chartColors.amber }} />}
+                </>
+              )}
+              {(trendView === 'org' || trendView === 'group') && (
+                <>
+                  {reportLines.processRate && <Line yAxisId="rate" type="monotone" dataKey="processRate" name="审核处理率" stroke={chartColors.cyan} strokeDasharray="3 3" strokeWidth={1.6} dot={{ r: 2, fill: chartColors.cyan }} />}
+                  {reportLines.avgTime && <Line yAxisId="time" type="monotone" dataKey="avgTime" name="审核响应平均耗时" stroke="#EC4899" strokeWidth={1.6} dot={{ r: 2, fill: '#EC4899' }} />}
+                </>
+              )}
+              {trendView === 'auditor' && (
+                <>
+                  {reportLines.audited && <Line yAxisId="count" type="monotone" dataKey="audited" name="审核量" stroke={chartColors.blue} strokeWidth={2.2} dot={{ r: 3, fill: chartColors.blue }} />}
+                  {reportLines.passed && <Line yAxisId="count" type="monotone" dataKey="passed" name="审核通过量" stroke={chartColors.green} strokeWidth={2.2} dot={{ r: 3, fill: chartColors.green }} />}
+                  {reportLines.rejected && <Line yAxisId="count" type="monotone" dataKey="rejected" name="审核驳回量" stroke={chartColors.red} strokeWidth={1.6} dot={{ r: 2, fill: chartColors.red }} />}
+                  {reportLines.processRate && <Line yAxisId="rate" type="monotone" dataKey="processRate" name="审核处理率" stroke={chartColors.cyan} strokeDasharray="3 3" strokeWidth={1.6} dot={{ r: 2, fill: chartColors.cyan }} />}
+                  {reportLines.avgTime && <Line yAxisId="time" type="monotone" dataKey="avgTime" name="平均响应耗时" stroke="#EC4899" strokeWidth={1.6} dot={{ r: 2, fill: '#EC4899' }} />}
+                </>
+              )}
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -503,7 +583,7 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <DonutPanel
-          title="上报员报送统计"
+          title="网格员报送统计"
           iconColor="#1D58C9"
           data={reportDonut}
           total={reportTotal}
@@ -512,7 +592,7 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
           footer={[
             { label: '整体通过率', value: '89.4%', color: '#08B889' },
             { label: '一次性通过率', value: '77.4%', color: '#1D58C9' },
-            { label: '在册上报员', value: scopeFactor < 1 ? `${Math.max(8, Math.round(486 * scopeFactor))}人` : '486人', color: '#8656F4' },
+            { label: '在册网格员', value: scopeFactor < 1 ? `${Math.max(8, Math.round(486 * scopeFactor))}人` : '486人', color: '#8656F4' },
             { label: '人均上报量', value: '21.6件', color: '#F5A400' },
             { label: '人均考核均分', value: '88.5分', color: '#5C6FE7' },
           ]}
@@ -536,27 +616,10 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] sm:p-5">
         <PanelTitle
           icon={<UsersRound className="h-3.5 w-3.5" />}
-          title="群组统计"
+          title="用户群组效能排行"
           badge={selectedGroup === 'all' ? `共 ${groupRows.length} 个用户群组` : '已筛选 1 个群组'}
           right={<span className="text-[10px] text-slate-400">与上方组织节点 / 周期筛选联动</span>}
         />
-
-        <div className="mt-3 h-[220px] w-full sm:h-[240px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={groupBarData} margin={{ top: 8, right: 12, left: -8, bottom: 8 }}>
-              <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} interval={0} />
-              <YAxis tick={{ fill: '#64748b', fontSize: 9 }} axisLine={false} tickLine={false} unit="件" />
-              <Tooltip
-                contentStyle={{ border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 11 }}
-                labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName || ''}
-                formatter={(value: number, name: string) => [`${formatNumber(value)} 件`, name]}
-              />
-              <Bar dataKey="total" name="上报量" fill={chartColors.blue} radius={[4, 4, 0, 0]} maxBarSize={36} />
-              <Bar dataKey="passed" name="采纳量" fill={chartColors.green} radius={[4, 4, 0, 0]} maxBarSize={36} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
 
         <div className="mt-3 overflow-x-auto rounded-lg border border-slate-100">
           <table className="w-full min-w-[860px] text-left text-xs">
@@ -577,7 +640,7 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
               {groupRows.map((row, index) => (
                 <tr
                   key={row.id}
-                  className={`transition hover:bg-violet-50/40 ${selectedGroup === row.id ? 'bg-violet-50/60' : ''}`}
+                  className={`transition hover:bg-slate-50 ${selectedGroup === row.id ? 'bg-blue-50/50' : ''}`}
                 >
                   <td className="px-3 py-2.5 text-center font-mono font-semibold text-slate-700">{index + 1}</td>
                   <td className="px-3 py-2.5 font-semibold text-slate-900">{row.name}</td>

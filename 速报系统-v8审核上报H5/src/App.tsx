@@ -27,6 +27,8 @@ import { OfficialAccountEntryView } from './components/OfficialAccountEntryView'
 import { ActivationH5View } from './components/ActivationH5View';
 import { AnnouncementDetailView } from './components/AnnouncementDetailView';
 import { calculatePreJudgment, IDENTIFICATION_CONFIG, resolveOfficialTag } from './utils/identification';
+import { EXTERNAL_AUDIT_MODULE_TIP, isExternalAuditEnabled } from './shared/valueAddedAccess';
+import { alertDialog, ConfirmDialogHost } from './components/ConfirmDialog';
 
 export default function App() {
   // Application State with LocalStorage Persistence
@@ -471,11 +473,16 @@ export default function App() {
     if (notif.relatedReportId) {
       const target = reports.find((r) => r.id === notif.relatedReportId);
       if (target) {
-        setSelectedReportEntry(
-          notif.type === '待审核通知' && target.status === 'pending_audit'
-            ? 'audit_pending'
-            : null
-        );
+        const wantsAudit =
+          notif.type === '待审核通知' && target.status === 'pending_audit';
+        if (wantsAudit && !isExternalAuditEnabled()) {
+          void alertDialog(EXTERNAL_AUDIT_MODULE_TIP, {
+            title: '增值业务未开通',
+            okText: '知道了',
+          });
+          return;
+        }
+        setSelectedReportEntry(wantsAudit ? 'audit_pending' : null);
         setSelectedReport(target);
       }
     }
@@ -485,6 +492,13 @@ export default function App() {
     report: SpeedReport,
     entry: 'report_pending' | 'audit_pending' | null = null
   ) => {
+    if (entry === 'audit_pending' && !isExternalAuditEnabled()) {
+      void alertDialog(EXTERNAL_AUDIT_MODULE_TIP, {
+        title: '增值业务未开通',
+        okText: '知道了',
+      });
+      return;
+    }
     setSelectedReportEntry(entry);
     setSelectedReport(report);
   };
@@ -577,6 +591,13 @@ export default function App() {
       <WeChatPhoneShell
         currentTab={currentTab}
         onSelectTab={(tab) => {
+          if (tab === 'audit' && !isExternalAuditEnabled()) {
+            void alertDialog(EXTERNAL_AUDIT_MODULE_TIP, {
+              title: '增值业务未开通',
+              okText: '知道了',
+            });
+            return;
+          }
           setCurrentTab(tab);
           setViewMode('main');
           setSelectedAnnouncement(null);
@@ -682,6 +703,7 @@ export default function App() {
               onToast={showToast}
             />
             <Toast toast={toast} onClose={() => setToast(null)} />
+            <ConfirmDialogHost />
           </>
         }
       >
@@ -698,7 +720,15 @@ export default function App() {
               setIsLoggedIn(true);
               setIsOfficialAccount(false);
               if (targetRole === '审核员') {
-                setCurrentTab('audit');
+                if (isExternalAuditEnabled()) {
+                  setCurrentTab('audit');
+                } else {
+                  setCurrentTab('home');
+                  void alertDialog(EXTERNAL_AUDIT_MODULE_TIP, {
+                    title: '增值业务未开通',
+                    okText: '知道了',
+                  });
+                }
               } else {
                 setCurrentTab('home');
               }
@@ -740,6 +770,13 @@ export default function App() {
               showToast('已进入工作台首页');
             }}
             onEnterAuditList={() => {
+              if (!isExternalAuditEnabled()) {
+                void alertDialog(EXTERNAL_AUDIT_MODULE_TIP, {
+                  title: '增值业务未开通',
+                  okText: '知道了',
+                });
+                return;
+              }
               resetModuleViewState();
               setIsLoggedIn(true);
               setIsOfficialAccount(false);

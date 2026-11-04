@@ -1,7 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { alertDialog, confirmDialog } from '../common/ConfirmDialog';
 import { createPortal } from 'react-dom';
-import { TemplateConfigBoard } from './TemplateConfigBoard';
+import {
+  TemplateConfigBoard,
+  findLinkedBoardTemplates,
+  unbindAndDisableBoardTemplates,
+  type ScoringRuleOptionItem,
+  type AuditFlowOptionItem
+} from './TemplateConfigBoard';
+import { publishValueAddedProvision } from '../../shared/valueAddedProvision';
+import {
+  applyValueAddedCatalog,
+  isValueAddedCatalogApplied,
+  matchValueAddedCatalogItem,
+  publishValueAddedCatalog,
+  VALUE_ADDED_CATALOG_EVENT,
+  VALUE_ADDED_CATALOG_STORAGE_KEY,
+} from '../../shared/valueAddedCatalog';
 import { ControlNoticeTip } from './ControlNoticeTip';
 import {
   Search,
@@ -191,6 +206,10 @@ interface ConfigModuleItem {
   scoreLevels?: ScoreLevel[];
   relatedTemplateId?: string;
   relatedTemplateName?: string;
+  /** 报送模板关联的审核流程 id */
+  relatedFlowId?: string;
+  /** 报送模板关联的打分规则 id */
+  relatedScoreRuleId?: string;
   templateApplyMode?: AuditTemplateApplyMode;
   flowDepth?: number;
   flowLevelDirection?: 'up' | 'down';
@@ -429,6 +448,27 @@ function loadPersistedDataStore(
     }
     merged.value_added = existingList;
   }
+  // 机构侧：名称/描述始终跟随全局母版（含已发布目录与全局持久化）
+  if (Array.isArray(merged.value_added) && fallbackStorageKey && storageKey !== fallbackStorageKey) {
+    const globalSaved = readKey(fallbackStorageKey);
+    const globalList = Array.isArray(globalSaved?.value_added) ? globalSaved!.value_added : [];
+    if (globalList.length > 0) {
+      merged.value_added = merged.value_added.map((item) => {
+        const matched = matchValueAddedCatalogItem(globalList, item);
+        if (!matched) return item;
+        const matchedFull = globalList.find(
+          (g) => g.id === matched.id || (matched.dictCode && g.dictCode === matched.dictCode)
+        );
+        return {
+          ...item,
+          name: matched.name,
+          description: matched.description ?? '',
+          customized: matchedFull?.customized ?? item.customized,
+        };
+      });
+    }
+    merged.value_added = applyValueAddedCatalog(merged.value_added);
+  }
   // 「人员标签」已改为「公告分类」：旧数据带 personnelRoleGroup，整体替换为默认公告分类
   if (Array.isArray(saved?.data_dict) && saved.data_dict.some((i) => i.dictCategory === 'info_category' && i.personnelRoleGroup)) {
     const defaultNoticeItems = (defaults?.data_dict || []).filter((i) => i.dictCategory === 'info_category');
@@ -476,6 +516,8 @@ interface BusinessConfigProps {
   storageKey?: string;
   /** 回退持久化键；当本作用域无保存数据时，从此键读取（用于机构继承全局母版） */
   fallbackStorageKey?: string;
+  /** 机构名称：用于把增值业务开通态同步到客户管理端 */
+  institutionName?: string | null;
   /** 增值业务全部开放启禁：隐藏“未开通(不可启禁)”及联系销售提示，所有服务可直接启禁，且启禁状态与开通状态联动 */
   valueAddedAllOperable?: boolean;
   /** 隐藏增值业务卡片上的“已开通/未开通”状态徽标（全局配置维度不需要该状态展示） */
@@ -495,6 +537,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
   embedded = false,
   storageKey,
   fallbackStorageKey,
+  institutionName,
   valueAddedAllOperable = false,
   hideValueAddedStatusBadge = false,
   isGlobalScope: propIsGlobalScope,
@@ -908,9 +951,64 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
           // 忽略持久化写入异常，预览态不阻塞交互
         }
       }
+      // 机构侧增值业务开通态同步给客户管理端
+      if (!isGlobalScope && next.value_added) {
+        publishValueAddedProvision(institutionName, next.value_added);
+      }
       return next;
     });
   };
+
+  // 进入机构配置时先同步一次当前开通态
+  useEffect(() => {
+    if (isGlobalScope) return;
+    publishValueAddedProvision(institutionName, dataStore.value_added || []);
+    // 仅在作用域 / 机构名变化时同步；避免 value_added 每次渲染重复写
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGlobalScope, institutionName, storageKey]);
+
+  // 全局配置：发布增值业务名称/描述目录，供机构端与客户管理端跟随
+  useEffect(() => {
+    if (!isGlobalScope) return;
+    publishValueAddedCatalog(dataStore.value_added || []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGlobalScope, storageKey]);
+
+  // 机构配置：全局改了标题/描述后，实时覆盖本机构展示文案（保留开通/启禁状态）
+  useEffect(() => {
+    if (isGlobalScope) return;
+    const syncCatalog = () => {
+      setDataStore((prev) => {
+        const prevList = prev.value_added || [];
+        const nextList = applyValueAddedCatalog(prevList);
+        if (isValueAddedCatalogApplied(prevList, nextList)) return prev;
+        const next = { ...prev, value_added: nextList };
+        if (storageKey) {
+          try {
+            localStorage.setItem(storageKey, JSON.stringify(next));
+          } catch {
+            // ignore
+          }
+        }
+        return next;
+      });
+    };
+    syncCatalog();
+    const onStorage = (event: StorageEvent) => {
+      if (event.key && event.key !== VALUE_ADDED_CATALOG_STORAGE_KEY && event.key !== 'mt_global_v8_business_config') return;
+      syncCatalog();
+    };
+    window.addEventListener('storage', onStorage);
+    window.addEventListener(VALUE_ADDED_CATALOG_EVENT, syncCatalog as EventListener);
+    window.addEventListener('focus', syncCatalog);
+    const timer = window.setInterval(syncCatalog, 2000);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener(VALUE_ADDED_CATALOG_EVENT, syncCatalog as EventListener);
+      window.removeEventListener('focus', syncCatalog);
+      window.clearInterval(timer);
+    };
+  }, [isGlobalScope, storageKey]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [templateTypeFilter, setTemplateTypeFilter] = useState<'all' | '报送' | '激活'>('报送');
@@ -1785,16 +1883,28 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
     setIsModalOpen(false);
   };
 
-  /** 机构侧模式一依赖增值业务「外部审核」开通；未开通时不可新选该模式 */
+  const resolveMtAuditFlowMode = (item: ConfigModuleItem): 'adaptive' | 'max_n' | 'direct' => {
+    if (item.flowMode === 'adaptive' || item.flowMode === 'max_n' || item.flowMode === 'direct') {
+      return item.flowMode;
+    }
+    if ((item.name || '').includes('直接') || (item.name || '').includes('直达')) return 'direct';
+    if ((item.name || '').includes('最多')) return 'max_n';
+    return 'adaptive';
+  };
+
+  /** 机构侧模式一/二依赖增值业务「外部审核」启用；停用/未开通时卡片置灰，仍可选中查看，但不可保存 */
   const isExternalAuditOpened = (dataStore.value_added || []).some(
-    item =>
-      (item.name || '').includes('外部审核') &&
-      (item.activatedStatus === '已开通' || item.status === '启用')
+    item => (item.name || '').includes('外部审核') && item.status === '启用'
   );
-  const isStepByStepModeLocked = !isGlobalScope && !isExternalAuditOpened;
+  const isExternalAuditModeLocked = !isGlobalScope && !isExternalAuditOpened;
+  const isExternalDependentAuditFlowMode = (mode: 'adaptive' | 'max_n' | 'direct') =>
+    mode === 'adaptive' || mode === 'max_n';
+  const isAuditFlowSaveLocked =
+    activeModule === 'audit_flow' &&
+    isExternalAuditModeLocked &&
+    isExternalDependentAuditFlowMode(formFlowMode);
 
   const handleSelectFlowMode = (mode: 'adaptive' | 'max_n' | 'direct', keepCurrentNameAndDesc = false) => {
-    if (mode === 'adaptive' && isStepByStepModeLocked) return;
     if (mode === formFlowMode) return;
     flowModeDraftsRef.current[formFlowMode] = {
       nodes: formAuditNodes.map(node => ({ ...node })),
@@ -2110,7 +2220,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
   const [previewItem, setPreviewItem] = useState<ConfigModuleItem | null>(null);
   const [editingValueAdded, setEditingValueAdded] = useState<{ id: string; globalOnly: boolean; name: string; description: string } | null>(null);
 
-  // 全局编辑增值业务名称/描述：写入全局母版，并同步到所有已保存过独立配置的机构
+  // 全局编辑增值业务名称/描述：写入全局母版，并同步到所有已保存过独立配置的机构 + 客户管理端目录
   const handleSaveValueAddedEdit = () => {
     if (!editingValueAdded) return;
     const name = editingValueAdded.name.trim();
@@ -2124,10 +2234,23 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       showConfigToast('已存在同名增值业务，请更换名称');
       return;
     }
+    const editingSource = (dataStore.value_added || []).find(i => i.id === editingValueAdded.id);
     const patch = (list: ConfigModuleItem[] = []) =>
-      list.map(i => (i.id === editingValueAdded.id ? { ...i, name, description, customized: true } : i));
+      list.map((i) => {
+        const matched =
+          i.id === editingValueAdded.id ||
+          Boolean(
+            editingSource &&
+              matchValueAddedCatalogItem([{ id: editingSource.id, dictCode: editingSource.dictCode, name: editingSource.name }], i)
+          );
+        return matched ? { ...i, name, description, customized: true } : i;
+      });
 
-    commitDataStore(prev => ({ ...prev, value_added: patch(prev.value_added) }));
+    commitDataStore(prev => {
+      const nextList = patch(prev.value_added);
+      publishValueAddedCatalog(nextList);
+      return { ...prev, value_added: nextList };
+    });
 
     let syncedCount = 0;
     try {
@@ -2672,38 +2795,256 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
     );
   };
 
+  /** 审核流程 / 打分规则关联的报送模板：模板侧绑定 + 配置侧 relatedTemplateId / 全部通用 */
+  const getLinkedReportTemplates = (
+    source: ConfigModuleItem,
+    templates: ConfigModuleItem[],
+    bindKey: 'relatedFlowId' | 'relatedScoreRuleId'
+  ) => {
+    const reportTemplates = templates.filter((item) => (item.templateType || '报送') === '报送');
+    const linked = new Map<string, ConfigModuleItem>();
+
+    reportTemplates.forEach((item) => {
+      if (item[bindKey] === source.id) linked.set(item.id, item);
+    });
+
+    const applyAll =
+      source.templateApplyMode === 'all_report_templates' || source.relatedTemplateId === 'all_report_templates';
+    if (applyAll) {
+      reportTemplates.forEach((item) => linked.set(item.id, item));
+    } else if (source.relatedTemplateId) {
+      const matched = reportTemplates.find((item) => item.id === source.relatedTemplateId);
+      if (matched) linked.set(matched.id, matched);
+    }
+
+    return Array.from(linked.values());
+  };
+
+  const disableLinkedReportTemplates = (
+    prev: Record<string, ConfigModuleItem[]>,
+    linkedIds: Set<string>,
+    clearKey: 'relatedFlowId' | 'relatedScoreRuleId',
+    now: string
+  ) =>
+    (prev.report_template || []).map((item) => {
+      if (!linkedIds.has(item.id)) return item;
+      return {
+        ...item,
+        [clearKey]: undefined,
+        status: '停用' as const,
+        updateTime: now
+      };
+    });
+
+  const getTemplateBoardInstitutionId = () => (isGlobalScope ? undefined : storageKey);
+
+  const resolveBoardLinkedTemplates = (
+    source: ConfigModuleItem,
+    bindKey: 'scoreRuleId' | 'auditFlowId',
+    dataStoreBindKey: 'relatedFlowId' | 'relatedScoreRuleId'
+  ) => {
+    const applyAll =
+      source.templateApplyMode === 'all_report_templates' || source.relatedTemplateId === 'all_report_templates';
+    const dataLinked = getLinkedReportTemplates(source, dataStore.report_template || [], dataStoreBindKey);
+    return findLinkedBoardTemplates({
+      institutionId: getTemplateBoardInstitutionId(),
+      bindKey,
+      sourceId: source.id,
+      applyAllReportTemplates: applyAll,
+      linkedNames: dataLinked.map((item) => item.name)
+    });
+  };
+
   // Handle Toggle Status
-  const handleToggleStatus = (id: string) => {
-    commitDataStore(prev => {
-      const list = prev[activeModule] || [];
-      const targetItem = list.find(i => i.id === id);
-      if (!targetItem) return prev;
+  const handleToggleStatus = async (id: string) => {
+    const list = dataStore[activeModule] || [];
+    const targetItem = list.find((item) => item.id === id);
+    if (!targetItem) return;
 
-      // Special constraint for value_added: Cannot toggle if not activated (未开通)
-      // 全开放启禁模式（valueAddedAllOperable）下所有增值业务均可直接启禁
-      if (!valueAddedAllOperable && activeModule === 'value_added' && targetItem.activatedStatus === '未开通') {
-        alertDialog('该增值业务属于“未开通”状态，无法进行启禁操作。如需开通请联系对应的销售人员！');
-        return prev;
+    // Special constraint for value_added: Cannot toggle if not activated (未开通)
+    // 全开放启禁模式（valueAddedAllOperable）下所有增值业务均可直接启禁
+    if (!valueAddedAllOperable && activeModule === 'value_added' && targetItem.activatedStatus === '未开通') {
+      await alertDialog('该增值业务属于“未开通”状态，无法进行启禁操作。如需开通请联系对应的销售人员！');
+      return;
+    }
+
+    const newStatus = targetItem.status === '启用' ? '停用' : '启用';
+    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+    // 外部审核停用：级联停用模式一/二审核流程，并解绑停用关联报送模板（含模板配置板）
+    const isExternalAuditValueAdded =
+      (targetItem.name || '').includes('外部审核') ||
+      targetItem.dictCode === 'VA_EXTERNAL_CONTACT_AUDIT';
+    if (activeModule === 'value_added' && isExternalAuditValueAdded && newStatus === '停用') {
+      const affectedFlows = (dataStore.audit_flow || []).filter((flow) => {
+        if (flow.status !== '启用') return false;
+        const mode = resolveMtAuditFlowMode(flow);
+        return mode === 'adaptive' || mode === 'max_n';
+      });
+      const linkedTemplateMap = new Map<string, ConfigModuleItem>();
+      affectedFlows.forEach((flow) => {
+        getLinkedReportTemplates(flow, dataStore.report_template || [], 'relatedFlowId').forEach(
+          (tpl) => linkedTemplateMap.set(tpl.id, tpl)
+        );
+      });
+      const boardLinkedNames = new Set<string>();
+      affectedFlows.forEach((flow) => {
+        resolveBoardLinkedTemplates(flow, 'auditFlowId', 'relatedFlowId').forEach((tpl) => {
+          boardLinkedNames.add(tpl.name);
+        });
+      });
+      const linkedTemplateCount = Math.max(linkedTemplateMap.size, boardLinkedNames.size);
+
+      if (affectedFlows.length > 0) {
+        const confirmed = await confirmDialog(
+          `停用「外部审核」后，依赖该功能的 ${affectedFlows.length} 个审核流程将同步停用` +
+            (linkedTemplateCount > 0
+              ? `，并解绑且停用关联的 ${linkedTemplateCount} 个报送模板`
+              : '') +
+            `。确定停用？`,
+          { title: '确认停用外部审核', okText: '确认停用', danger: true }
+        );
+        if (!confirmed) return;
       }
 
-      const newStatus = targetItem.status === '启用' ? '停用' : '启用';
+      const affectedFlowIds = new Set(affectedFlows.map((flow) => flow.id));
+      const linkedIds = new Set(linkedTemplateMap.keys());
+      affectedFlows.forEach((flow) => {
+        const applyAll =
+          flow.templateApplyMode === 'all_report_templates' ||
+          flow.relatedTemplateId === 'all_report_templates';
+        unbindAndDisableBoardTemplates({
+          institutionId: getTemplateBoardInstitutionId(),
+          bindKey: 'auditFlowId',
+          sourceId: flow.id,
+          applyAllReportTemplates: applyAll,
+          linkedNames: getLinkedReportTemplates(
+            flow,
+            dataStore.report_template || [],
+            'relatedFlowId'
+          ).map((item) => item.name),
+          nowStr
+        });
+      });
 
-      if (activeModule === 'login_method' && newStatus === '停用' && list.filter(item => item.status === '启用').length <= 1) {
-        alertDialog('至少需要保留一种启用中的登录方式');
-        return prev;
+      commitDataStore((prev) => ({
+        ...prev,
+        value_added: (prev.value_added || []).map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                status: '停用' as const,
+                activatedStatus: valueAddedAllOperable ? ('未开通' as const) : item.activatedStatus,
+                updateTime: nowStr
+              }
+            : item
+        ),
+        audit_flow: (prev.audit_flow || []).map((item) =>
+          affectedFlowIds.has(item.id)
+            ? {
+                ...item,
+                status: '停用' as const,
+                relatedTemplateId: undefined,
+                relatedTemplateName: undefined,
+                updateTime: nowStr
+              }
+            : item
+        ),
+        report_template: disableLinkedReportTemplates(prev, linkedIds, 'relatedFlowId', nowStr)
+      }));
+      return;
+    }
+
+    // 外部审核未启用时，禁止重新启用模式一/二审核流程
+    if (
+      !isGlobalScope &&
+      activeModule === 'audit_flow' &&
+      newStatus === '启用'
+    ) {
+      const mode = resolveMtAuditFlowMode(targetItem);
+      if (!isExternalAuditOpened && (mode === 'adaptive' || mode === 'max_n')) {
+        await alertDialog('未开通外部审核功能，该流程所依赖的外部审核暂不可用，暂时无法启用。');
+        return;
       }
+    }
+
+    // 审核流程 / 打分规则停用：若有关联报送模板，先确认再解绑并停用
+    if ((activeModule === 'audit_flow' || activeModule === 'audit_score') && newStatus === '停用') {
+      const dataBindKey = activeModule === 'audit_flow' ? 'relatedFlowId' : 'relatedScoreRuleId';
+      const boardBindKey = activeModule === 'audit_flow' ? 'auditFlowId' : 'scoreRuleId';
+      const kindLabel = activeModule === 'audit_flow' ? '审核流程' : '打分规则';
+      const applyAll =
+        targetItem.templateApplyMode === 'all_report_templates' ||
+        targetItem.relatedTemplateId === 'all_report_templates';
+
+      if (activeModule === 'audit_score' && list.filter((item) => item.status === '启用').length <= 1) {
+        await alertDialog('至少需要保留一组启用中的审核打分规则');
+        return;
+      }
+
+      const linkedDataTemplates = getLinkedReportTemplates(
+        targetItem,
+        dataStore.report_template || [],
+        dataBindKey
+      );
+      const linkedBoardTemplates = resolveBoardLinkedTemplates(targetItem, boardBindKey, dataBindKey);
+      const linkedCount = Math.max(linkedDataTemplates.length, linkedBoardTemplates.length);
+
+      if (linkedCount > 0) {
+        const confirmed = await confirmDialog(
+          `「${targetItem.name}」已关联 ${linkedCount} 个报送模板。停用后将解绑并停用这些模板，上报端将无法选用。确定停用？`,
+          { title: `${kindLabel}停用确认`, okText: '确认停用', danger: true }
+        );
+        if (!confirmed) return;
+
+        const linkedIds = new Set(linkedDataTemplates.map((item) => item.id));
+        unbindAndDisableBoardTemplates({
+          institutionId: getTemplateBoardInstitutionId(),
+          bindKey: boardBindKey,
+          sourceId: targetItem.id,
+          applyAllReportTemplates: applyAll,
+          linkedNames: linkedDataTemplates.map((item) => item.name),
+          nowStr
+        });
+
+        commitDataStore((prev) => ({
+          ...prev,
+          [activeModule]: (prev[activeModule] || []).map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  status: '停用' as const,
+                  relatedTemplateId: undefined,
+                  relatedTemplateName: undefined,
+                  updateTime: nowStr
+                }
+              : item
+          ),
+          report_template: disableLinkedReportTemplates(prev, linkedIds, dataBindKey, nowStr)
+        }));
+        return;
+      }
+    }
+
+    if (activeModule === 'login_method' && newStatus === '停用' && list.filter((item) => item.status === '启用').length <= 1) {
+      await alertDialog('至少需要保留一种启用中的登录方式');
+      return;
+    }
+
+    commitDataStore((prev) => {
+      const moduleList = prev[activeModule] || [];
 
       // 全开放启禁模式增值业务：启禁开关与开通状态联动（启用=已开通 / 停用=未开通）
       if (activeModule === 'value_added' && valueAddedAllOperable) {
         return {
           ...prev,
-          value_added: list.map(item =>
+          value_added: moduleList.map((item) =>
             item.id === id
               ? {
                   ...item,
                   status: newStatus,
                   activatedStatus: newStatus === '启用' ? '已开通' : '未开通',
-                  updateTime: new Date().toISOString().replace('T', ' ').substring(0, 19)
+                  updateTime: nowStr
                 }
               : item
           )
@@ -2712,12 +3053,12 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
 
       return {
         ...prev,
-        [activeModule]: list.map(item =>
+        [activeModule]: moduleList.map((item) =>
           item.id === id
             ? {
                 ...item,
                 status: newStatus,
-                updateTime: new Date().toISOString().replace('T', ' ').substring(0, 19)
+                updateTime: nowStr
               }
             : item
         )
@@ -2779,12 +3120,10 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       setFormScoreLevels([]);
     } else if (activeModule === 'audit_flow') {
       const externalAuditOpened = (dataStore.value_added || []).some(
-        item =>
-          (item.name || '').includes('外部审核') &&
-          (item.activatedStatus === '已开通' || item.status === '启用')
+        item => (item.name || '').includes('外部审核') && item.status === '启用'
       );
       const defaultMode: 'adaptive' | 'max_n' | 'direct' =
-        isGlobalScope || externalAuditOpened ? 'adaptive' : 'max_n';
+        isGlobalScope || externalAuditOpened ? 'adaptive' : 'direct';
       // 新增：名称/说明空态；节点按当前模式生成骨架（模式一默认选中时不会再点选触发，需在此生成）
       setFormName('');
       setFormDesc('');
@@ -3188,6 +3527,64 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
         return;
       }
 
+      if (editingItem?.status === '启用' && formScoreStatus === '停用') {
+        if (enabledScoreCount <= 1) {
+          await alertDialog('至少需要保留一组启用中的审核打分规则');
+          return;
+        }
+        const applyAll =
+          editingItem.templateApplyMode === 'all_report_templates' ||
+          editingItem.relatedTemplateId === 'all_report_templates';
+        const linkedDataTemplates = getLinkedReportTemplates(
+          editingItem,
+          dataStore.report_template || [],
+          'relatedScoreRuleId'
+        );
+        const linkedBoardTemplates = resolveBoardLinkedTemplates(
+          editingItem,
+          'scoreRuleId',
+          'relatedScoreRuleId'
+        );
+        const linkedCount = Math.max(linkedDataTemplates.length, linkedBoardTemplates.length);
+        if (linkedCount > 0) {
+          const confirmed = await confirmDialog(
+            `「${formName.trim() || editingItem.name}」已关联 ${linkedCount} 个报送模板。停用后将解绑并停用这些模板，上报端将无法选用。确定停用？`,
+            { title: '打分规则停用确认', okText: '确认停用', danger: true }
+          );
+          if (!confirmed) return;
+        }
+        unbindAndDisableBoardTemplates({
+          institutionId: getTemplateBoardInstitutionId(),
+          bindKey: 'scoreRuleId',
+          sourceId: editingItem.id,
+          applyAllReportTemplates: applyAll,
+          linkedNames: linkedDataTemplates.map((item) => item.name),
+          nowStr
+        });
+        const linkedIds = new Set(linkedDataTemplates.map((item) => item.id));
+        commitDataStore((prev) => ({
+          ...prev,
+          audit_score: prev.audit_score.map((item) => {
+            if (item.id !== editingItem.id) return item;
+            return {
+              ...item,
+              name: formName.trim(),
+              description: formDesc.trim(),
+              status: '停用' as const,
+              totalScore: formTotalScore,
+              levelCount: normalizedScoreLevels.length,
+              scoreLevels: normalizedScoreLevels,
+              relatedTemplateId: undefined,
+              relatedTemplateName: undefined,
+              updateTime: nowStr
+            };
+          }),
+          report_template: disableLinkedReportTemplates(prev, linkedIds, 'relatedScoreRuleId', nowStr)
+        }));
+        setIsModalOpen(false);
+        return;
+      }
+
       if (editingItem) {
         commitDataStore(prev => ({
           ...prev,
@@ -3236,6 +3633,76 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
     }
 
     if (activeModule === 'audit_flow') {
+      if (
+        isExternalAuditModeLocked &&
+        isExternalDependentAuditFlowMode(formFlowMode)
+      ) {
+        await alertDialog('未开通外部审核功能，该模式所依赖的外部审核暂不可用，暂时无法使用。');
+        return;
+      }
+
+      if (editingItem?.status === '启用' && formScoreStatus === '停用') {
+        const applyAll =
+          formTemplateApplyMode === 'all_report_templates' ||
+          editingItem.templateApplyMode === 'all_report_templates' ||
+          editingItem.relatedTemplateId === 'all_report_templates';
+        const sourceForLink: ConfigModuleItem = {
+          ...editingItem,
+          templateApplyMode: formTemplateApplyMode,
+          relatedTemplateId:
+            formTemplateApplyMode === 'all_report_templates'
+              ? 'all_report_templates'
+              : formRelatedTemplateId || editingItem.relatedTemplateId
+        };
+        const linkedDataTemplates = getLinkedReportTemplates(
+          sourceForLink,
+          dataStore.report_template || [],
+          'relatedFlowId'
+        );
+        const linkedBoardTemplates = resolveBoardLinkedTemplates(
+          sourceForLink,
+          'auditFlowId',
+          'relatedFlowId'
+        );
+        const linkedCount = Math.max(linkedDataTemplates.length, linkedBoardTemplates.length);
+        if (linkedCount > 0) {
+          const confirmed = await confirmDialog(
+            `「${formName.trim() || editingItem.name}」已关联 ${linkedCount} 个报送模板。停用后将解绑并停用这些模板，上报端将无法选用。确定停用？`,
+            { title: '审核流程停用确认', okText: '确认停用', danger: true }
+          );
+          if (!confirmed) return;
+        }
+        unbindAndDisableBoardTemplates({
+          institutionId: getTemplateBoardInstitutionId(),
+          bindKey: 'auditFlowId',
+          sourceId: editingItem.id,
+          applyAllReportTemplates: applyAll,
+          linkedNames: linkedDataTemplates.map((item) => item.name),
+          nowStr
+        });
+        const linkedIds = new Set(linkedDataTemplates.map((item) => item.id));
+        commitDataStore((prev) => ({
+          ...prev,
+          audit_flow: (prev.audit_flow || []).map((item) =>
+            item.id === editingItem.id
+              ? {
+                  ...item,
+                  name: formName.trim(),
+                  description: formDesc.trim() || item.description,
+                  status: '停用' as const,
+                  relatedTemplateId: undefined,
+                  relatedTemplateName: undefined,
+                  updateTime: nowStr
+                }
+              : item
+          ),
+          report_template: disableLinkedReportTemplates(prev, linkedIds, 'relatedFlowId', nowStr)
+        }));
+        flowModeDraftsRef.current = {};
+        setIsModalOpen(false);
+        return;
+      }
+
       if (editingItem) {
         const confirmed = await confirmDialog(
           '改动的流程只影响后续新增的相关上报，已经上报的流程不受影响。',
@@ -3940,6 +4407,52 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                 titleExtra={headerExtra}
                 isGlobalScope={isGlobalScope}
                 institutionId={isGlobalScope ? undefined : storageKey}
+                scoringRuleOptions={(dataStore.audit_score || [])
+                  .filter((item) => item.status === '启用')
+                  .map(
+                    (item): ScoringRuleOptionItem => ({
+                      id: item.id,
+                      name: item.name,
+                      maxScore: item.totalScore || 100,
+                      grades: (item.scoreLevels || []).map((level) => ({
+                        name: level.levelName,
+                        score: level.score
+                      }))
+                    })
+                  )}
+                auditFlowOptions={(dataStore.audit_flow || [])
+                  .filter((item) => item.status === '启用')
+                  .map((item): AuditFlowOptionItem => {
+                    const nodes = (item.auditNodes || []).filter((node) => !node.isSubmitStage);
+                    const missingText =
+                      item.auditNodes?.[0]?.missingRule === 'terminate_error'
+                        ? '兜底: 终止报错'
+                        : item.auditNodes?.[0]?.missingRule === 'block'
+                          ? '兜底: 阻断等待'
+                          : '兜底: 直转上级';
+                    return {
+                      id: item.id,
+                      name: item.name,
+                      depth: item.flowDepth || nodes.length || 2,
+                      fallbackText: missingText,
+                      applyScopeText:
+                        item.orgApplyMode === 'all_orgs' ? '全辖机构适用' : '指定机构适用',
+                      flowMode: resolveMtAuditFlowMode(item),
+                      nodes: nodes.map((node, idx) => ({
+                        order: idx + 1,
+                        name: node.nodeName,
+                        role: node.approverRole,
+                        duration: `${node.timeLimitMinutes || 30}m`
+                      }))
+                    };
+                  })}
+                blockExternalDependentFlows={!isGlobalScope && !isExternalAuditOpened}
+                externalDependentFlowIds={(dataStore.audit_flow || [])
+                  .filter((item) => {
+                    const mode = resolveMtAuditFlowMode(item);
+                    return mode === 'adaptive' || mode === 'max_n';
+                  })
+                  .map((item) => item.id)}
                 onSaveNotice={(msg) => showConfigToast(msg)}
                 onNavigateToWorkflow={() => {
                   setActiveModule('audit_flow');
@@ -4448,28 +4961,11 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                 </h3>
                               </div>
 
-                              {/* Switch or Lock Badge */}
+                              {/* Switch or Lock Badge（全局配置不展示启禁状态） */}
                               <div
                                 className="shrink-0 flex items-center gap-1.5"
                                 onClick={e => e.stopPropagation()}
                               >
-                                {isGlobalScope ? (
-                                  <span
-                                    className={`inline-flex items-center gap-1 h-6 px-2.5 rounded-full border text-[11px] font-medium cursor-default select-none ${
-                                      item.status === '启用'
-                                        ? 'bg-blue-50 border-blue-100 text-[#1890ff]'
-                                        : 'bg-gray-50 border-gray-200 text-gray-400'
-                                    }`}
-                                    title="启禁状态由平台后台统一控制，此处仅支持查看"
-                                  >
-                                    <span
-                                      className={`w-1.5 h-1.5 rounded-full ${
-                                        item.status === '启用' ? 'bg-[#1890ff]' : 'bg-gray-300'
-                                      }`}
-                                    />
-                                    {item.status === '启用' ? '启用' : '禁用'}
-                                  </span>
-                                ) : null}
                                 {isGlobalScope && (
                                   <button
                                     type="button"
@@ -6022,28 +6518,27 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <button
                         type="button"
-                        disabled={isStepByStepModeLocked && formFlowMode !== 'adaptive'}
                         title={
-                          isStepByStepModeLocked && formFlowMode !== 'adaptive'
-                            ? '未开通外部审核功能，该模式暂时无法选择。'
+                          isExternalAuditModeLocked
+                            ? '未开通外部审核功能，该模式所依赖的外部审核暂不可用，暂时无法使用。'
                             : undefined
                         }
                         onClick={() => handleSelectFlowMode('adaptive')}
-                        className={`rounded-xl p-3.5 text-left transition-all flex flex-col justify-between bg-white ${
+                        className={`rounded-xl p-3.5 text-left transition-all flex flex-col justify-between cursor-pointer ${
                           formFlowMode === 'adaptive'
-                            ? 'border-2 border-[#1677ff] shadow-xs'
-                            : isStepByStepModeLocked
-                            ? 'border border-gray-200 opacity-55 cursor-not-allowed bg-gray-50'
-                            : 'border border-gray-200 hover:border-gray-300 cursor-pointer'
+                            ? `border-2 border-[#1677ff] shadow-xs ${isExternalAuditModeLocked ? 'bg-gray-50' : 'bg-white'}`
+                            : isExternalAuditModeLocked
+                            ? 'border border-gray-200 opacity-55 bg-gray-50 hover:border-gray-300'
+                            : 'border border-gray-200 hover:border-gray-300 bg-white'
                         }`}
                       >
                         <div className="flex items-center justify-between mb-1.5">
-                          <span className={`text-xs font-bold ${isStepByStepModeLocked && formFlowMode !== 'adaptive' ? 'text-gray-500' : 'text-gray-900'}`}>
+                          <span className={`text-xs font-bold ${isExternalAuditModeLocked ? 'text-gray-500' : 'text-gray-900'}`}>
                             模式一: 逐级审核
                           </span>
-                          {isStepByStepModeLocked && formFlowMode !== 'adaptive' ? (
+                          {isExternalAuditModeLocked ? (
                             <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-gray-100 text-gray-500 border border-gray-200">
-                              不可选
+                              暂不可用
                             </span>
                           ) : (
                             <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-emerald-50 text-emerald-600 border border-emerald-200">
@@ -6054,31 +6549,51 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                         <p className="text-xs text-gray-500 leading-relaxed">
                           沿组织树逐级向上传递复核，最终由总机构终审并评分（自适应组织深度）。
                         </p>
-                        {isStepByStepModeLocked && (
+                        {isExternalAuditModeLocked && (
                           <p className="text-[11px] text-amber-700 leading-relaxed mt-2 pt-2 border-t border-amber-100/80">
-                            未开通外部审核功能，该模式暂时无法选择。
+                            未开通外部审核功能，该模式所依赖的外部审核暂不可用，暂时无法使用。
                           </p>
                         )}
                       </button>
 
                       <button
                         type="button"
+                        title={
+                          isExternalAuditModeLocked
+                            ? '未开通外部审核功能，该模式所依赖的外部审核暂不可用，暂时无法使用。'
+                            : undefined
+                        }
                         onClick={() => handleSelectFlowMode('max_n')}
-                        className={`rounded-xl p-3.5 text-left cursor-pointer transition-all flex flex-col justify-between bg-white ${
+                        className={`rounded-xl p-3.5 text-left cursor-pointer transition-all flex flex-col justify-between ${
                           formFlowMode === 'max_n'
-                            ? 'border-2 border-[#1677ff] shadow-xs'
-                            : 'border border-gray-200 hover:border-gray-300'
+                            ? `border-2 border-[#1677ff] shadow-xs ${isExternalAuditModeLocked ? 'bg-gray-50' : 'bg-white'}`
+                            : isExternalAuditModeLocked
+                            ? 'border border-gray-200 opacity-55 bg-gray-50 hover:border-gray-300'
+                            : 'border border-gray-200 hover:border-gray-300 bg-white'
                         }`}
                       >
                         <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-xs font-bold text-gray-900">模式二: 最多N级审核</span>
-                          <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-amber-50 text-amber-600 border border-amber-200">
-                            上限截断
+                          <span className={`text-xs font-bold ${isExternalAuditModeLocked ? 'text-gray-500' : 'text-gray-900'}`}>
+                            模式二: 最多N级审核
                           </span>
+                          {isExternalAuditModeLocked ? (
+                            <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                              暂不可用
+                            </span>
+                          ) : (
+                            <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-amber-50 text-amber-600 border border-amber-200">
+                              上限截断
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs text-gray-500 leading-relaxed">
                           提报后至多经过 {formFlowDepth || 3} 级外部组织节点，超出部分直接穿透至总机构。
                         </p>
+                        {isExternalAuditModeLocked && (
+                          <p className="text-[11px] text-amber-700 leading-relaxed mt-2 pt-2 border-t border-amber-100/80">
+                            未开通外部审核功能，该模式所依赖的外部审核暂不可用，暂时无法使用。
+                          </p>
+                        )}
                       </button>
 
                       <button
@@ -7497,7 +8012,17 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-[#1E5ABB] text-white rounded font-bold hover:bg-[#134092] cursor-pointer"
+                  disabled={isAuditFlowSaveLocked}
+                  title={
+                    isAuditFlowSaveLocked
+                      ? '未开通外部审核功能，该模式所依赖的外部审核暂不可用，暂时无法使用。'
+                      : undefined
+                  }
+                  className={`px-4 py-1.5 rounded font-bold ${
+                    isAuditFlowSaveLocked
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-[#1E5ABB] text-white hover:bg-[#134092] cursor-pointer'
+                  }`}
                 >
                   保存
                 </button>

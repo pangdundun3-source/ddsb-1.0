@@ -1,6 +1,6 @@
 import React from 'react';
-import { AlertCircle, Check, Clock, FileEdit, History } from 'lucide-react';
-import { ReportItem, TimelineNode } from '../types';
+import { AlertCircle, Check, Clock, History } from 'lucide-react';
+import { ReportItem } from '../types';
 import { getOrganizationPathText } from './OrgPathDisplay';
 
 type FlowCardState = 'completed' | 'current' | 'pending' | 'rejected';
@@ -21,7 +21,6 @@ interface FlowCard {
 }
 
 interface FlowStep {
-  groupKey?: string;
   title: string;
   state: FlowCardState;
   cards: FlowCard[];
@@ -127,49 +126,124 @@ const PersonListDisplay: React.FC<{
   );
 };
 
-const getAggregatedStepState = (cards: FlowCard[]): FlowCardState => {
-  const latestCard = cards[cards.length - 1];
-  return latestCard?.state || 'pending';
+const shiftTime = (time: string | undefined, minutes: number) => {
+  if (!time) return time || '';
+  const matched = time.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  if (!matched) return time;
+  const [, year, month, day, hour, minute] = matched;
+  const date = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute) + minutes
+  );
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
-const buildFromTimeline = (timeline: TimelineNode[], rejectedLabel: string) => {
-  const grouped: FlowStep[] = [];
-  timeline.forEach((node) => {
-    const title = node.title.includes('提交') ? '提交上报' : node.title.includes('结束') ? '结束' : '审核处理';
-    const operatorKey = node.operator.replace(/\s*·\s*/g, '·').trim();
-    const groupKey =
-      title === '提交上报'
-        ? 'submit'
-        : title === '结束'
-          ? 'end'
-          : `audit:${operatorKey}`;
-    const statusText =
-      node.status === 'completed'
-        ? node.title.includes('提交')
-          ? '已提交'
-          : title === '结束'
-            ? node.note?.includes('采纳')
-              ? '已采纳'
-              : node.note || '已结束'
-            : '已通过'
-        : node.status === 'rejected'
-          ? rejectedLabel
-          : node.status === 'current'
-            ? node.note || '处理中'
-            : node.note || '等待处理';
-    const existing = grouped.find((item) => item.groupKey === groupKey);
-    const step = existing || { groupKey, title, state: node.status, cards: [] };
-    step.cards.push({
-      operator: title === '结束' ? '流程结束' : node.time ? `${node.operator} · ${node.time}` : node.operator,
-      statusText,
-      state: node.status,
-      score: node.score,
-      note: node.note
-    });
-    step.state = getAggregatedStepState(step.cards);
-    if (!existing) grouped.push(step);
-  });
-  return grouped;
+/** 与 H5 对齐：上报→驳回→上报→通过→驳回→上报→通过→通过→通过→已采纳 */
+const buildApprovedTimeline = (
+  report: ReportItem,
+  rejectedLabel: string
+): FlowStep[] => {
+  const score = report.score && report.score !== '--' ? report.score : 92;
+  const rejectText = report.rejectReason || '信息不完整。请补充政策原文链接和群众反馈截图后重新提交。';
+  const orgPath =
+    (report.organization && report.organization.includes('/')
+      ? report.organization
+      : getOrganizationPathText(report.organization)) || '台中市网信办';
+  const t0 = report.submitTime || '2023-10-23 09:15';
+  const t1 = shiftTime(t0, 40);
+  const t2 = shiftTime(t0, 80);
+  const t3 = shiftTime(t0, 120);
+  const t4 = shiftTime(t0, 160);
+  const t5 = shiftTime(t0, 200);
+  const endBase = report.auditTime || report.transferTime || shiftTime(t0, 280);
+  const t6 = shiftTime(endBase, -90) || endBase;
+  const t7 = shiftTime(endBase, -45) || endBase;
+  const t8 = endBase;
+  const endStatus =
+    report.auditStatus === '已转办'
+      ? '已转办'
+      : report.auditStatus === '待转办'
+        ? '待转办'
+        : report.auditStatus === '已通过'
+          ? '待采纳'
+          : '已采纳';
+
+  return [
+    {
+      title: '提交上报',
+      state: 'completed',
+      cards: [{ operator: `${report.author || '李四'} · ${orgPath} · ${t0}`, statusText: '已提交', state: 'completed' }]
+    },
+    {
+      title: '审核处理',
+      state: 'rejected',
+      cards: [{
+        operator: `王主任 · 市委宣传部舆情科 · ${t1}`,
+        statusText: rejectedLabel,
+        state: 'rejected',
+        note: rejectText
+      }]
+    },
+    {
+      title: '提交上报',
+      state: 'completed',
+      cards: [{ operator: `${report.author || '李四'} · ${orgPath} · ${t2}`, statusText: '已提交', state: 'completed' }]
+    },
+    {
+      title: '审核处理',
+      state: 'completed',
+      cards: [{ operator: `王主任 · 市委宣传部舆情科 · ${t3}`, statusText: '已通过', state: 'completed' }]
+    },
+    {
+      title: '审核处理',
+      state: 'rejected',
+      cards: [{
+        operator: `李明 · 市网信办复核组 · ${t4}`,
+        statusText: rejectedLabel,
+        state: 'rejected',
+        note: '复核未通过，请补充现场处置佐证材料后重新提交。'
+      }]
+    },
+    {
+      title: '提交上报',
+      state: 'completed',
+      cards: [{ operator: `${report.author || '李四'} · ${orgPath} · ${t5}`, statusText: '已提交', state: 'completed' }]
+    },
+    {
+      title: '审核处理',
+      state: 'completed',
+      cards: [{ operator: `王主任 · 市委宣传部舆情科 · ${t6}`, statusText: '已通过', state: 'completed' }]
+    },
+    {
+      title: '审核处理',
+      state: 'completed',
+      cards: [{ operator: `李明 · 市网信办复核组 · ${t7}`, statusText: '已通过', state: 'completed' }]
+    },
+    {
+      title: '审核处理',
+      state: 'completed',
+      cards: [{
+        operator: `赵宁 · 市网信办终审组 · ${t8}`,
+        statusText: '已通过',
+        state: 'completed',
+        score
+      }]
+    },
+    {
+      title: '结束',
+      state: 'completed',
+      cards: [{
+        operator: report.auditStatus === '已转办' ? `流程结束 · ${report.transferTime || t8}` : '流程结束',
+        statusText: endStatus,
+        state: 'completed',
+        note: report.auditStatus === '待转办' ? '已进入不良信息库，等待责任单位转办。' : undefined
+      }]
+    }
+  ];
 };
 
 const buildFallbackTimeline = (
@@ -177,7 +251,6 @@ const buildFallbackTimeline = (
   rejectedLabel: string,
   myRejectedNode?: AuditFlowTimelineProps['myRejectedNode']
 ): FlowStep[] => {
-  const score = report.score && report.score !== '--' ? report.score : undefined;
   const rejectText = report.rejectReason || '信息不完整。请补充政策原文链接和群众反馈截图后重新提交。';
   const submitOperator =
     report.organization && report.organization.includes('/')
@@ -197,6 +270,7 @@ const buildFallbackTimeline = (
     ]
   };
 
+  // 待审核：只展示已提交 + 下一步待审核
   if (report.auditStatus === '待审核') {
     return [
       submitStep,
@@ -212,41 +286,11 @@ const buildFallbackTimeline = (
           statusText: '待审核',
           state: 'current'
         }]
-      },
-      {
-        title: '审核处理',
-        state: 'pending',
-        cards: [{
-          operator: '李明 · 市网信办复核组、周复核 · 市网信办复核组',
-          people: [
-            { name: '李明', org: '市网信办复核组' },
-            { name: '周复核', org: '市网信办复核组' }
-          ],
-          statusText: '等待处理',
-          state: 'pending'
-        }]
-      },
-      {
-        title: '审核处理',
-        state: 'pending',
-        cards: [{
-          operator: '赵宁 · 市网信办终审组、陈终审 · 市网信办终审组',
-          people: [
-            { name: '赵宁', org: '市网信办终审组' },
-            { name: '陈终审', org: '市网信办终审组' }
-          ],
-          statusText: '等待处理',
-          state: 'pending'
-        }]
-      },
-      {
-        title: '结束',
-        state: 'pending',
-        cards: [{ operator: '流程结束', statusText: '', state: 'pending' }]
       }
     ];
   }
 
+  // 被驳回：只展示到驳回环节
   if (report.auditStatus === '被驳回' || report.auditStatus === '已驳回') {
     return [
       submitStep,
@@ -261,25 +305,11 @@ const buildFallbackTimeline = (
           state: 'rejected',
           note: myRejectedNode?.comment || rejectText
         }]
-      },
-      {
-        title: '审核处理',
-        state: 'pending',
-        cards: [{ operator: '李明 · 市网信办复核组', statusText: '等待处理', state: 'pending' }]
-      },
-      {
-        title: '审核处理',
-        state: 'pending',
-        cards: [{ operator: '赵宁 · 市网信办终审组', statusText: '等待处理', state: 'pending' }]
-      },
-      {
-        title: '结束',
-        state: 'pending',
-        cards: [{ operator: '流程结束', statusText: '', state: 'pending' }]
       }
     ];
   }
 
+  // 审核中：已完成 + 下一步待审核
   if (report.auditStatus === '审核中') {
     return [
       submitStep,
@@ -304,52 +334,12 @@ const buildFallbackTimeline = (
           statusText: '待审核',
           state: 'current'
         }]
-      },
-      {
-        title: '审核处理',
-        state: 'pending',
-        cards: [{
-          operator: '赵宁 · 市网信办终审组、陈终审 · 市网信办终审组',
-          people: [
-            { name: '赵宁', org: '市网信办终审组' },
-            { name: '陈终审', org: '市网信办终审组' }
-          ],
-          statusText: '等待处理',
-          state: 'pending'
-        }]
-      },
-      { title: '结束', state: 'pending', cards: [{ operator: '流程结束', statusText: '', state: 'pending' }] }
+      }
     ];
   }
 
-  // Default standard flow in AuditDetail: 流转到最后一个审核人赵宁，高亮显示为“待审核”
-  return [
-    submitStep,
-    {
-      title: '审核处理',
-      state: 'completed',
-      cards: [{ operator: '王主任 · 市委宣传部舆情科 · 2026-08-12 16:30', statusText: '已通过', state: 'completed' }]
-    },
-    {
-      title: '审核处理',
-      state: 'completed',
-      cards: [{ operator: '李明 · 市网信办复核组 · 2026-08-12 17:10', statusText: '已通过', state: 'completed' }]
-    },
-    {
-      title: '审核处理',
-      state: 'current',
-      cards: [{
-        operator: '赵宁 · 市网信办终审组、陈终审 · 市网信办终审组',
-        people: [
-          { name: '赵宁', org: '市网信办终审组' },
-          { name: '陈终审', org: '市网信办终审组' }
-        ],
-        statusText: '待审核',
-        state: 'current'
-      }]
-    },
-    { title: '结束', state: 'pending', cards: [{ operator: '流程结束', statusText: '', state: 'pending' }] }
-  ];
+  // 已采纳 / 已通过 / 转办等：完整时间线
+  return buildApprovedTimeline(report, rejectedLabel);
 };
 
 const getStepIconClass = (state: FlowCardState) => {
@@ -374,10 +364,19 @@ export const AuditFlowTimeline: React.FC<AuditFlowTimelineProps> = ({
   hideCardWrapper = false,
   myRejectedNode = null
 }) => {
-  const steps =
-    report.timeline && report.timeline.length > 3
-      ? buildFromTimeline(report.timeline, rejectedLabel)
-      : buildFallbackTimeline(report, rejectedLabel, myRejectedNode);
+  // 与 H5 对齐：按状态走演示时间线，不回落 mock timeline（避免审核中仍展示终审/结束等待节点）
+  const isCompletedFlow =
+    report.auditStatus === '已采纳' ||
+    report.auditStatus === '已通过' ||
+    report.auditStatus === '待转办' ||
+    report.auditStatus === '已转办';
+  const stepsRaw = isCompletedFlow
+    ? buildApprovedTimeline(report, rejectedLabel)
+    : buildFallbackTimeline(report, rejectedLabel, myRejectedNode);
+  // 与 H5 对齐：时间倒序，最早节点在页面下方
+  const steps = [...stepsRaw].reverse().map((step) =>
+    step.cards.length > 1 ? { ...step, cards: [...step.cards].reverse() } : step
+  );
 
   const content = (
     <>
