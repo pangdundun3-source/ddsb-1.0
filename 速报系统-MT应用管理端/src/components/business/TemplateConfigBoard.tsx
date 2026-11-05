@@ -95,11 +95,8 @@ export interface TemplateFieldItem {
 
 export type PcFieldWidth = 'full' | 'half';
 
-export const isAutoWideOnPc = (field: TemplateFieldItem) =>
-  isLockedField(field) ||
-  !!field.multiline ||
-  ['file', 'identity', 'address', 'link', 'radio', 'checkbox', 'multi_select', 'static_text'].includes(field.type) ||
-  (field.type === 'text' && /内容|摘要|简述|说明|情况|描述|详情/.test(field.name));
+/** PC 端默认全部控件占整行；仅显式设置 pcWidth='half' 时半行 */
+export const isAutoWideOnPc = (_field: TemplateFieldItem) => true;
 
 export const TEXT_MAX_LENGTH_DEFAULT = 20;
 export const TEXTAREA_MAX_LENGTH_DEFAULT = 500;
@@ -505,7 +502,7 @@ export const standardReportFields: TemplateFieldItem[] = [
   { id: 'rf_2', name: '事件发生/发现时间', type: 'date', required: true, placeholder: '请选择事件发生或传播时间' },
   { id: 'rf_3', name: '涉事热度/影响数据', type: 'number', required: false, placeholder: '请输入传播量/阅读量等数据' },
   { id: 'rf_4', name: '来源网址/文章出处', type: 'link', required: false, placeholder: 'https://...' },
-  { id: 'rf_5', name: '现场图片/证据附件', type: 'file', required: true, placeholder: '支持图片、视频、PDF证明文档' },
+  { id: 'rf_5', name: '现场图片/证据附件', type: 'file', required: true, placeholder: '支持图片、文档，单文件≤20MB，单次附件最多 5 个' },
   { id: 'rf_6', name: '事件分类', type: 'select', required: true, placeholder: '请选择事件分类', options: ['突发敏感事件', '网络舆情动态', '民生诉求建议'] }
 ];
 
@@ -524,7 +521,7 @@ export const standardActivationFields: TemplateFieldItem[] = [
   { id: 'af_4', name: '性别', type: 'gender', required: false, placeholder: '请选择性别' },
   { id: 'af_5', name: '身份证号', type: 'id_card', required: true, placeholder: '请输入身份证号码' },
   { id: 'af_6', name: '银行卡号', type: 'bank_card', required: false, placeholder: '请输入银行卡号' },
-  { id: 'af_7', name: '身份证照片/证明附件', type: 'file', required: true, placeholder: '请上传身份证照片或授权证明材料' }
+  { id: 'af_7', name: '身份证照片/证明附件', type: 'file', required: true, placeholder: '支持图片、文档，单文件≤20MB，单次附件最多 5 个' }
 ];
 
 // Initial default templates
@@ -554,7 +551,7 @@ const initialDefaultTemplates: BusinessTemplateItem[] = [
     fields: [
       ...fixedReportFields,
       { id: 'qf_2', name: '事件发生/发现时间', type: 'date', required: true, placeholder: '请选择事件发生或传播时间' },
-      { id: 'qf_3', name: '现场图片/证据附件', type: 'file', required: true, placeholder: '支持图片、视频、PDF证明文档' },
+      { id: 'qf_3', name: '现场图片/证据附件', type: 'file', required: true, placeholder: '支持图片、文档，单文件≤20MB，单次附件最多 5 个' },
       { id: 'qf_4', name: '事件分类', type: 'select', required: true, placeholder: '请选择事件分类', options: ['突发敏感事件', '网络舆情动态', '民生诉求建议'] }
     ],
     scoreRuleId: '201',
@@ -592,7 +589,7 @@ const initialDefaultTemplates: BusinessTemplateItem[] = [
       { id: 'eaf_3', name: '手机号码', type: 'phone', required: true, placeholder: '请输入 11 位手机号码' },
       { id: 'eaf_4', name: '性别', type: 'gender', required: false, placeholder: '请选择性别' },
       { id: 'eaf_5', name: '银行卡号', type: 'bank_card', required: false, placeholder: '请输入银行卡号' },
-      { id: 'eaf_6', name: '身份证照片/证明附件', type: 'file', required: true, placeholder: '请上传身份证照片或授权证明材料' }
+      { id: 'eaf_6', name: '身份证照片/证明附件', type: 'file', required: true, placeholder: '支持图片、文档，单文件≤20MB，单次附件最多 5 个' }
     ],
     verificationOptions: {
       phoneVerify: true,
@@ -1544,6 +1541,8 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     ];
   };
 
+  const FILE_FIELD_HINT = '支持图片、文档，单文件≤20MB，单次附件最多 5 个';
+
   const changeFieldControl = (field: TemplateFieldItem, control: FieldControl): TemplateFieldItem => {
     const type: FieldType = control === 'textarea' ? 'text' : control;
     return {
@@ -1564,8 +1563,9 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
         ? field.options || ['超级管理员', '机构管理员', '上报员', '审核员']
         : undefined,
       ...(type === 'static_text' ? { required: false } : {}),
+      ...(type === 'file' ? { placeholder: FILE_FIELD_HINT } : {}),
       ...((type === 'static_text') !== (field.type === 'static_text')
-        ? { placeholder: '', name: type === 'static_text' ? '' : field.name || '自定义字段' }
+        ? { placeholder: type === 'file' ? FILE_FIELD_HINT : '', name: type === 'static_text' ? '' : field.name || '自定义字段' }
         : {})
     };
   };
@@ -1855,11 +1855,11 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                           <button
                             type="button"
                             onClick={() => onChangePcWidth(field.id, undefined)}
-                            title="恢复按字段类型自动排布"
+                            title="恢复为默认整行"
                             className="h-5 px-1.5 flex items-center gap-0.5 rounded border border-gray-200 bg-white text-[11px] text-gray-500 hover:text-[#1E5ABB] hover:border-blue-200 cursor-pointer"
                           >
                             <RotateCcw className="w-3 h-3" />
-                            恢复自动
+                            恢复默认
                           </button>
                         )}
                         <button
@@ -2061,14 +2061,11 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                     ) : field.type === 'file' ? (
                       <div
                         onClick={() => showToast('已模拟唤起文件选择器')}
-                        className="border border-dashed border-slate-300 bg-white rounded-xl p-5 text-center flex flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer hover:border-blue-400 group"
+                        className="border border-dashed border-slate-300 bg-white rounded-xl px-4 py-4 text-center flex flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer hover:border-blue-400 group"
                       >
-                        <Paperclip className="w-7 h-7 text-slate-400 -rotate-45 group-hover:text-[#1E5ABB] transition-colors stroke-[1.5]" />
-                        <span className="text-xs font-medium text-slate-700">
-                          上传图片、视频或证明材料
-                        </span>
-                        <span className="text-[11px] text-slate-400">
-                          {field.placeholder || '支持图片、视频、PDF证明文档'}
+                        <Paperclip className="w-6 h-6 text-slate-400 -rotate-45 group-hover:text-[#1E5ABB] transition-colors stroke-[1.5]" />
+                        <span className="text-[11px] font-medium text-slate-600 leading-relaxed max-w-[17rem] px-1 break-words">
+                          支持图片、文档，单文件≤20MB，单次附件最多 5 个
                         </span>
                       </div>
                     ) : field.type === 'date' ? (
@@ -2680,6 +2677,14 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                         }}
                         placeholder="设置展示给填报人的提示文本内容..."
                         className="w-full px-3 py-2 border border-gray-200 rounded-md text-[13px] text-gray-600 bg-gray-50/70 resize-none hover:border-gray-300 focus:outline-none focus:border-[#1890ff] focus:bg-white focus:text-gray-700"
+                      />
+                    ) : field.type === 'file' ? (
+                      <input
+                        type="text"
+                        disabled
+                        value="支持图片、文档，单文件≤20MB，单次附件最多 5 个"
+                        title="附件控件提示语固定，不可编辑"
+                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-[13px] text-gray-500 bg-gray-100 cursor-not-allowed"
                       />
                     ) : (
                     <div className="flex items-center gap-2">

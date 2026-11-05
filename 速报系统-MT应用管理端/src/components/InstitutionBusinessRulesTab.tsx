@@ -119,7 +119,7 @@ export const standardReportFields: TemplateFieldItem[] = [
     name: '现场图片/证据附件',
     type: 'attachment',
     required: true,
-    placeholder: '上传图片、视频或证明材料 / 支持图片、视频、PDF证明文档',
+    placeholder: '支持图片、文档，单文件≤20MB，单次附件最多 5 个',
   },
   {
     id: 'f-6',
@@ -2734,15 +2734,12 @@ export const InstitutionBusinessRulesTab: React.FC<Props> = ({
                           )}
 
                           {field.type === 'attachment' && (
-                            <div className="border border-dashed border-gray-300 rounded-lg p-3 text-center bg-gray-50/60 cursor-not-allowed">
-                              <span className="material-symbols-outlined text-gray-400 text-[20px] mx-auto block mb-0.5">
+                            <div className="border border-dashed border-gray-300 rounded-lg px-3 py-3 text-center bg-gray-50/60 cursor-not-allowed flex flex-col items-center gap-1.5">
+                              <span className="material-symbols-outlined text-gray-400 text-[20px]">
                                 cloud_upload
                               </span>
-                              <span className="text-xs text-gray-600 font-medium block">
-                                {field.placeholder || '上传图片、视频或证明材料'}
-                              </span>
-                              <span className="text-[10px] text-gray-400 block mt-0.5">
-                                支持图片、视频、PDF证明文档
+                              <span className="text-[11px] text-gray-600 font-medium leading-relaxed max-w-[17rem] px-1 break-words">
+                                支持图片、文档，单文件≤20MB，单次附件最多 5 个
                               </span>
                             </div>
                           )}
@@ -3166,6 +3163,16 @@ export const InstitutionBusinessRulesTab: React.FC<Props> = ({
                                 女
                               </span>
                             </div>
+                          ) : field.type === 'attachment' ? (
+                            <div className="pl-6">
+                              <input
+                                type="text"
+                                disabled
+                                value="支持图片、文档，单文件≤20MB，单次附件最多 5 个"
+                                title="附件控件提示语固定，不可编辑"
+                                className="w-full border border-gray-200 rounded px-2 py-1 text-[11px] text-gray-500 bg-gray-100 cursor-not-allowed"
+                              />
+                            </div>
                           ) : (
                             <div className="pl-6">
                               <input
@@ -3347,12 +3354,12 @@ export const InstitutionBusinessRulesTab: React.FC<Props> = ({
                             )}
 
                             {field.type === 'attachment' && (
-                              <div className="border border-dashed border-gray-300 rounded p-2 text-center bg-gray-50/60 cursor-not-allowed">
-                                <span className="material-symbols-outlined text-gray-400 text-[16px] mx-auto block">
+                              <div className="border border-dashed border-gray-300 rounded px-2 py-2 text-center bg-gray-50/60 cursor-not-allowed flex flex-col items-center gap-1">
+                                <span className="material-symbols-outlined text-gray-400 text-[16px]">
                                   cloud_upload
                                 </span>
-                                <span className="text-[10px] text-gray-500 font-medium block">
-                                  {field.placeholder || '上传图片、视频或证明材料'}
+                                <span className="text-[10px] text-gray-600 font-medium leading-relaxed max-w-[14rem] px-0.5 break-words">
+                                  支持图片、文档，单文件≤20MB，单次附件最多 5 个
                                 </span>
                               </div>
                             )}

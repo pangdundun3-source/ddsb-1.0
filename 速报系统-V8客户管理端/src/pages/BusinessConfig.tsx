@@ -391,7 +391,7 @@ const getDefaultFieldPlaceholder = (type: FieldType) => {
     case 'date':
       return '请选择日期';
     case 'file':
-      return '请上传相关证明材料';
+      return '支持图片、文档，单文件≤20MB，单次附件最多 5 个';
     case 'link':
       return '请输入链接地址';
     case 'select':
@@ -451,11 +451,8 @@ const isFixedReportField = (id?: string) => fixedReportFields.some(f => f.id ===
 const isLockedField = (field?: TemplateField) => !!field && (field.locked ?? isFixedReportField(field.id));
 const isRequiredLockedField = (field?: TemplateField) => !!field && field.id === TITLE_FIELD_ID;
 
-const isAutoWideOnPc = (field: TemplateField) =>
-  isLockedField(field) ||
-  !!field.multiline ||
-  ['file', 'identity', 'address', 'link', 'radio', 'checkbox', 'multi_select', 'static_text'].includes(field.type) ||
-  (field.type === 'text' && /内容|摘要|简述|说明|情况|描述|详情/.test(field.name));
+/** PC 端默认全部控件占整行；仅显式设置 pcWidth='half' 时半行 */
+const isAutoWideOnPc = (_field: TemplateField) => true;
 
 /** 与 MT 共用存储键：机构端可消费平台下发的固定字段规则 */
 const FIXED_FIELD_RULE_STORAGE_KEY = 'mt_global_fixed_report_field_rule';
@@ -528,6 +525,8 @@ const applyFixedFieldRule = (fields: TemplateField[], institutionId?: string | n
 const fieldControlOf = (field: TemplateField): FieldControl =>
   field.type === 'text' && field.multiline ? 'textarea' : field.type;
 
+const FILE_FIELD_HINT = '支持图片、文档，单文件≤20MB，单次附件最多 5 个';
+
 const changeFieldControl = (field: TemplateField, control: FieldControl): TemplateField => {
   const type: FieldType = control === 'textarea' ? 'text' : control;
   return {
@@ -548,8 +547,9 @@ const changeFieldControl = (field: TemplateField, control: FieldControl): Templa
         ? field.options || ['超级管理员', '机构管理员', '上报员', '审核员']
         : undefined,
     ...(type === 'static_text' ? { required: false } : {}),
+    ...(type === 'file' ? { placeholder: FILE_FIELD_HINT } : {}),
     ...((type === 'static_text') !== (field.type === 'static_text')
-      ? { placeholder: '', name: type === 'static_text' ? '' : field.name || '自定义字段' }
+      ? { placeholder: type === 'file' ? FILE_FIELD_HINT : '', name: type === 'static_text' ? '' : field.name || '自定义字段' }
       : {})
   };
 };
@@ -590,7 +590,7 @@ const standardReportFields: TemplateField[] = withFixedReportFields([
   { id: 'p_2', name: '事件发生/发现时间', type: 'date', required: true, placeholder: '请选择事件发生或传播时间' },
   { id: 'p_3', name: '涉事热度/影响数据', type: 'number', required: false, placeholder: '请输入传播量/阅读量等数据' },
   { id: 'p_4', name: '来源网址/文章出处', type: 'link', required: false, placeholder: 'https://...' },
-  { id: 'p_5', name: '现场图片/证据附件', type: 'file', required: true, placeholder: '①图片：jpg、jpeg、png、bmp，单文件上限 20MB；②文档：pdf、doc、docx、xls、xlsx，单文件上限 20MB；单条上报全部附件总和上限 100MB；图片支持预览，附件仅支持下载' },
+  { id: 'p_5', name: '现场图片/证据附件', type: 'file', required: true, placeholder: '支持图片、文档，单文件≤20MB，单次附件最多 5 个' },
   { id: 'p_6', name: '事件分类', type: 'select', required: true, placeholder: '请选择事件分类', options: ['突发敏感事件', '网络舆情动态', '民生诉求建议'] }
 ]);
 
@@ -601,7 +601,7 @@ const standardActivationFields: TemplateField[] = [
   { id: 'ap_4', name: '性别', type: 'gender', required: false, placeholder: '请选择性别' },
   { id: 'ap_5', name: '身份证号', type: 'id_card', required: true, placeholder: '请输入身份证号码' },
   { id: 'ap_6', name: '银行卡号', type: 'bank_card', required: false, placeholder: '请输入银行卡号' },
-  { id: 'ap_7', name: '身份证照片/证明附件', type: 'file', required: true, placeholder: '请上传身份证照片或授权证明材料' }
+  { id: 'ap_7', name: '身份证照片/证明附件', type: 'file', required: true, placeholder: '支持图片、文档，单文件≤20MB，单次附件最多 5 个' }
 ];
 
 const buildTargetsFromDay = (day: number) => ({
@@ -2748,7 +2748,9 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         if (isRequiredLockedField(f)) next.required = true;
         return next;
       }
-      return { ...f, ...updates };
+      const next = { ...f, ...updates };
+      if (next.type === 'file') next.placeholder = FILE_FIELD_HINT;
+      return next;
     }));
   };
 
@@ -2977,11 +2979,11 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                         <button
                           type="button"
                           onClick={() => onChangePcWidth(field.id, undefined)}
-                          title="恢复按字段类型自动排布"
+                          title="恢复为默认整行"
                           className="h-5 px-1.5 flex items-center gap-0.5 rounded border border-gray-200 bg-white text-[11px] text-gray-500 hover:text-[#1E5ABB] hover:border-blue-200 cursor-pointer"
                         >
                           <RotateCcw className="w-3 h-3" />
-                          恢复自动
+                          恢复默认
                         </button>
                       )}
                       <button
@@ -3121,20 +3123,15 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                   )}
 
                   {field.type === 'file' && (
-                    <label className="block border border-dashed border-slate-300 rounded-xl p-5 text-center hover:border-blue-400 transition-colors cursor-pointer bg-white group">
+                    <label className="block border border-dashed border-slate-300 rounded-xl px-4 py-4 text-center hover:border-blue-400 transition-colors cursor-pointer bg-white group">
                       <input
                         type="file"
                         className="sr-only"
                         onChange={(e) => handlePreviewValueChange(field.id, e.target.files?.[0]?.name || '')}
                       />
-                      <Paperclip className="w-7 h-7 text-slate-400 -rotate-45 mx-auto mb-1.5 group-hover:text-[#1E5ABB] transition-colors stroke-[1.5]" />
-                      <p className="text-xs text-slate-700 font-medium break-words">
-                        {fieldValue || '上传图片、视频或证明材料'}
-                      </p>
-                      <p className="text-slate-400 text-[11px] mt-0.5 leading-relaxed">
-                        {field.placeholder && field.placeholder.length < 40
-                          ? field.placeholder
-                          : '支持图片、视频、PDF证明文档'}
+                      <Paperclip className="w-6 h-6 text-slate-400 -rotate-45 mx-auto mb-1.5 group-hover:text-[#1E5ABB] transition-colors stroke-[1.5]" />
+                      <p className="text-[11px] font-medium text-slate-600 leading-relaxed max-w-[17rem] mx-auto px-1 break-words">
+                        {fieldValue || '支持图片、文档，单文件≤20MB，单次附件最多 5 个'}
                       </p>
                     </label>
                   )}
@@ -5615,6 +5612,14 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                         onChange={e => handleUpdateField(index, { placeholder: e.target.value })}
                                         placeholder="设置展示给填报人的提示文本内容..."
                                         className="w-full px-3 py-2 border border-gray-200 rounded-md text-[13px] text-gray-600 bg-gray-50/70 resize-none hover:border-gray-300 focus:outline-none focus:border-[#1890ff] focus:bg-white focus:text-gray-700 disabled:bg-gray-100 disabled:text-gray-500"
+                                      />
+                                    ) : field.type === 'file' ? (
+                                      <input
+                                        type="text"
+                                        disabled
+                                        value="支持图片、文档，单文件≤20MB，单次附件最多 5 个"
+                                        title="附件控件提示语固定，不可编辑"
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-md text-[13px] text-gray-500 bg-gray-100 cursor-not-allowed"
                                       />
                                     ) : (
                                       <input
@@ -9231,13 +9236,23 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                           />
                                         </div>
 
-                                        <input
-                                          type="text"
-                                          value={field.placeholder || ''}
-                                          onChange={e => handleUpdateField(index, { placeholder: e.target.value })}
-                                          placeholder="给提报人员看的填写提示，例如：请简要说明事件经过"
-                                          className="w-full px-2.5 py-1.5 text-xs bg-gray-50/60 border border-gray-200 rounded text-gray-600 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
-                                        />
+                                        {field.type === 'file' ? (
+                                          <input
+                                            type="text"
+                                            disabled
+                                            value="支持图片、文档，单文件≤20MB，单次附件最多 5 个"
+                                            title="附件控件提示语固定，不可编辑"
+                                            className="w-full px-2.5 py-1.5 text-xs bg-gray-100 border border-gray-200 rounded text-gray-500 cursor-not-allowed"
+                                          />
+                                        ) : (
+                                          <input
+                                            type="text"
+                                            value={field.placeholder || ''}
+                                            onChange={e => handleUpdateField(index, { placeholder: e.target.value })}
+                                            placeholder="给提报人员看的填写提示，例如：请简要说明事件经过"
+                                            className="w-full px-2.5 py-1.5 text-xs bg-gray-50/60 border border-gray-200 rounded text-gray-600 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                                          />
+                                        )}
                                         {field.type === 'select' && (
                                           <div className="p-2 bg-rose-50/40 border border-rose-100 rounded space-y-1.5">
                                             <div className="text-[10px] text-rose-700 font-bold">选择项配置</div>

@@ -322,7 +322,7 @@ const standardReportFields: TemplateField[] = [
   { id: 'p_2', name: '事件发生/发现时间', type: 'date', required: true, placeholder: '请选择事件发生或传播时间' },
   { id: 'p_3', name: '涉事热度/影响数据', type: 'number', required: false, placeholder: '请输入传播量/阅读量等数据' },
   { id: 'p_4', name: '来源网址/文章出处', type: 'link', required: false, placeholder: 'https://...' },
-  { id: 'p_5', name: '现场图片/证据附件', type: 'file', required: true, placeholder: '支持图片、视频、PDF证明文档' },
+  { id: 'p_5', name: '现场图片/证据附件', type: 'file', required: true, placeholder: '支持图片、文档，单文件≤20MB，单次附件最多 5 个' },
   { id: 'p_6', name: '事件分类', type: 'select', required: true, placeholder: '请选择事件分类', options: ['突发敏感事件', '网络舆情动态', '民生诉求建议'] }
 ];
 
@@ -333,7 +333,7 @@ const standardActivationFields: TemplateField[] = [
   { id: 'ap_4', name: '性别', type: 'gender', required: false, placeholder: '请选择性别' },
   { id: 'ap_5', name: '身份证号', type: 'id_card', required: true, placeholder: '请输入身份证号码' },
   { id: 'ap_6', name: '银行卡号', type: 'bank_card', required: false, placeholder: '请输入银行卡号' },
-  { id: 'ap_7', name: '身份证照片/证明附件', type: 'file', required: true, placeholder: '请上传身份证照片或授权证明材料' }
+  { id: 'ap_7', name: '身份证照片/证明附件', type: 'file', required: true, placeholder: '支持图片、文档，单文件≤20MB，单次附件最多 5 个' }
 ];
 
 const buildTargetsFromDay = (day: number) => ({
@@ -2618,13 +2618,10 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                   )}
 
                   {field.type === 'file' && (
-                    <div className="border border-dashed border-slate-300 bg-white rounded-xl p-5 text-center flex flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer hover:border-blue-400 group">
-                      <Paperclip className="w-7 h-7 text-slate-400 -rotate-45 group-hover:text-[#1E5ABB] transition-colors stroke-[1.5]" />
-                      <span className="text-xs font-medium text-slate-700">
-                        上传图片、视频或证明材料
-                      </span>
-                      <span className="text-[11px] text-slate-400">
-                        {field.placeholder || '支持图片、视频、PDF证明文档'}
+                    <div className="border border-dashed border-slate-300 bg-white rounded-xl px-4 py-4 text-center flex flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer hover:border-blue-400 group">
+                      <Paperclip className="w-6 h-6 text-slate-400 -rotate-45 group-hover:text-[#1E5ABB] transition-colors stroke-[1.5]" />
+                      <span className="text-[11px] font-medium text-slate-600 leading-relaxed max-w-[17rem] px-1 break-words">
+                        支持图片、文档，单文件≤20MB，单次附件最多 5 个
                       </span>
                     </div>
                   )}

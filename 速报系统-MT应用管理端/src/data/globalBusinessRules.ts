@@ -106,7 +106,7 @@ export const standardReportFields: TemplateFieldItem[] = [
     name: '现场图片/证据附件',
     type: 'attachment',
     required: true,
-    placeholder: '上传图片、视频或证明材料 / 支持图片、视频、PDF证明文档',
+    placeholder: '支持图片、文档，单文件≤20MB，单次附件最多 5 个',
   },
   {
     id: 'f-6',
