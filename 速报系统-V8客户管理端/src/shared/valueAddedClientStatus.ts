@@ -122,12 +122,14 @@ export const isValueAddedServiceEnabled = (opts: {
   if (store && store.items.length > 0) {
     const item = matchItem(store.items, opts);
     if (item) {
-      return item.activatedStatus === '已开通' && item.status === '启用';
+      // 历史「未开通」快照：应用端未明确关闭时，按默认已开通且启用
+      if (item.activatedStatus !== '已开通') return true;
+      return item.status === '启用';
     }
   }
 
-  // 尚未写入客户启禁快照时：跟随应用端开通态（开通后默认启用）
-  return provisionActivated === true;
+  // 无客户启禁快照、应用端也未明确关闭时：默认开通启用
+  return true;
 };
 
 export const isInstructionFlowEnabled = () =>
