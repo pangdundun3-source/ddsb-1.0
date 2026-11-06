@@ -610,10 +610,6 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
     </div>
   );
 
-  const openPersonnelDetail = (person: PersonnelItem) => {
-    setViewingPersonnelId(person.id);
-  };
-
   const closePersonnelDetail = () => {
     setViewingPersonnelId(null);
   };
@@ -2253,7 +2249,6 @@ export const OrgManagement: React.FC<OrgManagementProps> = ({ onNavigate, embedd
                 orgNodes={orgNodes}
                 getGroupName={(id) => getGroupName(id) || id}
                 emptyText="当前节点暂无所属人员，点击右上角“新增人员”添加或调整归属"
-                onAvatarClick={openPersonnelDetail}
                 renderNameBadge={(item) => {
                   const ledOrgs = getLedOrgs(item);
                   if (ledOrgs.length === 0) return null;

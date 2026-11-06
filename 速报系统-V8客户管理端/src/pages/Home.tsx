@@ -5,7 +5,7 @@ import { getOrganizationPathText } from '../components/OrgPathDisplay';
 import { resolveIdentification } from '../services/identificationService';
 import { getAuditArrivedAt } from '../services/reportWorkflowService';
 import { AuditDetail } from './AuditDetail';
-import { Building2, ChevronRight, RotateCcw, Inbox } from 'lucide-react';
+import { ChevronRight, RotateCcw, Inbox } from 'lucide-react';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -58,10 +58,6 @@ const subOrgMatrixData = [
   { name: '市政务服务局', todaySubmitted: 1, pendingAudit: 1, rejectedResend: 0, reporterActive: '1/3', auditorActive: '1/1', avgMinutes: 30 }
 ];
 
-/** 待审核积压和平均审核耗时超过这两个阈值时标红提醒 */
-const PENDING_ALERT = 5;
-const AVG_MINUTES_ALERT = 60;
-
 const SORT_OPTIONS = {
   submitted: '今日上报',
   pending: '待审核',
@@ -78,9 +74,6 @@ const parseActiveRatio = (value: string) => {
   const [active, total] = value.split('/').map(Number);
   return total > 0 ? active / total : 0;
 };
-
-const formatMinutes = (minutes: number) =>
-  minutes >= 60 ? `${Math.floor(minutes / 60)}小时${minutes % 60 ? `${minutes % 60}分` : ''}` : `${minutes}分钟`;
 
 const getGreeting = (hour: number) => (hour < 12 ? '上午好' : hour < 18 ? '下午好' : '晚上好');
 
@@ -242,6 +235,60 @@ export const Home: React.FC<HomeProps> = ({
         </div>
       </section>
 
+      <Card
+        title="近 7 日业务走势"
+        extra={
+          <div className="hidden md:flex items-center gap-5 text-xs text-slate-500">
+            <span>
+              上报 <strong className="text-slate-900 tabular-nums">{totals.submitted}</strong>
+            </span>
+            <span>
+              采纳 <strong className="text-emerald-700 tabular-nums">{totals.passed}</strong>
+            </span>
+            <span>
+              通过率 <strong className="text-[#1E5ABB] tabular-nums">{avgPassRate.toFixed(1)}%</strong>
+            </span>
+            <span>
+              一次通过率 <strong className="text-amber-600 tabular-nums">{avgDirectRate.toFixed(1)}%</strong>
+            </span>
+          </div>
+        }
+      >
+        <div className="px-5 pt-4 flex flex-wrap items-center gap-4 text-xs text-slate-500">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm bg-[#1E5ABB]" />
+            上报量
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm bg-[#10B981]" />
+            采纳量
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-4 h-0.5 bg-[#1E5ABB]" />
+            整体通过率
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-4 border-t-2 border-dashed border-amber-500" />
+            一次通过率
+          </span>
+        </div>
+        <div className="h-72 w-full px-2 pb-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={bottomChartData} margin={{ top: 16, right: 16, left: -10, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+              <YAxis yAxisId="left" domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+              <YAxis yAxisId="right" orientation="right" domain={[60, 100]} tick={{ fontSize: 11, fill: '#64748b' }} unit="%" axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', fontSize: '12px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+              <Bar yAxisId="left" dataKey="submitted" name="上报量" fill="#1E5ABB" barSize={18} radius={[4, 4, 0, 0]} />
+              <Bar yAxisId="left" dataKey="passed" name="采纳量" fill="#10B981" barSize={18} radius={[4, 4, 0, 0]} />
+              <Line yAxisId="right" type="monotone" dataKey="passRate" name="整体通过率" stroke="#1E5ABB" strokeWidth={2} dot={{ r: 3 }} />
+              <Line yAxisId="right" type="monotone" dataKey="directRate" name="一次通过率" stroke="#F59E0B" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3 }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
+
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-stretch">
       <Card
         className="xl:col-span-5 flex flex-col"
@@ -380,96 +427,30 @@ export const Home: React.FC<HomeProps> = ({
                 <th className="py-2.5 px-1.5 font-medium text-right leading-tight">驳回待重报</th>
                 <th className="py-2.5 px-1.5 font-medium text-right leading-tight">上报员活跃</th>
                 <th className="py-2.5 px-1.5 font-medium text-right leading-tight">审核员活跃</th>
-                <th className="py-2.5 px-2 font-medium text-right leading-tight">平均审核耗时</th>
+                <th className="py-2.5 px-2 font-medium text-right leading-tight">平均审核耗时(分钟)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700 tabular-nums">
               {sortedOrgs.map((org) => (
                 <tr key={org.name} className="hover:bg-slate-50 transition-colors">
                   <td className="py-2.5 px-2">
-                    <span className="flex items-start gap-1.5 font-medium text-slate-900 leading-tight break-words">
-                      <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span className="font-medium text-slate-900 leading-tight break-words">
                       {org.name}
                     </span>
                   </td>
                   <td className="py-2.5 px-1.5 text-right">{org.todaySubmitted}</td>
-                  <td className={`py-2.5 px-1.5 text-right ${org.pendingAudit >= PENDING_ALERT ? 'text-rose-600 font-semibold' : ''}`}>
-                    {org.pendingAudit}
-                  </td>
+                  <td className="py-2.5 px-1.5 text-right">{org.pendingAudit}</td>
                   <td className="py-2.5 px-1.5 text-right">{org.rejectedResend}</td>
                   <td className="py-2.5 px-1.5 text-right">{org.reporterActive}</td>
                   <td className="py-2.5 px-1.5 text-right">{org.auditorActive}</td>
-                  <td
-                    className={`py-2.5 px-2 text-right leading-tight ${
-                      org.avgMinutes >= AVG_MINUTES_ALERT ? 'text-rose-600 font-semibold' : ''
-                    }`}
-                  >
-                    {formatMinutes(org.avgMinutes)}
-                  </td>
+                  <td className="py-2.5 px-2 text-right leading-tight">{org.avgMinutes}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p className="shrink-0 px-5 py-2.5 border-t border-slate-100 text-[11px] text-slate-400">
-          待审核 ≥ {PENDING_ALERT} 件或平均审核耗时超过 1 小时标红提示
-        </p>
       </Card>
       </div>
-
-      <Card
-        title="近 7 日业务走势"
-        extra={
-          <div className="hidden md:flex items-center gap-5 text-xs text-slate-500">
-            <span>
-              上报 <strong className="text-slate-900 tabular-nums">{totals.submitted}</strong>
-            </span>
-            <span>
-              采纳 <strong className="text-emerald-700 tabular-nums">{totals.passed}</strong>
-            </span>
-            <span>
-              通过率 <strong className="text-[#1E5ABB] tabular-nums">{avgPassRate.toFixed(1)}%</strong>
-            </span>
-            <span>
-              一次通过率 <strong className="text-amber-600 tabular-nums">{avgDirectRate.toFixed(1)}%</strong>
-            </span>
-          </div>
-        }
-      >
-        <div className="px-5 pt-4 flex flex-wrap items-center gap-4 text-xs text-slate-500">
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-sm bg-[#1E5ABB]" />
-            上报量
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-sm bg-[#10B981]" />
-            采纳量
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-4 h-0.5 bg-[#1E5ABB]" />
-            整体通过率
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-4 border-t-2 border-dashed border-amber-500" />
-            一次通过率
-          </span>
-        </div>
-        <div className="h-72 w-full px-2 pb-4">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={bottomChartData} margin={{ top: 16, right: 16, left: -10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="left" domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="right" orientation="right" domain={[60, 100]} tick={{ fontSize: 11, fill: '#64748b' }} unit="%" axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', fontSize: '12px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-              <Bar yAxisId="left" dataKey="submitted" name="上报量" fill="#1E5ABB" barSize={18} radius={[4, 4, 0, 0]} />
-              <Bar yAxisId="left" dataKey="passed" name="采纳量" fill="#10B981" barSize={18} radius={[4, 4, 0, 0]} />
-              <Line yAxisId="right" type="monotone" dataKey="passRate" name="整体通过率" stroke="#1E5ABB" strokeWidth={2} dot={{ r: 3 }} />
-              <Line yAxisId="right" type="monotone" dataKey="directRate" name="一次通过率" stroke="#F59E0B" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3 }} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      </Card>
 
       {drawerAuditReport && (
         <AuditDetail
