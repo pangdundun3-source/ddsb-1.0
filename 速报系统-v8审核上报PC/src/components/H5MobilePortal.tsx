@@ -45,11 +45,7 @@ import {
   CheckSquare
 } from 'lucide-react';
 import { ReportItem, AuditRecordItem, OrgItem, DraftReport, NewReportFormData } from '../types';
-import { alertDialog } from './common/ConfirmDialog';
-import {
-  getExternalAuditTemplateTip,
-  isTemplateBlockedByExternalAudit,
-} from '../shared/valueAddedAccess';
+import { isTemplateBlockedByExternalAudit } from '../shared/valueAddedAccess';
 import {
   H5_REPORT_DRAFT_STORAGE_KEY,
   loadDrafts,
@@ -444,14 +440,12 @@ export const H5MobilePortal: React.FC<H5MobilePortalProps> = ({
   };
 
   // Apply template
+  const selectableReportTemplates = REPORT_TEMPLATES.filter(
+    (tmpl) => !isTemplateBlockedByExternalAudit(tmpl.requiresExternalAudit)
+  );
+
   const handleApplyTemplate = (tmpl: typeof REPORT_TEMPLATES[0]) => {
-    if (isTemplateBlockedByExternalAudit(tmpl.requiresExternalAudit)) {
-      void alertDialog(getExternalAuditTemplateTip(), {
-        title: '无法选用该模板',
-        okText: '知道了',
-      });
-      return;
-    }
+    if (isTemplateBlockedByExternalAudit(tmpl.requiresExternalAudit)) return;
     setNewTitle(tmpl.title);
     setNewSource(tmpl.source);
     setNewRegion(tmpl.region);
@@ -728,7 +722,7 @@ export const H5MobilePortal: React.FC<H5MobilePortalProps> = ({
                     </div>
 
                     <div className="space-y-2.5">
-                      {REPORT_TEMPLATES.map((tmpl) => {
+                      {selectableReportTemplates.map((tmpl) => {
                         const Icon = tmpl.icon;
                         return (
                           <div

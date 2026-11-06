@@ -29,7 +29,6 @@ import { AnnouncementDetailView } from './components/AnnouncementDetailView';
 import { calculatePreJudgment, IDENTIFICATION_CONFIG, resolveOfficialTag } from './utils/identification';
 import {
   getExternalAuditModuleTip,
-  getExternalAuditTemplateTip,
   isExternalAuditEnabled,
   isTemplateBlockedByExternalAudit,
 } from './shared/valueAddedAccess';
@@ -533,21 +532,12 @@ export default function App() {
 
   // Helper to open new speed report form
   const handleOpenNewReport = (templateId?: string) => {
-    if (templateId) {
-      const tpl = REPORT_TEMPLATES.find((item) => item.id === templateId);
-      if (tpl && isTemplateBlockedByExternalAudit(tpl.requiresExternalAudit)) {
-        void alertDialog(getExternalAuditTemplateTip(), {
-          title: '无法选用该模板',
-          okText: '知道了',
-        });
-        return;
-      }
-    }
-    const resolvedTemplateId =
-      templateId ??
-      REPORT_TEMPLATES.find((item) => !isTemplateBlockedByExternalAudit(item.requiresExternalAudit))?.id ??
-      REPORT_TEMPLATES[0]?.id ??
-      null;
+    const selectable = REPORT_TEMPLATES.filter(
+      (item) => !isTemplateBlockedByExternalAudit(item.requiresExternalAudit)
+    );
+    const requested =
+      templateId && selectable.some((item) => item.id === templateId) ? templateId : null;
+    const resolvedTemplateId = requested ?? selectable[0]?.id ?? REPORT_TEMPLATES[0]?.id ?? null;
     if (currentTab !== 'report') {
       setPreviousTab(currentTab);
     }

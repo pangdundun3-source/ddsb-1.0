@@ -40,7 +40,6 @@ import {
 import {
   AUDIT_MODULE_PAGES,
   getExternalAuditModuleTip,
-  getExternalAuditTemplateTip,
   isExternalAuditEnabled,
   isTemplateBlockedByExternalAudit,
 } from '../shared/valueAddedAccess';
@@ -650,33 +649,28 @@ export const useAppViewModel = () => {
     setReportDetailSourcePage,
     setIsH5MobileOpen,
     openNewReportModal: (templateData?: ReportTemplateInput | null) => {
-      if (templateData?.templateId) {
-        const tpl = PRESET_REPORT_TEMPLATES.find((item) => item.id === templateData.templateId);
+      let nextTemplate = templateData || null;
+      if (nextTemplate?.templateId) {
+        const tpl = PRESET_REPORT_TEMPLATES.find((item) => item.id === nextTemplate?.templateId);
         if (tpl && isTemplateBlockedByExternalAudit(tpl.requiresExternalAudit)) {
-          void alertDialog(getExternalAuditTemplateTip(), {
-            title: '无法选用该模板',
-            okText: '知道了',
-          });
-          return;
+          // 外部审核停用：依赖模板不展示，快捷入口若仍带入则回落到默认可选模板
+          nextTemplate = null;
         }
       }
       setEditingReport(null);
-      setNewReportTemplate(templateData || null);
+      setNewReportTemplate(nextTemplate);
       setIsNewReportModalOpen(true);
     },
     handleOpenNewReport: (templateData?: ReportTemplateInput | null) => {
-      if (templateData?.templateId) {
-        const tpl = PRESET_REPORT_TEMPLATES.find((item) => item.id === templateData.templateId);
+      let nextTemplate = templateData || null;
+      if (nextTemplate?.templateId) {
+        const tpl = PRESET_REPORT_TEMPLATES.find((item) => item.id === nextTemplate?.templateId);
         if (tpl && isTemplateBlockedByExternalAudit(tpl.requiresExternalAudit)) {
-          void alertDialog(getExternalAuditTemplateTip(), {
-            title: '无法选用该模板',
-            okText: '知道了',
-          });
-          return;
+          nextTemplate = null;
         }
       }
       setEditingReport(null);
-      setNewReportTemplate(templateData || null);
+      setNewReportTemplate(nextTemplate);
       setIsNewReportModalOpen(true);
     },
     openEditReportModal: (report: ReportItem) => {

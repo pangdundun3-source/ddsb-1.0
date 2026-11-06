@@ -26,6 +26,8 @@ import { HomeNotificationPanel } from '../components/HomeNotificationPanel';
 import { getAuditArrivedAt, getRejectTime } from '../services/reportWorkflowService';
 import { AuditDetail } from './AuditDetail';
 import { ReportDetail } from './ReportDetail';
+import { PRESET_REPORT_TEMPLATES } from '../data/mockData';
+import { isTemplateBlockedByExternalAudit } from '../shared/valueAddedAccess';
 
 export type SystemRoleMode = 'all' | 'reporter' | 'auditor';
 
@@ -643,7 +645,12 @@ export const Home: React.FC<HomeProps> = ({
                 </button>
               </div>
               <ul className="divide-y divide-slate-100">
-                {TEMPLATE_SHORTCUTS.map((tpl) => {
+                {TEMPLATE_SHORTCUTS.filter((tpl) => {
+                  const preset = PRESET_REPORT_TEMPLATES.find(
+                    (item) => item.id === tpl.build().templateId
+                  );
+                  return !isTemplateBlockedByExternalAudit(preset?.requiresExternalAudit);
+                }).map((tpl) => {
                   const Icon = tpl.icon;
                   return (
                     <li key={tpl.id}>

@@ -160,8 +160,8 @@ interface TemplateConfigBoardProps {
   /** 来自审核流程配置模块的启用项（停用项不传） */
   auditFlowOptions?: AuditFlowOptionItem[];
   /**
-   * 历史开关：曾用于机构侧外部审核未启用时拦截模式一/二关联。
-   * 现改为仅入口控制，配置侧默认传 false，保留参数兼容旧调用。
+   * 为 true 时：模板若绑定模式一/二流程则禁止启用 / 关联。
+   * 应用端「外部审核」未开通时应传 true；机构侧已开通后停用只控入口，传 false。
    */
   blockExternalDependentFlows?: boolean;
   /** 模式一/二审核流程 id（不论启停），用于启用模板时校验 */
