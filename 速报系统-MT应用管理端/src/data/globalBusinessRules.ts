@@ -63,8 +63,8 @@ export const defaultValueAddedServices: ValueAddedServiceItem[] = [
   {
     id: 'vas-external-audit',
     name: '外部审核',
-    isPurchased: false,
-    isEnabled: false,
+    isPurchased: true,
+    isEnabled: true,
     tag: '增值扩展功能',
     description: '针对外部联系人的注册激活、资料变更与组织节点调整进行审核把关，支持通过 / 驳回与审核留痕，保障外部协作人员身份真实可控',
     icon: 'auto_awesome',

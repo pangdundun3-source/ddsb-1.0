@@ -564,14 +564,14 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
         isDefault: true
       },
       {
-        id: 'va_2',
-        name: '截图取证',
+        id: 'va_dup',
+        name: '报送首发重复识别',
         dictCategoryName: '增值业务',
-        dictCode: 'VA_SCREENSHOT_EVIDENCE',
-        status: '停用',
+        dictCode: 'VA_FIRST_DUPLICATE_IDENTIFY',
+        status: '启用',
         activatedStatus: '已开通',
         updateTime: '2023-11-10 10:00:00',
-        description: '自动化对涉事网页及社交媒体内容进行全屏快照截屏存证，生成区块链与防篡改水文可信取证包',
+        description: '通过抓取报送链接的文章原文比对判断内容是否重复，并结合提交时间线智能判定首发，避免多头报送与重复审核计分。',
         isDefault: true
       },
       {
@@ -579,8 +579,8 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
         name: '指令流转',
         dictCategoryName: '增值业务',
         dictCode: 'VA_INSTRUCTION_FLOW',
-        status: '停用',
-        activatedStatus: '未开通',
+        status: '启用',
+        activatedStatus: '已开通',
         updateTime: '2023-11-10 10:00:00',
         description: '跨部门与下级节点指令下发、时限催办、督查跟进、反馈回复与闭环归档全流程协作引擎',
         isDefault: true
@@ -590,10 +590,21 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
         name: '系统公告',
         dictCategoryName: '增值业务',
         dictCode: 'VA_SYSTEM_ANNOUNCEMENT',
-        status: '停用',
-        activatedStatus: '未开通',
+        status: '启用',
+        activatedStatus: '已开通',
         updateTime: '2023-11-10 10:00:00',
         description: '支撑全网节点重大通知广播、突发风险预警弹窗强提醒及全局公告消息穿透推送',
+        isDefault: true
+      },
+      {
+        id: 'va_6',
+        name: '外部审核',
+        dictCategoryName: '增值业务',
+        dictCode: 'VA_EXTERNAL_CONTACT_AUDIT',
+        status: '启用',
+        activatedStatus: '已开通',
+        updateTime: '2023-11-10 10:00:00',
+        description: '针对外部联系人的注册激活、资料变更与组织节点调整进行审核把关，支持通过 / 驳回与审核留痕，保障外部协作人员身份真实可控',
         isDefault: true
       }
     ]
