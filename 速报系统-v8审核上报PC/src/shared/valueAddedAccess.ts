@@ -143,8 +143,53 @@ export const isExternalAuditEnabled = () =>
     nameIncludes: '外部审核',
   });
 
+/** 外部审核不可用时的原因：应用端未开通 / 机构侧停用 */
+export const getExternalAuditBlockReason = (): '未开通' | '已停用' => {
+  const opts = { dictCode: 'VA_EXTERNAL_CONTACT_AUDIT', nameIncludes: '外部审核' };
+  const provision = readProvisionStore();
+  const orgName = readCurrentOrgName().trim();
+  const map = (orgName && provision.byOrg[orgName]) || provision.latest || {};
+  const provisionActivated = lookupActivated(map, {
+    dictCode: opts.dictCode,
+    name: opts.nameIncludes,
+  });
+  if (provisionActivated === false) return '未开通';
+
+  const store = readClientStore();
+  const item = store?.items?.length ? matchClientItem(store.items, opts) : undefined;
+  if (item && item.activatedStatus === '已开通' && item.status !== '启用') return '已停用';
+  return '未开通';
+};
+
 export const EXTERNAL_AUDIT_MODULE_TIP =
-  '审核管理属于增值业务「外部审核」，暂未开通或已停用，请先联系相关人员开通后使用。';
+  '本机构的「外部审核」暂不可用，审核管理入口已关闭。如需使用，请联系相关人员开通或启用后再试。';
+
+export const EXTERNAL_AUDIT_REPORT_TIP =
+  '本机构的「外部审核」暂不可用，关联外部审核流程的报送模板暂时无法选用。';
+
+export const getExternalAuditModuleTip = () => {
+  const reason = getExternalAuditBlockReason();
+  if (reason === '已停用') {
+    return '本机构已停用增值业务「外部审核」，因此无法进入审核管理。如需使用，请联系本机构管理员在客户管理端重新启用。';
+  }
+  return '本机构尚未开通增值业务「外部审核」，因此无法进入审核管理。如需使用，请联系平台相关人员开通。';
+};
+
+/** 选用依赖外部审核流程的模板时的拦截文案 */
+export const getExternalAuditTemplateTip = () => {
+  const reason = getExternalAuditBlockReason();
+  if (reason === '已停用') {
+    return '本机构已停用增值业务「外部审核」，该模板关联的审核流程依赖外部审核，暂时无法选用。如需使用，请联系本机构管理员在客户管理端重新启用。';
+  }
+  return '本机构尚未开通增值业务「外部审核」，该模板关联的审核流程依赖外部审核，暂时无法选用。如需使用，请联系平台相关人员开通。';
+};
+
+/** 兼容旧命名 */
+export const getExternalAuditReportTip = getExternalAuditTemplateTip;
+
+/** 模板是否因外部审核未开通/停用而不可选 */
+export const isTemplateBlockedByExternalAudit = (requiresExternalAudit?: boolean) =>
+  Boolean(requiresExternalAudit) && !isExternalAuditEnabled();
 
 /** 审核管理相关页面（顶部「审核管理」及子菜单） */
 export const AUDIT_MODULE_PAGES = new Set([

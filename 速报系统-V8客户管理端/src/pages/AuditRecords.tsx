@@ -14,7 +14,7 @@ import { INITIAL_ORG_NODES, matchOrganizationByFilter } from '../data/userOrgSha
 import { resolveIdentification } from '../services/identificationService';
 import { alertDialog } from '../components/common/ConfirmDialog';
 import {
-  INSTRUCTION_FLOW_TRANSFER_TIP,
+  getInstructionFlowTransferTip,
   isInstructionFlowEnabled,
 } from '../shared/valueAddedClientStatus';
 
@@ -383,8 +383,8 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
                           type="button"
                           onClick={() => {
                             if (!isInstructionFlowEnabled()) {
-                              void alertDialog(INSTRUCTION_FLOW_TRANSFER_TIP, {
-                                title: '增值业务未开通',
+                              void alertDialog(getInstructionFlowTransferTip(), {
+                                title: '无法发起转办',
                                 okText: '知道了',
                               });
                               return;

@@ -108,6 +108,8 @@ export interface ReportTemplate {
   coreDemandPlaceholder: string;
   advicePlaceholder: string;
   extraFields: TemplateExtraField[];
+  /** 关联模式一/二等外部审核流程时为 true；机构停用外部审核后不可选用 */
+  requiresExternalAudit?: boolean;
 }
 
 export type NotificationType =

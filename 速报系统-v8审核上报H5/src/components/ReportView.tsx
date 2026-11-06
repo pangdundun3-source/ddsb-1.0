@@ -6,6 +6,11 @@ import { BackNavigationBar } from './BackNavigationBar';
 import { IdentificationBadge } from './IdentificationBadge';
 import { RecallConfirmDialog } from './RecallConfirmDialog';
 import { getAuditAssignmentStatus, getAuditBlockTip } from '../utils/submitGuard';
+import { alertDialog } from './ConfirmDialog';
+import {
+  getExternalAuditTemplateTip,
+  isTemplateBlockedByExternalAudit,
+} from '../shared/valueAddedAccess';
 import { calculatePreJudgment } from '../utils/identification';
 import {
   TemplateExtraFields,
@@ -245,6 +250,13 @@ export const ReportView: React.FC<ReportViewProps> = ({
   }, [initialEditReport, isCreatingNew, initialTemplateId]);
 
   const applyTemplate = (tpl: ReportTemplate) => {
+    if (isTemplateBlockedByExternalAudit(tpl.requiresExternalAudit)) {
+      void alertDialog(getExternalAuditTemplateTip(), {
+        title: '无法选用该模板',
+        okText: '知道了',
+      });
+      return;
+    }
     setSelectedTemplate(tpl);
     resetExtraFields(tpl);
     // 切换模板只更新占位提示与下拉默认倾向，不写入示例正文
@@ -265,7 +277,12 @@ export const ReportView: React.FC<ReportViewProps> = ({
   };
 
   function handleOpenNewForm() {
-    const template = getTemplateById(initialTemplateId);
+    let template = getTemplateById(initialTemplateId);
+    if (isTemplateBlockedByExternalAudit(template.requiresExternalAudit)) {
+      template =
+        REPORT_TEMPLATES.find((item) => !isTemplateBlockedByExternalAudit(item.requiresExternalAudit)) ||
+        template;
+    }
     setEditingId(null);
     setSelectedTemplate(template);
     setFormTitle('');

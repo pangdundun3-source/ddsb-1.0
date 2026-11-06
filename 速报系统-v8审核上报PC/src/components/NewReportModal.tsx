@@ -39,6 +39,11 @@ import {
   getAuditAssignmentStatus,
   getAuditBlockTip
 } from '../utils/submitGuard';
+import { alertDialog } from './common/ConfirmDialog';
+import {
+  getExternalAuditTemplateTip,
+  isTemplateBlockedByExternalAudit,
+} from '../shared/valueAddedAccess';
 
 const DEFAULT_ATTACHMENTS: Attachment[] = [
   {
@@ -202,6 +207,13 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
 
   // Apply a template definition to the form fields
   const applyTemplate = (template: ReportTemplateDef) => {
+    if (isTemplateBlockedByExternalAudit(template.requiresExternalAudit)) {
+      void alertDialog(getExternalAuditTemplateTip(), {
+        title: '无法选用该模板',
+        okText: '知道了',
+      });
+      return;
+    }
     setSelectedTemplateId(template.id);
     setExtraFieldValues(createInitialTemplateValues(template.extraFields));
     setExtraFieldErrors({});
@@ -255,7 +267,12 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
       setAttachments(getReportAttachments(editingReport));
       setExtraFieldValues(backfillTemplateValues(editTemplate, editingReport));
     } else if (initialTemplate) {
-      const initialSelectedTemplate = getTemplateById(initialTemplate.templateId);
+      let initialSelectedTemplate = getTemplateById(initialTemplate.templateId);
+      if (isTemplateBlockedByExternalAudit(initialSelectedTemplate.requiresExternalAudit)) {
+        initialSelectedTemplate =
+          PRESET_TEMPLATES.find((item) => !isTemplateBlockedByExternalAudit(item.requiresExternalAudit)) ||
+          initialSelectedTemplate;
+      }
       setSelectedTemplateId(initialSelectedTemplate.id);
       setExtraFieldValues(createInitialTemplateValues(initialSelectedTemplate.extraFields));
       setTitle('');
@@ -270,7 +287,9 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
       setRecommendations('');
       setAttachments([]);
     } else {
-      const defaultTpl = PRESET_TEMPLATES[0];
+      const defaultTpl =
+        PRESET_TEMPLATES.find((item) => !isTemplateBlockedByExternalAudit(item.requiresExternalAudit)) ||
+        PRESET_TEMPLATES[0];
       setSelectedTemplateId(defaultTpl.id);
       setExtraFieldValues(createInitialTemplateValues(defaultTpl.extraFields));
       setTitle('');
@@ -503,13 +522,17 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               {PRESET_TEMPLATES.map((tpl) => {
                 const isSelected = selectedTemplateId === tpl.id;
+                const isBlocked = isTemplateBlockedByExternalAudit(tpl.requiresExternalAudit);
                 return (
                   <button
                     key={tpl.id}
                     type="button"
+                    title={isBlocked ? '该模板关联外部审核流程，当前不可选用' : undefined}
                     onClick={() => applyTemplate(tpl)}
                     className={`p-2.5 rounded-lg border text-left transition-all relative cursor-pointer group ${
-                      isSelected
+                      isBlocked
+                        ? 'bg-gray-50 border-gray-200 opacity-55'
+                        : isSelected
                         ? 'bg-white border-[#1E5ABB] shadow-md ring-2 ring-blue-100'
                         : 'bg-white/80 hover:bg-white border-gray-200/80 hover:border-blue-200 shadow-2xs'
                     }`}

@@ -45,6 +45,11 @@ import {
   CheckSquare
 } from 'lucide-react';
 import { ReportItem, AuditRecordItem, OrgItem, DraftReport, NewReportFormData } from '../types';
+import { alertDialog } from './common/ConfirmDialog';
+import {
+  getExternalAuditTemplateTip,
+  isTemplateBlockedByExternalAudit,
+} from '../shared/valueAddedAccess';
 import {
   H5_REPORT_DRAFT_STORAGE_KEY,
   loadDrafts,
@@ -71,6 +76,7 @@ const REPORT_TEMPLATES = [
   {
     id: 'tmpl-1',
     name: '民生突发事件模板',
+    requiresExternalAudit: true,
     typeTag: '突发事件',
     icon: Flame,
     color: 'bg-rose-50 text-rose-600 border-rose-200',
@@ -83,6 +89,7 @@ const REPORT_TEMPLATES = [
   {
     id: 'tmpl-2',
     name: '环保安监排查模板',
+    requiresExternalAudit: true,
     typeTag: '舆情动态',
     icon: AlertTriangle,
     color: 'bg-amber-50 text-amber-600 border-amber-200',
@@ -95,6 +102,7 @@ const REPORT_TEMPLATES = [
   {
     id: 'tmpl-3',
     name: '网格每日巡查模板',
+    requiresExternalAudit: true,
     typeTag: '民生诉求',
     icon: Shield,
     color: 'bg-blue-50 text-blue-600 border-blue-200',
@@ -107,6 +115,7 @@ const REPORT_TEMPLATES = [
   {
     id: 'tmpl-4',
     name: '政策热点回应模板',
+    requiresExternalAudit: false,
     typeTag: '政策解读',
     icon: BookOpen,
     color: 'bg-purple-50 text-purple-600 border-purple-200',
@@ -436,6 +445,13 @@ export const H5MobilePortal: React.FC<H5MobilePortalProps> = ({
 
   // Apply template
   const handleApplyTemplate = (tmpl: typeof REPORT_TEMPLATES[0]) => {
+    if (isTemplateBlockedByExternalAudit(tmpl.requiresExternalAudit)) {
+      void alertDialog(getExternalAuditTemplateTip(), {
+        title: '无法选用该模板',
+        okText: '知道了',
+      });
+      return;
+    }
     setNewTitle(tmpl.title);
     setNewSource(tmpl.source);
     setNewRegion(tmpl.region);

@@ -144,8 +144,44 @@ export const isExternalAuditEnabled = () =>
     nameIncludes: '外部审核',
   });
 
+/** 增值业务不可用时的原因：应用端未开通 / 机构侧停用 */
+export const getValueAddedBlockReason = (opts: {
+  dictCode?: string;
+  nameIncludes?: string;
+}): '未开通' | '已停用' => {
+  const map = readValueAddedProvisionMap(readCurrentOrgName());
+  const provisionActivated = lookupValueAddedActivated(map, {
+    dictCode: opts.dictCode,
+    name: opts.nameIncludes,
+  });
+  if (provisionActivated === false) return '未开通';
+
+  const store = readStore();
+  const item = store?.items?.length ? matchItem(store.items, opts) : undefined;
+  if (item && item.activatedStatus === '已开通' && item.status !== '启用') return '已停用';
+  return '未开通';
+};
+
+export const getInstructionFlowBlockReason = () =>
+  getValueAddedBlockReason({
+    dictCode: 'VA_INSTRUCTION_FLOW',
+    nameIncludes: '指令流转',
+  });
+
+/** 审核记录「转办」入口拦截文案（区分未开通 / 已停用） */
+export const getInstructionFlowTransferTip = () => {
+  const reason = getInstructionFlowBlockReason();
+  if (reason === '已停用') {
+    return '本机构已停用增值业务「指令流转」，因此无法发起转办。如需使用，请联系本机构管理员在客户管理端重新启用。';
+  }
+  return '本机构尚未开通增值业务「指令流转」，因此无法发起转办。如需使用，请联系平台相关人员开通。';
+};
+
 export const INSTRUCTION_FLOW_TRANSFER_TIP =
-  '转办属于增值业务「指令流转」，暂未开通或已停用，请先联系相关人员开通后使用。';
+  '转办属于增值业务「指令流转」，暂未开通或已停用，请先联系相关人员开通或启用后使用。';
 
 export const EXTERNAL_AUDIT_MODULE_TIP =
-  '审核管理属于增值业务「外部审核」，暂未开通或已停用，请先联系相关人员开通后使用。';
+  '本机构已停用或尚未开通增值业务「外部审核」，因此无法进入审核管理。如需使用，请先开通/启用后再试。';
+
+export const EXTERNAL_AUDIT_REPORT_TIP =
+  '本机构已停用或尚未开通增值业务「外部审核」，关联外部审核流程的报送模板暂时无法选用。如需使用，请先开通/启用后再试。';

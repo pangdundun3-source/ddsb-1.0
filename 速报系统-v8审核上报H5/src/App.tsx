@@ -27,7 +27,12 @@ import { OfficialAccountEntryView } from './components/OfficialAccountEntryView'
 import { ActivationH5View } from './components/ActivationH5View';
 import { AnnouncementDetailView } from './components/AnnouncementDetailView';
 import { calculatePreJudgment, IDENTIFICATION_CONFIG, resolveOfficialTag } from './utils/identification';
-import { EXTERNAL_AUDIT_MODULE_TIP, isExternalAuditEnabled } from './shared/valueAddedAccess';
+import {
+  getExternalAuditModuleTip,
+  getExternalAuditTemplateTip,
+  isExternalAuditEnabled,
+  isTemplateBlockedByExternalAudit,
+} from './shared/valueAddedAccess';
 import { alertDialog, ConfirmDialogHost } from './components/ConfirmDialog';
 
 export default function App() {
@@ -476,8 +481,8 @@ export default function App() {
         const wantsAudit =
           notif.type === '待审核通知' && target.status === 'pending_audit';
         if (wantsAudit && !isExternalAuditEnabled()) {
-          void alertDialog(EXTERNAL_AUDIT_MODULE_TIP, {
-            title: '增值业务未开通',
+          void alertDialog(getExternalAuditModuleTip(), {
+            title: '无法进入审核管理',
             okText: '知道了',
           });
           return;
@@ -493,8 +498,8 @@ export default function App() {
     entry: 'report_pending' | 'audit_pending' | null = null
   ) => {
     if (entry === 'audit_pending' && !isExternalAuditEnabled()) {
-      void alertDialog(EXTERNAL_AUDIT_MODULE_TIP, {
-        title: '增值业务未开通',
+      void alertDialog(getExternalAuditModuleTip(), {
+        title: '无法进入审核管理',
         okText: '知道了',
       });
       return;
@@ -528,7 +533,21 @@ export default function App() {
 
   // Helper to open new speed report form
   const handleOpenNewReport = (templateId?: string) => {
-    const resolvedTemplateId = templateId ?? REPORT_TEMPLATES[0]?.id ?? null;
+    if (templateId) {
+      const tpl = REPORT_TEMPLATES.find((item) => item.id === templateId);
+      if (tpl && isTemplateBlockedByExternalAudit(tpl.requiresExternalAudit)) {
+        void alertDialog(getExternalAuditTemplateTip(), {
+          title: '无法选用该模板',
+          okText: '知道了',
+        });
+        return;
+      }
+    }
+    const resolvedTemplateId =
+      templateId ??
+      REPORT_TEMPLATES.find((item) => !isTemplateBlockedByExternalAudit(item.requiresExternalAudit))?.id ??
+      REPORT_TEMPLATES[0]?.id ??
+      null;
     if (currentTab !== 'report') {
       setPreviousTab(currentTab);
     }
@@ -592,8 +611,8 @@ export default function App() {
         currentTab={currentTab}
         onSelectTab={(tab) => {
           if (tab === 'audit' && !isExternalAuditEnabled()) {
-            void alertDialog(EXTERNAL_AUDIT_MODULE_TIP, {
-              title: '增值业务未开通',
+            void alertDialog(getExternalAuditModuleTip(), {
+              title: '无法进入审核管理',
               okText: '知道了',
             });
             return;
@@ -724,8 +743,8 @@ export default function App() {
                   setCurrentTab('audit');
                 } else {
                   setCurrentTab('home');
-                  void alertDialog(EXTERNAL_AUDIT_MODULE_TIP, {
-                    title: '增值业务未开通',
+                  void alertDialog(getExternalAuditModuleTip(), {
+                    title: '无法进入审核管理',
                     okText: '知道了',
                   });
                 }
@@ -771,8 +790,8 @@ export default function App() {
             }}
             onEnterAuditList={() => {
               if (!isExternalAuditEnabled()) {
-                void alertDialog(EXTERNAL_AUDIT_MODULE_TIP, {
-                  title: '增值业务未开通',
+                void alertDialog(getExternalAuditModuleTip(), {
+                  title: '无法进入审核管理',
                   okText: '知道了',
                 });
                 return;

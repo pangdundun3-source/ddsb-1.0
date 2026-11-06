@@ -3414,63 +3414,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     const newStatus = targetItem.status === '启用' ? '停用' : '启用';
     const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
 
-    // 外部审核停用：级联停用模式一/二审核流程，并解绑停用关联报送模板
-    const isExternalAuditValueAdded =
-      (targetItem.name || '').includes('外部审核') ||
-      targetItem.dictCode === 'VA_EXTERNAL_CONTACT_AUDIT';
-    if (activeModule === 'value_added' && isExternalAuditValueAdded && newStatus === '停用') {
-      const affectedFlows = (dataStore.audit_flow || []).filter((flow) => {
-        if (flow.status !== '启用') return false;
-        const mode = resolveAuditFlowMode(flow);
-        return mode === 'step_by_step' || mode === 'max_n_steps';
-      });
-      const linkedTemplateMap = new Map<string, ConfigModuleItem>();
-      affectedFlows.forEach((flow) => {
-        getLinkedReportTemplates(flow, dataStore.report_template || [], 'relatedFlowId').forEach(
-          (tpl) => linkedTemplateMap.set(tpl.id, tpl)
-        );
-      });
-
-      if (affectedFlows.length > 0) {
-        const confirmed = await confirmDialog(
-          `停用「外部审核」后，依赖该功能的 ${affectedFlows.length} 个审核流程将同步停用` +
-            (linkedTemplateMap.size > 0
-              ? `，并解绑且停用关联的 ${linkedTemplateMap.size} 个报送模板`
-              : '') +
-            `。确定停用？`,
-          { title: '确认停用外部审核', okText: '确认停用', danger: true }
-        );
-        if (!confirmed) return;
-      }
-
-      const affectedFlowIds = new Set(affectedFlows.map((flow) => flow.id));
-      const linkedIds = new Set(linkedTemplateMap.keys());
-      setDataStore((prev) => ({
-        ...prev,
-        value_added: (prev.value_added || []).map((item) =>
-          item.id === id
-            ? {
-                ...item,
-                status: '停用' as const,
-                updateTime: nowStr
-              }
-            : item
-        ),
-        audit_flow: (prev.audit_flow || []).map((item) =>
-          affectedFlowIds.has(item.id)
-            ? {
-                ...item,
-                status: '停用' as const,
-                relatedTemplateId: undefined,
-                relatedTemplateName: undefined,
-                updateTime: nowStr
-              }
-            : item
-        ),
-        report_template: disableLinkedReportTemplates(prev, linkedIds, 'relatedFlowId', nowStr)
-      }));
-      return;
-    }
+    // 机构侧停用「外部审核」只影响 PC/H5 审核管理与模板上报入口，不级联改流程/模板启停
 
     // 审核流程 / 打分规则停用：若有关联报送模板，先确认再解绑并停用
     if ((activeModule === 'audit_flow' || activeModule === 'audit_score') && newStatus === '停用') {
@@ -3510,56 +3454,12 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       }
     }
 
-    // 外部审核未启用时，禁止重新启用模式一/二审核流程
-    if (activeModule === 'audit_flow' && newStatus === '启用') {
-      const externalAuditEnabled = (dataStore.value_added || []).some(
-        (item) => (item.name || '').includes('外部审核') && item.status === '启用'
-      );
-      const mode = resolveAuditFlowMode(targetItem);
-      if (!externalAuditEnabled && (mode === 'step_by_step' || mode === 'max_n_steps')) {
-        await alertDialog('未开通外部审核功能，该流程所依赖的外部审核暂不可用，暂时无法启用。');
-        return;
-      }
-    }
-
-    // 报送模板启用前须关联打分规则与审核流程（与 MT 对齐）
+    // 报送模板启用前须关联打分规则与审核流程（与 MT 对齐；不因外部审核启停拦截）
     if (
       activeModule === 'report_template' &&
       newStatus === '启用' &&
       (targetItem.templateType || '报送') === '报送'
     ) {
-      const externalAuditEnabled = (dataStore.value_added || []).some(
-        (item) => (item.name || '').includes('外部审核') && item.status === '启用'
-      );
-
-      const resolveTemplateBoundFlow = () => {
-        if (targetItem.relatedFlowId) {
-          return (dataStore.audit_flow || []).find((flow) => flow.id === targetItem.relatedFlowId);
-        }
-        // 模板未显式绑定时：兼容流程侧「全部通用 / 指定模板」关联，以及面板默认 601/602
-        const byApply = (dataStore.audit_flow || []).find((flow) => {
-          if (flow.status !== '启用') return false;
-          const applyAll =
-            flow.templateApplyMode === 'all_report_templates' ||
-            flow.relatedTemplateId === 'all_report_templates';
-          return applyAll || flow.relatedTemplateId === targetItem.id;
-        });
-        if (byApply) return byApply;
-        const fallbackId = targetItem.id === '3' ? '602' : '601';
-        return (dataStore.audit_flow || []).find((flow) => flow.id === fallbackId);
-      };
-
-      const boundFlow = resolveTemplateBoundFlow();
-      if (!externalAuditEnabled && boundFlow) {
-        const mode = resolveAuditFlowMode(boundFlow);
-        if (mode === 'step_by_step' || mode === 'max_n_steps') {
-          await alertDialog(
-            '未开通外部审核功能，当前模板关联的审核流程依赖外部审核，暂时无法启用。请先开通外部审核，或更换流程后再启用。'
-          );
-          return;
-        }
-      }
-
       if (!targetItem.relatedScoreRuleId || !targetItem.relatedFlowId) {
         const missing =
           !targetItem.relatedScoreRuleId && !targetItem.relatedFlowId
@@ -3947,17 +3847,9 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     setIsModalOpen(false);
   };
 
-  /** 模式一/二依赖增值业务「外部审核」启用；停用/未开通时卡片置灰，仍可选中查看，但不可保存 */
-  const isExternalAuditOpened = (dataStore.value_added || []).some(
-    item => (item.name || '').includes('外部审核') && item.status === '启用'
-  );
-  const isExternalAuditModeLocked = !isExternalAuditOpened;
-  const isExternalDependentAuditFlowMode = (mode: AuditFlowMode) =>
-    mode === 'step_by_step' || mode === 'max_n_steps';
-  const isAuditFlowSaveLocked =
-    activeModule === 'audit_flow' &&
-    isExternalAuditModeLocked &&
-    isExternalDependentAuditFlowMode(formAuditFlowMode);
+  // 机构侧「外部审核」启停只控 PC/H5 入口，配置内模式一/二可正常编辑、保存、启停
+  const isExternalAuditModeLocked = false;
+  const isAuditFlowSaveLocked = false;
 
   const handleSwitchAuditFlowMode = (mode: AuditFlowMode, keepCurrentNameAndDesc = false) => {
     if (mode === formAuditFlowMode) return;
@@ -4077,10 +3969,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         { id: 'sl_5', levelName: '五等', score: 60, description: '基本级标准' }
       ]);
     } else if (activeModule === 'audit_flow') {
-      const externalAuditOpened = (dataStore.value_added || []).some(
-        item => (item.name || '').includes('外部审核') && item.status === '启用'
-      );
-      const defaultMode: AuditFlowMode = externalAuditOpened ? 'step_by_step' : 'direct_headquarters';
+      const defaultMode: AuditFlowMode = 'step_by_step';
       const preset = auditFlowModePreset(defaultMode);
       const addName = preset.name;
       const addDesc = preset.desc;
@@ -4525,14 +4414,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     }
 
     if (activeModule === 'audit_flow') {
-      if (
-        isExternalAuditModeLocked &&
-        isExternalDependentAuditFlowMode(formAuditFlowMode)
-      ) {
-        await alertDialog('未开通外部审核功能，该模式所依赖的外部审核暂不可用，暂时无法使用。');
-        return;
-      }
-
       if (editingItem?.status === '启用' && formScoreStatus === '停用') {
         const sourceForLink: ConfigModuleItem = {
           ...editingItem,
@@ -6159,31 +6040,8 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               <TemplateOtherConfigPanel
                                 template={activeSelectedTemplate}
                                 scoreRules={(dataStore.audit_score || []).filter((item) => item.status === '启用')}
-                                auditFlows={(dataStore.audit_flow || []).filter((item) => {
-                                  if (item.status !== '启用') return false;
-                                  if (isExternalAuditOpened) return true;
-                                  const mode = resolveAuditFlowMode(item);
-                                  return mode !== 'step_by_step' && mode !== 'max_n_steps';
-                                })}
+                                auditFlows={(dataStore.audit_flow || []).filter((item) => item.status === '启用')}
                                 onSave={async (updatedConfig) => {
-                                  if (
-                                    activeSelectedTemplate.templateType !== '激活' &&
-                                    !isExternalAuditOpened &&
-                                    updatedConfig.relatedFlowId
-                                  ) {
-                                    const flow = (dataStore.audit_flow || []).find(
-                                      (item) => item.id === updatedConfig.relatedFlowId
-                                    );
-                                    if (flow) {
-                                      const mode = resolveAuditFlowMode(flow);
-                                      if (mode === 'step_by_step' || mode === 'max_n_steps') {
-                                        await alertDialog(
-                                          '未开通外部审核功能，该流程所依赖的外部审核暂不可用，暂时无法关联到模板。'
-                                        );
-                                        return false;
-                                      }
-                                    }
-                                  }
                                   const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
                                   setDataStore(prev => ({
                                     ...prev,

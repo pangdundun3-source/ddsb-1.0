@@ -1,6 +1,11 @@
 import React from 'react';
 import { ChevronRight, FileText, Sparkles, Megaphone, Clock, CheckCircle2, XCircle, Bell, X } from 'lucide-react';
 import { REPORT_TEMPLATES } from '../data/mockData';
+import { alertDialog } from './ConfirmDialog';
+import {
+  getExternalAuditTemplateTip,
+  isTemplateBlockedByExternalAudit,
+} from '../shared/valueAddedAccess';
 import { UserProfile, AppNotification } from '../types';
 
 interface DashboardViewProps {
@@ -157,11 +162,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div className="grid grid-cols-1 gap-2.5">
         {REPORT_TEMPLATES.map((tpl, index) => {
           const tone = cardToneClasses[index % cardToneClasses.length];
+          const isBlocked = isTemplateBlockedByExternalAudit(tpl.requiresExternalAudit);
           return (
             <div
               key={tpl.id}
-              onClick={() => onNewReport(tpl.id)}
-              className={`rounded-2xl border bg-gradient-to-r p-3.5 shadow-2xs hover:shadow-xs hover:border-blue-400 transition-all cursor-pointer flex items-center justify-between group active:scale-[0.99] ${tone}`}
+              onClick={() => {
+                if (isBlocked) {
+                  void alertDialog(getExternalAuditTemplateTip(), {
+                    title: '无法选用该模板',
+                    okText: '知道了',
+                  });
+                  return;
+                }
+                onNewReport(tpl.id);
+              }}
+              className={`rounded-2xl border bg-gradient-to-r p-3.5 shadow-2xs transition-all flex items-center justify-between group ${
+                isBlocked
+                  ? 'opacity-50 cursor-not-allowed grayscale'
+                  : 'hover:shadow-xs hover:border-blue-400 cursor-pointer active:scale-[0.99]'
+              } ${tone}`}
             >
               <div className="flex items-center space-x-3 min-w-0">
                 <div className="w-9 h-9 rounded-xl bg-white shadow-2xs border border-slate-200/60 flex items-center justify-center text-blue-600 shrink-0 group-hover:scale-105 transition-transform">

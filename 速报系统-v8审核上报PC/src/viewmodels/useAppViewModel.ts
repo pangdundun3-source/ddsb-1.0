@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   AVAILABLE_ORGS,
+  PRESET_REPORT_TEMPLATES,
   initialAuditPending,
   initialAuditRecords,
   initialLogs,
@@ -38,8 +39,10 @@ import {
 } from '../types';
 import {
   AUDIT_MODULE_PAGES,
-  EXTERNAL_AUDIT_MODULE_TIP,
+  getExternalAuditModuleTip,
+  getExternalAuditTemplateTip,
   isExternalAuditEnabled,
+  isTemplateBlockedByExternalAudit,
 } from '../shared/valueAddedAccess';
 import { alertDialog } from '../components/common/ConfirmDialog';
 
@@ -264,8 +267,8 @@ export const useAppViewModel = () => {
   const handleNavigate = (page: PageId, extraModule?: string) => {
     // 外部审核未开通/停用：拦截审核管理模块入口
     if (AUDIT_MODULE_PAGES.has(page) && !isExternalAuditEnabled()) {
-      void alertDialog(EXTERNAL_AUDIT_MODULE_TIP, {
-        title: '增值业务未开通',
+      void alertDialog(getExternalAuditModuleTip(), {
+        title: '无法进入审核管理',
         okText: '知道了',
       });
       return;
@@ -647,11 +650,31 @@ export const useAppViewModel = () => {
     setReportDetailSourcePage,
     setIsH5MobileOpen,
     openNewReportModal: (templateData?: ReportTemplateInput | null) => {
+      if (templateData?.templateId) {
+        const tpl = PRESET_REPORT_TEMPLATES.find((item) => item.id === templateData.templateId);
+        if (tpl && isTemplateBlockedByExternalAudit(tpl.requiresExternalAudit)) {
+          void alertDialog(getExternalAuditTemplateTip(), {
+            title: '无法选用该模板',
+            okText: '知道了',
+          });
+          return;
+        }
+      }
       setEditingReport(null);
       setNewReportTemplate(templateData || null);
       setIsNewReportModalOpen(true);
     },
     handleOpenNewReport: (templateData?: ReportTemplateInput | null) => {
+      if (templateData?.templateId) {
+        const tpl = PRESET_REPORT_TEMPLATES.find((item) => item.id === templateData.templateId);
+        if (tpl && isTemplateBlockedByExternalAudit(tpl.requiresExternalAudit)) {
+          void alertDialog(getExternalAuditTemplateTip(), {
+            title: '无法选用该模板',
+            okText: '知道了',
+          });
+          return;
+        }
+      }
       setEditingReport(null);
       setNewReportTemplate(templateData || null);
       setIsNewReportModalOpen(true);
