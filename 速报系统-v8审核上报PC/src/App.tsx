@@ -20,6 +20,7 @@ import { AuditRecords } from './pages/AuditRecords';
 import { NegativeInfoLibrary } from './pages/NegativeInfoLibrary';
 import { NegativeDetail } from './pages/NegativeDetail';
 import { Statistics } from './pages/Statistics';
+import { AuditStatistics } from './pages/AuditStatistics';
 import { PersonalInfo } from './pages/PersonalInfo';
 import { ExternalContacts } from './pages/ExternalContacts';
 import { OrgManagement } from './pages/OrgManagement';
@@ -300,7 +301,7 @@ export default function App() {
         )}
 
         {activePage === 'report-statistics' && <Statistics key="submit" scope="submit" />}
-        {activePage === 'audit-statistics' && <Statistics key="audit" scope="audit" />}
+        {activePage === 'audit-statistics' && <AuditStatistics scope="audit" />}
 
         {activePage === 'external-contacts' && (
           <ExternalContacts

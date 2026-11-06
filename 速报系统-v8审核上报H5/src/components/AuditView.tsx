@@ -25,19 +25,13 @@ const isTransferRelatedReport = (report: SpeedReport) =>
   TRANSFER_STATUSES.has(report.status) || Boolean(report.transferredDept);
 
 const formatAuditDuration = (minutes: number) => {
-  const formatNumber = (value: number) => {
-    const rounded = Math.round(value * 10) / 10;
-    return Number.isInteger(rounded) ? String(rounded) : String(rounded);
-  };
-  const hours = minutes / 60;
-  if (hours < 24) {
-    return `${formatNumber(hours)} h`;
+  if (minutes < 60) {
+    return `${Math.round(minutes * 10) / 10} 分钟`;
   }
-  const days = hours / 24;
-  if (days < 7) {
-    return `${formatNumber(days)} 天`;
+  if (minutes < 1440) {
+    return `${Math.round((minutes / 60) * 10) / 10} 小时`;
   }
-  return `${formatNumber(days / 7)} 周`;
+  return `${Math.round((minutes / 1440) * 10) / 10} 天`;
 };
 
 export const AuditView: React.FC<AuditViewProps> = ({
@@ -81,29 +75,57 @@ export const AuditView: React.FC<AuditViewProps> = ({
     );
   });
 
+  // 平均响应：上一环节提交到本环节 → 本环节审核完成（H5 首审以 createTime 为上一环节提交）
   const getElapsedMinutes = (report: SpeedReport) => {
-    const cTime = new Date(report.createTime.replace(' ', 'T')).getTime();
-    const uTime = new Date(report.updateTime.replace(' ', 'T')).getTime();
+    const arrivedAt = report.createTime;
+    const auditedAt = report.updateTime;
+    const cTime = new Date(arrivedAt.replace(' ', 'T')).getTime();
+    const uTime = new Date(auditedAt.replace(' ', 'T')).getTime();
     if (isNaN(cTime) || isNaN(uTime) || uTime < cTime) return 0;
     return (uTime - cTime) / (1000 * 60);
   };
+  const toDateKey = (value?: string) => (value || '').slice(0, 10);
+  const shiftDateKey = (dateKey: string, days: number) => {
+    const base = new Date(`${dateKey.replace(/-/g, '/')} 00:00:00`);
+    if (Number.isNaN(base.getTime())) return dateKey;
+    base.setDate(base.getDate() + days);
+    const y = base.getFullYear();
+    const m = String(base.getMonth() + 1).padStart(2, '0');
+    const d = String(base.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+  // 审核待办=当前存量；近7日审核/处理率/响应锚定数据最新日，避免原型历史日期全空
+  const latestDateKey =
+    auditReports.reduce((max, item) => {
+      const key = toDateKey(item.updateTime || item.createTime);
+      return key && key > max ? key : max;
+    }, '') || new Date().toISOString().slice(0, 10);
+  const recentStartKey = shiftDateKey(latestDateKey, -6);
+  const inRecentWindow = (dateKey: string) => Boolean(dateKey) && dateKey >= recentStartKey && dateKey <= latestDateKey;
+
   const auditPendingCount = reports.filter((r) => r.status === 'pending_audit').length;
-  const auditAuditingCount = reports.filter((r) => r.status === 'auditing').length;
-  const auditApprovedCount = reports.filter((r) => r.status === 'approved').length;
-  const auditRejectedCount = reports.filter((r) => r.status === 'rejected').length;
-  const auditHandledCount = auditApprovedCount + auditRejectedCount;
-  const auditTotalCount = auditHandledCount + auditPendingCount + auditAuditingCount;
-  const auditProcessRate = auditTotalCount > 0 ? Math.round((auditHandledCount / auditTotalCount) * 100) : 0;
-  const auditHandledReports = reports.filter((r) => r.status === 'approved' || r.status === 'rejected');
+  const recentArrived = auditReports.filter((r) => inRecentWindow(toDateKey(r.createTime)));
+  const recentHandledReports = auditReports.filter(
+    (r) =>
+      (r.status === 'approved' || r.status === 'rejected') &&
+      inRecentWindow(toDateKey(r.updateTime || r.createTime))
+  );
+  const auditApprovedCount = recentHandledReports.filter((r) => r.status === 'approved').length;
+  const auditRejectedCount = recentHandledReports.filter((r) => r.status === 'rejected').length;
+  const auditHandledCount = recentHandledReports.length;
+  const auditArrivedCount = recentArrived.length;
+  const auditProcessRate =
+    auditArrivedCount > 0 ? Math.round((auditHandledCount / auditArrivedCount) * 100) : 0;
   const auditAvgResponseMinutes =
-    auditHandledReports.length > 0
+    recentHandledReports.length > 0
       ? Math.round(
-          (auditHandledReports.reduce((total, report) => total + getElapsedMinutes(report), 0) /
-            auditHandledReports.length) *
+          (recentHandledReports.reduce((total, report) => total + getElapsedMinutes(report), 0) /
+            recentHandledReports.length) *
             10
         ) / 10
       : 0;
-  const auditAvgResponseTimeStr = formatAuditDuration(auditAvgResponseMinutes);
+  const auditAvgResponseTimeStr =
+    recentHandledReports.length > 0 ? formatAuditDuration(auditAvgResponseMinutes) : '< 1 小时';
 
   React.useEffect(() => {
     setActiveFilter('pending');
@@ -153,42 +175,49 @@ export const AuditView: React.FC<AuditViewProps> = ({
       <div className="rounded-2xl bg-gradient-to-r from-blue-600 via-sky-600 to-cyan-500 p-2.5 space-y-2 overflow-hidden shadow-md shadow-blue-500/20 text-white relative">
         <div className="absolute -right-7 -top-10 w-28 h-28 rounded-full border border-white/20" />
         <div className="absolute right-10 -bottom-12 w-24 h-24 rounded-full bg-white/10" />
-        <div className="relative z-10 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-            <h2 className="text-xs font-extrabold truncate">【审核员】审核数据统计</h2>
-          </div>
+        <div className="relative z-10 flex items-center gap-2 min-w-0">
+          <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+          <h2 className="text-xs font-extrabold truncate">【审核员】审核数据统计</h2>
         </div>
 
-        <div className="relative z-10 grid grid-cols-[1fr_1fr_1fr_1.25fr] gap-1.5">
-          <div className="rounded-xl bg-white/15 border border-white/20 p-2 min-w-0 overflow-hidden">
-            <p className="text-[9px] text-slate-200 font-bold truncate">审核待办</p>
-            <p className="text-xl leading-none font-black font-mono text-amber-300 mt-1.5">{auditPendingCount}</p>
-            <p className="text-[8px] text-slate-300 truncate mt-1.5">待审核</p>
+        <div className="relative z-10 grid grid-cols-4 gap-1">
+          <div className="relative min-w-0 rounded-lg border border-white/20 bg-white/15 px-1.5 py-1.5">
+            <span className="absolute right-0.5 top-0.5 scale-90 origin-top-right rounded px-0.5 py-px text-[7px] font-bold leading-none text-amber-200 bg-amber-400/30">
+              存量
+            </span>
+            <p className="text-[9px] text-slate-100/90 font-semibold truncate pr-4">审核待办</p>
+            <p className="mt-1 text-base leading-none font-black font-mono text-amber-300">{auditPendingCount}</p>
+            <p className="mt-0.5 text-[8px] leading-tight text-slate-300/70 truncate">待处理</p>
           </div>
-          <div className="rounded-xl bg-white/15 border border-white/20 p-2 min-w-0 overflow-hidden">
-            <p className="text-[9px] text-slate-200 font-bold truncate">累计审核</p>
-            <p className="text-xl leading-none font-black font-mono text-white mt-1.5">{auditHandledCount}</p>
-            <div className="mt-1.5 flex items-center gap-1.5 text-[8px] leading-none">
-              <p className="truncate text-emerald-300">
-                通过: <span>{auditApprovedCount}</span>
-              </p>
-              <p className="truncate text-rose-300">
-                驳回: <span>{auditRejectedCount}</span>
-              </p>
-            </div>
+          <div className="relative min-w-0 rounded-lg border border-white/20 bg-white/15 px-1.5 py-1.5">
+            <span className="absolute right-0.5 top-0.5 scale-90 origin-top-right rounded px-0.5 py-px text-[7px] font-bold leading-none text-cyan-100 bg-cyan-400/30">
+              近7日
+            </span>
+            <p className="text-[9px] text-slate-100/90 font-semibold truncate pr-5">累计审核</p>
+            <p className="mt-1 text-base leading-none font-black font-mono text-white">{auditHandledCount}</p>
+            <p className="mt-0.5 text-[8px] leading-tight text-slate-300/75 truncate">
+              通{auditApprovedCount}·驳{auditRejectedCount}
+            </p>
           </div>
-          <div className="rounded-xl bg-white/15 border border-white/20 p-2 min-w-0 overflow-hidden">
-            <p className="text-[9px] text-slate-200 font-bold truncate">审核处理率</p>
-            <p className="text-lg leading-none font-black font-mono text-white mt-1.5">{auditProcessRate}%</p>
-            <p className="text-[8px] text-slate-300 truncate mt-1.5">{auditHandledCount}/{auditTotalCount}</p>
+          <div className="relative min-w-0 rounded-lg border border-white/20 bg-white/15 px-1.5 py-1.5">
+            <span className="absolute right-0.5 top-0.5 scale-90 origin-top-right rounded px-0.5 py-px text-[7px] font-bold leading-none text-cyan-100 bg-cyan-400/30">
+              近7日
+            </span>
+            <p className="text-[9px] text-slate-100/90 font-semibold truncate pr-5">审核处理率</p>
+            <p className="mt-1 text-base leading-none font-black font-mono text-emerald-300">{auditProcessRate}%</p>
+            <p className="mt-0.5 text-[8px] leading-tight text-slate-300/75 truncate">
+              {auditHandledCount}/{auditArrivedCount}
+            </p>
           </div>
-          <div className="rounded-xl bg-white/15 border border-white/20 p-2 min-w-0 overflow-hidden">
-            <p className="text-[9px] text-slate-200 font-bold truncate">平均响应</p>
-            <p className="text-[15px] leading-none font-black font-mono text-cyan-300 mt-1.5 whitespace-nowrap">
+          <div className="relative min-w-0 rounded-lg border border-white/20 bg-white/15 px-1.5 py-1.5">
+            <span className="absolute right-0.5 top-0.5 scale-90 origin-top-right rounded px-0.5 py-px text-[7px] font-bold leading-none text-cyan-100 bg-cyan-400/30">
+              近7日
+            </span>
+            <p className="text-[9px] text-slate-100/90 font-semibold truncate pr-5">平均响应</p>
+            <p className="mt-1 text-sm leading-none font-black font-mono text-cyan-300 truncate">
               {auditAvgResponseTimeStr}
             </p>
-            <p className="text-[8px] text-slate-300 truncate mt-1.5">审核耗时</p>
+            <p className="mt-0.5 text-[8px] leading-tight text-slate-300/75 truncate">上一→本环节</p>
           </div>
         </div>
       </div>

@@ -43,19 +43,14 @@ interface ProfileViewProps {
 type TimeFilter = '本周' | '本月' | '本季度' | '本年' | '自定义区间';
 
 const formatAuditDuration = (minutes: number) => {
-  const formatNumber = (value: number) => {
-    const rounded = Math.round(value * 10) / 10;
-    return Number.isInteger(rounded) ? String(rounded) : String(rounded);
-  };
-  const hours = minutes / 60;
-  if (hours < 24) {
-    return `${formatNumber(hours)} h`;
+  if (minutes <= 0) return '< 1 分钟';
+  if (minutes < 60) {
+    return `${Math.round(minutes * 10) / 10} 分钟`;
   }
-  const days = hours / 24;
-  if (days < 7) {
-    return `${formatNumber(days)} 天`;
+  if (minutes < 1440) {
+    return `${Math.round((minutes / 60) * 10) / 10} 小时`;
   }
-  return `${formatNumber(days / 7)} 周`;
+  return `${Math.round((minutes / 1440) * 10) / 10} 天`;
 };
 
 const maskIdCard = (value: string) => {
@@ -326,16 +321,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const reporterApproved = submittedReports.filter((r) => r.status === 'approved').length;
   const reporterRepairPassed = submittedReports.filter((r) => r.status === 'approved' && hasRepairTrace(r)).length;
   const reporterFirstPass = Math.max(reporterApproved - reporterRepairPassed, 0);
+  const reporterRejectedTodo = submittedReports.filter((r) => r.status === 'rejected').length;
   const reporterOverallPassRate =
     reporterSubmittedTotal > 0 ? Math.round((reporterApproved / reporterSubmittedTotal) * 100) : 0;
+  // 首审直通率：近周期内无驳回重修口径（与 PC 报送统计一致）
   const reporterFirstPassRate =
-    reporterSubmittedTotal > 0 ? Math.round((reporterFirstPass / reporterSubmittedTotal) * 100) : 0;
-  const reporterRejectedTodo = submittedReports.filter((r) => r.status === 'rejected').length;
-  const reporterAuditing = submittedReports.filter((r) => r.status === 'auditing').length;
+    reporterSubmittedTotal > 0
+      ? Math.round(((reporterSubmittedTotal - reporterRejectedTodo) / reporterSubmittedTotal) * 100)
+      : 0;
   const reporterPendingAudit = submittedReports.filter((r) => r.status === 'pending_audit').length;
+  const reporterAuditing = submittedReports.filter((r) => r.status === 'auditing').length;
 
-  // 得分指标计算 (综合得分 & 平均得分)
-  // 综合得分为累计考核总积分 (可累计至数千分)
+  // 得分指标计算 (综合总分 & 平均得分)
   const approvedReports = submittedReports.filter((r) => r.status === 'approved');
   const scoredReports = approvedReports.filter((r) => typeof r.score === 'number' && (r.score ?? 0) > 0);
   const reporterAvgScore =
@@ -353,12 +350,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const reporterComprehensiveScore =
     reporterSubmittedTotal > 0 ? baseHistoricalCumulativeScore + currentScoredTotal : 0;
 
+  // 报送统计环图：一次性通过 / 返修通过 / 审核中 / 待审核 / 被驳回
   const reportComposition = [
-    { label: '一次性通过', value: reporterFirstPass, color: '#10b981', textClass: 'text-emerald-700' },
-    { label: '返修通过', value: reporterRepairPassed, color: '#06b6d4', textClass: 'text-cyan-700' },
-    { label: '审核中', value: reporterAuditing, color: '#0284c7', textClass: 'text-sky-700' },
-    { label: '待审核', value: reporterPendingAudit, color: '#94a3b8', textClass: 'text-slate-600' },
-    { label: '驳回', value: reporterRejectedTodo, color: '#f43f5e', textClass: 'text-rose-700' },
+    { label: '一次性通过', value: reporterFirstPass, color: '#10B981', textClass: 'text-emerald-600' },
+    { label: '返修通过', value: reporterRepairPassed, color: '#06B6D4', textClass: 'text-cyan-600' },
+    { label: '审核中', value: reporterAuditing, color: '#0284C7', textClass: 'text-sky-600' },
+    { label: '待审核', value: reporterPendingAudit, color: '#94A3B8', textClass: 'text-slate-500' },
+    { label: '被驳回', value: reporterRejectedTodo, color: '#F43F5E', textClass: 'text-rose-600' },
   ];
   let reportCompositionCursor = 0;
   const reportDonutGradient =
@@ -373,13 +371,14 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           .join(', ')})`
       : 'conic-gradient(#e2e8f0 0% 100%)';
 
-  // --- 2. 审核员角色统计数据 (Auditor Stats) ---
+  // --- 2. 审核员角色统计数据 (Auditor Stats，与 PC 审核统计环图一致) ---
   const auditorApproved = filteredReports.filter((r) => r.status === 'approved').length;
-  const auditorAuditing = filteredReports.filter((r) => r.status === 'auditing').length;
   const auditorRejected = filteredReports.filter((r) => r.status === 'rejected').length;
-  const auditorPending = filteredReports.filter((r) => r.status === 'pending_audit').length;
+  const auditorPending = filteredReports.filter(
+    (r) => r.status === 'pending_audit' || r.status === 'auditing'
+  ).length;
   const auditorAudited = auditorApproved + auditorRejected;
-  const auditorTotal = auditorAudited + auditorPending + auditorAuditing;
+  const auditorTotal = auditorAudited + auditorPending;
   const auditorProcessRate = auditorTotal > 0 ? Math.round((auditorAudited / auditorTotal) * 100) : 0;
   const auditorHandledReports = filteredReports.filter(
     (r) => r.status === 'approved' || r.status === 'rejected'
@@ -394,10 +393,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       : 0;
   const auditorAvgResponseTimeStr = formatAuditDuration(auditorAvgResponseMinutes);
   const auditComposition = [
-    { label: '审核通过', value: auditorApproved, color: '#10b981', textClass: 'text-emerald-700' },
-    { label: '审核中', value: auditorAuditing, color: '#0284c7', textClass: 'text-sky-700' },
-    { label: '审核驳回', value: auditorRejected, color: '#f43f5e', textClass: 'text-rose-700' },
-    { label: '待审核', value: auditorPending, color: '#94a3b8', textClass: 'text-slate-600' },
+    { label: '审核通过', value: auditorApproved, color: '#10B981', textClass: 'text-emerald-600' },
+    { label: '审核驳回', value: auditorRejected, color: '#F43F5E', textClass: 'text-rose-600' },
+    { label: '待审核', value: auditorPending, color: '#94A3B8', textClass: 'text-slate-500' },
   ];
   let auditCompositionCursor = 0;
   const auditDonutGradient =
@@ -884,7 +882,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <div className="bg-slate-50/90 border border-slate-200/90 rounded-xl p-3 space-y-2.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-800">报送统计</span>
-            <span className="text-[10px] text-slate-400">按上报任务统计</span>
           </div>
 
           <div className="flex items-center gap-3">
@@ -923,32 +920,37 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-xl bg-white border border-slate-100 p-2 flex items-center justify-between shadow-2xs gap-1 min-w-0">
-              <span className="text-[11px] font-bold text-slate-500 shrink-0">综合得分</span>
-              <div className="text-sm sm:text-base font-black font-mono text-indigo-600 shrink-0 tabular-nums">
-                {reporterComprehensiveScore > 0 ? reporterComprehensiveScore.toLocaleString() : '--'}
-                <span className="text-[10px] font-bold font-sans text-slate-400 ml-0.5">分</span>
-              </div>
-            </div>
-            <div className="rounded-xl bg-white border border-slate-100 p-2 flex items-center justify-between shadow-2xs gap-1 min-w-0">
-              <span className="text-[11px] font-bold text-slate-500 shrink-0">平均得分</span>
-              <div className="text-sm sm:text-base font-black font-mono text-sky-600 shrink-0 tabular-nums">
-                {reporterAvgScore > 0 ? reporterAvgScore : '--'}
-                <span className="text-[10px] font-bold font-sans text-slate-400 ml-0.5">分</span>
-              </div>
-            </div>
-            <div className="rounded-xl bg-white border border-slate-100 p-2 flex items-center justify-between shadow-2xs gap-1 min-w-0">
-              <span className="text-[11px] font-bold text-slate-500 shrink-0">整体通过率</span>
-              <span className="text-sm sm:text-base font-black font-mono text-emerald-600 shrink-0 tabular-nums">
+          <div className="rounded-xl bg-white border border-slate-100 p-2.5 grid grid-cols-2 gap-x-2 gap-y-2.5 shadow-2xs">
+            <div className="min-w-0 space-y-0.5">
+              <p className="text-[10px] font-medium text-slate-500 truncate">整体采纳率</p>
+              <p className="text-sm font-black font-mono text-emerald-600 tabular-nums">
                 {reporterOverallPassRate}%
-              </span>
+              </p>
             </div>
-            <div className="rounded-xl bg-white border border-slate-100 p-2 flex items-center justify-between shadow-2xs gap-1 min-w-0">
-              <span className="text-[11px] font-bold text-slate-500 shrink-0">一次性通过率</span>
-              <span className="text-sm sm:text-base font-black font-mono text-blue-600 shrink-0 tabular-nums">
+            <div className="min-w-0 space-y-0.5 border-l border-slate-100 pl-2">
+              <p className="text-[10px] font-medium text-slate-500 truncate">首审直通率</p>
+              <p className="text-sm font-black font-mono text-blue-600 tabular-nums">
                 {reporterFirstPassRate}%
-              </span>
+              </p>
+            </div>
+            <div className="min-w-0 space-y-0.5">
+              <p className="text-[10px] font-medium text-slate-500 truncate">综合总分</p>
+              <p className="text-sm font-black font-mono text-amber-600 tabular-nums truncate">
+                {reporterComprehensiveScore > 0
+                  ? reporterComprehensiveScore.toLocaleString('zh-CN', {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 1,
+                    })
+                  : '--'}
+                <span className="ml-0.5 text-[10px] font-normal text-slate-400">分</span>
+              </p>
+            </div>
+            <div className="min-w-0 space-y-0.5 border-l border-slate-100 pl-2">
+              <p className="text-[10px] font-medium text-slate-500 truncate">平均得分</p>
+              <p className="text-sm font-black font-mono text-purple-600 tabular-nums">
+                {reporterAvgScore > 0 ? reporterAvgScore : '--'}
+                <span className="ml-0.5 text-[10px] font-normal text-slate-400">分</span>
+              </p>
             </div>
           </div>
         </div>
@@ -956,7 +958,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <div className="bg-slate-50/90 border border-slate-200/90 rounded-xl p-3 space-y-2.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-800">审核统计</span>
-            <span className="text-[10px] text-slate-400">按审核任务统计</span>
           </div>
 
           <div className="flex items-center gap-3">
@@ -995,14 +996,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-[minmax(0,1.35fr)_minmax(92px,1fr)] gap-2">
-            <div className="rounded-xl bg-white border border-slate-100 p-2 flex items-center justify-between gap-1 min-w-0">
-              <span className="text-[10px] font-bold text-slate-500 whitespace-nowrap">平均审核响应时间</span>
-              <span className="text-sm font-black font-mono text-emerald-600 whitespace-nowrap shrink-0">{auditorAvgResponseTimeStr}</span>
+          <div className="rounded-xl bg-white border border-slate-100 p-2.5 grid grid-cols-2 gap-2 shadow-2xs">
+            <div className="min-w-0 flex items-center justify-between gap-1">
+              <span className="text-[10px] font-medium text-slate-500 truncate">平均审核响应</span>
+              <span className="text-sm font-black font-mono text-emerald-600 whitespace-nowrap shrink-0">
+                {auditorAvgResponseTimeStr}
+              </span>
             </div>
-            <div className="rounded-xl bg-white border border-slate-100 p-2 flex items-center justify-between gap-1 min-w-0">
-              <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">审核处理率</span>
-              <span className="text-base font-black font-mono text-blue-600 whitespace-nowrap shrink-0">{auditorProcessRate}%</span>
+            <div className="min-w-0 flex items-center justify-between gap-1 border-l border-slate-100 pl-2">
+              <span className="text-[10px] font-medium text-slate-500 truncate">审核处理率</span>
+              <span className="text-sm font-black font-mono text-blue-600 whitespace-nowrap shrink-0">
+                {auditorProcessRate}%
+              </span>
             </div>
           </div>
         </div>

@@ -252,7 +252,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
           {/* Card 3: 整体通过率 */}
           <div className="bg-white/10 border border-white/20 rounded-xl p-4 backdrop-blur-sm">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-blue-100">整体通过率</span>
+              <span className="text-xs font-medium text-blue-100">整体采纳率</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-400/30 text-emerald-200 font-bold border border-emerald-400/40">
                 {adoptedCount}/{totalCount}
               </span>
@@ -268,7 +268,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
           {/* Card 4: 一次性通过率 */}
           <div className="bg-white/10 border border-white/20 rounded-xl p-4 backdrop-blur-sm">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-blue-100">一次性通过率</span>
+              <span className="text-xs font-medium text-blue-100">首审直通率</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-400/30 text-cyan-200 font-bold border border-cyan-400/40">
                 {firstTimePassCount}/{totalCount}
               </span>

@@ -78,23 +78,54 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
     if (!focusReport) setActiveTab(initialTab);
   }, [focusReport, initialTab]);
 
-  // Statistics calculation
-  const totalCount = reports.filter((r) => r.auditStatus !== '草稿').length;
-  const rejectedCount = reports.filter((r) => r.auditStatus === '被驳回' || r.auditStatus === '已驳回').length;
-  const pendingCount = reports.filter((r) => r.auditStatus === '待审核').length;
-  const inReviewCount = reports.filter((r) => r.auditStatus === '审核中').length;
-  const adoptedCount = reports.filter((r) => r.auditStatus === '已采纳' || r.auditStatus === '已通过').length;
-  const todoCount = pendingCount + rejectedCount;
-  const passRate = totalCount > 0 ? Math.round((adoptedCount / totalCount) * 100) : 0;
-  // 一次性通过率 (无驳回历史直接通过的比例)
-  const firstTimePassRate = totalCount > 0 ? Math.round(((totalCount - rejectedCount) / totalCount) * 100) : 0;
+  // KPI：报送待办=当前存量；总上报/通过率/一次性通过率=近7日滚动窗口（锚定数据最新日）
+  const toDateKey = (value?: string) => (value || '').slice(0, 10);
+  const shiftDateKey = (dateKey: string, days: number) => {
+    const base = new Date(`${dateKey.replace(/-/g, '/')} 00:00:00`);
+    if (Number.isNaN(base.getTime())) return dateKey;
+    base.setDate(base.getDate() + days);
+    const y = base.getFullYear();
+    const m = String(base.getMonth() + 1).padStart(2, '0');
+    const d = String(base.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+  const activeReports = reports.filter((r) => r.auditStatus !== '草稿');
+  const latestDateKey =
+    activeReports.reduce((max, item) => {
+      const key = toDateKey(item.submitTime);
+      return key && key > max ? key : max;
+    }, '') || new Date().toISOString().slice(0, 10);
+  const recentStartKey = shiftDateKey(latestDateKey, -6);
+  const inRecentWindow = (dateKey: string) => Boolean(dateKey) && dateKey >= recentStartKey && dateKey <= latestDateKey;
 
-  // 首发与重复上报统计指标
-  const firstCount = reports.filter((r) => {
-    const eff = getEffectiveOriginLabel(r.originLabel, r.auditStatus);
-    return eff === '首发' || eff === '疑似首发';
-  }).length || (totalCount > 0 ? Math.max(1, Math.round(totalCount * 0.72)) : 0);
-  const duplicateCount = Math.max(0, totalCount - firstCount);
+  const rejectedCount = activeReports.filter((r) => r.auditStatus === '被驳回' || r.auditStatus === '已驳回').length;
+  const pendingCount = activeReports.filter((r) => r.auditStatus === '待审核').length;
+  const inReviewCount = activeReports.filter((r) => r.auditStatus === '审核中').length;
+  const todoCount = pendingCount + inReviewCount + rejectedCount;
+
+  const recentReports = activeReports.filter((r) => inRecentWindow(toDateKey(r.submitTime)));
+  const recentTotalCount = recentReports.length;
+  const recentAdoptedCount = recentReports.filter(
+    (r) => r.auditStatus === '已采纳' || r.auditStatus === '已通过'
+  ).length;
+  const recentRejectedCount = recentReports.filter(
+    (r) => r.auditStatus === '被驳回' || r.auditStatus === '已驳回'
+  ).length;
+  const passRate = recentTotalCount > 0 ? Math.round((recentAdoptedCount / recentTotalCount) * 100) : 0;
+  // 一次性通过率 (近7日口径：无驳回历史直接通过的比例)
+  const firstTimePassRate =
+    recentTotalCount > 0 ? Math.round(((recentTotalCount - recentRejectedCount) / recentTotalCount) * 100) : 0;
+
+  const recentAdoptedReports = recentReports.filter(
+    (r) => r.auditStatus === '已采纳' || r.auditStatus === '已通过'
+  );
+  const recentAdoptedFirstCount =
+    recentAdoptedReports.filter((r) => {
+      const eff = getEffectiveOriginLabel(r.originLabel, r.auditStatus);
+      return eff === '首发' || eff === '疑似首发';
+    }).length ||
+    (recentAdoptedCount > 0 ? Math.max(1, Math.round(recentAdoptedCount * 0.72)) : 0);
+  const recentAdoptedDuplicateCount = Math.max(0, recentAdoptedCount - recentAdoptedFirstCount);
 
   // Tab Filtering
   const filtered = reports.filter((item) => {
@@ -180,7 +211,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
 
         {/* 4 Large Translucent Metric Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 relative z-10">
-          {/* Card 1: 报送待办 */}
+          {/* Card 1: 报送待办（当前存量） */}
           <div
             className="bg-white/10 border border-white/20 rounded-lg px-3.5 py-2.5 backdrop-blur-sm"
             id="kpi-todo-box"
@@ -188,70 +219,72 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-blue-100">报送待办</span>
               <span className="text-[10px] px-1.5 py-px rounded bg-amber-400/30 text-amber-200 font-bold border border-amber-400/40">
-                待办事项
+                当前存量
               </span>
             </div>
             <div className="mt-1 flex items-baseline justify-between">
               <span className="text-xl font-bold font-mono text-white">{todoCount}</span>
               <span className="text-[11px] text-blue-200">
-                待审 <strong className="text-amber-200">{pendingCount}</strong> · 驳回 <strong className="text-rose-300">{rejectedCount}</strong>
+                待审 <strong className="text-amber-200">{pendingCount}</strong> · 审核中{' '}
+                <strong className="text-sky-200">{inReviewCount}</strong> · 驳回{' '}
+                <strong className="text-rose-300">{rejectedCount}</strong>
               </span>
             </div>
           </div>
 
-          {/* Card 2: 总上报数 (含首发与重复指标) */}
+          {/* Card 2: 累计采纳（近7日） */}
           <div
             onClick={() => onNavigate('report-records')}
             className="bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg px-3.5 py-2.5 transition-all cursor-pointer group backdrop-blur-sm"
             id="kpi-total-box"
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-blue-100">总上报数</span>
-              <span className="text-[10px] px-1.5 py-px rounded bg-white/20 text-white font-bold border border-white/30">
-                全部
+              <span className="text-xs font-medium text-blue-100">累计采纳</span>
+              <span className="text-[10px] px-1.5 py-px rounded bg-cyan-400/30 text-cyan-200 font-bold border border-cyan-400/40">
+                近7日
               </span>
             </div>
             <div className="mt-1 flex items-baseline justify-between">
-              <span className="text-xl font-bold font-mono text-white">{totalCount}</span>
+              <span className="text-xl font-bold font-mono text-white">{recentAdoptedCount}</span>
               <span className="text-[11px] text-blue-200 flex items-center space-x-1.5 font-medium">
-                <span className="text-emerald-300">首发 <strong className="font-mono text-white font-bold">{firstCount}</strong></span>
+                <span className="text-emerald-300">
+                  首发 <strong className="font-mono text-white font-bold">{recentAdoptedFirstCount}</strong>
+                </span>
                 <span>·</span>
-                <span className="text-cyan-200">重复 <strong className="font-mono text-white font-bold">{duplicateCount}</strong></span>
-                <span>·</span>
-                <span className="text-amber-300">待审 <strong className="font-mono text-white font-bold">{pendingCount}</strong></span>
+                <span className="text-cyan-200">
+                  重复 <strong className="font-mono text-white font-bold">{recentAdoptedDuplicateCount}</strong>
+                </span>
               </span>
             </div>
           </div>
 
-          {/* Card 3: 整体通过率 */}
+          {/* Card 3: 整体采纳率（近7日） */}
           <div className="bg-white/10 border border-white/20 rounded-lg px-3.5 py-2.5 backdrop-blur-sm">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-blue-100">整体通过率</span>
-              <span className="text-[10px] px-1.5 py-px rounded bg-emerald-400/30 text-emerald-200 font-bold border border-emerald-400/40">
-                {adoptedCount}/{totalCount}
+              <span className="text-xs font-medium text-blue-100">整体采纳率</span>
+              <span className="text-[10px] px-1.5 py-px rounded bg-cyan-400/30 text-cyan-200 font-bold border border-cyan-400/40">
+                近7日
               </span>
             </div>
             <div className="mt-1 flex items-baseline justify-between">
               <span className="text-xl font-bold font-mono text-emerald-300">{passRate}%</span>
               <span className="text-[11px] text-blue-200">
-                采纳得分领先全市平均
+                通过 {recentAdoptedCount}/{recentTotalCount}
               </span>
             </div>
           </div>
 
-          {/* Card 4: 一次性通过率 */}
+          {/* Card 4: 首审直通率（近7日） */}
           <div className="bg-white/10 border border-white/20 rounded-lg px-3.5 py-2.5 backdrop-blur-sm">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-blue-100">一次性通过率</span>
+              <span className="text-xs font-medium text-blue-100">首审直通率</span>
               <span className="text-[10px] px-1.5 py-px rounded bg-cyan-400/30 text-cyan-200 font-bold border border-cyan-400/40">
-                {adoptedCount}/{totalCount}
+                近7日
               </span>
             </div>
             <div className="mt-1 flex items-baseline justify-between">
               <span className="text-xl font-bold font-mono text-cyan-300">{firstTimePassRate}%</span>
-              <span className="text-[11px] text-blue-200">
-                无驳回重修
-              </span>
+              <span className="text-[11px] text-blue-200">无驳回重修</span>
             </div>
           </div>
         </div>

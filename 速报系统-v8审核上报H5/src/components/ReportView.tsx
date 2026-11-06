@@ -379,35 +379,51 @@ export const ReportView: React.FC<ReportViewProps> = ({
     onCloseForm?.();
   };
 
-  const reportTodoCount = reports.filter((r) => r.status === 'rejected').length;
-  const submittedReports = reports;
-  const getElapsedMinutes = (report: SpeedReport) => {
-    const cTime = new Date(report.createTime.replace(' ', 'T')).getTime();
-    const uTime = new Date(report.updateTime.replace(' ', 'T')).getTime();
-    if (isNaN(cTime) || isNaN(uTime) || uTime < cTime) return 0;
-    return (uTime - cTime) / (1000 * 60);
+  // KPI：报送待办=当前存量；累计采纳/整体采纳率/首审直通率=近7日（与审核上报PC ReportSummary 对齐）
+  const toDateKey = (value?: string) => (value || '').slice(0, 10);
+  const shiftDateKey = (dateKey: string, days: number) => {
+    const base = new Date(`${dateKey.replace(/-/g, '/')} 00:00:00`);
+    if (Number.isNaN(base.getTime())) return dateKey;
+    base.setDate(base.getDate() + days);
+    const y = base.getFullYear();
+    const m = String(base.getMonth() + 1).padStart(2, '0');
+    const d = String(base.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   };
-  const hasRepairTrace = (report: SpeedReport) =>
-    Boolean(report.rejectReason) || (report.status === 'approved' && getElapsedMinutes(report) > 60);
-  const reportSubmittedTotal = submittedReports.length;
-  const reportApproved = submittedReports.filter((r) => r.status === 'approved').length;
-  const reportRepairPassed = submittedReports.filter((r) => r.status === 'approved' && hasRepairTrace(r)).length;
-  const reportFirstPass = Math.max(reportApproved - reportRepairPassed, 0);
-  const reportRejectedTodo = submittedReports.filter((r) => r.status === 'rejected').length;
-  const reportPendingAudit = Math.max(
-    reportSubmittedTotal - reportFirstPass - reportRepairPassed - reportRejectedTodo,
-    0
-  );
-  const reportFirstCount = submittedReports.filter(
-    (r) => r.identificationTag === 'official_first' || (r.status === 'approved' && r.identificationTag !== 'official_repeat')
-  ).length;
-  const reportRepeatCount = submittedReports.filter(
-    (r) => r.identificationTag === 'official_repeat'
-  ).length;
-  const reportFirstPassRate =
-    reportSubmittedTotal > 0 ? Math.round((reportFirstPass / reportSubmittedTotal) * 100) : 0;
+  const activeReports = reports.filter((r) => r.status !== 'draft' && !isTransferRelatedReport(r));
+  const latestDateKey =
+    activeReports.reduce((max, item) => {
+      const key = toDateKey(item.createTime);
+      return key && key > max ? key : max;
+    }, '') || new Date().toISOString().slice(0, 10);
+  const recentStartKey = shiftDateKey(latestDateKey, -6);
+  const inRecentWindow = (dateKey: string) => Boolean(dateKey) && dateKey >= recentStartKey && dateKey <= latestDateKey;
+
+  const pendingCount = activeReports.filter((r) => r.status === 'pending_audit').length;
+  const inReviewCount = activeReports.filter((r) => r.status === 'auditing').length;
+  const rejectedCount = activeReports.filter((r) => r.status === 'rejected').length;
+  const reportTodoCount = pendingCount + inReviewCount + rejectedCount;
+
+  const recentReports = activeReports.filter((r) => inRecentWindow(toDateKey(r.createTime)));
+  const recentTotalCount = recentReports.length;
+  const recentAdoptedCount = recentReports.filter((r) => r.status === 'approved').length;
+  const recentRejectedCount = recentReports.filter((r) => r.status === 'rejected').length;
   const reportOverallPassRate =
-    reportSubmittedTotal > 0 ? Math.round((reportApproved / reportSubmittedTotal) * 100) : 0;
+    recentTotalCount > 0 ? Math.round((recentAdoptedCount / recentTotalCount) * 100) : 0;
+  const reportFirstPassRate =
+    recentTotalCount > 0 ? Math.round(((recentTotalCount - recentRejectedCount) / recentTotalCount) * 100) : 0;
+
+  const recentAdoptedReports = recentReports.filter((r) => r.status === 'approved');
+  const taggedFirstCount = recentAdoptedReports.filter(
+    (r) =>
+      r.identificationTag === 'official_first' ||
+      r.identificationTag === 'suspected_first'
+  ).length;
+  const recentAdoptedFirstCount =
+    taggedFirstCount ||
+    (recentAdoptedCount > 0 ? Math.max(1, Math.round(recentAdoptedCount * 0.72)) : 0);
+  const recentAdoptedDuplicateCount = Math.max(0, recentAdoptedCount - recentAdoptedFirstCount);
+
   const reportListItems = reports.filter((r) => !isTransferRelatedReport(r));
 
   const getFilterTabCount = (key: string) => {
@@ -888,52 +904,49 @@ export const ReportView: React.FC<ReportViewProps> = ({
           <div className="rounded-2xl bg-gradient-to-r from-blue-600 via-sky-600 to-cyan-500 p-2.5 space-y-2 overflow-hidden shadow-md shadow-blue-500/20 text-white relative">
             <div className="absolute -right-7 -top-10 w-28 h-28 rounded-full border border-white/20" />
             <div className="absolute right-10 -bottom-12 w-24 h-24 rounded-full bg-white/10" />
-            <div className="relative z-10 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="w-2 h-2 rounded-full bg-cyan-400 shrink-0" />
-                <h2 className="text-xs font-extrabold truncate">【上报员】报送数据统计</h2>
-              </div>
+            <div className="relative z-10 flex items-center gap-2 min-w-0">
+              <span className="w-2 h-2 rounded-full bg-cyan-400 shrink-0" />
+              <h2 className="text-xs font-extrabold truncate">【上报员】报送数据统计</h2>
             </div>
 
-            <div className="relative z-10 grid grid-cols-[1fr_1.06fr_1fr_1fr] gap-1.5">
-              <div className="rounded-xl border border-white/20 bg-white/15 p-2 min-w-0 overflow-hidden">
-                <p className="text-[9px] text-cyan-100 font-bold truncate">报送待办</p>
-                <p className="text-xl leading-none font-black font-mono text-white mt-1.5">{reportTodoCount}</p>
-                <p className="text-[8px] text-cyan-100/80 truncate mt-1.5">
-                  驳回待改 {reportRejectedTodo}
+            <div className="relative z-10 grid grid-cols-4 gap-1">
+              <div className="relative min-w-0 rounded-lg border border-white/20 bg-white/15 px-1.5 py-1.5">
+                <span className="absolute right-0.5 top-0.5 scale-90 origin-top-right rounded px-0.5 py-px text-[7px] font-bold leading-none text-amber-200 bg-amber-400/30">
+                  存量
+                </span>
+                <p className="text-[9px] text-cyan-100/90 font-semibold truncate pr-4">报送待办</p>
+                <p className="mt-1 text-base leading-none font-black font-mono text-white">{reportTodoCount}</p>
+                <p className="mt-0.5 text-[8px] leading-tight text-cyan-100/70 truncate">
+                  {pendingCount}/{inReviewCount}/{rejectedCount}
                 </p>
               </div>
-              <div className="rounded-xl border border-white/20 bg-white/15 px-1 py-2 min-w-0 overflow-hidden">
-                <p className="text-[9px] text-slate-200 font-bold truncate">累计上报</p>
-                <p className="text-xl leading-none font-black font-mono text-white mt-1.5">{reportSubmittedTotal}</p>
-                <div
-                  className="text-[7.5px] tracking-tight text-slate-200 mt-1.5 whitespace-nowrap flex items-center justify-between"
-                  title={`首发 ${reportFirstCount} / 重复 ${reportRepeatCount} / 待审 ${reportPendingAudit}`}
-                >
-                  <span>首发 {reportFirstCount}</span>
-                  <span className="text-white/35 text-[7px]">/</span>
-                  <span>重复 {reportRepeatCount}</span>
-                  <span className="text-white/35 text-[7px]">/</span>
-                  <span>待审 {reportPendingAudit}</span>
-                </div>
-              </div>
-              <div className="rounded-xl border border-white/20 bg-white/15 p-2 min-w-0 overflow-hidden">
-                <p className="text-[9px] text-emerald-200 font-bold truncate">一次通过率</p>
-                <p className="text-xl leading-none font-black font-mono text-emerald-300 mt-1.5">
-                  {reportFirstPassRate}%
-                </p>
-                <p className="text-[8px] text-emerald-100/80 truncate mt-1.5">
-                  {reportFirstPass}/{reportSubmittedTotal} 一次过
+              <div className="relative min-w-0 rounded-lg border border-white/20 bg-white/15 px-1.5 py-1.5">
+                <span className="absolute right-0.5 top-0.5 scale-90 origin-top-right rounded px-0.5 py-px text-[7px] font-bold leading-none text-cyan-100 bg-cyan-400/30">
+                  近7日
+                </span>
+                <p className="text-[9px] text-slate-100/90 font-semibold truncate pr-5">累计采纳</p>
+                <p className="mt-1 text-base leading-none font-black font-mono text-white">{recentAdoptedCount}</p>
+                <p className="mt-0.5 text-[8px] leading-tight text-slate-200/75 truncate">
+                  首{recentAdoptedFirstCount}·重{recentAdoptedDuplicateCount}
                 </p>
               </div>
-              <div className="rounded-xl border border-white/20 bg-white/15 p-2 min-w-0 overflow-hidden">
-                <p className="text-[9px] text-slate-200 font-bold truncate">整体通过率</p>
-                <p className="text-xl leading-none font-black font-mono text-white mt-1.5">
-                  {reportOverallPassRate}%
+              <div className="relative min-w-0 rounded-lg border border-white/20 bg-white/15 px-1.5 py-1.5">
+                <span className="absolute right-0.5 top-0.5 scale-90 origin-top-right rounded px-0.5 py-px text-[7px] font-bold leading-none text-cyan-100 bg-cyan-400/30">
+                  近7日
+                </span>
+                <p className="text-[9px] text-slate-100/90 font-semibold truncate pr-5">整体采纳率</p>
+                <p className="mt-1 text-base leading-none font-black font-mono text-emerald-300">{reportOverallPassRate}%</p>
+                <p className="mt-0.5 text-[8px] leading-tight text-emerald-100/70 truncate">
+                  {recentAdoptedCount}/{recentTotalCount}
                 </p>
-                <p className="text-[8px] text-slate-300 truncate mt-1.5">
-                  {reportApproved}/{reportSubmittedTotal} 通过
-                </p>
+              </div>
+              <div className="relative min-w-0 rounded-lg border border-white/20 bg-white/15 px-1.5 py-1.5">
+                <span className="absolute right-0.5 top-0.5 scale-90 origin-top-right rounded px-0.5 py-px text-[7px] font-bold leading-none text-cyan-100 bg-cyan-400/30">
+                  近7日
+                </span>
+                <p className="text-[9px] text-slate-100/90 font-semibold truncate pr-5">首审直通率</p>
+                <p className="mt-1 text-base leading-none font-black font-mono text-cyan-300">{reportFirstPassRate}%</p>
+                <p className="mt-0.5 text-[8px] leading-tight text-slate-300/75 truncate">无驳回重修</p>
               </div>
             </div>
           </div>

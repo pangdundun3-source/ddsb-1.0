@@ -15,6 +15,9 @@ export interface DateRangeFieldProps {
   inputClassName?: string;
   /** 窄栏表单：输入框均分宽度 */
   fullWidth?: boolean;
+  /** 只读展示；点击时可触发 onRequestEdit 切回可编辑 */
+  readOnly?: boolean;
+  onRequestEdit?: () => void;
 }
 
 const dateInputClass =
@@ -33,34 +36,45 @@ export const DateRangeField: React.FC<DateRangeFieldProps> = ({
   endTitle = '结束日期',
   className = '',
   inputClassName,
-  fullWidth = false
+  fullWidth = false,
+  readOnly = false,
+  onRequestEdit,
 }) => {
   const resolvedInputClass =
     inputClassName ?? (fullWidth ? 'min-w-0 flex-1' : 'w-[118px] flex-none');
+
+  const requestEdit = () => {
+    if (readOnly) onRequestEdit?.();
+  };
 
   return (
     <div
       className={`flex items-center gap-1 h-[34px] pl-2 pr-2.5 rounded-lg border border-gray-300 bg-white shadow-2xs hover:border-gray-400 focus-within:border-[#1E5ABB] focus-within:ring-2 focus-within:ring-[#1E5ABB]/15 transition-all ${
         fullWidth ? 'w-full' : ''
-      } ${className}`}
-      title={title}
+      } ${readOnly ? 'cursor-pointer bg-slate-50' : ''} ${className}`}
+      title={readOnly ? `${title}（点击可自定义）` : title}
+      onClick={requestEdit}
     >
       <input
         type="date"
         value={startValue}
+        readOnly={readOnly}
         onChange={(e) => onStartChange(e.target.value)}
+        onFocus={requestEdit}
         title={startTitle}
         aria-label={startTitle}
-        className={`${dateInputClass} ${resolvedInputClass}`}
+        className={`${dateInputClass} ${resolvedInputClass} ${readOnly ? 'pointer-events-none text-slate-500' : ''}`}
       />
       <span className="text-gray-300 select-none shrink-0 text-xs">至</span>
       <input
         type="date"
         value={endValue}
+        readOnly={readOnly}
         onChange={(e) => onEndChange(e.target.value)}
+        onFocus={requestEdit}
         title={endTitle}
         aria-label={endTitle}
-        className={`${dateInputClass} ${resolvedInputClass}`}
+        className={`${dateInputClass} ${resolvedInputClass} ${readOnly ? 'pointer-events-none text-slate-500' : ''}`}
       />
       <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0 pointer-events-none" />
     </div>

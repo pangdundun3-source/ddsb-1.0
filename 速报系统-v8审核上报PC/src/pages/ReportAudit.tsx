@@ -8,8 +8,6 @@ import { ReportItem, PageId } from '../types';
 import { isFinalAuditStage } from '../auditStage';
 import { AuditDetail } from './AuditDetail';
 import { DateRangeField } from '../components/DateRangeField';
-import { OrgFilterSelect } from '../components/OrgFilterSelect';
-import { INITIAL_ORG_NODES, matchOrganizationByFilter } from '../data/externalOrgTree';
 import { getAuditArrivedAt, getRejectTime } from '../services/reportWorkflowService';
 import {
   Search,
@@ -59,7 +57,6 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
   // Navigation tabs & Filter States
   const [activeTab, setActiveTab] = useState<'待审核' | '已驳回' | '已通过' | '已采纳' | '全部'>('待审核');
   const [keyword, setKeyword] = useState('');
-  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
   const [selectedAuditor, setSelectedAuditor] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -100,14 +97,69 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
     new Set(sourceList.map((item) => item.auditor?.trim()).filter((name): name is string => Boolean(name)))
   ).sort((a, b) => a.localeCompare(b, 'zh-CN'));
 
-  // KPI Calculations
+  // KPI：审核待办=当前存量；近7日审核/处理率/响应=滚动窗口（锚定数据最新日，避免原型历史日期全空）
+  const toDateKey = (value?: string) => (value || '').slice(0, 10);
+  const shiftDateKey = (dateKey: string, days: number) => {
+    const base = new Date(`${dateKey.replace(/-/g, '/')} 00:00:00`);
+    if (Number.isNaN(base.getTime())) return dateKey;
+    base.setDate(base.getDate() + days);
+    const y = base.getFullYear();
+    const m = String(base.getMonth() + 1).padStart(2, '0');
+    const d = String(base.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+  const parseTs = (value?: string) => {
+    if (!value) return NaN;
+    return new Date(value.replace(/-/g, '/')).getTime();
+  };
+  const latestDateKey =
+    sourceList.reduce((max, item) => {
+      const key = toDateKey(item.auditTime || item.submitTime);
+      return key && key > max ? key : max;
+    }, '') || new Date().toISOString().slice(0, 10);
+  const recentStartKey = shiftDateKey(latestDateKey, -6);
+  const inRecentWindow = (dateKey: string) => Boolean(dateKey) && dateKey >= recentStartKey && dateKey <= latestDateKey;
+  const isRejectedStatus = (status?: string) => status === '被驳回' || status === '已驳回';
+  const isPassedStatus = (status?: string) =>
+    status === '已通过' || status === '已转办' || status === '已采纳';
+  const isHandledStatus = (status?: string) => isPassedStatus(status) || isRejectedStatus(status);
+
   const pendingCount = sourceList.filter((r) => r.auditStatus === '待审核').length;
-  const passedCount = sourceList.filter((r) => r.auditStatus === '已通过' || r.auditStatus === '已转办').length;
-  const auditedCount = sourceList.filter((r) => r.auditStatus === '已通过' || r.auditStatus === '已转办' || r.auditStatus === '已采纳').length;
-  const rejectedCount = sourceList.filter((r) => r.auditStatus === '被驳回' || r.auditStatus === '已驳回').length;
-  const adoptedCount = sourceList.filter((r) => r.auditStatus === '已采纳').length;
-  const totalAuditPool = sourceList.length;
-  const processedRate = totalAuditPool > 0 ? Math.round(((auditedCount + rejectedCount) / totalAuditPool) * 100) : 29;
+  const rejectedCount = sourceList.filter((r) => isRejectedStatus(r.auditStatus)).length;
+  const recentArrived = sourceList.filter((r) => inRecentWindow(toDateKey(r.submitTime)));
+  const recentHandled = sourceList.filter((r) => {
+    if (!isHandledStatus(r.auditStatus)) return false;
+    return inRecentWindow(toDateKey(r.auditTime || r.submitTime));
+  });
+  const recentPassedCount = recentHandled.filter((r) => isPassedStatus(r.auditStatus)).length;
+  const recentRejectedCount = recentHandled.filter((r) => isRejectedStatus(r.auditStatus)).length;
+  const recentHandledCount = recentHandled.length;
+  const recentArrivedCount = recentArrived.length;
+  const processedRate =
+    recentArrivedCount > 0 ? Math.round((recentHandledCount / recentArrivedCount) * 100) : 0;
+  // 平均响应：上一环节提交到本环节（arrivedAt）→ 本环节审核完成（auditTime）
+  const recentResponseMinutes = recentHandled
+    .map((r) => {
+      const start = parseTs(getAuditArrivedAt(r));
+      const end = parseTs(r.auditTime);
+      if (Number.isNaN(start) || Number.isNaN(end) || end < start) return null;
+      return (end - start) / (1000 * 60);
+    })
+    .filter((v): v is number => v != null);
+  const avgResponseMinutes =
+    recentResponseMinutes.length > 0
+      ? Math.round(
+          (recentResponseMinutes.reduce((sum, v) => sum + v, 0) / recentResponseMinutes.length) * 10
+        ) / 10
+      : null;
+  const avgResponseLabel =
+    avgResponseMinutes == null
+      ? '< 1 小时'
+      : avgResponseMinutes < 60
+        ? `${avgResponseMinutes} 分钟`
+        : avgResponseMinutes < 1440
+          ? `${Math.round((avgResponseMinutes / 60) * 10) / 10} 小时`
+          : `${Math.round((avgResponseMinutes / 1440) * 10) / 10} 天`;
 
   // Filtered List
   const filtered = sourceList.filter((item) => {
@@ -132,9 +184,6 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
       }
     }
 
-    // Organization filter
-    if (!matchOrganizationByFilter(item.organization, selectedOrgId, INITIAL_ORG_NODES)) return false;
-
     if (selectedAuditor && (item.auditor || '') !== selectedAuditor) return false;
 
     const submitDate = (item.submitTime || '').slice(0, 10);
@@ -146,7 +195,6 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
 
   const handleReset = () => {
     setKeyword('');
-    setSelectedOrgId(null);
     setSelectedAuditor('');
     setStartDate('');
     setEndDate('');
@@ -159,7 +207,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, keyword, selectedOrgId, selectedAuditor, startDate, endDate]);
+  }, [activeTab, keyword, selectedAuditor, startDate, endDate]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
@@ -293,7 +341,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-blue-100">审核待办</span>
               <span className="text-[10px] px-1.5 py-px rounded bg-amber-400/30 text-amber-200 font-bold border border-amber-400/40">
-                待办事项
+                当前存量
               </span>
             </div>
             <div className="mt-1 flex items-baseline justify-between">
@@ -301,7 +349,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
             </div>
           </div>
 
-          {/* Card 2: 累计审核 */}
+          {/* Card 2: 累计审核（近七日口径） */}
           <div
             onClick={() => setActiveTab('全部')}
             className="bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg px-3.5 py-2.5 transition-all cursor-pointer group backdrop-blur-sm"
@@ -309,11 +357,14 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-blue-100">累计审核</span>
+              <span className="text-[10px] px-1.5 py-px rounded bg-cyan-400/30 text-cyan-200 font-bold border border-cyan-400/40">
+                近7日
+              </span>
             </div>
             <div className="mt-1 flex items-baseline justify-between">
-              <span className="text-xl font-bold font-mono text-white">{passedCount + rejectedCount}</span>
+              <span className="text-xl font-bold font-mono text-white">{recentHandledCount}</span>
               <span className="text-[11px] text-blue-200">
-                通过 <strong className="text-emerald-300">{passedCount}</strong> · 驳回 <strong className="text-rose-300">{rejectedCount}</strong>
+                通过 <strong className="text-emerald-300">{recentPassedCount}</strong> · 驳回 <strong className="text-rose-300">{recentRejectedCount}</strong>
               </span>
             </div>
           </div>
@@ -322,14 +373,14 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
           <div className="bg-white/10 border border-white/20 rounded-lg px-3.5 py-2.5 backdrop-blur-sm">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-blue-100">审核处理率</span>
-              <span className="text-[10px] px-1.5 py-px rounded bg-emerald-400/30 text-emerald-200 font-bold border border-emerald-400/40">
-                {auditedCount + rejectedCount}/{totalAuditPool}
+              <span className="text-[10px] px-1.5 py-px rounded bg-cyan-400/30 text-cyan-200 font-bold border border-cyan-400/40">
+                近7日
               </span>
             </div>
             <div className="mt-1 flex items-baseline justify-between">
               <span className="text-xl font-bold font-mono text-emerald-300">{processedRate}%</span>
               <span className="text-[11px] text-blue-200">
-                审核流转高效敏捷
+                已办 {recentHandledCount}/{recentArrivedCount}
               </span>
             </div>
           </div>
@@ -337,47 +388,43 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
           {/* Card 4: 平均响应时长 */}
           <div className="bg-white/10 border border-white/20 rounded-lg px-3.5 py-2.5 backdrop-blur-sm">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-blue-100">平均响应</span>
+              <span className="text-xs font-medium text-blue-100">平均审核响应</span>
               <span className="text-[10px] px-1.5 py-px rounded bg-cyan-400/30 text-cyan-200 font-bold border border-cyan-400/40">
-                优于标准
+                近7日
               </span>
             </div>
             <div className="mt-1 flex items-baseline justify-between">
-              <span className="text-xl font-bold font-mono text-cyan-300 whitespace-nowrap">&lt; 1 小时</span>
-              <span className="text-[11px] text-blue-200">
-                满足突发响应指标
-              </span>
+              <span className="text-xl font-bold font-mono text-cyan-300 whitespace-nowrap">{avgResponseLabel}</span>
+              <span className="text-[11px] text-blue-200">上一环节→本环节</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* 2. Unified Search & Filter Bar with Screenshot Style + Smart Matching */}
-      <div className="bg-white rounded-xl px-5 py-4 border border-gray-200/80 shadow-2xs space-y-3">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-          <div className="flex-1 min-w-[220px]">
-            <div className="relative">
-              <input
-                type="text"
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-                placeholder="请输入事件标题名称、内容描述关键词、上报人员姓名进行检索"
-                className="w-full pl-8 pr-8 py-2 bg-white border border-gray-300 hover:border-gray-400 focus:border-[#1E5ABB] rounded-lg text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 transition-all shadow-2xs"
-              />
-              <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
-              {keyword && (
-                <button
-                  type="button"
-                  onClick={() => setKeyword('')}
-                  className="absolute right-2.5 top-2 text-gray-400 hover:text-gray-600 p-0.5 rounded cursor-pointer"
-                  title="清空"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
+      <div className="bg-white rounded-xl px-5 py-4 border border-gray-200/80 shadow-2xs">
+        <div className="flex items-center gap-x-3 text-xs w-full min-w-0">
+          <div className="relative flex-1 min-w-0">
+            <input
+              type="text"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="请输入事件标题名称、内容描述关键词、上报人员姓名进行检索"
+              className="w-full min-w-0 pl-8 pr-8 py-2 bg-white border border-gray-300 hover:border-gray-400 focus:border-[#1E5ABB] rounded-lg text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 transition-all shadow-2xs"
+            />
+            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
+            {keyword && (
+              <button
+                type="button"
+                onClick={() => setKeyword('')}
+                className="absolute right-2.5 top-2 text-gray-400 hover:text-gray-600 p-0.5 rounded cursor-pointer"
+                title="清空"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 shrink-0">
             <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">报送时间</label>
             <DateRangeField
               startValue={startDate}
@@ -389,19 +436,12 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
               endTitle="报送结束日期"
             />
           </div>
-          <div className="flex items-center space-x-2 min-w-0">
-            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">组织节点</label>
-            <OrgFilterSelect value={selectedOrgId} onChange={setSelectedOrgId} />
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 shrink-0">
             <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">审核人</label>
             <select
               value={selectedAuditor}
               onChange={(e) => setSelectedAuditor(e.target.value)}
-              className="w-[140px] px-2.5 py-2 bg-white border border-gray-300 hover:border-gray-400 focus:border-[#1E5ABB] rounded-lg text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15"
+              className="w-[120px] px-2.5 py-2 bg-white border border-gray-300 hover:border-gray-400 focus:border-[#1E5ABB] rounded-lg text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15"
             >
               <option value="">全部审核人</option>
               {auditorOptions.map((name) => (
@@ -411,7 +451,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
               ))}
             </select>
           </div>
-          <div className="flex items-center gap-2 shrink-0 ml-auto">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => {}}
               className="px-3.5 py-2 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer flex items-center space-x-1.5 active:scale-98"

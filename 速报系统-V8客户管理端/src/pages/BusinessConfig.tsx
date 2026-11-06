@@ -3383,6 +3383,29 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     return Array.from(linked.values());
   };
 
+  const formatLinkedTemplateNames = (templates: Array<{ name?: string }>) => {
+    const names = templates.map((item) => item.name?.trim()).filter((name): name is string => Boolean(name));
+    if (names.length === 0) return '';
+    const maxShow = 5;
+    if (names.length <= maxShow) return names.join('、');
+    return `${names.slice(0, maxShow).join('、')}等 ${names.length} 个`;
+  };
+
+  /** 删除 / 停用共用：提示关联报送模板名称 */
+  const buildLinkedTemplateConfirmMessage = (
+    sourceName: string,
+    templates: Array<{ name?: string }>,
+    action: '停用' | '删除'
+  ) => {
+    const count = templates.length;
+    const namesHint = formatLinkedTemplateNames(templates);
+    const consequence =
+      action === '停用'
+        ? '停用后将解绑并停用这些模板，上报端将无法选用。确定停用？'
+        : '删除后将解绑并停用这些模板，上报端将无法选用。确定删除？';
+    return `「${sourceName}」已关联 ${count} 个报送模板${namesHint ? `：${namesHint}` : ''}。${consequence}`;
+  };
+
   const disableLinkedReportTemplates = (
     prev: Record<string, ConfigModuleItem[]>,
     linkedIds: Set<string>,
@@ -3437,7 +3460,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 
       if (linkedTemplates.length > 0) {
         const confirmed = await confirmDialog(
-          `「${targetItem.name}」已关联 ${linkedTemplates.length} 个报送模板。停用后将解绑并停用这些模板，上报端将无法选用。确定停用？`,
+          buildLinkedTemplateConfirmMessage(targetItem.name, linkedTemplates, '停用'),
           { title: `${kindLabel}停用确认`, okText: '确认停用', danger: true }
         );
         if (!confirmed) return;
@@ -3537,16 +3560,52 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     });
   };
 
-  // Handle Delete
-  const handleDelete = (item: ConfigModuleItem) => {
+  // Handle Delete（审核流程 / 打分规则与停用校验一致：有关联报送模板时需确认并解绑停用）
+  const handleDelete = async (item: ConfigModuleItem) => {
     if (item.isDefault) {
-      alert('系统默认配置项受平台全局管控，机构端不可删除！');
+      await alertDialog('系统默认配置项受平台全局管控，机构端不可删除！');
       return;
     }
-    if (confirm(`确定要删除配置项“${item.name}”吗？`)) {
-      setDataStore(prev => ({
+
+    if (activeModule === 'audit_flow' || activeModule === 'audit_score') {
+      const bindKey = activeModule === 'audit_flow' ? 'relatedFlowId' : 'relatedScoreRuleId';
+      const kindLabel = activeModule === 'audit_flow' ? '审核流程' : '打分规则';
+      const linkedTemplates = getLinkedReportTemplates(item, dataStore.report_template || [], bindKey);
+      const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+      if (linkedTemplates.length > 0) {
+        const confirmed = await confirmDialog(
+          buildLinkedTemplateConfirmMessage(item.name, linkedTemplates, '删除'),
+          { title: `${kindLabel}删除确认`, okText: '确认删除', danger: true }
+        );
+        if (!confirmed) return;
+
+        const linkedIds = new Set(linkedTemplates.map((tpl) => tpl.id));
+        setDataStore((prev) => ({
+          ...prev,
+          [activeModule]: (prev[activeModule] || []).filter((i) => i.id !== item.id),
+          report_template: disableLinkedReportTemplates(prev, linkedIds, bindKey, nowStr)
+        }));
+        return;
+      }
+
+      const confirmed = await confirmDialog(`确定要删除${kindLabel}“${item.name}”吗？`, {
+        title: `${kindLabel}删除确认`,
+        okText: '确认删除',
+        danger: true
+      });
+      if (!confirmed) return;
+      setDataStore((prev) => ({
         ...prev,
-        [activeModule]: prev[activeModule].filter(i => i.id !== item.id)
+        [activeModule]: (prev[activeModule] || []).filter((i) => i.id !== item.id)
+      }));
+      return;
+    }
+
+    if (await confirmDialog(`确定要删除配置项“${item.name}”吗？`, { title: '删除确认', okText: '确认删除', danger: true })) {
+      setDataStore((prev) => ({
+        ...prev,
+        [activeModule]: prev[activeModule].filter((i) => i.id !== item.id)
       }));
     }
   };
@@ -4384,7 +4443,11 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         );
         if (linkedTemplates.length > 0) {
           const confirmed = await confirmDialog(
-            `「${formName.trim() || editingItem.name}」已关联 ${linkedTemplates.length} 个报送模板。停用后将解绑并停用这些模板，上报端将无法选用。确定停用？`,
+            buildLinkedTemplateConfirmMessage(
+              formName.trim() || editingItem.name,
+              linkedTemplates,
+              '停用'
+            ),
             { title: '打分规则停用确认', okText: '确认停用', danger: true }
           );
           if (!confirmed) return;
@@ -4485,7 +4548,11 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         );
         if (linkedTemplates.length > 0) {
           const confirmed = await confirmDialog(
-            `「${formName.trim() || editingItem.name}」已关联 ${linkedTemplates.length} 个报送模板。停用后将解绑并停用这些模板，上报端将无法选用。确定停用？`,
+            buildLinkedTemplateConfirmMessage(
+              formName.trim() || editingItem.name,
+              linkedTemplates,
+              '停用'
+            ),
             { title: '审核流程停用确认', okText: '确认停用', danger: true }
           );
           if (!confirmed) return;

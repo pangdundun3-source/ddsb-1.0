@@ -2819,6 +2819,30 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
     return Array.from(linked.values());
   };
 
+  const formatLinkedTemplateNames = (templates: Array<{ name?: string }>) => {
+    const names = templates.map((item) => item.name?.trim()).filter((name): name is string => Boolean(name));
+    if (names.length === 0) return '';
+    const maxShow = 5;
+    if (names.length <= maxShow) return names.join('、');
+    return `${names.slice(0, maxShow).join('、')}等 ${names.length} 个`;
+  };
+
+  /** 删除 / 停用共用：提示关联报送模板名称 */
+  const buildLinkedTemplateConfirmMessage = (
+    sourceName: string,
+    templates: Array<{ name?: string }>,
+    action: '停用' | '删除',
+    countOverride?: number
+  ) => {
+    const count = countOverride ?? templates.length;
+    const namesHint = formatLinkedTemplateNames(templates);
+    const consequence =
+      action === '停用'
+        ? '停用后将解绑并停用这些模板，上报端将无法选用。确定停用？'
+        : '删除后将解绑并停用这些模板，上报端将无法选用。确定删除？';
+    return `「${sourceName}」已关联 ${count} 个报送模板${namesHint ? `：${namesHint}` : ''}。${consequence}`;
+  };
+
   const disableLinkedReportTemplates = (
     prev: Record<string, ConfigModuleItem[]>,
     linkedIds: Set<string>,
@@ -2852,6 +2876,18 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       applyAllReportTemplates: applyAll,
       linkedNames: dataLinked.map((item) => item.name)
     });
+  };
+
+  const mergeLinkedTemplateHints = (
+    dataLinked: Array<{ name?: string }>,
+    boardLinked: Array<{ name?: string }>
+  ) => {
+    const byName = new Map<string, { name: string }>();
+    [...dataLinked, ...boardLinked].forEach((item) => {
+      const name = item.name?.trim();
+      if (name) byName.set(name, { name });
+    });
+    return Array.from(byName.values());
   };
 
   // Handle Toggle Status
@@ -2904,11 +2940,12 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
         dataBindKey
       );
       const linkedBoardTemplates = resolveBoardLinkedTemplates(targetItem, boardBindKey, dataBindKey);
-      const linkedCount = Math.max(linkedDataTemplates.length, linkedBoardTemplates.length);
+      const linkedHints = mergeLinkedTemplateHints(linkedDataTemplates, linkedBoardTemplates);
+      const linkedCount = Math.max(linkedDataTemplates.length, linkedBoardTemplates.length, linkedHints.length);
 
       if (linkedCount > 0) {
         const confirmed = await confirmDialog(
-          `「${targetItem.name}」已关联 ${linkedCount} 个报送模板。停用后将解绑并停用这些模板，上报端将无法选用。确定停用？`,
+          buildLinkedTemplateConfirmMessage(targetItem.name, linkedHints, '停用', linkedCount),
           { title: `${kindLabel}停用确认`, okText: '确认停用', danger: true }
         );
         if (!confirmed) return;
@@ -2982,16 +3019,76 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
     });
   };
 
-  // Handle Delete
+  // Handle Delete（审核流程 / 打分规则与停用校验一致：有关联报送模板时需确认并解绑停用）
   const handleDelete = async (item: ConfigModuleItem) => {
     if (!isGlobalScope && item.isDefault) {
-      alertDialog('系统默认配置项受平台全局管控，机构端不可删除！');
+      await alertDialog('系统默认配置项受平台全局管控，机构端不可删除！');
       return;
     }
-    if (await confirmDialog(`确定要删除配置项“${item.name}”吗？`, { title: '删除确认', okText: '确认删除', danger: true })) {
-      commitDataStore(prev => ({
+
+    if (activeModule === 'audit_flow' || activeModule === 'audit_score') {
+      const dataBindKey = activeModule === 'audit_flow' ? 'relatedFlowId' : 'relatedScoreRuleId';
+      const boardBindKey = activeModule === 'audit_flow' ? 'auditFlowId' : 'scoreRuleId';
+      const kindLabel = activeModule === 'audit_flow' ? '审核流程' : '打分规则';
+      const applyAll =
+        item.templateApplyMode === 'all_report_templates' || item.relatedTemplateId === 'all_report_templates';
+      const linkedDataTemplates = getLinkedReportTemplates(
+        item,
+        dataStore.report_template || [],
+        dataBindKey
+      );
+      const linkedBoardTemplates = resolveBoardLinkedTemplates(item, boardBindKey, dataBindKey);
+      const linkedHints = mergeLinkedTemplateHints(linkedDataTemplates, linkedBoardTemplates);
+      const linkedCount = Math.max(linkedDataTemplates.length, linkedBoardTemplates.length, linkedHints.length);
+      const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+      if (linkedCount > 0) {
+        const confirmed = await confirmDialog(
+          buildLinkedTemplateConfirmMessage(item.name, linkedHints, '删除', linkedCount),
+          { title: `${kindLabel}删除确认`, okText: '确认删除', danger: true }
+        );
+        if (!confirmed) return;
+
+        const linkedIds = new Set(linkedDataTemplates.map((tpl) => tpl.id));
+        unbindAndDisableBoardTemplates({
+          institutionId: getTemplateBoardInstitutionId(),
+          bindKey: boardBindKey,
+          sourceId: item.id,
+          applyAllReportTemplates: applyAll,
+          linkedNames: linkedDataTemplates.map((tpl) => tpl.name),
+          nowStr
+        });
+        commitDataStore((prev) => ({
+          ...prev,
+          [activeModule]: (prev[activeModule] || []).filter((i) => i.id !== item.id),
+          report_template: disableLinkedReportTemplates(prev, linkedIds, dataBindKey, nowStr)
+        }));
+        return;
+      }
+
+      const confirmed = await confirmDialog(`确定要删除${kindLabel}“${item.name}”吗？`, {
+        title: `${kindLabel}删除确认`,
+        okText: '确认删除',
+        danger: true
+      });
+      if (!confirmed) return;
+      commitDataStore((prev) => ({
         ...prev,
-        [activeModule]: prev[activeModule].filter(i => i.id !== item.id)
+        [activeModule]: (prev[activeModule] || []).filter((i) => i.id !== item.id)
+      }));
+      return;
+    }
+
+    if (
+      await confirmDialog(`确定要删除配置项“${item.name}”吗？`, {
+        title: '删除确认',
+        okText: '确认删除',
+        danger: true
+      })
+    ) {
+      commitDataStore((prev) => ({
+        ...prev,
+        [activeModule]: prev[activeModule].filter((i) => i.id !== item.id)
       }));
     }
   };
@@ -3454,10 +3551,16 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
           'scoreRuleId',
           'relatedScoreRuleId'
         );
-        const linkedCount = Math.max(linkedDataTemplates.length, linkedBoardTemplates.length);
+        const linkedHints = mergeLinkedTemplateHints(linkedDataTemplates, linkedBoardTemplates);
+        const linkedCount = Math.max(linkedDataTemplates.length, linkedBoardTemplates.length, linkedHints.length);
         if (linkedCount > 0) {
           const confirmed = await confirmDialog(
-            `「${formName.trim() || editingItem.name}」已关联 ${linkedCount} 个报送模板。停用后将解绑并停用这些模板，上报端将无法选用。确定停用？`,
+            buildLinkedTemplateConfirmMessage(
+              formName.trim() || editingItem.name,
+              linkedHints,
+              '停用',
+              linkedCount
+            ),
             { title: '打分规则停用确认', okText: '确认停用', danger: true }
           );
           if (!confirmed) return;
@@ -3573,10 +3676,16 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
           'auditFlowId',
           'relatedFlowId'
         );
-        const linkedCount = Math.max(linkedDataTemplates.length, linkedBoardTemplates.length);
+        const linkedHints = mergeLinkedTemplateHints(linkedDataTemplates, linkedBoardTemplates);
+        const linkedCount = Math.max(linkedDataTemplates.length, linkedBoardTemplates.length, linkedHints.length);
         if (linkedCount > 0) {
           const confirmed = await confirmDialog(
-            `「${formName.trim() || editingItem.name}」已关联 ${linkedCount} 个报送模板。停用后将解绑并停用这些模板，上报端将无法选用。确定停用？`,
+            buildLinkedTemplateConfirmMessage(
+              formName.trim() || editingItem.name,
+              linkedHints,
+              '停用',
+              linkedCount
+            ),
             { title: '审核流程停用确认', okText: '确认停用', danger: true }
           );
           if (!confirmed) return;

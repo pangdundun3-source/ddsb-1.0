@@ -388,7 +388,7 @@ export const Home: React.FC<HomeProps> = ({
         title={
           <>
             组织节点运行矩阵
-            <span className="text-xs font-normal text-slate-400">{subOrgMatrixData.length} 个组织节点</span>
+            <span className="text-xs font-normal text-slate-400">{subOrgMatrixData.length}</span>
           </>
         }
         extra={
