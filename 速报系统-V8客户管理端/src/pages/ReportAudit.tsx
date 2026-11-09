@@ -119,9 +119,12 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
   // 平均响应：上一环节提交到本环节（arrivedAt）→ 本环节审核完成（auditTime）
   const recentResponseMinutes = recentHandled
     .map((r) => {
-      const start = parseTs(getAuditArrivedAt(r));
       const end = parseTs(r.auditTime);
-      if (Number.isNaN(start) || Number.isNaN(end) || end < start) return null;
+      if (Number.isNaN(end)) return null;
+      let start = parseTs(getAuditArrivedAt(r));
+      // 到达时间异常时回退上报时间，保证能算出具体响应时长
+      if (Number.isNaN(start) || end < start) start = parseTs(r.submitTime);
+      if (Number.isNaN(start) || end < start) return null;
       return (end - start) / (1000 * 60);
     })
     .filter((v): v is number => v != null);
@@ -133,12 +136,14 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
       : null;
   const avgResponseLabel =
     avgResponseMinutes == null
-      ? '< 1 小时'
-      : avgResponseMinutes < 60
-        ? `${avgResponseMinutes} 分钟`
-        : avgResponseMinutes < 1440
-          ? `${Math.round((avgResponseMinutes / 60) * 10) / 10} 小时`
-          : `${Math.round((avgResponseMinutes / 1440) * 10) / 10} 天`;
+      ? '—'
+      : avgResponseMinutes < 1
+        ? '< 1 分钟'
+        : avgResponseMinutes < 60
+          ? `${avgResponseMinutes} 分钟`
+          : avgResponseMinutes < 1440
+            ? `${Math.round((avgResponseMinutes / 60) * 10) / 10} 小时`
+            : `${Math.round((avgResponseMinutes / 1440) * 10) / 10} 天`;
 
   // Filtered List
   const filtered = sourceList.filter((item) => {
@@ -340,7 +345,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
             id="kpi-audit-completed"
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-blue-100">累计审核</span>
+              <span className="text-xs font-medium text-blue-100">累计处理</span>
               <span className="text-[10px] px-1.5 py-px rounded bg-cyan-400/30 text-cyan-200 font-bold border border-cyan-400/40">近7日</span>
             </div>
             <div className="mt-1 flex items-baseline justify-between">
@@ -366,7 +371,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
 
           <div className="bg-white/10 border border-white/20 rounded-lg px-3.5 py-2.5 backdrop-blur-sm">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-blue-100">平均审核响应</span>
+              <span className="text-xs font-medium text-blue-100">平均审核耗时</span>
               <span className="text-[10px] px-1.5 py-px rounded bg-cyan-400/30 text-cyan-200 font-bold border border-cyan-400/40">近7日</span>
             </div>
             <div className="mt-1 flex items-baseline justify-between">

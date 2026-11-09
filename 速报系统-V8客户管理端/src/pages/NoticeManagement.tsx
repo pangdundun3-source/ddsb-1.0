@@ -993,14 +993,16 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                               </div>
                             </div>
                             <div className="flex items-center space-x-1 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => setPreviewAttachment(att)}
-                                className="p-1.5 text-slate-400 hover:text-[#1E5ABB] hover:bg-white rounded-lg transition-colors cursor-pointer"
-                                title="在线预览附件"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                              </button>
+                              {att.type === 'image' && (
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewAttachment(att)}
+                                  className="p-1.5 text-slate-400 hover:text-[#1E5ABB] hover:bg-white rounded-lg transition-colors cursor-pointer"
+                                  title="预览图片"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => handleRemoveAttachment(att.id)}
@@ -1289,7 +1291,7 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
           </div>
         )}
 
-        {/* Attachment preview modal */}
+        {/* 图片可预览；非图片附件仅下载 */}
         {previewAttachment && (
           <AttachmentPreviewModal
             isOpen={true}
@@ -1451,16 +1453,17 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                 );
               })()}
 
-              {/* Official Attachments Download List */}
+              {/* 附件：图片可预览+下载，其它文件仅下载 */}
               {selectedNotice.attachments && selectedNotice.attachments.length > 0 && (
                 <div className="pt-6 border-t border-slate-200 space-y-3">
                   <h4 className="font-bold text-xs text-slate-800 flex items-center space-x-2">
                     <Paperclip className="w-4 h-4 text-[#1E5ABB]" />
-                    <span>公文附件下载与查阅 ({selectedNotice.attachments.length})</span>
+                    <span>公文附件 ({selectedNotice.attachments.length})</span>
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {selectedNotice.attachments.map((att) => {
                       const meta = getAttachmentMeta(att);
+                      const isImage = att.type === 'image';
                       return (
                         <div
                           key={att.id}
@@ -1468,8 +1471,15 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                         >
                           <div className="flex items-center space-x-2.5 truncate min-w-0 pr-2">
                             <div className="w-8 h-8 rounded-lg bg-white border border-slate-200/80 shrink-0 flex items-center justify-center shadow-2xs overflow-hidden">
-                              {att.type === 'image' && att.thumbnailUrl ? (
-                                <img src={att.thumbnailUrl} alt={att.name} className="w-full h-full object-cover" />
+                              {isImage && att.thumbnailUrl ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewAttachment(att)}
+                                  className="w-full h-full cursor-pointer"
+                                  title="点击预览图片"
+                                >
+                                  <img src={att.thumbnailUrl} alt={att.name} className="w-full h-full object-cover" />
+                                </button>
                               ) : (
                                 meta.icon
                               )}
@@ -1487,14 +1497,16 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                             </div>
                           </div>
                           <div className="flex items-center space-x-1.5 shrink-0 ml-2">
-                            <button
-                              type="button"
-                              onClick={() => setPreviewAttachment(att)}
-                              className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-medium border border-slate-200 transition-colors shadow-2xs cursor-pointer flex items-center space-x-1"
-                            >
-                              <Eye className="w-3 h-3" />
-                              <span>预览</span>
-                            </button>
+                            {isImage && (
+                              <button
+                                type="button"
+                                onClick={() => setPreviewAttachment(att)}
+                                className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-medium border border-slate-200 transition-colors shadow-2xs cursor-pointer flex items-center space-x-1"
+                              >
+                                <Eye className="w-3 h-3" />
+                                <span>预览</span>
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => showToast(`已开始下载附件：${att.name}`)}

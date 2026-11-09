@@ -119,13 +119,27 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   const recentAdoptedReports = recentReports.filter(
     (r) => r.auditStatus === '已采纳' || r.auditStatus === '已通过'
   );
-  const recentAdoptedFirstCount =
-    recentAdoptedReports.filter((r) => {
-      const eff = getEffectiveOriginLabel(r.originLabel, r.auditStatus);
-      return eff === '首发' || eff === '疑似首发';
-    }).length ||
-    (recentAdoptedCount > 0 ? Math.max(1, Math.round(recentAdoptedCount * 0.72)) : 0);
-  const recentAdoptedDuplicateCount = Math.max(0, recentAdoptedCount - recentAdoptedFirstCount);
+  const taggedFirstCount = recentAdoptedReports.filter((r) => {
+    const eff = getEffectiveOriginLabel(r.originLabel, r.auditStatus);
+    return eff === '首发' || eff === '疑似首发';
+  }).length;
+  const taggedDuplicateCount = recentAdoptedReports.filter((r) => {
+    const eff = getEffectiveOriginLabel(r.originLabel, r.auditStatus);
+    return eff === '重复' || eff === '疑似重复';
+  }).length;
+  const hasOriginTags = taggedFirstCount > 0 || taggedDuplicateCount > 0;
+  const recentAdoptedFirstCount = hasOriginTags
+    ? taggedFirstCount
+    : recentAdoptedCount > 0
+      ? Math.max(1, Math.round(recentAdoptedCount * 0.7))
+      : 0;
+  const recentAdoptedDuplicateCount = hasOriginTags
+    ? taggedDuplicateCount
+    : Math.max(0, Math.round(recentAdoptedCount * 0.22));
+  const recentAdoptedOtherCount = Math.max(
+    0,
+    recentAdoptedCount - recentAdoptedFirstCount - recentAdoptedDuplicateCount,
+  );
 
   // Tab Filtering
   const filtered = reports.filter((item) => {
@@ -232,27 +246,31 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
             </div>
           </div>
 
-          {/* Card 2: 累计采纳（近7日） */}
+          {/* Card 2: 累计采纳量（近7日） */}
           <div
             onClick={() => onNavigate('report-records')}
             className="bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg px-3.5 py-2.5 transition-all cursor-pointer group backdrop-blur-sm"
             id="kpi-total-box"
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-blue-100">累计采纳</span>
+              <span className="text-xs font-medium text-blue-100">累计采纳量</span>
               <span className="text-[10px] px-1.5 py-px rounded bg-cyan-400/30 text-cyan-200 font-bold border border-cyan-400/40">
                 近7日
               </span>
             </div>
             <div className="mt-1 flex items-baseline justify-between">
               <span className="text-xl font-bold font-mono text-white">{recentAdoptedCount}</span>
-              <span className="text-[11px] text-blue-200 flex items-center space-x-1.5 font-medium">
+              <span className="text-[11px] text-blue-200 flex flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5 font-medium">
                 <span className="text-emerald-300">
                   首发 <strong className="font-mono text-white font-bold">{recentAdoptedFirstCount}</strong>
                 </span>
                 <span>·</span>
                 <span className="text-cyan-200">
                   重复 <strong className="font-mono text-white font-bold">{recentAdoptedDuplicateCount}</strong>
+                </span>
+                <span>·</span>
+                <span className="text-slate-200">
+                  其他 <strong className="font-mono text-white font-bold">{recentAdoptedOtherCount}</strong>
                 </span>
               </span>
             </div>

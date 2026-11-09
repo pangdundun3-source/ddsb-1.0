@@ -32,7 +32,7 @@ interface AllOrgTrendSectionProps {
 }
 
 export const AllOrgTrendSection: React.FC<AllOrgTrendSectionProps> = ({
-  timeDim = 'week',
+  timeDim = 'd7',
   selectedOrgFilter = 'all'
 }) => {
   // Mode: 全域综合走势 vs 重点机构对比走势
@@ -140,8 +140,8 @@ export const AllOrgTrendSection: React.FC<AllOrgTrendSectionProps> = ({
     }
   ];
 
-  // Pick dataset based on timeDim
-  const currentMacroData = (timeDim === 'month' || timeDim === 'quarter' || timeDim === 'year')
+  // Pick dataset based on timeDim（近30/近90日用周聚合序列，其余用日序）
+  const currentMacroData = (timeDim === 'd30' || timeDim === 'd90')
     ? macroMonthlyData
     : macroWeeklyData;
 
@@ -156,8 +156,8 @@ export const AllOrgTrendSection: React.FC<AllOrgTrendSectionProps> = ({
   }));
 
   const metricNames: Record<string, { label: string; unit: string; maxVal: number }> = {
-    total: { label: '上报总量', unit: '件', maxVal: 300 },
-    passed: { label: '有效采纳量', unit: '件', maxVal: 300 },
+    total: { label: '累计报送量', unit: '件', maxVal: 300 },
+    passed: { label: '累计采纳量', unit: '件', maxVal: 300 },
     directRate: { label: '首审直通率', unit: '%', maxVal: 100 },
     avgScore: { label: '综合考评得分', unit: '分', maxVal: 100 }
   };
@@ -180,7 +180,7 @@ export const AllOrgTrendSection: React.FC<AllOrgTrendSectionProps> = ({
               </span>
             </div>
             <p className="text-[11px] text-gray-400 mt-0.5">
-              量化监测全域上报总量、有效采纳、首审直通率、响应时效及各直属/区县机构的动态效能走势
+              量化监测全域累计报送量、有效采纳、首审直通率、响应时效及各直属/区县机构的动态效能走势
             </p>
           </div>
         </div>
@@ -220,8 +220,8 @@ export const AllOrgTrendSection: React.FC<AllOrgTrendSectionProps> = ({
               onChange={(e) => setCompareMetric(e.target.value as any)}
               className="bg-white border border-gray-300 text-gray-700 rounded-lg px-2.5 py-1 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs"
             >
-              <option value="total">对比指标: 上报总量</option>
-              <option value="passed">对比指标: 有效采纳量</option>
+              <option value="total">对比指标: 累计报送量</option>
+              <option value="passed">对比指标: 累计采纳量</option>
               <option value="directRate">对比指标: 首审直通率 (%)</option>
               <option value="avgScore">对比指标: 综合考评得分</option>
             </select>
@@ -245,7 +245,7 @@ export const AllOrgTrendSection: React.FC<AllOrgTrendSectionProps> = ({
               }`}
             >
               <span className="w-2 h-2 rounded-full bg-[#1E5ABB]"></span>
-              <span>全域上报量</span>
+              <span>累计报送量</span>
             </button>
 
             <button
@@ -255,7 +255,7 @@ export const AllOrgTrendSection: React.FC<AllOrgTrendSectionProps> = ({
               }`}
             >
               <span className="w-2 h-2 rounded-full bg-[#10B981]"></span>
-              <span>有效采纳量</span>
+              <span>累计采纳量</span>
             </button>
 
             <button
@@ -305,7 +305,7 @@ export const AllOrgTrendSection: React.FC<AllOrgTrendSectionProps> = ({
               }`}
             >
               <span className="w-2 h-2 rounded-full bg-[#0284C7]"></span>
-              <span>审核响应均时(分)</span>
+              <span>平均审核耗时</span>
             </button>
           </div>
         </div>
@@ -413,7 +413,7 @@ export const AllOrgTrendSection: React.FC<AllOrgTrendSectionProps> = ({
                   yAxisId="left"
                   type="monotone"
                   dataKey="total"
-                  name="全域上报量"
+                  name="累计报送量"
                   stroke="#1E5ABB"
                   strokeWidth={2.5}
                   dot={{ r: 4, fill: '#1E5ABB', strokeWidth: 1, stroke: '#fff' }}
@@ -425,7 +425,7 @@ export const AllOrgTrendSection: React.FC<AllOrgTrendSectionProps> = ({
                   yAxisId="left"
                   type="monotone"
                   dataKey="passed"
-                  name="有效采纳量"
+                  name="累计采纳量"
                   stroke="#10B981"
                   strokeWidth={2.5}
                   dot={{ r: 4, fill: '#10B981', strokeWidth: 1, stroke: '#fff' }}
@@ -484,7 +484,7 @@ export const AllOrgTrendSection: React.FC<AllOrgTrendSectionProps> = ({
                   yAxisId="right"
                   type="monotone"
                   dataKey="avgTime"
-                  name="审核响应均时(分)"
+                  name="平均审核耗时"
                   stroke="#0284C7"
                   strokeWidth={1.5}
                   dot={{ r: 3, fill: '#0284C7' }}

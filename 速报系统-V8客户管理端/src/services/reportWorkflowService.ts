@@ -9,7 +9,12 @@ export const appendTimeline = (report: ReportItem, nodes: TimelineNode[]): Repor
   timeline: [...(report.timeline || []), ...nodes]
 });
 
-/** 流转到当前审核人待办的提交时间：优先 arrivedAt，否则取当前节点前最近一次完成节点时间 */
+const parseTimelineTs = (value?: string) => {
+  if (!value) return NaN;
+  return new Date(value.replace(/-/g, '/')).getTime();
+};
+
+/** 流转到当前审核人待办的提交时间：优先 arrivedAt；在办取当前节点前一完成时间；已办结取 auditTime 对应审核节点的前一节点时间 */
 export const getAuditArrivedAt = (report: ReportItem): string => {
   if (report.arrivedAt) return report.arrivedAt;
   const nodes = report.timeline || [];
@@ -19,9 +24,39 @@ export const getAuditArrivedAt = (report: ReportItem): string => {
       if (nodes[i].time) return nodes[i].time as string;
     }
   }
-  for (let i = nodes.length - 1; i >= 0; i -= 1) {
-    if (nodes[i].status === 'completed' && nodes[i].time) return nodes[i].time as string;
+
+  // 已办结：以 auditTime 对应审核节点为办结点，取其前一节点时间（上一环节→本环节）
+  if (report.auditTime) {
+    const auditTs = parseTimelineTs(report.auditTime);
+    if (!Number.isNaN(auditTs)) {
+      let auditIdx = -1;
+      for (let i = nodes.length - 1; i >= 0; i -= 1) {
+        if (!nodes[i].time || nodes[i].title === '结束') continue;
+        const t = parseTimelineTs(nodes[i].time);
+        if (Number.isNaN(t)) continue;
+        if (Math.abs(t - auditTs) <= 60 * 1000) {
+          auditIdx = i;
+          break;
+        }
+      }
+      if (auditIdx < 0) {
+        for (let i = nodes.length - 1; i >= 0; i -= 1) {
+          if (!nodes[i].time || nodes[i].title === '结束') continue;
+          const t = parseTimelineTs(nodes[i].time);
+          if (!Number.isNaN(t) && t <= auditTs) {
+            auditIdx = i;
+            break;
+          }
+        }
+      }
+      if (auditIdx > 0) {
+        for (let i = auditIdx - 1; i >= 0; i -= 1) {
+          if (nodes[i].time) return nodes[i].time as string;
+        }
+      }
+    }
   }
+
   return report.submitTime;
 };
 

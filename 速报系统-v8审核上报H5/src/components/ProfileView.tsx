@@ -40,7 +40,7 @@ interface ProfileViewProps {
   onToggleActivationDetail?: (show: boolean) => void;
 }
 
-type TimeFilter = '本周' | '本月' | '本季度' | '本年' | '自定义区间';
+type TimeFilter = '今日' | '近7日' | '近30日' | '近90日' | '自定义';
 
 const formatAuditDuration = (minutes: number) => {
   if (minutes <= 0) return '< 1 分钟';
@@ -85,7 +85,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   showActivationDetail: externalShowActivationDetail,
   onToggleActivationDetail,
 }) => {
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('本周');
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('近7日');
   const [customStartDate, setCustomStartDate] = useState<string>('2026-08-01');
   const [customEndDate, setCustomEndDate] = useState<string>('2026-08-13');
   const [internalShowDetail, setInternalShowDetail] = useState<boolean>(false);
@@ -267,43 +267,107 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     return () => window.clearTimeout(timer);
   }, [showPhoneVerifyModal, phoneVerifyCountdown]);
 
-  const timeOptions: TimeFilter[] = ['本周', '本月', '本季度', '本年', '自定义区间'];
+  const timeOptions: TimeFilter[] = ['今日', '近7日', '近30日', '近90日', '自定义'];
+  /** 自定义区间最多可选天数（含起止日） */
+  const CUSTOM_MAX_DAYS = 90;
 
-  // Filter reports based on selected time
+  // 滚动窗口锚定数据最新日，避免原型历史日期导致「今日/近7日」全空
+  const toDateKey = (value?: string) => (value || '').slice(0, 10);
+  const shiftDateKey = (dateKey: string, days: number) => {
+    const base = new Date(`${dateKey.replace(/-/g, '/')} 00:00:00`);
+    if (Number.isNaN(base.getTime())) return dateKey;
+    base.setDate(base.getDate() + days);
+    const y = base.getFullYear();
+    const m = String(base.getMonth() + 1).padStart(2, '0');
+    const d = String(base.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+  const minDateKey = (a: string, b: string) => (a <= b ? a : b);
+  const daySpanInclusive = (startKey: string, endKey: string) => {
+    const start = new Date(`${startKey.replace(/-/g, '/')} 00:00:00`);
+    const end = new Date(`${endKey.replace(/-/g, '/')} 00:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 1;
+    return Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+  };
+  const latestDateKey =
+    reports.reduce((max, item) => {
+      const key = toDateKey(item.createTime);
+      return key && key > max ? key : max;
+    }, '') || new Date().toISOString().slice(0, 10);
+
+  // 自定义：按已选起点/终点动态给出另一侧可选范围（最多 90 天，且不超过数据最新日）
+  const customStartMin = customEndDate
+    ? shiftDateKey(customEndDate, -(CUSTOM_MAX_DAYS - 1))
+    : undefined;
+  const customStartMax = customEndDate
+    ? minDateKey(customEndDate, latestDateKey)
+    : latestDateKey;
+  const customEndMin = customStartDate || undefined;
+  const customEndMax = customStartDate
+    ? minDateKey(shiftDateKey(customStartDate, CUSTOM_MAX_DAYS - 1), latestDateKey)
+    : latestDateKey;
+
+  const applyCustomStart = (nextStart: string) => {
+    if (!nextStart) {
+      setCustomStartDate(nextStart);
+      return;
+    }
+    let start = nextStart > latestDateKey ? latestDateKey : nextStart;
+    let end = customEndDate;
+    if (end) {
+      if (end < start) end = start;
+      if (daySpanInclusive(start, end) > CUSTOM_MAX_DAYS) {
+        end = minDateKey(shiftDateKey(start, CUSTOM_MAX_DAYS - 1), latestDateKey);
+      }
+      if (end > latestDateKey) end = latestDateKey;
+      setCustomEndDate(end);
+    }
+    setCustomStartDate(start);
+  };
+
+  const applyCustomEnd = (nextEnd: string) => {
+    if (!nextEnd) {
+      setCustomEndDate(nextEnd);
+      return;
+    }
+    let end = nextEnd > latestDateKey ? latestDateKey : nextEnd;
+    let start = customStartDate;
+    if (start) {
+      if (end < start) start = end;
+      if (daySpanInclusive(start, end) > CUSTOM_MAX_DAYS) {
+        start = shiftDateKey(end, -(CUSTOM_MAX_DAYS - 1));
+      }
+      setCustomStartDate(start);
+    }
+    setCustomEndDate(end);
+  };
+
   const filteredReports = reports.filter((r) => {
     if (!r.createTime) return true;
+    const rDay = toDateKey(r.createTime);
 
-    if (timeFilter === '自定义区间') {
-      const rDay = r.createTime.substring(0, 10);
+    if (timeFilter === '自定义') {
       if (customStartDate && rDay < customStartDate) return false;
       if (customEndDate && rDay > customEndDate) return false;
       return true;
     }
 
-    const dateStr = r.createTime.replace(' ', 'T');
-    const rDate = new Date(dateStr);
-    if (isNaN(rDate.getTime())) return true;
-
-    // Simulated base date 2026-08-13 (Thursday)
-    const baseDate = new Date('2026-08-13T23:59:59');
-    const diffDays = (baseDate.getTime() - rDate.getTime()) / (1000 * 3600 * 24);
-
-    switch (timeFilter) {
-      case '本周':
-        return diffDays >= -3.5 && diffDays <= 7;
-      case '本月':
-        return r.createTime.startsWith('2026-08');
-      case '本季度':
-        return (
-          r.createTime.startsWith('2026-07') ||
-          r.createTime.startsWith('2026-08') ||
-          r.createTime.startsWith('2026-09')
-        );
-      case '本年':
-        return r.createTime.startsWith('2026');
-      default:
-        return true;
+    if (timeFilter === '今日') {
+      return rDay === latestDateKey;
     }
+    if (timeFilter === '近7日') {
+      const startKey = shiftDateKey(latestDateKey, -6);
+      return rDay >= startKey && rDay <= latestDateKey;
+    }
+    if (timeFilter === '近30日') {
+      const startKey = shiftDateKey(latestDateKey, -29);
+      return rDay >= startKey && rDay <= latestDateKey;
+    }
+    if (timeFilter === '近90日') {
+      const startKey = shiftDateKey(latestDateKey, -89);
+      return rDay >= startKey && rDay <= latestDateKey;
+    }
+    return true;
   });
 
   const getElapsedMinutes = (report: SpeedReport) => {
@@ -315,12 +379,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   // --- 1. 速报员角色统计数据 (Reporter Stats) ---
   const submittedReports = filteredReports.filter((r) => r.status !== 'draft');
-  const hasRepairTrace = (report: SpeedReport) =>
-    Boolean(report.rejectReason) || (report.status === 'approved' && getElapsedMinutes(report) > 60);
   const reporterSubmittedTotal = submittedReports.length;
   const reporterApproved = submittedReports.filter((r) => r.status === 'approved').length;
-  const reporterRepairPassed = submittedReports.filter((r) => r.status === 'approved' && hasRepairTrace(r)).length;
-  const reporterFirstPass = Math.max(reporterApproved - reporterRepairPassed, 0);
   const reporterRejectedTodo = submittedReports.filter((r) => r.status === 'rejected').length;
   const reporterOverallPassRate =
     reporterSubmittedTotal > 0 ? Math.round((reporterApproved / reporterSubmittedTotal) * 100) : 0;
@@ -350,10 +410,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const reporterComprehensiveScore =
     reporterSubmittedTotal > 0 ? baseHistoricalCumulativeScore + currentScoredTotal : 0;
 
-  // 报送统计环图：一次性通过 / 返修通过 / 审核中 / 待审核 / 被驳回
+  // 报送统计环图：累计采纳量 / 审核中 / 待审核 / 被驳回
   const reportComposition = [
-    { label: '一次性通过', value: reporterFirstPass, color: '#10B981', textClass: 'text-emerald-600' },
-    { label: '返修通过', value: reporterRepairPassed, color: '#06B6D4', textClass: 'text-cyan-600' },
+    { label: '累计采纳量', value: reporterApproved, color: '#10B981', textClass: 'text-emerald-600' },
     { label: '审核中', value: reporterAuditing, color: '#0284C7', textClass: 'text-sky-600' },
     { label: '待审核', value: reporterPendingAudit, color: '#94A3B8', textClass: 'text-slate-500' },
     { label: '被驳回', value: reporterRejectedTodo, color: '#F43F5E', textClass: 'text-rose-600' },
@@ -371,7 +430,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           .join(', ')})`
       : 'conic-gradient(#e2e8f0 0% 100%)';
 
-  // --- 2. 审核员角色统计数据 (Auditor Stats，与 PC 审核统计环图一致) ---
+  // --- 2. 审核员角色统计数据 (按审核动作计次，与 PC/客户管理端审核统计环图一致) ---
   const auditorApproved = filteredReports.filter((r) => r.status === 'approved').length;
   const auditorRejected = filteredReports.filter((r) => r.status === 'rejected').length;
   const auditorPending = filteredReports.filter(
@@ -393,9 +452,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       : 0;
   const auditorAvgResponseTimeStr = formatAuditDuration(auditorAvgResponseMinutes);
   const auditComposition = [
-    { label: '审核通过', value: auditorApproved, color: '#10B981', textClass: 'text-emerald-600' },
-    { label: '审核驳回', value: auditorRejected, color: '#F43F5E', textClass: 'text-rose-600' },
-    { label: '待审核', value: auditorPending, color: '#94A3B8', textClass: 'text-slate-500' },
+    { label: '通过处理', value: auditorApproved, color: '#10B981', textClass: 'text-emerald-600' },
+    { label: '驳回处理', value: auditorRejected, color: '#F43F5E', textClass: 'text-rose-600' },
+    { label: '待办处理', value: auditorPending, color: '#94A3B8', textClass: 'text-slate-500' },
   ];
   let auditCompositionCursor = 0;
   const auditDonutGradient =
@@ -816,9 +875,25 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       {/* 统计数据模块 */}
       <div className="bg-white rounded-2xl p-3.5 shadow-2xs border border-slate-200/90 space-y-3">
         <div className="space-y-2 rounded-xl bg-slate-50/90 border border-slate-200/80 p-2.5">
-          <div className="flex items-center space-x-1.5 text-xs font-bold text-slate-800">
-            <Calendar className="w-4 h-4 text-blue-600" />
-            <span>统计时间范围</span>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center space-x-1.5 text-xs font-bold text-slate-800">
+              <Calendar className="w-4 h-4 text-blue-600" />
+              <span>统计周期</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setTimeFilter('近7日');
+                setCustomStartDate('2026-08-01');
+                setCustomEndDate('2026-08-13');
+                onToast('已重置为近7日');
+              }}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 active:bg-slate-50"
+              title="重置统计周期"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>重置</span>
+            </button>
           </div>
 
           <div className="flex items-center space-x-1 overflow-x-auto scrollbar-none py-0.5">
@@ -826,8 +901,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               <button
                 key={opt}
                 onClick={() => {
+                  if (opt === '自定义' && timeFilter === '自定义') {
+                    setTimeFilter('近7日');
+                    onToast('已收起自定义，恢复近7日');
+                    return;
+                  }
                   setTimeFilter(opt);
-                  onToast(`已筛选统计时间：${opt}`);
+                  onToast(`已筛选统计周期：${opt}`);
                 }}
                 className={`px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
                   timeFilter === opt
@@ -840,41 +920,36 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             ))}
           </div>
 
-          {timeFilter === '自定义区间' && (
+          {timeFilter === '自定义' && (
             <div className="pt-2 border-t border-slate-100 space-y-1.5">
-              <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
-                <span>自定义统计起止区间：</span>
-                <span className="font-mono text-blue-600 text-[10px] font-bold">
-                  {customStartDate || '未设定'} 至 {customEndDate || '未设定'}
-                </span>
-              </div>
               <div className="flex items-center space-x-2 text-xs">
-                <div className="flex-1 flex items-center space-x-1.5 bg-white border border-slate-200/90 rounded-xl px-2.5 py-1.5 focus-within:border-blue-500 transition-all">
-                  <span className="text-[10px] text-slate-400 font-bold shrink-0">从</span>
+                <div className="flex-1 flex items-center bg-white border border-slate-200/90 rounded-xl px-2.5 py-1.5 focus-within:border-blue-500 transition-all">
                   <input
                     type="date"
                     value={customStartDate}
-                    onChange={(e) => {
-                      setCustomStartDate(e.target.value);
-                      onToast(`起始日期: ${e.target.value}`);
-                    }}
+                    min={customStartMin}
+                    max={customStartMax}
+                    onChange={(e) => applyCustomStart(e.target.value)}
                     className="w-full bg-transparent text-xs text-slate-800 font-mono font-medium outline-none cursor-pointer"
                   />
                 </div>
                 <span className="text-slate-400 font-bold text-xs shrink-0">至</span>
-                <div className="flex-1 flex items-center space-x-1.5 bg-white border border-slate-200/90 rounded-xl px-2.5 py-1.5 focus-within:border-blue-500 transition-all">
-                  <span className="text-[10px] text-slate-400 font-bold shrink-0">到</span>
+                <div className="flex-1 flex items-center bg-white border border-slate-200/90 rounded-xl px-2.5 py-1.5 focus-within:border-blue-500 transition-all">
                   <input
                     type="date"
                     value={customEndDate}
-                    onChange={(e) => {
-                      setCustomEndDate(e.target.value);
-                      onToast(`结束日期: ${e.target.value}`);
-                    }}
+                    min={customEndMin}
+                    max={customEndMax}
+                    onChange={(e) => applyCustomEnd(e.target.value)}
                     className="w-full bg-transparent text-xs text-slate-800 font-mono font-medium outline-none cursor-pointer"
                   />
                 </div>
               </div>
+              <p className="text-[10px] text-slate-400 px-0.5">
+                {customStartDate
+                  ? `可选结束日：${customEndMin || customStartDate} ~ ${customEndMax}（最多 ${CUSTOM_MAX_DAYS} 天）`
+                  : `自定义区间最多 ${CUSTOM_MAX_DAYS} 天`}
+              </p>
             </div>
           )}
         </div>
@@ -966,11 +1041,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               style={{ background: auditDonutGradient }}
             >
               <div className="absolute inset-3 rounded-full bg-white border border-slate-100 shadow-inner flex flex-col items-center justify-center">
-                <span className="text-[10px] font-bold text-slate-400">累计审核</span>
+                <span className="text-[10px] font-bold text-slate-400">累计处理</span>
                 <span className="text-2xl font-black font-mono text-slate-900 leading-none mt-1">
                   {auditorTotal}
                 </span>
-                <span className="text-[10px] font-bold text-slate-400 mt-0.5">件</span>
+                <span className="text-[10px] font-bold text-slate-400 mt-0.5">次</span>
               </div>
             </div>
 
@@ -989,7 +1064,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   </div>
                   <div className={`text-xs font-black font-mono shrink-0 ${item.textClass}`}>
                     {item.value}
-                    <span className="ml-0.5 text-[9px] font-bold font-sans">件</span>
+                    <span className="ml-0.5 text-[9px] font-bold font-sans">次</span>
                   </div>
                 </div>
               ))}
@@ -998,7 +1073,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
           <div className="rounded-xl bg-white border border-slate-100 p-2.5 grid grid-cols-2 gap-2 shadow-2xs">
             <div className="min-w-0 flex items-center justify-between gap-1">
-              <span className="text-[10px] font-medium text-slate-500 truncate">平均审核响应</span>
+              <span className="text-[10px] font-medium text-slate-500 truncate">平均审核耗时</span>
               <span className="text-sm font-black font-mono text-emerald-600 whitespace-nowrap shrink-0">
                 {auditorAvgResponseTimeStr}
               </span>

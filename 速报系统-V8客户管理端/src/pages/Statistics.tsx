@@ -58,7 +58,7 @@ import { AllOrgTrendSection } from '../components/AllOrgTrendSection';
 import { EvaluationProfileModal, ProfileDetailData } from '../components/EvaluationProfileModal';
 import { DateRangeField } from '../components/DateRangeField';
 
-export type TimeDimension = 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
+export type TimeDimension = 'day' | 'd7' | 'd30' | 'd90' | 'custom';
 export type ViewScope = 'all_orgs' | 'current_org';
 
 // Pre-defined Organization Options & Metadata
@@ -85,9 +85,9 @@ export const Statistics: React.FC<StatisticsProps> = ({ onNavigate }) => {
   const [currentOrg] = useState('中共台中市委宣传部');
   
   // Time and Filter States
-  const [timeDim, setTimeDim] = useState<TimeDimension>('week');
-  const [startDate, setStartDate] = useState('2026-08-04');
-  const [endDate, setEndDate] = useState('2026-08-11');
+  const [timeDim, setTimeDim] = useState<TimeDimension>('d7');
+  const [startDate, setStartDate] = useState('2026-11-03');
+  const [endDate, setEndDate] = useState('2026-11-09');
   const [selectedOrgFilter, setSelectedOrgFilter] = useState('all');
 
   // Staff Sub-filter in Tables (平台所有人 vs 本机构人员)
@@ -166,31 +166,31 @@ export const Statistics: React.FC<StatisticsProps> = ({ onNavigate }) => {
     setTimeout(() => setToastMsg(null), 3000);
   };
 
-  // Handle preset date switches
+  // Handle preset date switches（今日 / 近7日 / 近30日 / 近90日 / 自定义）
   const handleTimeDimChange = (dim: TimeDimension) => {
     setTimeDim(dim);
     if (dim === 'day') {
-      setStartDate('2026-08-11');
-      setEndDate('2026-08-11');
-    } else if (dim === 'week') {
-      setStartDate('2026-08-04');
-      setEndDate('2026-08-11');
-    } else if (dim === 'month') {
-      setStartDate('2026-08-01');
-      setEndDate('2026-08-31');
-    } else if (dim === 'quarter') {
-      setStartDate('2026-07-01');
-      setEndDate('2026-09-30');
-    } else if (dim === 'year') {
-      setStartDate('2026-01-01');
-      setEndDate('2026-12-31');
+      setStartDate('2026-11-09');
+      setEndDate('2026-11-09');
+    } else if (dim === 'd7') {
+      setStartDate('2026-11-03');
+      setEndDate('2026-11-09');
+    } else if (dim === 'd30') {
+      setStartDate('2026-10-11');
+      setEndDate('2026-11-09');
+    } else if (dim === 'd90') {
+      setStartDate('2026-08-12');
+      setEndDate('2026-11-09');
+    } else if (dim === 'custom') {
+      setStartDate('2026-11-03');
+      setEndDate('2026-11-09');
     }
   };
 
   const handleReset = () => {
-    setTimeDim('week');
-    setStartDate('2026-08-04');
-    setEndDate('2026-08-11');
+    setTimeDim('d7');
+    setStartDate('2026-11-03');
+    setEndDate('2026-11-09');
     setSelectedOrgFilter('all');
     setStaffScopeFilter('all');
     setSearchQuery('');
@@ -267,45 +267,42 @@ export const Statistics: React.FC<StatisticsProps> = ({ onNavigate }) => {
     ];
   }, [isGlobalView, activeOrgInfo]);
 
-  // Reporter Donut Data
+  // Reporter Donut Data（一次性通过 + 返修通过 → 累计采纳量）
   const reporterDonutData = useMemo(() => {
     if (isGlobalView) {
       return [
-        { name: '一次性通过', value: 8110, displayVal: '8,110 件', color: '#10B981' },
-        { name: '返修通过', value: 1260, displayVal: '1,260 件', color: '#1E5ABB' },
+        { name: '累计采纳量', value: 9370, displayVal: '9,370 件', color: '#10B981' },
         { name: '待审核', value: 660, displayVal: '660 件', color: '#94A3B8' },
         { name: '驳回', value: 450, displayVal: '450 件', color: '#EF4444' }
       ];
     }
-    const direct = Math.round(activeOrgInfo.total * (activeOrgInfo.directRate / 100));
     const passed = activeOrgInfo.passed || 1520;
-    const repaired = Math.max(0, passed - direct);
     const rejected = activeOrgInfo.rejected || 35;
     const pending = activeOrgInfo.pending || 25;
     return [
-      { name: '一次性通过', value: direct, displayVal: `${direct.toLocaleString()} 件`, color: '#10B981' },
-      { name: '返修通过', value: repaired, displayVal: `${repaired.toLocaleString()} 件`, color: '#1E5ABB' },
+      { name: '累计采纳量', value: passed, displayVal: `${passed.toLocaleString()} 件`, color: '#10B981' },
       { name: '待审核', value: pending, displayVal: `${pending.toLocaleString()} 件`, color: '#94A3B8' },
       { name: '驳回', value: rejected, displayVal: `${rejected.toLocaleString()} 件`, color: '#EF4444' }
     ];
   }, [isGlobalView, activeOrgInfo]);
 
   // Auditor Donut Data
+  // 审核员环图按「审核动作」计次（一件上报多人处理可重复计数）
   const auditorDonutData = useMemo(() => {
     if (isGlobalView) {
       return [
-        { name: '审核通过', value: 9240, displayVal: '9,240 件', color: '#10B981' },
-        { name: '审核驳回', value: 620, displayVal: '620 件', color: '#EF4444' },
-        { name: '待审核', value: 120, displayVal: '120 件', color: '#94A3B8' }
+        { name: '通过处理', value: 9240, displayVal: '9,240 次', color: '#10B981' },
+        { name: '驳回处理', value: 620, displayVal: '620 次', color: '#EF4444' },
+        { name: '待办处理', value: 120, displayVal: '120 次', color: '#94A3B8' }
       ];
     }
     const passed = activeOrgInfo.passed || 1420;
     const rejected = activeOrgInfo.rejected || 75;
     const pending = activeOrgInfo.pending || 25;
     return [
-      { name: '审核通过', value: passed, displayVal: `${passed.toLocaleString()} 件`, color: '#10B981' },
-      { name: '审核驳回', value: rejected, displayVal: `${rejected.toLocaleString()} 件`, color: '#EF4444' },
-      { name: '待审核', value: pending, displayVal: `${pending.toLocaleString()} 件`, color: '#94A3B8' }
+      { name: '通过处理', value: passed, displayVal: `${passed.toLocaleString()} 次`, color: '#10B981' },
+      { name: '驳回处理', value: rejected, displayVal: `${rejected.toLocaleString()} 次`, color: '#EF4444' },
+      { name: '待办处理', value: pending, displayVal: `${pending.toLocaleString()} 次`, color: '#94A3B8' }
     ];
   }, [isGlobalView, activeOrgInfo]);
 
@@ -480,54 +477,26 @@ export const Statistics: React.FC<StatisticsProps> = ({ onNavigate }) => {
 
             {/* Time Dimension Tabs */}
             <div className="flex items-center bg-slate-100 p-0.5 rounded-lg text-xs font-medium">
-              <button
-                onClick={() => handleTimeDimChange('day')}
-                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                  timeDim === 'day' ? 'bg-[#1E5ABB] text-white shadow-2xs font-bold' : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                日(今日)
-              </button>
-              <button
-                onClick={() => handleTimeDimChange('week')}
-                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                  timeDim === 'week' ? 'bg-[#1E5ABB] text-white shadow-2xs font-bold' : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                周(本周)
-              </button>
-              <button
-                onClick={() => handleTimeDimChange('month')}
-                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                  timeDim === 'month' ? 'bg-[#1E5ABB] text-white shadow-2xs font-bold' : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                月(本月)
-              </button>
-              <button
-                onClick={() => handleTimeDimChange('quarter')}
-                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                  timeDim === 'quarter' ? 'bg-[#1E5ABB] text-white shadow-2xs font-bold' : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                季度
-              </button>
-              <button
-                onClick={() => handleTimeDimChange('year')}
-                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                  timeDim === 'year' ? 'bg-[#1E5ABB] text-white shadow-2xs font-bold' : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                年度
-              </button>
-              <button
-                onClick={() => handleTimeDimChange('custom')}
-                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                  timeDim === 'custom' ? 'bg-[#1E5ABB] text-white shadow-2xs font-bold' : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                自定义
-              </button>
+              {(
+                [
+                  ['day', '今日'],
+                  ['d7', '近7日'],
+                  ['d30', '近30日'],
+                  ['d90', '近90日'],
+                  ['custom', '自定义'],
+                ] as const
+              ).map(([dim, label]) => (
+                <button
+                  key={dim}
+                  type="button"
+                  onClick={() => handleTimeDimChange(dim)}
+                  className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                    timeDim === dim ? 'bg-[#1E5ABB] text-white shadow-2xs font-bold' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -536,6 +505,9 @@ export const Statistics: React.FC<StatisticsProps> = ({ onNavigate }) => {
             <DateRangeField
               startValue={startDate}
               endValue={endDate}
+              maxDate="2026-11-09"
+              readOnly={timeDim !== 'custom'}
+              onRequestEdit={() => handleTimeDimChange('custom')}
               onStartChange={(value) => {
                 setStartDate(value);
                 setTimeDim('custom');
@@ -1050,15 +1022,15 @@ export const Statistics: React.FC<StatisticsProps> = ({ onNavigate }) => {
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(val: any, name: any) => [`${Number(val).toLocaleString()} 件`, name]} />
+                  <Tooltip formatter={(val: any, name: any) => [`${Number(val).toLocaleString()} 次`, name]} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
-                <span className="text-[10px] text-gray-400 font-medium">累计审核</span>
+                <span className="text-[10px] text-gray-400 font-medium">累计处理</span>
                 <span className="text-base font-black text-gray-900 font-mono leading-tight">
                   {auditorTotalCount.toLocaleString()}
                 </span>
-                <span className="text-[9px] text-gray-400">件</span>
+                <span className="text-[9px] text-gray-400">次</span>
               </div>
             </div>
 
@@ -1102,7 +1074,7 @@ export const Statistics: React.FC<StatisticsProps> = ({ onNavigate }) => {
             <div className="bg-slate-50/80 p-2 rounded-lg">
               <div className="text-[10px] text-gray-500">人均负荷</div>
               <div className="text-xs font-black text-amber-600 font-mono mt-0.5">
-                {isGlobalView ? '58.7 件' : `${(activeOrgInfo.total / activeOrgInfo.auditors).toFixed(1)} 件`}
+                {isGlobalView ? '58.7 次' : `${(activeOrgInfo.total / activeOrgInfo.auditors).toFixed(1)} 次`}
               </div>
             </div>
           </div>

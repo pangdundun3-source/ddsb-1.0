@@ -6,16 +6,6 @@ import { resolveIdentification } from '../services/identificationService';
 import { getAuditArrivedAt } from '../services/reportWorkflowService';
 import { AuditDetail } from './AuditDetail';
 import { ChevronRight, RotateCcw, Inbox } from 'lucide-react';
-import {
-  ResponsiveContainer,
-  ComposedChart,
-  Line,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid
-} from 'recharts';
 
 interface HomeProps {
   reports: ReportItem[];
@@ -34,44 +24,51 @@ interface HomeProps {
   currentUser?: string;
 }
 
-const bottomChartData = [
-  { day: '08-28', submitted: 64, passed: 53, passRate: 92.8, directRate: 76.5 },
-  { day: '08-29', submitted: 71, passed: 63, passRate: 93.5, directRate: 77.2 },
-  { day: '08-30', submitted: 76, passed: 70, passRate: 94.1, directRate: 78.0 },
-  { day: '08-31', submitted: 54, passed: 49, passRate: 92.2, directRate: 75.8 },
-  { day: '09-01', submitted: 79, passed: 73, passRate: 93.8, directRate: 79.1 },
-  { day: '09-02', submitted: 75, passed: 69, passRate: 93.0, directRate: 78.4 },
-  { day: '09-03', submitted: 78, passed: 72, passRate: 93.3, directRate: 78.6 }
+const subOrgMatrixRaw = [
+  { name: '北屯区宣传部', todaySubmitted: 2, pendingAudit: 11, auditing: 3, rejectedResend: 4, reporterActive: '3/9', auditorActive: '1/3', avgMinutes: 135 },
+  { name: '市市场监管局宣教科', todaySubmitted: 4, pendingAudit: 6, auditing: 2, rejectedResend: 2, reporterActive: '4/6', auditorActive: '1/2', avgMinutes: 70 },
+  { name: '中共台中市委宣传部(本级)', todaySubmitted: 14, pendingAudit: 5, auditing: 4, rejectedResend: 0, reporterActive: '6/6', auditorActive: '3/3', avgMinutes: 9 },
+  { name: '南屯区宣传部', todaySubmitted: 8, pendingAudit: 4, auditing: 2, rejectedResend: 2, reporterActive: '5/7', auditorActive: '2/2', avgMinutes: 56 },
+  { name: '西区宣传部', todaySubmitted: 12, pendingAudit: 3, auditing: 2, rejectedResend: 1, reporterActive: '8/10', auditorActive: '2/2', avgMinutes: 18 },
+  { name: '高新区管委会舆情室', todaySubmitted: 6, pendingAudit: 3, auditing: 1, rejectedResend: 1, reporterActive: '2/5', auditorActive: '1/2', avgMinutes: 35 },
+  { name: '台中市网信办直属队', todaySubmitted: 9, pendingAudit: 2, auditing: 2, rejectedResend: 1, reporterActive: '7/8', auditorActive: '2/2', avgMinutes: 14 },
+  { name: '市卫健委宣传处', todaySubmitted: 2, pendingAudit: 2, auditing: 1, rejectedResend: 1, reporterActive: '2/5', auditorActive: '1/2', avgMinutes: 40 },
+  { name: '东湖区宣传处', todaySubmitted: 7, pendingAudit: 1, auditing: 1, rejectedResend: 0, reporterActive: '6/6', auditorActive: '2/2', avgMinutes: 22 },
+  { name: '市教育局宣教科', todaySubmitted: 3, pendingAudit: 1, auditing: 0, rejectedResend: 0, reporterActive: '3/4', auditorActive: '2/2', avgMinutes: 25 },
+  { name: '市政务服务局', todaySubmitted: 1, pendingAudit: 1, auditing: 0, rejectedResend: 0, reporterActive: '1/3', auditorActive: '1/1', avgMinutes: 30 },
 ];
 
-const subOrgMatrixData = [
-  { name: '北屯区宣传部', todaySubmitted: 2, pendingAudit: 11, rejectedResend: 4, reporterActive: '3/9', auditorActive: '1/3', avgMinutes: 135 },
-  { name: '市市场监管局宣教科', todaySubmitted: 4, pendingAudit: 6, rejectedResend: 2, reporterActive: '4/6', auditorActive: '1/2', avgMinutes: 70 },
-  { name: '中共台中市委宣传部(本级)', todaySubmitted: 14, pendingAudit: 5, rejectedResend: 0, reporterActive: '6/6', auditorActive: '3/3', avgMinutes: 9 },
-  { name: '南屯区宣传部', todaySubmitted: 8, pendingAudit: 4, rejectedResend: 2, reporterActive: '5/7', auditorActive: '2/2', avgMinutes: 56 },
-  { name: '西区宣传部', todaySubmitted: 12, pendingAudit: 3, rejectedResend: 1, reporterActive: '8/10', auditorActive: '2/2', avgMinutes: 18 },
-  { name: '高新区管委会舆情室', todaySubmitted: 6, pendingAudit: 3, rejectedResend: 1, reporterActive: '2/5', auditorActive: '1/2', avgMinutes: 35 },
-  { name: '台中市网信办直属队', todaySubmitted: 9, pendingAudit: 2, rejectedResend: 1, reporterActive: '7/8', auditorActive: '2/2', avgMinutes: 14 },
-  { name: '市卫健委宣传处', todaySubmitted: 2, pendingAudit: 2, rejectedResend: 1, reporterActive: '2/5', auditorActive: '1/2', avgMinutes: 40 },
-  { name: '东湖区宣传处', todaySubmitted: 7, pendingAudit: 1, rejectedResend: 0, reporterActive: '6/6', auditorActive: '2/2', avgMinutes: 22 },
-  { name: '市教育局宣教科', todaySubmitted: 3, pendingAudit: 1, rejectedResend: 0, reporterActive: '3/4', auditorActive: '2/2', avgMinutes: 25 },
-  { name: '市政务服务局', todaySubmitted: 1, pendingAudit: 1, rejectedResend: 0, reporterActive: '1/3', auditorActive: '1/1', avgMinutes: 30 }
-];
+const parseActiveParts = (value: string) => {
+  const [active, total] = value.split('/').map(Number);
+  return { active: active || 0, total: total || 0 };
+};
+
+/** 上报员 + 审核员活跃合并为人员参与（参与/在册） */
+const mergeParticipation = (reporterActive: string, auditorActive: string) => {
+  const reporter = parseActiveParts(reporterActive);
+  const auditor = parseActiveParts(auditorActive);
+  return `${reporter.active + auditor.active}/${reporter.total + auditor.total}`;
+};
+
+const subOrgMatrixData = subOrgMatrixRaw.map((row) => ({
+  ...row,
+  participation: mergeParticipation(row.reporterActive, row.auditorActive),
+}));
 
 const SORT_OPTIONS = {
   submitted: '今日上报',
   pending: '待审核',
+  auditing: '审核中',
   rejected: '驳回待重报',
-  reporterActive: '上报员活跃',
-  auditorActive: '审核员活跃',
-  avgTime: '平均审核耗时'
+  participation: '人员参与',
+  avgTime: '平均审核耗时',
 } as const;
 type SortKey = keyof typeof SORT_OPTIONS;
 
 const TODO_LIMIT = 6;
 
 const parseActiveRatio = (value: string) => {
-  const [active, total] = value.split('/').map(Number);
+  const { active, total } = parseActiveParts(value);
   return total > 0 ? active / total : 0;
 };
 
@@ -118,25 +115,16 @@ export const Home: React.FC<HomeProps> = ({
     const list = [...subOrgMatrixData];
     if (sortKey === 'submitted') list.sort((a, b) => b.todaySubmitted - a.todaySubmitted);
     if (sortKey === 'pending') list.sort((a, b) => b.pendingAudit - a.pendingAudit);
+    if (sortKey === 'auditing') list.sort((a, b) => b.auditing - a.auditing);
     if (sortKey === 'rejected') list.sort((a, b) => b.rejectedResend - a.rejectedResend);
-    if (sortKey === 'reporterActive') {
-      list.sort((a, b) => parseActiveRatio(b.reporterActive) - parseActiveRatio(a.reporterActive));
-    }
-    if (sortKey === 'auditorActive') {
-      list.sort((a, b) => parseActiveRatio(b.auditorActive) - parseActiveRatio(a.auditorActive));
+    if (sortKey === 'participation') {
+      list.sort((a, b) => parseActiveRatio(b.participation) - parseActiveRatio(a.participation));
     }
     if (sortKey === 'avgTime') list.sort((a, b) => b.avgMinutes - a.avgMinutes);
     return list;
   }, [sortKey]);
 
   const sortKeys = Object.keys(SORT_OPTIONS) as SortKey[];
-
-  const totals = bottomChartData.reduce(
-    (acc, d) => ({ submitted: acc.submitted + d.submitted, passed: acc.passed + d.passed }),
-    { submitted: 0, passed: 0 }
-  );
-  const avgPassRate = bottomChartData.reduce((sum, d) => sum + d.passRate, 0) / bottomChartData.length;
-  const avgDirectRate = bottomChartData.reduce((sum, d) => sum + d.directRate, 0) / bottomChartData.length;
 
   const handleQuickAudit = (report: ReportItem) => {
     setDrawerAuditReport(report);
@@ -234,60 +222,6 @@ export const Home: React.FC<HomeProps> = ({
           })}
         </div>
       </section>
-
-      <Card
-        title="近 7 日业务走势"
-        extra={
-          <div className="hidden md:flex items-center gap-5 text-xs text-slate-500">
-            <span>
-              上报 <strong className="text-slate-900 tabular-nums">{totals.submitted}</strong>
-            </span>
-            <span>
-              采纳 <strong className="text-emerald-700 tabular-nums">{totals.passed}</strong>
-            </span>
-            <span>
-              通过率 <strong className="text-[#1E5ABB] tabular-nums">{avgPassRate.toFixed(1)}%</strong>
-            </span>
-            <span>
-              一次通过率 <strong className="text-amber-600 tabular-nums">{avgDirectRate.toFixed(1)}%</strong>
-            </span>
-          </div>
-        }
-      >
-        <div className="px-5 pt-4 flex flex-wrap items-center gap-4 text-xs text-slate-500">
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-sm bg-[#1E5ABB]" />
-            上报量
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-sm bg-[#10B981]" />
-            采纳量
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-4 h-0.5 bg-[#1E5ABB]" />
-            整体通过率
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-4 border-t-2 border-dashed border-amber-500" />
-            一次通过率
-          </span>
-        </div>
-        <div className="h-72 w-full px-2 pb-4">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={bottomChartData} margin={{ top: 16, right: 16, left: -10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="left" domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="right" orientation="right" domain={[60, 100]} tick={{ fontSize: 11, fill: '#64748b' }} unit="%" axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', fontSize: '12px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-              <Bar yAxisId="left" dataKey="submitted" name="上报量" fill="#1E5ABB" barSize={18} radius={[4, 4, 0, 0]} />
-              <Bar yAxisId="left" dataKey="passed" name="采纳量" fill="#10B981" barSize={18} radius={[4, 4, 0, 0]} />
-              <Line yAxisId="right" type="monotone" dataKey="passRate" name="整体通过率" stroke="#1E5ABB" strokeWidth={2} dot={{ r: 3 }} />
-              <Line yAxisId="right" type="monotone" dataKey="directRate" name="一次通过率" stroke="#F59E0B" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3 }} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      </Card>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-stretch">
       <Card
@@ -409,25 +343,25 @@ export const Home: React.FC<HomeProps> = ({
         }
       >
         <div className="min-h-0 flex-1 overflow-x-auto">
-          <table className="w-full min-w-[600px] table-fixed text-left text-xs">
+          <table className="w-full min-w-[640px] table-fixed text-left text-xs">
             <colgroup>
               <col className="w-[24%]" />
               <col className="w-[11%]" />
-              <col className="w-[11%]" />
+              <col className="w-[10%]" />
+              <col className="w-[10%]" />
               <col className="w-[12%]" />
-              <col className="w-[13%]" />
-              <col className="w-[13%]" />
-              <col className="w-[16%]" />
+              <col className="w-[14%]" />
+              <col className="w-[19%]" />
             </colgroup>
             <thead className="text-slate-500 border-b border-slate-100">
               <tr>
                 <th className="py-2.5 px-2 font-medium leading-tight">组织节点名称</th>
                 <th className="py-2.5 px-1.5 font-medium text-right leading-tight">今日上报</th>
                 <th className="py-2.5 px-1.5 font-medium text-right leading-tight">待审核</th>
+                <th className="py-2.5 px-1.5 font-medium text-right leading-tight">审核中</th>
                 <th className="py-2.5 px-1.5 font-medium text-right leading-tight">驳回待重报</th>
-                <th className="py-2.5 px-1.5 font-medium text-right leading-tight">上报员活跃</th>
-                <th className="py-2.5 px-1.5 font-medium text-right leading-tight">审核员活跃</th>
-                <th className="py-2.5 px-2 font-medium text-right leading-tight">平均审核耗时(分钟)</th>
+                <th className="py-2.5 px-1.5 font-medium text-right leading-tight">人员参与</th>
+                <th className="py-2.5 px-2 font-medium text-right leading-tight">平均审核耗时</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700 tabular-nums">
@@ -440,10 +374,10 @@ export const Home: React.FC<HomeProps> = ({
                   </td>
                   <td className="py-2.5 px-1.5 text-right">{org.todaySubmitted}</td>
                   <td className="py-2.5 px-1.5 text-right">{org.pendingAudit}</td>
+                  <td className="py-2.5 px-1.5 text-right">{org.auditing}</td>
                   <td className="py-2.5 px-1.5 text-right">{org.rejectedResend}</td>
-                  <td className="py-2.5 px-1.5 text-right">{org.reporterActive}</td>
-                  <td className="py-2.5 px-1.5 text-right">{org.auditorActive}</td>
-                  <td className="py-2.5 px-2 text-right leading-tight">{org.avgMinutes}</td>
+                  <td className="py-2.5 px-1.5 text-right">{org.participation}</td>
+                  <td className="py-2.5 px-2 text-right leading-tight">{org.avgMinutes} 分钟</td>
                 </tr>
               ))}
             </tbody>

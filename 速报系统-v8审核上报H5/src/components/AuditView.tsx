@@ -125,7 +125,7 @@ export const AuditView: React.FC<AuditViewProps> = ({
         ) / 10
       : 0;
   const auditAvgResponseTimeStr =
-    recentHandledReports.length > 0 ? formatAuditDuration(auditAvgResponseMinutes) : '< 1 小时';
+    recentHandledReports.length > 0 ? formatAuditDuration(auditAvgResponseMinutes) : '—';
 
   React.useEffect(() => {
     setActiveFilter('pending');
@@ -193,7 +193,7 @@ export const AuditView: React.FC<AuditViewProps> = ({
             <span className="absolute right-0.5 top-0.5 scale-90 origin-top-right rounded px-0.5 py-px text-[7px] font-bold leading-none text-cyan-100 bg-cyan-400/30">
               近7日
             </span>
-            <p className="text-[9px] text-slate-100/90 font-semibold truncate pr-5">累计审核</p>
+            <p className="text-[9px] text-slate-100/90 font-semibold truncate pr-5">累计处理</p>
             <p className="mt-1 text-base leading-none font-black font-mono text-white">{auditHandledCount}</p>
             <p className="mt-0.5 text-[8px] leading-tight text-slate-300/75 truncate">
               通{auditApprovedCount}·驳{auditRejectedCount}

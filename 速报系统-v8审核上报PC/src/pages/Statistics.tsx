@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+﻿import React, { useState, useMemo } from 'react';
 import {
   Users,
   FileText,
@@ -49,24 +49,28 @@ import {
 } from 'lucide-react';
 import {
   ResponsiveContainer,
-  AreaChart,
-  Area,
   XAxis,
   YAxis,
   Tooltip,
   PieChart,
   Pie,
   Cell,
-  BarChart,
   Bar,
-  Legend,
-  LineChart,
   Line,
-  CartesianGrid
+  CartesianGrid,
+  ComposedChart,
 } from 'recharts';
 import { DateRangeField } from '../components/DateRangeField';
+import {
+  buildTrendSeries,
+  chartColors,
+  formatTrendNumber,
+  TREND_POINT_WIDTH_BY_PERIOD,
+  TREND_VISIBLE_BY_PERIOD,
+} from '../utils/statsTrend';
 
-export type TimeDimension = 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
+export type Period = 'day' | 'week' | 'month' | 'quarter' | 'year';
+export type TimeDimension = 'day' | 'd7' | 'd30' | 'd90' | 'custom';
 export type ViewPerspective = 'submitter' | 'auditor' | 'global_org';
 
 export type StatisticsScope = 'submit' | 'audit';
@@ -76,19 +80,65 @@ const SCOPE_TITLES: Record<StatisticsScope, string> = {
   audit: '审核统计'
 };
 
+const STATS_MAX_DATE = '2026-11-09';
+
+/** 各周期默认区间：按日近7日、按周近7周、按月近7月、按季近4季、按年近3年 */
+const PERIOD_DEFAULTS: Record<Period, { start: string; end: string }> = {
+  day: { start: '2026-11-03', end: '2026-11-09' },
+  week: { start: '2026-09-28', end: '2026-11-09' },
+  month: { start: '2026-05-01', end: '2026-11-09' },
+  quarter: { start: '2026-01-01', end: '2026-11-09' },
+  year: { start: '2024-01-01', end: '2026-11-09' },
+};
+
+/** 统计控件可选区间硬上限（按统计单位点数） */
+const PERIOD_MAX_POINTS: Record<Period, number> = {
+  day: 90,
+  week: 52,
+  month: 36,
+  quarter: 16,
+  year: 10,
+};
+
+const PERIOD_LABELS: Record<Period, string> = {
+  day: '按日',
+  week: '按周',
+  month: '按月',
+  quarter: '按季度',
+  year: '按年',
+};
+
+/** 原型演示数据桶：周期控件映射到现有 mock 档位 */
+const PERIOD_TO_BUCKET: Record<Period, TimeDimension> = {
+  day: 'd7',
+  week: 'd30',
+  month: 'd90',
+  quarter: 'd90',
+  year: 'd90',
+};
+
+/** 平均审核耗时：标题不带单位，数值后按分钟/小时/天动态展示 */
+const formatAuditResponseDisplay = (minutes: number) => {
+  if (minutes <= 0) return { value: '< 1', unit: '分钟' };
+  if (minutes < 60) return { value: String(Math.round(minutes * 10) / 10), unit: '分钟' };
+  if (minutes < 1440) return { value: String(Math.round((minutes / 60) * 10) / 10), unit: '小时' };
+  return { value: String(Math.round((minutes / 1440) * 10) / 10), unit: '天' };
+};
+
 export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
   // View mode: 'submitter' (上报员看板), 'auditor' (审核员看板), 'global_org' (全域大盘)
   const [viewPerspective, setViewPerspective] = useState<ViewPerspective>('submitter');
-  const [timeDim, setTimeDim] = useState<TimeDimension>('week');
-  const [startDate, setStartDate] = useState('2026-08-04');
-  const [endDate, setEndDate] = useState('2026-08-11');
+  const [period, setPeriod] = useState<Period>('day');
+  const [startDate, setStartDate] = useState(PERIOD_DEFAULTS.day.start);
+  const [endDate, setEndDate] = useState(PERIOD_DEFAULTS.day.end);
   const [selectedOrg, setSelectedOrg] = useState('all');
   const [pieTab, setPieTab] = useState<'category' | 'org' | 'channel'>('category');
   const [tableTab, setTableTab] = useState<'my_submit' | 'my_audit' | 'org' | 'category' | 'person'>('my_submit');
   const [searchQuery, setSearchQuery] = useState('');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const timeDim = PERIOD_TO_BUCKET[period];
 
-  // Submitter Trend Active Metrics Toggle（上报量 / 有效采纳量 / 驳回整改量 / 首审直通率 / 整体采纳率）
+  // Submitter Trend Active Metrics Toggle（累计报送量 / 累计采纳量 / 驳回整改量 / 首审直通率 / 整体采纳率）
   const [submitterTrendMetrics, setSubmitterTrendMetrics] = useState({
     total: true,
     passed: true,
@@ -111,25 +161,16 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
     setTimeout(() => setToastMsg(null), 3000);
   };
 
-  // Handle preset date switches（今日 / 本周 / 本月 / 自定义）
-  const handleTimeDimChange = (dim: TimeDimension) => {
-    setTimeDim(dim);
-    if (dim === 'day') {
-      setStartDate('2026-08-11');
-      setEndDate('2026-08-11');
-    } else if (dim === 'week') {
-      setStartDate('2026-08-04');
-      setEndDate('2026-08-11');
-    } else if (dim === 'month') {
-      setStartDate('2026-08-01');
-      setEndDate('2026-08-31');
-    }
+  const handlePeriodChange = (next: Period) => {
+    setPeriod(next);
+    setStartDate(PERIOD_DEFAULTS[next].start);
+    setEndDate(PERIOD_DEFAULTS[next].end);
   };
 
   const handleReset = () => {
-    setTimeDim('week');
-    setStartDate('2026-08-04');
-    setEndDate('2026-08-11');
+    setPeriod('day');
+    setStartDate(PERIOD_DEFAULTS.day.start);
+    setEndDate(PERIOD_DEFAULTS.day.end);
     setSelectedOrg('all');
     setSearchQuery('');
   };
@@ -139,7 +180,7 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
     switch (timeDim) {
       case 'day':
         return {
-          timeLabel: '今日 (2026-08-11)',
+          timeLabel: '今日 (2026-11-09)',
           // 上报员指标
           submitter: {
             // 待办提醒
@@ -199,8 +240,7 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
             },
             // 按上报任务统计分布 (截图标准环状图指标)
             taskDistribution: [
-              { name: '一次性通过', value: 2, color: '#10B981', textColor: 'text-emerald-600' },
-              { name: '返修通过', value: 1, color: '#06B6D4', textColor: 'text-cyan-600' },
+              { name: '累计采纳量', value: 3, color: '#10B981', textColor: 'text-emerald-600' },
               { name: '审核中', value: 0, color: '#0284C7', textColor: 'text-sky-600' },
               { name: '待审核', value: 0, color: '#94A3B8', textColor: 'text-slate-500' },
               { name: '被驳回', value: 1, color: '#F43F5E', textColor: 'text-rose-600' }
@@ -247,9 +287,9 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
             avgTimeRankMoM: '↑ 提升 1 位',
             // 按审核任务统计分布 (截图标准环状图指标)
             taskDistribution: [
-              { name: '审核通过', value: 11, color: '#10B981', textColor: 'text-emerald-600' },
-              { name: '审核驳回', value: 1, color: '#F43F5E', textColor: 'text-rose-600' },
-              { name: '待审核', value: 3, color: '#94A3B8', textColor: 'text-slate-500' }
+              { name: '通过处理', value: 11, color: '#10B981', textColor: 'text-emerald-600' },
+              { name: '驳回处理', value: 1, color: '#F43F5E', textColor: 'text-rose-600' },
+              { name: '待办处理', value: 3, color: '#94A3B8', textColor: 'text-slate-500' }
             ],
             // 审核预警 (对标平均数)
             warnings: {
@@ -266,10 +306,10 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
           }
         };
 
-      case 'week':
+      case 'd7':
       default:
         return {
-          timeLabel: '本周 (08-04 至 08-11)',
+          timeLabel: `${PERIOD_LABELS[period]}（${startDate} 至 ${endDate}）`,
           // 上报员指标 (与截图 1/11、11件等高度吻合)
           submitter: {
             // 待办提醒
@@ -330,10 +370,9 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
               passRateDiff: { personal: '90.9%', orgAvg: '80.0%', value: '+10.9%', percentage: '+10.9%', status: 'exceed', text: '高出机构平均整体通过率 10.9 个百分点 (机构平均 80.0%)' },
               scoreDiff: { personal: '92.8 分', orgAvg: '88.6 分', value: '+4.2 分', percentage: '+4.7%', status: 'better', text: '优于机构平均得分 4.2 分 (机构平均 88.6 分)' }
             },
-            // 按上报任务统计分布：一次性通过 / 返修通过 / 审核中 / 待审核 / 被驳回
+            // 按上报任务统计分布：累计采纳量 / 审核中 / 待审核 / 被驳回
             taskDistribution: [
-              { name: '一次性通过', value: 0, color: '#10B981', textColor: 'text-emerald-600' },
-              { name: '返修通过', value: 1, color: '#06B6D4', textColor: 'text-cyan-600' },
+              { name: '累计采纳量', value: 1, color: '#10B981', textColor: 'text-emerald-600' },
               { name: '审核中', value: 3, color: '#0284C7', textColor: 'text-sky-600' },
               { name: '待审核', value: 6, color: '#94A3B8', textColor: 'text-slate-500' },
               { name: '被驳回', value: 1, color: '#F43F5E', textColor: 'text-rose-600' }
@@ -385,9 +424,9 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
             avgTimeRankMoM: '↑ 提升 1 位',
             // 按审核任务统计分布 (截图标准环状图指标: 通过 78件/驳回 8件/待审核 5件)
             taskDistribution: [
-              { name: '审核通过', value: 78, color: '#10B981', textColor: 'text-emerald-600' },
-              { name: '审核驳回', value: 8, color: '#F43F5E', textColor: 'text-rose-600' },
-              { name: '待审核', value: 5, color: '#94A3B8', textColor: 'text-slate-500' }
+              { name: '通过处理', value: 78, color: '#10B981', textColor: 'text-emerald-600' },
+              { name: '驳回处理', value: 8, color: '#F43F5E', textColor: 'text-rose-600' },
+              { name: '待办处理', value: 5, color: '#94A3B8', textColor: 'text-slate-500' }
             ],
             // 审核预警 (对标平均数)
             warnings: {
@@ -407,9 +446,9 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
           }
         };
 
-      case 'month':
+      case 'd30':
         return {
-          timeLabel: '本月 (2026年8月)',
+          timeLabel: `${PERIOD_LABELS[period]}（${startDate} 至 ${endDate}）`,
           submitter: {
             todoTotal: 7,
             draftCount: 4,
@@ -461,8 +500,7 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
             },
             // 按上报任务统计分布
             taskDistribution: [
-              { name: '一次性通过', value: 25, color: '#10B981', textColor: 'text-emerald-600' },
-              { name: '返修通过', value: 7, color: '#06B6D4', textColor: 'text-cyan-600' },
+              { name: '累计采纳量', value: 32, color: '#10B981', textColor: 'text-emerald-600' },
               { name: '审核中', value: 1, color: '#0284C7', textColor: 'text-sky-600' },
               { name: '待审核', value: 2, color: '#94A3B8', textColor: 'text-slate-500' },
               { name: '被驳回', value: 3, color: '#F43F5E', textColor: 'text-rose-600' }
@@ -506,13 +544,13 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
             avgTimeRankMoM: '↑ 提升 1 位',
             // 按审核任务统计分布
             taskDistribution: [
-              { name: '审核通过', value: 304, color: '#10B981', textColor: 'text-emerald-600' },
-              { name: '审核驳回', value: 22, color: '#F43F5E', textColor: 'text-rose-600' },
-              { name: '待审核', value: 12, color: '#94A3B8', textColor: 'text-slate-500' }
+              { name: '通过处理', value: 304, color: '#10B981', textColor: 'text-emerald-600' },
+              { name: '驳回处理', value: 22, color: '#F43F5E', textColor: 'text-rose-600' },
+              { name: '待办处理', value: 12, color: '#94A3B8', textColor: 'text-slate-500' }
             ],
             // 审核预警 (对标平均数)
             warnings: {
-              auditTotalDiff: { personal: '326 件', orgAvg: '214 件', value: '+112 件', percentage: '+52.3%', status: 'exceed', text: '大幅超出机构平均审核总量 (机构平均 214 件)' },
+              auditTotalDiff: { personal: '326 次', orgAvg: '214 次', value: '+112 次', percentage: '+52.3%', status: 'exceed', text: '大幅超出机构平均累计处理 (机构平均 214 次)' },
               processRateDiff: { personal: '96.4%', orgAvg: '84.6%', value: '+11.8%', percentage: '+11.8%', status: 'exceed', text: '高于机构平均处理率 (机构平均 84.6%)' },
               avgTimeDiff: { personal: '7.1 分钟', orgAvg: '15.0 分钟', value: '-7.9 分钟', percentage: '-52.6%', status: 'better', text: '耗时比机构平均值(15.0分)提速超 50%' }
             },
@@ -525,11 +563,10 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
           }
         };
 
-      case 'quarter':
-      case 'year':
+      case 'd90':
       case 'custom':
         return {
-          timeLabel: '季度/年度累计 (2026年)',
+          timeLabel: `${PERIOD_LABELS[period]}（${startDate} 至 ${endDate}）`,
           submitter: {
             todoTotal: 14,
             draftCount: 9,
@@ -575,14 +612,13 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
             ],
             // 质效预警对标 (对标行业与全域平均数)
             warnings: {
-              submitTotalDiff: { personal: '112 件', orgAvg: '70 件', value: '+42 件', percentage: '+60.0%', status: 'exceed', text: '大幅领跑机构平均上报量 42 件 (机构平均 70 件)' },
+              submitTotalDiff: { personal: '112 件', orgAvg: '70 件', value: '+42 件', percentage: '+60.0%', status: 'exceed', text: '大幅领跑机构平均累计报送量 42 件 (机构平均 70 件)' },
               passRateDiff: { personal: '92.9%', orgAvg: '84.0%', value: '+8.8%', percentage: '+8.8%', status: 'exceed', text: '持续保持 90%+ 高水平采纳通过率 (机构平均 84.0%)' },
               scoreDiff: { personal: '94.2 分', orgAvg: '89.7 分', value: '+4.5 分', percentage: '+5.0%', status: 'better', text: '综合平均分优于机构平均得分 4.5 分 (机构平均 89.7 分)' }
             },
             // 按上报任务统计分布
             taskDistribution: [
-              { name: '一次性通过', value: 78, color: '#10B981', textColor: 'text-emerald-600' },
-              { name: '返修通过', value: 18, color: '#06B6D4', textColor: 'text-cyan-600' },
+              { name: '累计采纳量', value: 96, color: '#10B981', textColor: 'text-emerald-600' },
               { name: '审核中', value: 3, color: '#0284C7', textColor: 'text-sky-600' },
               { name: '待审核', value: 5, color: '#94A3B8', textColor: 'text-slate-500' },
               { name: '被驳回', value: 8, color: '#F43F5E', textColor: 'text-rose-600' }
@@ -625,13 +661,13 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
             avgTimeRankMoM: '↑ 提升 2 位',
             // 按审核任务统计分布
             taskDistribution: [
-              { name: '审核通过', value: 915, color: '#10B981', textColor: 'text-emerald-600' },
-              { name: '审核驳回', value: 65, color: '#F43F5E', textColor: 'text-rose-600' },
-              { name: '待审核', value: 18, color: '#94A3B8', textColor: 'text-slate-500' }
+              { name: '通过处理', value: 915, color: '#10B981', textColor: 'text-emerald-600' },
+              { name: '驳回处理', value: 65, color: '#F43F5E', textColor: 'text-rose-600' },
+              { name: '待办处理', value: 18, color: '#94A3B8', textColor: 'text-slate-500' }
             ],
             // 审核预警 (对标平均数)
             warnings: {
-              auditTotalDiff: { personal: '980 件', orgAvg: '640 件', value: '+340 件', percentage: '+53.1%', status: 'exceed', text: '大幅领先全员平均审核总量 (机构平均 640 件)' },
+              auditTotalDiff: { personal: '980 次', orgAvg: '640 次', value: '+340 次', percentage: '+53.1%', status: 'exceed', text: '大幅领先全员平均累计处理 (机构平均 640 次)' },
               processRateDiff: { personal: '98.2%', orgAvg: '88.0%', value: '+10.2%', percentage: '+10.2%', status: 'exceed', text: '高于机构平均处理率 (机构平均 88.0%)' },
               avgTimeDiff: { personal: '6.9 分钟', orgAvg: '15.4 分钟', value: '-8.5 分钟', percentage: '-55.2%', status: 'better', text: '响应用时比机构平均用时(15.4分)缩短过半' }
             },
@@ -644,10 +680,25 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
           }
         };
     }
-  }, [timeDim]);
+  }, [timeDim, period, startDate, endDate]);
 
   const currentSubmitter = metricsData.submitter;
   const currentAuditor = metricsData.auditor;
+  const avgAuditResponse = formatAuditResponseDisplay(currentAuditor.avgTimeMin);
+
+  // 趋势图数据与统计管理一致：按周期粒度生成柱线组合序列
+  const periodTrend = useMemo(
+    () => buildTrendSeries(startDate, endDate, period, PERIOD_DEFAULTS.day),
+    [startDate, endDate, period],
+  );
+  const auditorTrendData = useMemo(
+    () => periodTrend.map((row) => ({ ...row, total: row.audited })),
+    [periodTrend],
+  );
+  const trendNeedsHScroll = periodTrend.length > TREND_VISIBLE_BY_PERIOD[period];
+  const trendChartMinWidth = trendNeedsHScroll
+    ? periodTrend.length * TREND_POINT_WIDTH_BY_PERIOD[period]
+    : '100%';
 
   // Submitter Category Distribution
   const submitterCategories = [
@@ -729,18 +780,19 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
               </div>
               {(
                 [
-                  ['day', '今日'],
-                  ['week', '本周'],
-                  ['month', '本月'],
-                  ['custom', '自定义'],
+                  ['day', '按日'],
+                  ['week', '按周'],
+                  ['month', '按月'],
+                  ['quarter', '按季度'],
+                  ['year', '按年'],
                 ] as const
-              ).map(([dim, label]) => (
+              ).map(([key, label]) => (
                 <button
-                  key={dim}
+                  key={key}
                   type="button"
-                  onClick={() => handleTimeDimChange(dim)}
+                  onClick={() => handlePeriodChange(key)}
                   className={`min-h-7 cursor-pointer rounded-xl px-3 py-1 text-xs transition select-none ${
-                    timeDim === dim
+                    period === key
                       ? 'bg-white font-semibold text-[#1B5BD6] shadow-xs'
                       : 'font-normal text-slate-700 hover:text-slate-900'
                   }`}
@@ -753,20 +805,24 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
             <DateRangeField
               startValue={startDate}
               endValue={endDate}
-              readOnly={timeDim !== 'custom'}
-              onRequestEdit={() => setTimeDim('custom')}
-              onStartChange={(value) => {
-                setStartDate(value);
-                setTimeDim('custom');
-              }}
-              onEndChange={(value) => {
-                setEndDate(value);
-                setTimeDim('custom');
-              }}
-              title="统计时间区间"
-              startTitle="开始日期"
-              endTitle="结束日期"
-              inputClassName="w-24 flex-none font-mono text-[11px]"
+              lockedMode={period === 'day' ? 'range' : period}
+              unitRangeSelect={period !== 'day'}
+              maxDate={STATS_MAX_DATE}
+              maxUnitSpan={PERIOD_MAX_POINTS[period]}
+              onStartChange={setStartDate}
+              onEndChange={setEndDate}
+              title={
+                period === 'day'
+                  ? '选择起止日期'
+                  : period === 'week'
+                    ? '选择起止自然周'
+                    : period === 'month'
+                      ? '选择起止自然月'
+                      : period === 'quarter'
+                        ? '选择起止自然季度'
+                        : '选择起止自然年'
+              }
+              className="min-w-[320px]"
             />
           </div>
 
@@ -805,7 +861,7 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
                       submitterTrendMetrics.total ? 'bg-blue-50 text-blue-700 border-blue-300' : 'bg-slate-50 text-gray-400 border-gray-200'
                     }`}
                   >
-                    ● 上报量
+                    ● 累计报送量
                   </button>
                   <button
                     onClick={() => setSubmitterTrendMetrics((p) => ({ ...p, passed: !p.passed }))}
@@ -813,7 +869,7 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
                       submitterTrendMetrics.passed ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-slate-50 text-gray-400 border-gray-200'
                     }`}
                   >
-                    ● 有效采纳量
+                    ● 累计采纳量
                   </button>
                   <button
                     onClick={() => setSubmitterTrendMetrics((p) => ({ ...p, rejected: !p.rejected }))}
@@ -829,7 +885,7 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
                       submitterTrendMetrics.onceRate ? 'bg-purple-50 text-purple-700 border-purple-300' : 'bg-slate-50 text-gray-400 border-gray-200'
                     }`}
                   >
-                    ● 首审直通率
+                    ● 首审直通率(%)
                   </button>
                   <button
                     onClick={() => setSubmitterTrendMetrics((p) => ({ ...p, totalRate: !p.totalRate }))}
@@ -837,41 +893,55 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
                       submitterTrendMetrics.totalRate ? 'bg-teal-50 text-teal-700 border-teal-300' : 'bg-slate-50 text-gray-400 border-gray-200'
                     }`}
                   >
-                    ● 整体采纳率
+                    ● 整体采纳率(%)
                   </button>
                 </div>
               </div>
 
-              {/* Chart */}
-              <div className="h-72 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={currentSubmitter.trend} margin={{ top: 10, right: 30, left: -10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="label" stroke="#64748b" fontSize={11} />
-                    <YAxis yAxisId="left" stroke="#64748b" fontSize={11} />
-                    <YAxis yAxisId="right" orientation="right" domain={[0, 100]} stroke="#64748b" fontSize={11} unit="%" />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#1e293b', borderRadius: '8px', color: '#fff', fontSize: '11px', border: 'none' }}
-                      labelStyle={{ color: '#93c5fd', fontWeight: 'bold' }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
-                    {submitterTrendMetrics.total && (
-                      <Line yAxisId="left" type="monotone" dataKey="total" name="上报量" stroke="#1E5ABB" strokeWidth={2.5} dot={{ r: 4 }} />
-                    )}
-                    {submitterTrendMetrics.passed && (
-                      <Line yAxisId="left" type="monotone" dataKey="passed" name="有效采纳量" stroke="#10B981" strokeWidth={2} dot={{ r: 3 }} />
-                    )}
-                    {submitterTrendMetrics.rejected && (
-                      <Line yAxisId="left" type="monotone" dataKey="rejected" name="驳回整改量" stroke="#EF4444" strokeWidth={2} dot={{ r: 3 }} />
-                    )}
-                    {submitterTrendMetrics.onceRate && (
-                      <Line yAxisId="right" type="monotone" dataKey="onceRate" name="首审直通率(%)" stroke="#8B5CF6" strokeDasharray="4 4" strokeWidth={2} />
-                    )}
-                    {submitterTrendMetrics.totalRate && (
-                      <Line yAxisId="right" type="monotone" dataKey="totalRate" name="整体采纳率(%)" stroke="#0D9488" strokeWidth={2} />
-                    )}
-                  </LineChart>
-                </ResponsiveContainer>
+              {/* Chart：柱=件数，线=比率，与统计管理一致 */}
+              <div
+                className={`h-72 w-full ${trendNeedsHScroll ? 'overflow-x-scroll overflow-y-hidden' : 'overflow-hidden'}`}
+                style={trendNeedsHScroll ? { scrollbarGutter: 'stable' } : undefined}
+              >
+                <div
+                  className="h-full"
+                  style={{
+                    width: trendNeedsHScroll ? trendChartMinWidth : '100%',
+                    minWidth: trendChartMinWidth,
+                    height: trendNeedsHScroll ? 'calc(100% - 14px)' : '100%',
+                  }}
+                >
+                  <ResponsiveContainer width="100%" height="100%" debounce={80}>
+                    <ComposedChart data={periodTrend} margin={{ top: 8, right: 18, left: -12, bottom: 6 }}>
+                      <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} interval={0} />
+                      <YAxis yAxisId="count" tick={{ fill: '#64748b', fontSize: 9 }} axisLine={false} tickLine={false} unit="件" />
+                      <YAxis yAxisId="rate" orientation="right" domain={[0, 100]} tick={{ fill: '#64748b', fontSize: 9 }} axisLine={false} tickLine={false} unit="%" />
+                      <Tooltip
+                        contentStyle={{ border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 11 }}
+                        formatter={(value: number, name: string) => [
+                          name.includes('率') ? `${value}%` : `${formatTrendNumber(value)} 件`,
+                          name,
+                        ]}
+                      />
+                      {submitterTrendMetrics.total && (
+                        <Bar yAxisId="count" dataKey="total" name="累计报送量" fill={chartColors.blue} barSize={14} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+                      )}
+                      {submitterTrendMetrics.passed && (
+                        <Bar yAxisId="count" dataKey="passed" name="累计采纳量" fill={chartColors.green} barSize={14} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+                      )}
+                      {submitterTrendMetrics.rejected && (
+                        <Bar yAxisId="count" dataKey="rejected" name="驳回整改量" fill={chartColors.red} barSize={14} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+                      )}
+                      {submitterTrendMetrics.onceRate && (
+                        <Line yAxisId="rate" type="monotone" dataKey="directRate" name="首审直通率" stroke={chartColors.purple} strokeDasharray="4 4" strokeWidth={1.6} dot={{ r: 2, fill: chartColors.purple }} isAnimationActive={false} />
+                      )}
+                      {submitterTrendMetrics.totalRate && (
+                        <Line yAxisId="rate" type="monotone" dataKey="passRate" name="整体采纳率" stroke={chartColors.teal} strokeWidth={1.6} dot={{ r: 2, fill: chartColors.teal }} isAnimationActive={false} />
+                      )}
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </div>
 
@@ -946,13 +1016,13 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
                 {/* 底部指标卡片: 整体采纳率、首审直通率、综合总分、平均得分 */}
                 <div className="bg-slate-50/70 rounded-2xl p-3.5 border border-slate-200/70 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                   <div className="flex flex-col justify-between space-y-1">
-                    <span className="text-gray-500 text-[11px]">整体采纳率</span>
+                    <span className="text-gray-500 text-[11px]">整体采纳率(%)</span>
                     <span className="text-sm font-black font-mono text-emerald-600">
                       {currentSubmitter.overallPassRate}
                     </span>
                   </div>
                   <div className="flex flex-col justify-between space-y-1 border-l border-slate-200/60 pl-3">
-                    <span className="text-gray-500 text-[11px]">首审直通率</span>
+                    <span className="text-gray-500 text-[11px]">首审直通率(%)</span>
                     <span className="text-sm font-black font-mono text-blue-600">
                       {currentSubmitter.oncePassRate}
                     </span>
@@ -983,7 +1053,7 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
       <div className="space-y-5 animate-in fade-in duration-200">
         {/* 3.1 审核趋势图与审核统计环状图 (并排置于同一行展示) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          {/* 左侧 2 列: 审核趋势图 (审核总量、通过量、驳回量、平均审核时长) */}
+          {/* 左侧 2 列: 审核趋势图 (累计处理、通过处理、驳回处理、平均审核时长) */}
           <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-slate-200/90 shadow-2xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
               <div>
@@ -1000,7 +1070,7 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
                     auditorTrendMetrics.total ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-slate-50 text-gray-400 border-gray-200'
                   }`}
                 >
-                  ● 审核总量
+                  ● 累计处理
                 </button>
                 <button
                   onClick={() => setAuditorTrendMetrics((p) => ({ ...p, passed: !p.passed }))}
@@ -1008,7 +1078,7 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
                     auditorTrendMetrics.passed ? 'bg-blue-50 text-blue-700 border-blue-300' : 'bg-slate-50 text-gray-400 border-gray-200'
                   }`}
                 >
-                  ● 通过量
+                  ● 通过处理
                 </button>
                 <button
                   onClick={() => setAuditorTrendMetrics((p) => ({ ...p, rejected: !p.rejected }))}
@@ -1016,7 +1086,7 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
                     auditorTrendMetrics.rejected ? 'bg-rose-50 text-rose-700 border-rose-300' : 'bg-slate-50 text-gray-400 border-gray-200'
                   }`}
                 >
-                  ● 驳回量
+                  ● 驳回处理
                 </button>
                 <button
                   onClick={() => setAuditorTrendMetrics((p) => ({ ...p, processRate: !p.processRate }))}
@@ -1024,7 +1094,7 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
                     auditorTrendMetrics.processRate ? 'bg-cyan-50 text-cyan-700 border-cyan-300' : 'bg-slate-50 text-gray-400 border-gray-200'
                   }`}
                 >
-                  ● 审核处理率
+                  ● 审核处理率(%)
                 </button>
                 <button
                   onClick={() => setAuditorTrendMetrics((p) => ({ ...p, avgTime: !p.avgTime }))}
@@ -1032,39 +1102,59 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
                     auditorTrendMetrics.avgTime ? 'bg-purple-50 text-purple-700 border-purple-300' : 'bg-slate-50 text-gray-400 border-gray-200'
                   }`}
                 >
-                  ● 平均审核响应
+                  ● 平均审核耗时
                 </button>
               </div>
             </div>
 
-            <div className="h-72 w-full mt-2">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={currentAuditor.trend} margin={{ top: 10, right: 25, left: -15, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="label" stroke="#64748b" fontSize={11} />
-                  <YAxis yAxisId="left" stroke="#64748b" fontSize={11} />
-                  <YAxis yAxisId="right" orientation="right" domain={[0, 100]} stroke="#64748b" fontSize={11} unit="%" />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#1e293b', borderRadius: '8px', color: '#fff', fontSize: '11px', border: 'none' }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} />
-                  {auditorTrendMetrics.total && (
-                    <Line yAxisId="left" type="monotone" dataKey="total" name="审核总量" stroke="#10B981" strokeWidth={2.5} dot={{ r: 3 }} />
-                  )}
-                  {auditorTrendMetrics.passed && (
-                    <Line yAxisId="left" type="monotone" dataKey="passed" name="通过量" stroke="#3B82F6" strokeWidth={2} dot={{ r: 3 }} />
-                  )}
-                  {auditorTrendMetrics.rejected && (
-                    <Line yAxisId="left" type="monotone" dataKey="rejected" name="驳回量" stroke="#EF4444" strokeWidth={2} dot={{ r: 3 }} />
-                  )}
-                  {auditorTrendMetrics.processRate && (
-                    <Line yAxisId="right" type="monotone" dataKey="processRate" name="审核处理率(%)" stroke="#06B6D4" strokeDasharray="4 4" strokeWidth={2} dot={{ r: 3 }} />
-                  )}
-                  {auditorTrendMetrics.avgTime && (
-                    <Line yAxisId="left" type="monotone" dataKey="avgTime" name="平均审核响应(分)" stroke="#8B5CF6" strokeDasharray="4 4" strokeWidth={2} />
-                  )}
-                </LineChart>
-              </ResponsiveContainer>
+            <div
+              className={`mt-2 h-72 w-full ${trendNeedsHScroll ? 'overflow-x-scroll overflow-y-hidden' : 'overflow-hidden'}`}
+              style={trendNeedsHScroll ? { scrollbarGutter: 'stable' } : undefined}
+            >
+              <div
+                className="h-full"
+                style={{
+                  width: trendNeedsHScroll ? trendChartMinWidth : '100%',
+                  minWidth: trendChartMinWidth,
+                  height: trendNeedsHScroll ? 'calc(100% - 14px)' : '100%',
+                }}
+              >
+                <ResponsiveContainer width="100%" height="100%" debounce={80}>
+                  <ComposedChart data={auditorTrendData} margin={{ top: 8, right: 18, left: -12, bottom: 6 }}>
+                    <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} interval={0} />
+                    <YAxis yAxisId="count" tick={{ fill: '#64748b', fontSize: 9 }} axisLine={false} tickLine={false} unit="次" />
+                    <YAxis yAxisId="rate" orientation="right" domain={[0, 100]} tick={{ fill: '#64748b', fontSize: 9 }} axisLine={false} tickLine={false} unit="%" />
+                    <YAxis yAxisId="time" orientation="right" domain={[0, 30]} hide />
+                    <Tooltip
+                      contentStyle={{ border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 11 }}
+                      formatter={(value: number, name: string) => [
+                        name.includes('率')
+                          ? `${value}%`
+                          : name.includes('耗时')
+                            ? `${value} 分钟`
+                            : `${formatTrendNumber(value)} 次`,
+                        name,
+                      ]}
+                    />
+                    {auditorTrendMetrics.total && (
+                      <Bar yAxisId="count" dataKey="total" name="累计处理" fill={chartColors.green} barSize={14} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+                    )}
+                    {auditorTrendMetrics.passed && (
+                      <Bar yAxisId="count" dataKey="passed" name="通过处理" fill={chartColors.blue} barSize={14} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+                    )}
+                    {auditorTrendMetrics.rejected && (
+                      <Bar yAxisId="count" dataKey="rejected" name="驳回处理" fill={chartColors.red} barSize={14} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+                    )}
+                    {auditorTrendMetrics.processRate && (
+                      <Line yAxisId="rate" type="monotone" dataKey="processRate" name="审核处理率" stroke={chartColors.cyan} strokeDasharray="3 3" strokeWidth={1.6} dot={{ r: 2, fill: chartColors.cyan }} isAnimationActive={false} />
+                    )}
+                    {auditorTrendMetrics.avgTime && (
+                      <Line yAxisId="time" type="monotone" dataKey="avgTime" name="平均审核耗时" stroke={chartColors.pink} strokeWidth={1.6} dot={{ r: 2, fill: chartColors.pink }} isAnimationActive={false} />
+                    )}
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
 
@@ -1100,17 +1190,17 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(val, name) => [`${val} 件`, name]} />
+                      <Tooltip formatter={(val, name) => [`${val} 次`, name]} />
                     </PieChart>
                   </ResponsiveContainer>
 
-                  {/* 环状图中心文字: 累计审核 X 件 */}
+                  {/* 环状图中心文字: 累计处理 X 次（按审核动作计，可重复） */}
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
-                    <span className="text-[11px] text-gray-500 font-medium leading-none">累计审核</span>
+                    <span className="text-[11px] text-gray-500 font-medium leading-none">累计处理</span>
                     <span className="text-2xl font-black text-gray-900 font-mono tracking-tight my-0.5">
                       {currentAuditor.auditTotal}
                     </span>
-                    <span className="text-[10px] text-gray-400 leading-none">件</span>
+                    <span className="text-[10px] text-gray-400 leading-none">次</span>
                   </div>
                 </div>
 
@@ -1129,24 +1219,24 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
                         <span className="text-gray-700 font-medium">{item.name}</span>
                       </div>
                       <span className={`font-mono font-bold text-xs ${item.textColor || 'text-gray-900'}`}>
-                        {item.value} 件
+                        {item.value} 次
                       </span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* 底部指标卡片: 平均审核响应时间、审核处理率 (严格对标截图) */}
+              {/* 底部指标卡片: 平均审核耗时、审核处理率 (严格对标截图) */}
               <div className="bg-slate-50/70 rounded-2xl p-3.5 border border-slate-200/70 grid grid-cols-2 gap-3 text-xs">
                 <div className="flex items-center justify-between px-1">
-                  <span className="text-gray-600 text-xs font-medium">平均审核响应</span>
+                  <span className="text-gray-600 text-xs font-medium">平均审核耗时</span>
                   <span className="text-sm font-black font-mono text-emerald-600 flex items-baseline space-x-1">
-                    <span>{currentAuditor.avgTimeMin}</span>
-                    <span className="text-[10px] font-normal text-gray-500">分钟</span>
+                    <span>{avgAuditResponse.value}</span>
+                    <span className="text-[10px] font-normal text-gray-500">{avgAuditResponse.unit}</span>
                   </span>
                 </div>
                 <div className="flex items-center justify-between border-l border-slate-200/60 pl-3 px-1">
-                  <span className="text-gray-600 text-xs font-medium">审核处理率</span>
+                  <span className="text-gray-600 text-xs font-medium">审核处理率(%)</span>
                   <span className="text-sm font-black font-mono text-blue-600">
                     {currentAuditor.processRate}
                   </span>
@@ -1165,17 +1255,17 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
         <div className="space-y-5 animate-in fade-in duration-200">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1.5">
-              <div className="text-xs text-gray-500 font-bold">全域上报总量</div>
+              <div className="text-xs text-gray-500 font-bold">全域累计报送量</div>
               <div className="text-2xl font-black text-gray-900 font-mono">1,420 <span className="text-xs font-normal">件</span></div>
               <div className="text-[11px] text-emerald-600 font-bold">环比 ↑ +14.2%</div>
             </div>
             <div className="bg-white p-4 rounded-2xl border border-emerald-200 shadow-2xs space-y-1.5">
-              <div className="text-xs text-gray-500 font-bold">全域一次性通过率</div>
+              <div className="text-xs text-gray-500 font-bold">全域一次性通过率(%)</div>
               <div className="text-2xl font-black text-emerald-600 font-mono">88.4%</div>
               <div className="text-[11px] text-gray-500">采纳 1,280 件</div>
             </div>
             <div className="bg-white p-4 rounded-2xl border border-blue-200 shadow-2xs space-y-1.5">
-              <div className="text-xs text-gray-500 font-bold">全域整体通过率</div>
+              <div className="text-xs text-gray-500 font-bold">全域整体通过率(%)</div>
               <div className="text-2xl font-black text-blue-600 font-mono">92.6%</div>
               <div className="text-[11px] text-blue-600 font-bold">环比 ↑ +3.1%</div>
             </div>
@@ -1202,9 +1292,9 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
                     <th className="py-3 px-3 text-center">排名</th>
                     <th className="py-3 px-4">机构名称</th>
                     <th className="py-3 px-3 text-center">类别</th>
-                    <th className="py-3 px-3 text-center">上报总量</th>
-                    <th className="py-3 px-3 text-center">一次性通过率</th>
-                    <th className="py-3 px-3 text-center">整体通过率</th>
+                    <th className="py-3 px-3 text-center">累计报送量</th>
+                    <th className="py-3 px-3 text-center">一次性通过率(%)</th>
+                    <th className="py-3 px-3 text-center">整体通过率(%)</th>
                     <th className="py-3 px-3 text-center">平均响应时效</th>
                     <th className="py-3 px-3 text-center">综合总分</th>
                     <th className="py-3 px-3 text-center">考评等次</th>

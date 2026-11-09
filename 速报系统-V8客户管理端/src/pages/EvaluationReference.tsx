@@ -20,6 +20,11 @@ import {
 import { EvaluationProfileModal, ProfileDetailData } from '../components/EvaluationProfileModal';
 import { PaginationBar } from '../components/PaginationBar';
 import { DateRangeField } from '../components/DateRangeField';
+import { OrgFilterSelect } from '../components/OrgFilterSelect';
+import {
+  INITIAL_ORG_NODES,
+  matchOrganizationByFilter,
+} from '../data/userOrgShared';
 import { PageId } from '../types';
 
 interface EvaluationReferenceProps {
@@ -27,7 +32,18 @@ interface EvaluationReferenceProps {
 }
 
 type EvalTab = 'org' | 'group' | 'person';
-type Period = 'day' | 'week' | 'month' | 'custom';
+type Period = 'day' | 'week' | 'month' | 'quarter' | 'year';
+
+const EVAL_MAX_DATE = '2026-11-09';
+
+/** 考核周期：按日默认近 7 日；周/月/季/年默认当前周期（结束日不超过锚定日） */
+const PERIOD_DEFAULTS: Record<Period, { start: string; end: string }> = {
+  day: { start: '2026-11-03', end: '2026-11-09' }, // 近 7 日
+  week: { start: '2026-11-09', end: '2026-11-09' }, // 本周（周一为锚定日）
+  month: { start: '2026-11-01', end: '2026-11-09' }, // 本月
+  quarter: { start: '2026-10-01', end: '2026-11-09' }, // 本季度（Q4）
+  year: { start: '2026-01-01', end: '2026-11-09' }, // 本年
+};
 type Perspective = 'report' | 'audit';
 type Grade = '卓越' | '优秀' | '良好' | '合格';
 
@@ -42,6 +58,7 @@ interface OrgRecord {
   adopted: number;
   firstCount: number;
   repeatCount: number;
+  otherCount: number;
   rejected: number;
   auditing: number;
   pending: number;
@@ -64,6 +81,7 @@ interface ReporterRow {
   adoptedCount: number;
   firstCount: number;
   repeatCount: number;
+  otherCount: number;
   directCount: number;
   directRate: number;
   passRate: number;
@@ -89,7 +107,25 @@ interface AuditorRow {
 
 type Ranked<T> = T & { rank: number };
 
-const orgRecords: OrgRecord[] = [
+/** 将累计采纳量拆成 重复 / 首发 / 其他（合计等于采纳量） */
+const splitAdoptBreakdown = (adopted: number, firstHint: number, repeatHint: number) => {
+  const otherCount = Math.max(0, Math.round(adopted * 0.08));
+  const remain = Math.max(0, adopted - otherCount);
+  const hintTotal = Math.max(firstHint + repeatHint, 1);
+  const firstCount = Math.round((remain * firstHint) / hintTotal);
+  const repeatCount = remain - firstCount;
+  return { firstCount, repeatCount, otherCount };
+};
+
+const withAdoptBreakdown = <T extends { adopted: number; firstCount: number; repeatCount: number }>(
+  rows: T[],
+): Array<T & { otherCount: number }> =>
+  rows.map((row) => ({
+    ...row,
+    ...splitAdoptBreakdown(row.adopted, row.firstCount, row.repeatCount),
+  }));
+
+const orgRecords: OrgRecord[] = withAdoptBreakdown([
   { rank: 1, name: '中共台中市委宣传部', type: '市级党政主体', staff: 45, reporters: 32, auditors: 13, total: 1580, adopted: 1520, firstCount: 1180, repeatCount: 340, rejected: 35, auditing: 10, pending: 15, directRate: 88.6, passRate: 96.2, avgTime: 6.8, perCapita: 35.1, closedRate: 100, score: 98.5, grade: '卓越', isMine: true },
   { rank: 2, name: '台中市网信办', type: '网安指挥主管', staff: 38, reporters: 26, auditors: 12, total: 1350, adopted: 1280, firstCount: 990, repeatCount: 290, rejected: 42, auditing: 12, pending: 16, directRate: 86.4, passRate: 94.8, avgTime: 8.5, perCapita: 35.5, closedRate: 98.5, score: 95.8, grade: '卓越' },
   { rank: 3, name: '西屯区网信办', type: '区县直属单位', staff: 40, reporters: 28, auditors: 12, total: 1120, adopted: 1030, firstCount: 780, repeatCount: 250, rejected: 58, auditing: 14, pending: 18, directRate: 82.5, passRate: 92, avgTime: 10.8, perCapita: 28, closedRate: 97.8, score: 93.2, grade: '优秀' },
@@ -102,7 +138,7 @@ const orgRecords: OrgRecord[] = [
   { rank: 10, name: '经开区网信办', type: '区县直属单位', staff: 26, reporters: 19, auditors: 7, total: 485, adopted: 420, firstCount: 310, repeatCount: 110, rejected: 40, auditing: 10, pending: 15, directRate: 72.1, passRate: 86.6, avgTime: 16.2, perCapita: 18.6, closedRate: 91.5, score: 85, grade: '合格' },
   { rank: 11, name: '市发改委政研室', type: '市级党政主体', staff: 24, reporters: 18, auditors: 6, total: 430, adopted: 375, firstCount: 280, repeatCount: 95, rejected: 35, auditing: 8, pending: 12, directRate: 71.8, passRate: 87.2, avgTime: 14.2, perCapita: 17.9, closedRate: 95, score: 84.6, grade: '合格' },
   { rank: 12, name: '新城区委网信办', type: '区县直属单位', staff: 22, reporters: 16, auditors: 6, total: 390, adopted: 335, firstCount: 250, repeatCount: 85, rejected: 32, auditing: 9, pending: 14, directRate: 70.5, passRate: 85.9, avgTime: 17, perCapita: 17.7, closedRate: 90, score: 83.5, grade: '合格' },
-];
+]);
 
 const orgParticipationCounts: Record<string, number> = {
   '中共台中市委宣传部': 42,
@@ -120,7 +156,7 @@ const orgParticipationCounts: Record<string, number> = {
 };
 
 /** 群组考核榜：结构与组织节点考核对齐，便于复用指标与排行展示 */
-const groupRecords: OrgRecord[] = [
+const groupRecords: OrgRecord[] = withAdoptBreakdown([
   { rank: 1, name: '突发舆情应急响应专班', type: '应急专班', staff: 42, reporters: 30, auditors: 12, total: 1860, adopted: 1688, firstCount: 1280, repeatCount: 408, rejected: 98, auditing: 30, pending: 44, directRate: 82.6, passRate: 90.8, avgTime: 11.4, perCapita: 44.3, closedRate: 98.6, score: 91.2, grade: '卓越' },
   { rank: 2, name: '区县宣传舆情快报群', type: '区县联络群', staff: 86, reporters: 68, auditors: 18, total: 2420, adopted: 2145, firstCount: 1620, repeatCount: 525, rejected: 165, auditing: 45, pending: 65, directRate: 79.8, passRate: 88.6, avgTime: 13.2, perCapita: 28.1, closedRate: 97.9, score: 87.8, grade: '优秀' },
   { rank: 3, name: '重点网络安全联络员组', type: '专项联络组', staff: 38, reporters: 26, auditors: 12, total: 1520, adopted: 1398, firstCount: 1080, repeatCount: 318, rejected: 72, auditing: 20, pending: 30, directRate: 84.2, passRate: 92.0, avgTime: 12.1, perCapita: 40.0, closedRate: 98.2, score: 90.4, grade: '卓越' },
@@ -130,7 +166,7 @@ const groupRecords: OrgRecord[] = [
   { rank: 7, name: '西坝区环保舆情联动组', type: '区县联络群', staff: 22, reporters: 16, auditors: 6, total: 640, adopted: 568, firstCount: 420, repeatCount: 148, rejected: 42, auditing: 12, pending: 18, directRate: 74.5, passRate: 88.8, avgTime: 15.2, perCapita: 29.1, closedRate: 96.2, score: 85.4, grade: '良好' },
   { rank: 8, name: '河长制速报联络群', type: '专项联络组', staff: 18, reporters: 13, auditors: 5, total: 420, adopted: 378, firstCount: 280, repeatCount: 98, rejected: 26, auditing: 6, pending: 10, directRate: 78.2, passRate: 90.0, avgTime: 14.0, perCapita: 23.3, closedRate: 97.1, score: 86.2, grade: '良好' },
   { rank: 9, name: '西坝夜间值班备勤组', type: '值守专班', staff: 16, reporters: 11, auditors: 5, total: 300, adopted: 255, firstCount: 180, repeatCount: 75, rejected: 28, auditing: 7, pending: 10, directRate: 71.0, passRate: 85.0, avgTime: 16.5, perCapita: 18.8, closedRate: 95.4, score: 84.1, grade: '合格' },
-];
+]);
 
 const groupParticipationCounts: Record<string, number> = {
   '突发舆情应急响应专班': 40,
@@ -173,9 +209,43 @@ const round1 = (n: number) => Math.round(n * 10) / 10;
 const getDailyAvg = (record: OrgRecord) => round1(record.total / EVAL_PERIOD_DAYS);
 const getProcessRate = (record: OrgRecord) =>
   round1(((record.adopted + record.rejected) / Math.max(record.total, 1)) * 100);
+/** 转办总量约占总报送 15%，办结数按闭环率反推 */
+const getTransferCounts = (record: OrgRecord) => {
+  const transferTotal = Math.max(1, Math.round(record.total * 0.15));
+  const closedCount = Math.round((transferTotal * record.closedRate) / 100);
+  return { transferTotal, closedCount };
+};
 
 const gradeForScore = (score: number): Grade =>
   score >= 95 ? '卓越' : score >= 92 ? '优秀' : score >= 88 ? '良好' : '合格';
+
+const escapeCsvCell = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;
+
+const downloadCsv = (filename: string, headers: string[], rows: Array<Array<string | number>>) => {
+  const csv = [headers, ...rows]
+    .map((row) => row.map(escapeCsvCell).join(','))
+    .join('\n');
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+};
+
+const formatExportDate = () => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}${m}${d}`;
+};
+
+/** 人员考核挂靠组织树节点，便于组织节点层级下钻筛选 */
+const PERSON_ORG_POOL = INITIAL_ORG_NODES.map((node) => node.name);
 
 const reporterRecords: ReporterRow[] = orgRecords.flatMap((org, i) =>
   Array.from({ length: REPORTERS_PER_ORG }, (_, j) => {
@@ -186,17 +256,22 @@ const reporterRecords: ReporterRow[] = orgRecords.flatMap((org, i) =>
     const passRate = round1(Math.min(99, directRate + 6 + r * 3));
     const directCount = Math.round((total * directRate) / 100);
     const adoptedCount = Math.round((total * passRate) / 100);
-    const firstCount = Math.round(adoptedCount * 0.76);
+    const { firstCount, repeatCount, otherCount } = splitAdoptBreakdown(
+      adoptedCount,
+      Math.round(adoptedCount * 0.76),
+      Math.round(adoptedCount * 0.24),
+    );
     const avgScore = round1(97 - i * 0.6 - j * 1.5 - r * 2);
     return {
       id: `reporter-${k}`,
       name: REPORTER_NAMES[k],
-      org: org.name,
+      org: PERSON_ORG_POOL[k % PERSON_ORG_POOL.length] || org.name,
       group: groupRecords[Math.floor(seeded(k + 31) * groupRecords.length)].name,
       total,
       adoptedCount,
       firstCount,
-      repeatCount: adoptedCount - firstCount,
+      repeatCount,
+      otherCount,
       directCount,
       directRate,
       passRate,
@@ -218,7 +293,7 @@ const auditorRecords: AuditorRow[] = orgRecords.flatMap((org, i) =>
     return {
       id: `auditor-${k}`,
       name: AUDITOR_NAMES[k],
-      org: org.name,
+      org: PERSON_ORG_POOL[k % PERSON_ORG_POOL.length] || org.name,
       group: groupRecords[Math.floor(seeded(k + 131) * groupRecords.length)].name,
       totalAudited,
       reportedCount,
@@ -374,16 +449,16 @@ const sectionClass = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-[0
 export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
   const [tab, setTab] = useState<EvalTab>(() => readEvalHash().tab);
   const [perspective, setPerspective] = useState<Perspective>(() => readEvalHash().perspective);
-  const [period, setPeriod] = useState<Period>('week');
-  const [startDate, setStartDate] = useState('2026/08/04');
-  const [endDate, setEndDate] = useState('2026/08/11');
-  const [personOrgFilter, setPersonOrgFilter] = useState<string[]>([]);
+  const [period, setPeriod] = useState<Period>('day');
+  const [startDate, setStartDate] = useState(PERIOD_DEFAULTS.day.start.replaceAll('-', '/'));
+  const [endDate, setEndDate] = useState(PERIOD_DEFAULTS.day.end.replaceAll('-', '/'));
+  const [personOrgFilter, setPersonOrgFilter] = useState<string | null>(null);
   const [personGroupFilter, setPersonGroupFilter] = useState<string[]>([]);
   const [personPage, setPersonPage] = useState(1);
   const [personPageSize, setPersonPageSize] = useState(10);
   const [orgSort, setOrgSort] = useState<string>('total');
   const [groupSort, setGroupSort] = useState<string>('total');
-  const [reporterSort, setReporterSort] = useState<string>('score');
+  const [reporterSort, setReporterSort] = useState<string>('adopted');
   const [auditorSort, setAuditorSort] = useState<string>('audited');
   const [toast, setToast] = useState<string | null>(null);
   const [selectedProfile, setSelectedProfile] = useState<ProfileDetailData | null>(null);
@@ -414,12 +489,12 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
   };
 
   const resetFilters = () => {
-    setPeriod('week');
-    setStartDate('2026/08/04');
-    setEndDate('2026/08/11');
-    setPersonOrgFilter([]);
+    setPeriod('day');
+    setStartDate(PERIOD_DEFAULTS.day.start.replaceAll('-', '/'));
+    setEndDate(PERIOD_DEFAULTS.day.end.replaceAll('-', '/'));
+    setPersonOrgFilter(null);
     setPersonGroupFilter([]);
-    setReporterSort('score');
+    setReporterSort('adopted');
     setAuditorSort('audited');
     setOrgSort('total');
     setGroupSort('total');
@@ -428,16 +503,9 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
 
   const handlePeriodChange = (p: Period) => {
     setPeriod(p);
-    if (p === 'day') {
-      setStartDate('2026/08/11');
-      setEndDate('2026/08/11');
-    } else if (p === 'week') {
-      setStartDate('2026/08/04');
-      setEndDate('2026/08/11');
-    } else if (p === 'month') {
-      setStartDate('2026/08/01');
-      setEndDate('2026/08/31');
-    }
+    const next = PERIOD_DEFAULTS[p];
+    setStartDate(next.start.replaceAll('-', '/'));
+    setEndDate(next.end.replaceAll('-', '/'));
   };
 
   const sortOrgLikeRecords = (list: OrgRecord[], sortKey: string) => {
@@ -461,13 +529,14 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
   const sortedGroups = useMemo(() => sortOrgLikeRecords(groupRecords, groupSort), [groupSort]);
 
   const matchesPerson = (row: { org: string; group: string }) =>
-    (personOrgFilter.length === 0 || personOrgFilter.includes(row.org)) &&
+    matchOrganizationByFilter(row.org, personOrgFilter, INITIAL_ORG_NODES) &&
     (personGroupFilter.length === 0 || personGroupFilter.includes(row.group));
 
   const rankedReporters = useMemo<Ranked<ReporterRow>[]>(() => {
     const list = [...reporterRecords];
     const byDesc = (get: (row: ReporterRow) => number) => list.sort((a, b) => get(b) - get(a));
-    if (reporterSort === 'adopted') byDesc((r) => r.adoptedCount);
+    if (reporterSort === 'total') byDesc((r) => r.total);
+    else if (reporterSort === 'adopted') byDesc((r) => r.adoptedCount);
     else if (reporterSort === 'firstCount') byDesc((r) => r.firstCount);
     else if (reporterSort === 'directRate') byDesc((r) => r.directRate);
     else if (reporterSort === 'passRate') byDesc((r) => r.passRate);
@@ -492,57 +561,6 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
   const pagedReporters = visibleReporters.slice(pageStart, pageStart + personPageSize);
   const pagedAuditors = visibleAuditors.slice(pageStart, pageStart + personPageSize);
 
-  const scopedReporters = reporterRecords;
-  const scopedAuditors = auditorRecords;
-
-  const reporterStats = useMemo(() => {
-    const list = scopedReporters;
-    const sum = (fn: (r: ReporterRow) => number) => list.reduce((acc, r) => acc + fn(r), 0);
-    const total = sum((r) => r.total);
-    const adopted = sum((r) => r.adoptedCount);
-    const first = sum((r) => r.firstCount);
-    const direct = sum((r) => r.directCount);
-    const best = [...list].sort((a, b) => b.avgScore - a.avgScore)[0];
-    return {
-      count: list.length,
-      orgCount: new Set(list.map((r) => r.org)).size,
-      total,
-      adopted,
-      first,
-      repeat: adopted - first,
-      direct,
-      directRate: total ? round1((direct / total) * 100) : 0,
-      passRate: total ? round1((adopted / total) * 100) : 0,
-      avgScore: list.length ? round1(sum((r) => r.avgScore) / list.length) : 0,
-      perCapita: list.length ? round1(adopted / list.length) : 0,
-      best,
-    };
-  }, []);
-
-  const auditorStats = useMemo(() => {
-    const list = scopedAuditors;
-    const sum = (fn: (r: AuditorRow) => number) => list.reduce((acc, r) => acc + fn(r), 0);
-    const audited = sum((r) => r.totalAudited);
-    const reported = sum((r) => r.reportedCount);
-    const passed = sum((r) => r.passedCount);
-    const fastest = [...list].sort((a, b) => a.avgResponseMin - b.avgResponseMin)[0];
-    const best = [...list].sort((a, b) => b.avgScore - a.avgScore)[0];
-    return {
-      count: list.length,
-      orgCount: new Set(list.map((r) => r.org)).size,
-      audited,
-      passed,
-      rejected: audited - passed,
-      reported,
-      processRate: reported ? round1((audited / reported) * 100) : 0,
-      avgResponse: list.length ? round1(sum((r) => r.avgResponseMin) / list.length) : 0,
-      avgScore: list.length ? round1(sum((r) => r.avgScore) / list.length) : 0,
-      perCapita: list.length ? Math.round(audited / list.length) : 0,
-      fastest,
-      best,
-    };
-  }, []);
-
   const openOrgLikeProfile = (row: OrgRecord, kind: 'org' | 'group') => {
     const isGroup = kind === 'group';
     setSelectedProfile({
@@ -559,10 +577,10 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
           value: `${row.staff} 人`,
           subLabel: `上报 ${row.reporters} / 审核 ${row.auditors}`,
         },
-        { label: '累计采纳数', value: `${row.adopted.toLocaleString()} 件`, subLabel: `首发 ${row.firstCount.toLocaleString()} / 重复 ${row.repeatCount.toLocaleString()}`, isHighlight: true },
+        { label: '累计采纳量', value: `${row.adopted.toLocaleString()} 件`, subLabel: `重复 ${row.repeatCount.toLocaleString()} / 首发 ${row.firstCount.toLocaleString()} / 其他 ${row.otherCount.toLocaleString()}`, isHighlight: true },
         { label: '累计报送量', value: `${row.total.toLocaleString()} 件`, subLabel: `采纳 ${row.adopted.toLocaleString()} 件` },
         { label: '首审直通率', value: `${row.directRate}%`, isHighlight: true },
-        { label: '平均响应耗时', value: `${row.avgTime} 分钟` },
+        { label: '平均审核耗时', value: `${row.avgTime} 分钟` },
       ],
       radarData: [
         { subject: '报送活跃', value: 95, fullMark: 100 },
@@ -606,7 +624,8 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
       totalScore: row.score,
       grade: row.grade,
       stats: [
-        { label: '累计采纳量', value: `${row.adoptedCount} 件`, subLabel: `首发 ${row.firstCount} / 重复 ${row.repeatCount}`, isHighlight: true },
+        { label: '累计报送量', value: `${row.total} 件`, subLabel: `日均 ${round1(row.total / EVAL_PERIOD_DAYS)} 件 · 采纳 ${row.adoptedCount} 件`, isHighlight: true },
+        { label: '累计采纳量', value: `${row.adoptedCount} 件`, subLabel: `重复 ${row.repeatCount} / 首发 ${row.firstCount} / 其他 ${row.otherCount}`, isHighlight: true },
         { label: '首审直通率', value: `${row.directRate}%`, isHighlight: true },
         { label: '整体采纳率', value: `${row.passRate}%` },
         { label: '单条平均得分', value: `${row.avgScore} 分` },
@@ -631,7 +650,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
         { category: '响应时效', item: '高效响应奖励', points: '+24.5', desc: '平均响应耗时优于考核基准' },
         { category: '综合表现', item: '综合绩效加分', points: '+9.0', desc: '人员活跃与业务闭环表现良好' },
       ],
-      summaryEvaluation: `${row.name}（${row.org}）本考核周期考核等次为「${row.grade}」，全域网格员排名第 ${row.rank} 名。`,
+      summaryEvaluation: `${row.name}（${row.org}）本考核周期考核等次为「${row.grade}」，全域报送考核排名第 ${row.rank} 名。`,
     });
   };
 
@@ -645,9 +664,9 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
       totalScore: row.avgScore,
       grade: row.grade,
       stats: [
-        { label: '累计审核量', value: `${row.totalAudited} 件`, subLabel: `通过 ${row.passedCount} / 驳回 ${row.rejectedCount}`, isHighlight: true },
+        { label: '累计处理', value: `${row.totalAudited} 次`, subLabel: `通过处理 ${row.passedCount} / 驳回处理 ${row.rejectedCount}`, isHighlight: true },
         { label: '审核处理率', value: `${row.auditProcessRate}%`, isHighlight: true },
-        { label: '平均响应耗时', value: `${row.avgResponseMin} 分钟` },
+        { label: '平均审核耗时', value: `${row.avgResponseMin} 分钟` },
         { label: '单条平均得分', value: `${row.avgScore} 分` },
       ],
       radarData: [
@@ -670,24 +689,164 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
         { category: '响应时效', item: '快速审核响应', points: '+24.5', desc: '平均响应耗时优于审核基准' },
         { category: '综合表现', item: '综合绩效加分', points: '+9.0', desc: '审核活跃与处理闭环表现良好' },
       ],
-      summaryEvaluation: `${row.name}（${row.org}）本考核周期考核等次为「${row.grade}」，全域审核员排名第 ${row.rank} 名。`,
+      summaryEvaluation: `${row.name}（${row.org}）本考核周期考核等次为「${row.grade}」，全域审核考核排名第 ${row.rank} 名。`,
     });
   };
 
   const evalTabs: { id: EvalTab; label: string; desc: string; icon: React.ReactNode }[] = [
     { id: 'org', label: '组织节点考核', desc: '按组织节点排行', icon: <Building2 className="h-4 w-4" /> },
     // 群组考核本期暂缓，入口隐藏，后期再加
-    { id: 'person', label: '人员考核', desc: '网格员与审核员', icon: <UserRound className="h-4 w-4" /> },
+    { id: 'person', label: '人员考核', desc: '报送考核与审核考核', icon: <UserRound className="h-4 w-4" /> },
   ];
 
   const activeTabMeta = evalTabs.find((item) => item.id === tab) ?? evalTabs[0];
 
+  const handleExportData = () => {
+    const stamp = formatExportDate();
+    if (tab === 'org') {
+      if (sortedOrgs.length === 0) {
+        showToast('暂无可导出的组织节点数据');
+        return;
+      }
+      const headers = [
+        '排名',
+        '组织节点名称',
+        '参与人数',
+        '在册人数',
+        '参与率(%)',
+        '累计报送量',
+        '日均报送量',
+        '人均报送量',
+        '累计采纳量',
+        '重复采纳量',
+        '首发采纳量',
+        '其他采纳量',
+        '首审直通率(%)',
+        '首审直通通过件数',
+        '整体采纳率(%)',
+        '平均审核耗时',
+        '审核处理率(%)',
+        '转办闭环率(%)',
+        '办结件数',
+        '转办件数',
+        '综合得分',
+      ];
+      const rows = sortedOrgs.map((row, index) => {
+        const directCount = Math.round((row.total * row.directRate) / 100);
+        const { transferTotal, closedCount } = getTransferCounts(row);
+        return [
+          index + 1,
+          row.name,
+          getParticipationCount(row),
+          row.staff,
+          getParticipationRate(row),
+          row.total,
+          getDailyAvg(row),
+          row.perCapita,
+          row.adopted,
+          row.repeatCount,
+          row.firstCount,
+          row.otherCount,
+          row.directRate,
+          directCount,
+          row.passRate,
+          `${row.avgTime} 分钟`,
+          getProcessRate(row),
+          row.closedRate,
+          closedCount,
+          transferTotal,
+          row.score,
+        ];
+      });
+      downloadCsv(`组织节点考核_${stamp}.csv`, headers, rows);
+      showToast(`已导出组织节点考核数据（${sortedOrgs.length} 条）`);
+      return;
+    }
+
+    if (perspective === 'report') {
+      if (visibleReporters.length === 0) {
+        showToast('暂无可导出的报送考核数据');
+        return;
+      }
+      const headers = [
+        '全域排名',
+        '人员',
+        '组织节点',
+        '群组',
+        '累计报送量',
+        '日均报送量',
+        '累计采纳量',
+        '重复采纳量',
+        '首发采纳量',
+        '其他采纳量',
+        '首审直通率(%)',
+        '首审直通通过件数',
+        '整体采纳率(%)',
+        '整体采纳通过件数',
+        '综合得分',
+        '平均得分',
+      ];
+      const rows = visibleReporters.map((row) => [
+        row.rank,
+        row.name,
+        row.org,
+        row.group,
+        row.total,
+        round1(row.total / EVAL_PERIOD_DAYS),
+        row.adoptedCount,
+        row.repeatCount,
+        row.firstCount,
+        row.otherCount,
+        row.directRate,
+        row.directCount,
+        row.passRate,
+        row.adoptedCount,
+        row.score,
+        row.avgScore,
+      ]);
+      downloadCsv(`报送考核_${stamp}.csv`, headers, rows);
+      showToast(`已导出报送考核数据（${visibleReporters.length} 条）`);
+      return;
+    }
+
+    if (visibleAuditors.length === 0) {
+      showToast('暂无可导出的审核考核数据');
+      return;
+    }
+    const headers = [
+      '全域排名',
+      '人员',
+      '组织节点',
+      '群组',
+      '累计处理',
+      '通过处理',
+      '驳回处理',
+      '审核处理率',
+      '已办',
+      '待办',
+      '平均审核耗时',
+    ];
+    const rows = visibleAuditors.map((row) => [
+      row.rank,
+      row.name,
+      row.org,
+      row.group,
+      `${row.totalAudited} 次`,
+      `${row.passedCount} 次`,
+      `${row.rejectedCount} 次`,
+      `${row.auditProcessRate}%`,
+      `${row.totalAudited} 次`,
+      `${Math.max(0, row.reportedCount - row.totalAudited)} 次`,
+      `${row.avgResponseMin} 分钟`,
+    ]);
+    downloadCsv(`审核考核_${stamp}.csv`, headers, rows);
+    showToast(`已导出审核考核数据（${visibleAuditors.length} 条）`);
+  };
+
   const renderExportButton = () => (
     <button
       type="button"
-      onClick={() =>
-        showToast(`${tab === 'org' ? '组织节点' : tab === 'group' ? '群组' : '人员'}数据导出成功`)
-      }
+      onClick={handleExportData}
       className="inline-flex min-h-8 items-center gap-1.5 rounded-xl bg-[#1D58C9] px-3.5 text-xs font-semibold text-white shadow-xs transition hover:bg-blue-700"
     >
       <Download className="h-3.5 w-3.5" />
@@ -711,16 +870,19 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
               <Clock className="h-3.5 w-3.5 shrink-0 text-[#2F74FF]" />
               <span className="font-normal text-slate-500">统计周期:</span>
             </div>
-            {[
-              ['day', '今日'],
-              ['week', '本周'],
-              ['month', '本月'],
-              ['custom', '自定义'],
-            ].map(([key, label]) => (
+            {(
+              [
+                ['day', '按日'],
+                ['week', '按周'],
+                ['month', '按月'],
+                ['quarter', '按季度'],
+                ['year', '按年'],
+              ] as const
+            ).map(([key, label]) => (
               <button
                 key={key}
                 type="button"
-                onClick={() => handlePeriodChange(key as Period)}
+                onClick={() => handlePeriodChange(key)}
                 className={`min-h-7 cursor-pointer rounded-xl px-3 py-1 text-xs transition select-none ${
                   period === key
                     ? 'bg-white font-semibold text-[#1B5BD6] shadow-xs'
@@ -735,20 +897,22 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
           <DateRangeField
             startValue={startDate.replaceAll('/', '-')}
             endValue={endDate.replaceAll('/', '-')}
-            readOnly={period !== 'custom'}
-            onRequestEdit={() => setPeriod('custom')}
-            onStartChange={(value) => {
-              setStartDate(value.replaceAll('-', '/'));
-              setPeriod('custom');
-            }}
-            onEndChange={(value) => {
-              setEndDate(value.replaceAll('-', '/'));
-              setPeriod('custom');
-            }}
-            title="考核时间区间"
-            startTitle="开始日期"
-            endTitle="结束日期"
-            inputClassName="w-24 flex-none font-mono text-[11px]"
+            lockedMode={period === 'day' ? 'range' : period}
+            maxDate={EVAL_MAX_DATE}
+            onStartChange={(value) => setStartDate(value.replaceAll('-', '/'))}
+            onEndChange={(value) => setEndDate(value.replaceAll('-', '/'))}
+            title={
+              period === 'day'
+                ? '选择起止日期'
+                : period === 'week'
+                  ? '选择自然周'
+                  : period === 'month'
+                    ? '选择自然月'
+                    : period === 'quarter'
+                      ? '选择自然季度'
+                      : '选择自然年'
+            }
+            className="min-w-[260px]"
           />
 
         </div>
@@ -812,21 +976,23 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
           {renderPageFilters()}
           {/* 组织节点考核指标 */}
           <section className={sectionClass}>
-            <div className="flex min-w-0 flex-wrap items-center gap-2.5 border-b border-slate-100 pb-3">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#1D58C9] text-white shadow-xs">
-                <Target className="h-4 w-4" />
-              </span>
-              <h2 className="text-sm font-bold text-slate-800">考核指标</h2>
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2.5 border-b border-slate-100 pb-3">
+              <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#1D58C9] text-white shadow-xs">
+                  <Target className="h-4 w-4" />
+                </span>
+                <h2 className="text-sm font-bold text-slate-800">考核指标</h2>
+                <span className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-600">
+                  <Globe2 className="h-3.5 w-3.5 text-[#1D58C9]" />
+                  <span className="font-semibold text-slate-800">全域参评组织节点</span>
+                  <strong className="font-mono text-sm font-bold text-[#1D58C9]">28</strong>
+                  <span className="text-slate-400">个</span>
+                  <span className="mx-0.5 text-slate-300">·</span>
+                  <span className="text-slate-500">在册 654 · 参与 569 · 参与率 87.0%</span>
+                </span>
+              </div>
             </div>
             <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-              <GlobalKpiCard
-                title="全域参评组织节点"
-                icon={<Globe2 className="h-4 w-4" />}
-                color="#1D58C9"
-                value="28"
-                unit="个"
-                hint="在册 654 · 参与 569 · 参与率 87.0%"
-              />
               <GlobalKpiCard
                 title="累计报送量"
                 icon={<FileText className="h-4 w-4" />}
@@ -836,22 +1002,29 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                 hint="日均 349 件 · 人均 23.3 件"
               />
               <GlobalKpiCard
-                title="累计采纳数"
+                title="累计采纳量"
                 icon={<CheckCircle2 className="h-4 w-4" />}
                 color="#08B889"
                 value="9,370"
                 unit="件"
-                hint="首发 7,120 · 重复 2,250"
+                hint="重复 2,066 · 首发 6,554 · 其他 750"
+              />
+              <GlobalKpiCard
+                title="首审直通率"
+                icon={<Target className="h-4 w-4" />}
+                color="#08B889"
+                value="77.4%"
+                hint="通过 8,111/10,480 件"
               />
               <GlobalKpiCard
                 title="整体采纳率"
                 icon={<Zap className="h-4 w-4" />}
                 color="#2F74FF"
                 value="89.4%"
-                hint="首审直通率 77.4%"
+                hint="通过 9,370/10,480 件"
               />
               <GlobalKpiCard
-                title="平均审核响应"
+                title="平均审核耗时"
                 icon={<Clock className="h-4 w-4" />}
                 color="#8656F4"
                 value="13.8"
@@ -862,8 +1035,8 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                 title="转办闭环率"
                 icon={<RefreshCcw className="h-4 w-4" />}
                 color="#08A69A"
-                value={`${round1(orgRecords.reduce((s, r) => s + r.closedRate, 0) / orgRecords.length)}%`}
-                hint="转办事项办结占比"
+                value="95.4%"
+                hint={`办结 ${orgRecords.reduce((s, r) => s + getTransferCounts(r).closedCount, 0).toLocaleString()}/${orgRecords.reduce((s, r) => s + getTransferCounts(r).transferTotal, 0).toLocaleString()} 件`}
               />
             </div>
           </section>
@@ -886,11 +1059,10 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                   className="min-h-8 cursor-pointer rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 outline-none shadow-xs transition hover:border-slate-300 focus:border-[#1D58C9]"
                 >
                   <option value="total">按累计报送量排名</option>
-                  <option value="adopted">按累计采纳数排名</option>
-                  <option value="firstCount">按首发采纳数排名</option>
+                  <option value="adopted">按累计采纳量排名</option>
                   <option value="passRate">按整体采纳率排名</option>
                   <option value="directRate">按首审直通率排名</option>
-                  <option value="avgTime">按平均审核响应时长 (最快)</option>
+                  <option value="avgTime">按平均审核耗时 (最快)</option>
                   <option value="closedRate">按转办闭环率排名</option>
                   <option value="participation">按参与率排名</option>
                 </select>
@@ -899,21 +1071,25 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1280px] text-left text-xs">
+              <table className="w-full min-w-[1380px] text-left text-xs">
                 <thead className="bg-slate-50/90 text-slate-500 select-none border-b border-slate-200">
                   <tr>
                     <th className="px-3 py-3.5 text-center font-semibold text-slate-700">排名</th>
                     <th className="px-3 py-3.5 font-semibold text-slate-700">组织节点名称</th>
                     <th className="px-3 py-3.5 text-center font-semibold text-slate-700">人员参与 (参与/在册)</th>
-                    <th className="px-3 py-3.5 text-center font-semibold text-slate-700">累计报送 (日均/人均)</th>
-                    <th className="px-3 py-3.5 text-center font-semibold text-slate-700">累计采纳数 (首发/重复)</th>
-                    <th className="px-3 py-3.5 text-center font-semibold text-slate-700">整体采纳率 / 首审直通率</th>
-                    <th className="px-3 py-3.5 text-center font-semibold text-slate-700">平均审核响应</th>
-                    <th className="px-3 py-3.5 text-center font-semibold text-slate-700">转办闭环率</th>
+                    <th className="px-3 py-3.5 text-center font-semibold text-slate-700">累计报送量 (日均/人均)</th>
+                    <th className="px-3 py-3.5 text-center font-semibold text-slate-700">累计采纳量 (重复/首发/其他)</th>
+                    <th className="px-3 py-3.5 text-center font-semibold text-slate-700">首审直通率 (通过/总件数)</th>
+                    <th className="px-3 py-3.5 text-center font-semibold text-slate-700">整体采纳率 (通过/总件数)</th>
+                    <th className="px-3 py-3.5 text-center font-semibold text-slate-700">平均审核耗时</th>
+                    <th className="px-3 py-3.5 text-center font-semibold text-slate-700">转办闭环率 (办结/转办)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {sortedOrgs.map((row, index) => (
+                  {sortedOrgs.map((row, index) => {
+                    const directCount = Math.round((row.total * row.directRate) / 100);
+                    const { transferTotal, closedCount } = getTransferCounts(row);
+                    return (
                     <tr key={row.name} onClick={() => openOrgProfile(row)} className="cursor-pointer transition hover:bg-blue-50/40">
                       <td className="px-3 py-3.5 text-center">
                         <div className="flex flex-col items-center justify-center">
@@ -943,26 +1119,27 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                           人均 {row.perCapita}
                         </div>
                       </td>
-                      <td className={`px-3 py-3.5 text-center font-mono ${orgSort === 'adopted' || orgSort === 'firstCount' ? 'bg-emerald-50/40' : ''}`}>
+                      <td className={`px-3 py-3.5 text-center font-mono ${orgSort === 'adopted' ? 'bg-emerald-50/40' : ''}`}>
                         <div>
                           <strong className="font-bold text-[#08B889] text-xs">{row.adopted.toLocaleString()}</strong>
                           <span className="ml-0.5 text-[10px] text-slate-400">件</span>
                         </div>
-                        <div className="mt-1 flex items-center justify-center gap-1 text-[10px]">
-                          <span className="rounded bg-emerald-50 px-1.5 py-0.5 font-semibold text-[#08B889]">首发 {row.firstCount.toLocaleString()}</span>
+                        <div className="mt-1 flex flex-wrap items-center justify-center gap-1 text-[10px]">
                           <span className="rounded bg-blue-50 px-1.5 py-0.5 font-semibold text-[#2F74FF]">重复 {row.repeatCount.toLocaleString()}</span>
+                          <span className="rounded bg-emerald-50 px-1.5 py-0.5 font-semibold text-[#08B889]">首发 {row.firstCount.toLocaleString()}</span>
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-600">其他 {row.otherCount.toLocaleString()}</span>
                         </div>
                       </td>
-                      <td
-                        className={`px-3 py-3.5 text-center font-mono ${
-                          orgSort === 'directRate' || orgSort === 'passRate' ? 'bg-blue-50/40' : ''
-                        }`}
-                      >
-                        <div className="flex flex-col items-center gap-0.5">
-                          <strong className="text-sm font-bold leading-none text-[#2F74FF]">{row.passRate}%</strong>
-                          <span className="text-[10px] font-medium leading-none text-slate-400">
-                            首审直通 {row.directRate}%
-                          </span>
+                      <td className={`px-3 py-3.5 text-center font-mono ${orgSort === 'directRate' ? 'bg-emerald-50/40' : ''}`}>
+                        <div className="font-mono text-xs font-bold text-[#08B889]">{row.directRate}%</div>
+                        <div className="mt-0.5 font-mono text-[11px] text-slate-400">
+                          通过 {directCount}/{row.total} 件
+                        </div>
+                      </td>
+                      <td className={`px-3 py-3.5 text-center font-mono ${orgSort === 'passRate' ? 'bg-blue-50/40' : ''}`}>
+                        <div className="font-mono text-xs font-bold text-[#2F74FF]">{row.passRate}%</div>
+                        <div className="mt-0.5 font-mono text-[11px] text-slate-400">
+                          通过 {row.adopted}/{row.total} 件
                         </div>
                       </td>
                       <td className={`px-3 py-3.5 text-center font-mono ${orgSort === 'avgTime' ? 'bg-purple-50/40' : ''}`}>
@@ -976,12 +1153,14 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                         </div>
                       </td>
                       <td className={`px-3 py-3.5 text-center font-mono ${orgSort === 'closedRate' ? 'bg-teal-50/40' : ''}`}>
-                        <span className="inline-flex items-center justify-center rounded-lg border border-teal-100 bg-teal-50 px-2 py-0.5 text-xs font-bold text-teal-700">
-                          {row.closedRate}%
-                        </span>
+                        <div className="font-mono text-xs font-bold text-teal-700">{row.closedRate}%</div>
+                        <div className="mt-0.5 font-mono text-[11px] text-slate-400">
+                          办结 {closedCount}/{transferTotal} 件
+                        </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -992,21 +1171,32 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
           {renderPageFilters()}
           {/* 群组考核指标 */}
           <section className={sectionClass}>
-            <div className="flex min-w-0 flex-wrap items-center gap-2.5 border-b border-slate-100 pb-3">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#1D58C9] text-white shadow-xs">
-                <Target className="h-4 w-4" />
-              </span>
-              <h2 className="text-sm font-bold text-slate-800">考核指标</h2>
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2.5 border-b border-slate-100 pb-3">
+              <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#1D58C9] text-white shadow-xs">
+                  <Target className="h-4 w-4" />
+                </span>
+                <h2 className="text-sm font-bold text-slate-800">考核指标</h2>
+                <span className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-600">
+                  <UsersRound className="h-3.5 w-3.5 text-[#1D58C9]" />
+                  <span className="font-semibold text-slate-800">全域参评群组</span>
+                  <strong className="font-mono text-sm font-bold text-[#1D58C9]">{groupRecords.length}</strong>
+                  <span className="text-slate-400">个</span>
+                  <span className="mx-0.5 text-slate-300">·</span>
+                  <span className="text-slate-500">
+                    在册 {groupRecords.reduce((s, g) => s + g.staff, 0)} · 参与{' '}
+                    {groupRecords.reduce((s, g) => s + getParticipationCount(g), 0)} · 参与率{' '}
+                    {round1(
+                      (groupRecords.reduce((s, g) => s + getParticipationCount(g), 0) /
+                        Math.max(groupRecords.reduce((s, g) => s + g.staff, 0), 1)) *
+                        100,
+                    )}
+                    %
+                  </span>
+                </span>
+              </div>
             </div>
             <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-              <GlobalKpiCard
-                title="全域参评群组"
-                icon={<UsersRound className="h-4 w-4" />}
-                color="#1D58C9"
-                value={String(groupRecords.length)}
-                unit="个"
-                hint={`在册 ${groupRecords.reduce((s, g) => s + g.staff, 0)} · 参与 ${groupRecords.reduce((s, g) => s + getParticipationCount(g), 0)} · 参与率 ${round1((groupRecords.reduce((s, g) => s + getParticipationCount(g), 0) / Math.max(groupRecords.reduce((s, g) => s + g.staff, 0), 1)) * 100)}%`}
-              />
               <GlobalKpiCard
                 title="累计报送量"
                 icon={<FileText className="h-4 w-4" />}
@@ -1016,22 +1206,29 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                 hint={`日均 ${round1(groupRecords.reduce((s, g) => s + g.total, 0) / EVAL_PERIOD_DAYS)} 件 · 人均 ${round1(groupRecords.reduce((s, g) => s + g.total, 0) / Math.max(groupRecords.reduce((s, g) => s + g.staff, 0), 1))} 件`}
               />
               <GlobalKpiCard
-                title="累计采纳数"
+                title="累计采纳量"
                 icon={<CheckCircle2 className="h-4 w-4" />}
                 color="#08B889"
                 value={groupRecords.reduce((s, g) => s + g.adopted, 0).toLocaleString()}
                 unit="件"
-                hint={`首发 ${groupRecords.reduce((s, g) => s + g.firstCount, 0).toLocaleString()} · 重复 ${groupRecords.reduce((s, g) => s + g.repeatCount, 0).toLocaleString()}`}
+                hint={`重复 ${groupRecords.reduce((s, g) => s + g.repeatCount, 0).toLocaleString()} · 首发 ${groupRecords.reduce((s, g) => s + g.firstCount, 0).toLocaleString()} · 其他 ${groupRecords.reduce((s, g) => s + g.otherCount, 0).toLocaleString()}`}
+              />
+              <GlobalKpiCard
+                title="首审直通率"
+                icon={<Target className="h-4 w-4" />}
+                color="#08B889"
+                value={`${round1(groupRecords.reduce((s, g) => s + g.directRate, 0) / groupRecords.length)}%`}
+                hint={`通过 ${groupRecords.reduce((s, g) => s + Math.round((g.total * g.directRate) / 100), 0).toLocaleString()}/${groupRecords.reduce((s, g) => s + g.total, 0).toLocaleString()} 件`}
               />
               <GlobalKpiCard
                 title="整体采纳率"
                 icon={<Zap className="h-4 w-4" />}
                 color="#2F74FF"
                 value={`${round1((groupRecords.reduce((s, g) => s + g.adopted, 0) / Math.max(groupRecords.reduce((s, g) => s + g.total, 0), 1)) * 100)}%`}
-                hint={`首审直通率 ${round1(groupRecords.reduce((s, g) => s + g.directRate, 0) / groupRecords.length)}%`}
+                hint={`通过 ${groupRecords.reduce((s, g) => s + g.adopted, 0).toLocaleString()}/${groupRecords.reduce((s, g) => s + g.total, 0).toLocaleString()} 件`}
               />
               <GlobalKpiCard
-                title="平均审核响应"
+                title="平均审核耗时"
                 icon={<Clock className="h-4 w-4" />}
                 color="#8656F4"
                 value={`${round1(groupRecords.reduce((s, g) => s + g.avgTime, 0) / groupRecords.length)}`}
@@ -1043,7 +1240,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                 icon={<RefreshCcw className="h-4 w-4" />}
                 color="#08A69A"
                 value={`${round1(groupRecords.reduce((s, r) => s + r.closedRate, 0) / groupRecords.length)}%`}
-                hint="转办事项办结占比"
+                hint={`办结 ${groupRecords.reduce((s, r) => s + getTransferCounts(r).closedCount, 0).toLocaleString()}/${groupRecords.reduce((s, r) => s + getTransferCounts(r).transferTotal, 0).toLocaleString()} 件`}
               />
             </div>
           </section>
@@ -1066,11 +1263,10 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                   className="min-h-8 cursor-pointer rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 outline-none shadow-xs transition hover:border-slate-300 focus:border-[#1D58C9]"
                 >
                   <option value="total">按累计报送量排名</option>
-                  <option value="adopted">按累计采纳数排名</option>
-                  <option value="firstCount">按首发采纳数排名</option>
+                  <option value="adopted">按累计采纳量排名</option>
                   <option value="passRate">按整体采纳率排名</option>
                   <option value="directRate">按首审直通率排名</option>
-                  <option value="avgTime">按平均审核响应时长 (最快)</option>
+                  <option value="avgTime">按平均审核耗时 (最快)</option>
                   <option value="closedRate">按转办闭环率排名</option>
                   <option value="participation">按参与率排名</option>
                 </select>
@@ -1079,21 +1275,25 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1280px] text-left text-xs">
+              <table className="w-full min-w-[1380px] text-left text-xs">
                 <thead className="bg-slate-50/90 text-slate-500 select-none border-b border-slate-200">
                   <tr>
                     <th className="px-3 py-3.5 text-center font-semibold text-slate-700">排名</th>
                     <th className="px-3 py-3.5 font-semibold text-slate-700">群组名称</th>
                     <th className="px-3 py-3.5 text-center font-semibold text-slate-700">成员参与 (参与/在册)</th>
-                    <th className="px-3 py-3.5 text-center font-semibold text-slate-700">累计报送 (日均/人均)</th>
-                    <th className="px-3 py-3.5 text-center font-semibold text-slate-700">累计采纳数 (首发/重复)</th>
-                    <th className="px-3 py-3.5 text-center font-semibold text-slate-700">整体采纳率 / 首审直通率</th>
-                    <th className="px-3 py-3.5 text-center font-semibold text-slate-700">平均审核响应</th>
-                    <th className="px-3 py-3.5 text-center font-semibold text-slate-700">转办闭环率</th>
+                    <th className="px-3 py-3.5 text-center font-semibold text-slate-700">累计报送量 (日均/人均)</th>
+                    <th className="px-3 py-3.5 text-center font-semibold text-slate-700">累计采纳量 (重复/首发/其他)</th>
+                    <th className="px-3 py-3.5 text-center font-semibold text-slate-700">首审直通率 (通过/总件数)</th>
+                    <th className="px-3 py-3.5 text-center font-semibold text-slate-700">整体采纳率 (通过/总件数)</th>
+                    <th className="px-3 py-3.5 text-center font-semibold text-slate-700">平均审核耗时</th>
+                    <th className="px-3 py-3.5 text-center font-semibold text-slate-700">转办闭环率 (办结/转办)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {sortedGroups.map((row, index) => (
+                  {sortedGroups.map((row, index) => {
+                    const directCount = Math.round((row.total * row.directRate) / 100);
+                    const { transferTotal, closedCount } = getTransferCounts(row);
+                    return (
                     <tr key={row.name} onClick={() => openGroupProfile(row)} className="cursor-pointer transition hover:bg-blue-50/40">
                       <td className="px-3 py-3.5 text-center">
                         <div className="flex flex-col items-center justify-center">
@@ -1123,26 +1323,27 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                           人均 {row.perCapita}
                         </div>
                       </td>
-                      <td className={`px-3 py-3.5 text-center font-mono ${groupSort === 'adopted' || groupSort === 'firstCount' ? 'bg-emerald-50/40' : ''}`}>
+                      <td className={`px-3 py-3.5 text-center font-mono ${groupSort === 'adopted' ? 'bg-emerald-50/40' : ''}`}>
                         <div>
                           <strong className="font-bold text-[#08B889] text-xs">{row.adopted.toLocaleString()}</strong>
                           <span className="ml-0.5 text-[10px] text-slate-400">件</span>
                         </div>
-                        <div className="mt-1 flex items-center justify-center gap-1 text-[10px]">
-                          <span className="rounded bg-emerald-50 px-1.5 py-0.5 font-semibold text-[#08B889]">首发 {row.firstCount.toLocaleString()}</span>
+                        <div className="mt-1 flex flex-wrap items-center justify-center gap-1 text-[10px]">
                           <span className="rounded bg-blue-50 px-1.5 py-0.5 font-semibold text-[#2F74FF]">重复 {row.repeatCount.toLocaleString()}</span>
+                          <span className="rounded bg-emerald-50 px-1.5 py-0.5 font-semibold text-[#08B889]">首发 {row.firstCount.toLocaleString()}</span>
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-600">其他 {row.otherCount.toLocaleString()}</span>
                         </div>
                       </td>
-                      <td
-                        className={`px-3 py-3.5 text-center font-mono ${
-                          groupSort === 'directRate' || groupSort === 'passRate' ? 'bg-blue-50/40' : ''
-                        }`}
-                      >
-                        <div className="flex flex-col items-center gap-0.5">
-                          <strong className="text-sm font-bold leading-none text-[#2F74FF]">{row.passRate}%</strong>
-                          <span className="text-[10px] font-medium leading-none text-slate-400">
-                            首审直通 {row.directRate}%
-                          </span>
+                      <td className={`px-3 py-3.5 text-center font-mono ${groupSort === 'directRate' ? 'bg-emerald-50/40' : ''}`}>
+                        <div className="font-mono text-xs font-bold text-[#08B889]">{row.directRate}%</div>
+                        <div className="mt-0.5 font-mono text-[11px] text-slate-400">
+                          通过 {directCount}/{row.total} 件
+                        </div>
+                      </td>
+                      <td className={`px-3 py-3.5 text-center font-mono ${groupSort === 'passRate' ? 'bg-blue-50/40' : ''}`}>
+                        <div className="font-mono text-xs font-bold text-[#2F74FF]">{row.passRate}%</div>
+                        <div className="mt-0.5 font-mono text-[11px] text-slate-400">
+                          通过 {row.adopted}/{row.total} 件
                         </div>
                       </td>
                       <td className={`px-3 py-3.5 text-center font-mono ${groupSort === 'avgTime' ? 'bg-purple-50/40' : ''}`}>
@@ -1156,12 +1357,14 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                         </div>
                       </td>
                       <td className={`px-3 py-3.5 text-center font-mono ${groupSort === 'closedRate' ? 'bg-teal-50/40' : ''}`}>
-                        <span className="inline-flex items-center justify-center rounded-lg border border-teal-100 bg-teal-50 px-2 py-0.5 text-xs font-bold text-teal-700">
-                          {row.closedRate}%
-                        </span>
+                        <div className="font-mono text-xs font-bold text-teal-700">{row.closedRate}%</div>
+                        <div className="mt-0.5 font-mono text-[11px] text-slate-400">
+                          办结 {closedCount}/{transferTotal} 件
+                        </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1170,56 +1373,6 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
       ) : (
         <>
           {renderPageFilters()}
-          {/* 人员考核指标 */}
-          <section className={sectionClass}>
-            <div className="flex min-w-0 flex-wrap items-center gap-2.5 border-b border-slate-100 pb-3">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#1D58C9] text-white shadow-xs">
-                <Target className="h-4 w-4" />
-              </span>
-                <h2 className="text-sm font-bold text-slate-800">考核指标</h2>
-            </div>
-            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-              <GlobalKpiCard
-                title="参评人员"
-                icon={<UsersRound className="h-4 w-4" />}
-                color="#1D58C9"
-                value={String(reporterStats.count + auditorStats.count)}
-                unit="人"
-                hint={`网格员 ${reporterStats.count} · 审核员 ${auditorStats.count} · 覆盖 ${Math.max(reporterStats.orgCount, auditorStats.orgCount)} 个组织节点`}
-              />
-              <GlobalKpiCard
-                title="网格员产出"
-                icon={<CheckCircle2 className="h-4 w-4" />}
-                color="#08B889"
-                value={reporterStats.adopted.toLocaleString()}
-                unit="件"
-                hint={`首发 ${reporterStats.first.toLocaleString()} · 重复 ${reporterStats.repeat.toLocaleString()}`}
-              />
-              <GlobalKpiCard
-                title="网格员质量"
-                icon={<Zap className="h-4 w-4" />}
-                color="#2F74FF"
-                value={`${reporterStats.passRate}%`}
-                hint={`首审直通率 ${reporterStats.directRate}%`}
-              />
-              <GlobalKpiCard
-                title="审核员处理"
-                icon={<ShieldCheck className="h-4 w-4" />}
-                color="#1D58C9"
-                value={auditorStats.audited.toLocaleString()}
-                unit="件"
-                hint={`人均审核 ${auditorStats.perCapita} 件`}
-              />
-              <GlobalKpiCard
-                title="审核效能"
-                icon={<Clock className="h-4 w-4" />}
-                color="#8656F4"
-                value={`${auditorStats.processRate}%`}
-                hint={`平均响应 ${auditorStats.avgResponse} 分钟`}
-              />
-            </div>
-          </section>
-
           {/* 人员考核明细榜 */}
           <section className={sectionClass}>
             <div className="flex flex-col gap-3 border-b border-slate-100 pb-3 lg:flex-row lg:items-center lg:justify-between">
@@ -1232,7 +1385,14 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                   }`}
                 >
                   <Send className="h-3.5 w-3.5 -rotate-12" />
-                  网格员榜
+                  报送考核
+                  <span
+                    className={`rounded-md px-1.5 py-0.5 font-mono text-[10px] font-bold ${
+                      perspective === 'report' ? 'bg-white/20 text-white' : 'bg-slate-200/80 text-slate-600'
+                    }`}
+                  >
+                    {visibleReporters.length}人
+                  </span>
                 </button>
                 <button
                   type="button"
@@ -1242,16 +1402,23 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                   }`}
                 >
                   <ShieldCheck className="h-3.5 w-3.5" />
-                  审核员榜
+                  审核考核
+                  <span
+                    className={`rounded-md px-1.5 py-0.5 font-mono text-[10px] font-bold ${
+                      perspective === 'audit' ? 'bg-white/20 text-white' : 'bg-slate-200/80 text-slate-600'
+                    }`}
+                  >
+                    {visibleAuditors.length}人
+                  </span>
                 </button>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <MultiFilterSelect
-                  ariaLabel="按组织节点筛选"
-                  placeholder="全部组织节点"
-                  options={orgRecords.map((org) => org.name)}
-                  selected={personOrgFilter}
+                <OrgFilterSelect
+                  value={personOrgFilter}
                   onChange={setPersonOrgFilter}
+                  allLabel="全部组织节点"
+                  title="按组织树逐级下钻筛选（含下级）"
+                  triggerClassName="!min-h-8 !h-8 !rounded-xl !border-slate-200 !shadow-xs !text-xs !min-w-[168px] !max-w-[220px]"
                 />
                 <MultiFilterSelect
                   ariaLabel="按群组筛选"
@@ -1263,28 +1430,28 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                 <span className="text-xs font-medium text-slate-500">排序维度:</span>
                 {perspective === 'report' ? (
                   <select
-                    aria-label="网格员排名排序"
+                    aria-label="报送考核排名排序"
                     value={reporterSort}
                     onChange={(e) => setReporterSort(e.target.value)}
                     className="min-h-8 cursor-pointer rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 outline-none shadow-xs transition hover:border-slate-300 focus:border-[#1D58C9]"
                   >
-                    <option value="score">按综合得分排名</option>
-                    <option value="adopted">按采纳数排名</option>
-                    <option value="firstCount">按首发数排名</option>
+                    <option value="adopted">按累计采纳量排名</option>
+                    <option value="total">按累计报送量排名</option>
                     <option value="directRate">按首审直通率排名</option>
                     <option value="passRate">按整体采纳率排名</option>
+                    <option value="score">按综合得分排名</option>
                     <option value="avgScore">按平均得分排名</option>
                   </select>
                 ) : (
                   <select
-                    aria-label="审核员排名排序"
+                    aria-label="审核考核排名排序"
                     value={auditorSort}
                     onChange={(e) => setAuditorSort(e.target.value)}
                     className="min-h-8 cursor-pointer rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 outline-none shadow-xs transition hover:border-slate-300 focus:border-[#1D58C9]"
                   >
-                    <option value="audited">按累计审核数排名</option>
+                    <option value="audited">按累计处理次数排名</option>
                     <option value="rate">按审核处理率排名</option>
-                    <option value="time">按平均响应时长 (最快)</option>
+                    <option value="time">按平均审核耗时 (最快)</option>
                   </select>
                 )}
                 {renderExportButton()}
@@ -1293,12 +1460,13 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
 
             <div className="overflow-x-auto">
               {perspective === 'report' ? (
-                <table className="w-full min-w-[1080px] text-left text-xs">
+                <table className="w-full min-w-[1180px] text-left text-xs">
                   <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-700">
                     <tr>
                       <th className="w-24 px-3 py-3.5 text-center font-semibold">全域排名</th>
-                      <th className="px-3 py-3.5 font-semibold">网格员 / 组织节点 / 群组</th>
-                      <th className="px-3 py-3.5 text-center font-semibold">累计采纳数 (首发/重复)</th>
+                      <th className="px-3 py-3.5 font-semibold">人员 / 组织节点 / 群组</th>
+                      <th className="px-3 py-3.5 text-center font-semibold">累计报送量 (日均)</th>
+                      <th className="px-3 py-3.5 text-center font-semibold">累计采纳量 (重复/首发/其他)</th>
                       <th className="px-3 py-3.5 text-center font-semibold">首审直通率 (通过/总件数)</th>
                       <th className="px-3 py-3.5 text-center font-semibold">整体采纳率 (通过/总件数)</th>
                       <th className="px-3 py-3.5 text-center font-semibold">综合得分</th>
@@ -1308,7 +1476,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                   <tbody className="divide-y divide-slate-100">
                     {pagedReporters.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="py-12 text-center text-slate-400">没有符合条件的网格员</td>
+                        <td colSpan={8} className="py-12 text-center text-slate-400">没有符合条件的报送考核人员</td>
                       </tr>
                     ) : (
                       pagedReporters.map((row) => (
@@ -1321,12 +1489,18 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                             <div className="mt-0.5 text-[11px] text-slate-400">{row.org}</div>
                             <div className="mt-0.5 text-[11px] text-slate-400">{row.group}</div>
                           </td>
-                          <td className="px-3 py-3.5 text-center">
+                          <td className={`px-3 py-3.5 text-center font-mono ${reporterSort === 'total' ? 'bg-blue-50/40' : ''}`}>
+                            <div className="font-mono text-xs font-bold text-slate-800">{row.total} 件</div>
+                            <div className="mt-0.5 text-[11px] text-slate-400">日均 {round1(row.total / EVAL_PERIOD_DAYS)}</div>
+                          </td>
+                          <td className={`px-3 py-3.5 text-center ${reporterSort === 'adopted' ? 'bg-emerald-50/40' : ''}`}>
                             <div className="font-mono text-xs font-bold text-[#08B889]">{row.adoptedCount} 件</div>
                           <div className="mt-0.5 text-[11px]">
+                            <span className="font-medium text-[#2F74FF]">重复 {row.repeatCount}</span>
+                            <span className="mx-1 text-slate-300">/</span>
                             <span className="font-medium text-[#08B889]">首发 {row.firstCount}</span>
                             <span className="mx-1 text-slate-300">/</span>
-                            <span className="font-medium text-[#2F74FF]">重复 {row.repeatCount}</span>
+                            <span className="font-medium text-slate-600">其他 {row.otherCount}</span>
                           </div>
                         </td>
                           <td className="px-3 py-3.5 text-center">
@@ -1359,16 +1533,16 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                   <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-700">
                     <tr>
                       <th className="w-24 px-3 py-3.5 text-center font-semibold">全域排名</th>
-                      <th className="px-3 py-3.5 font-semibold">审核员 / 组织节点 / 群组</th>
-                      <th className="px-3 py-3.5 text-center font-semibold">累计审核数 (通过/驳回)</th>
-                      <th className="px-3 py-3.5 text-center font-semibold">审核处理率 (已办/待审)</th>
-                      <th className="px-3 py-3.5 text-center font-semibold">平均审核响应时长</th>
+                      <th className="px-3 py-3.5 font-semibold">人员 / 组织节点 / 群组</th>
+                      <th className="px-3 py-3.5 text-center font-semibold">累计处理 (通过处理/驳回处理)</th>
+                      <th className="px-3 py-3.5 text-center font-semibold">审核处理率 (已办/待办)</th>
+                      <th className="px-3 py-3.5 text-center font-semibold">平均审核耗时</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {pagedAuditors.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="py-12 text-center text-slate-400">没有符合条件的审核员</td>
+                        <td colSpan={5} className="py-12 text-center text-slate-400">没有符合条件的审核考核人员</td>
                       </tr>
                     ) : (
                       pagedAuditors.map((row) => (
@@ -1382,17 +1556,17 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                             <div className="mt-0.5 text-[11px] text-slate-400">{row.group}</div>
                           </td>
                           <td className="px-3 py-3.5 text-center">
-                            <div className="font-mono text-xs font-bold text-slate-800">{row.totalAudited} 件</div>
+                            <div className="font-mono text-xs font-bold text-slate-800">{row.totalAudited} 次</div>
                           <div className="mt-0.5 text-[11px]">
-                            <span className="font-medium text-[#08B889]">通过 {row.passedCount}</span>
+                            <span className="font-medium text-[#08B889]">通过处理 {row.passedCount}</span>
                             <span className="mx-1 text-slate-300">/</span>
-                            <span className="font-medium text-[#E11D48]">驳回 {row.rejectedCount}</span>
+                            <span className="font-medium text-[#E11D48]">驳回处理 {row.rejectedCount}</span>
                           </div>
                         </td>
                           <td className="px-3 py-3.5 text-center">
                             <div className="font-mono text-xs font-bold text-[#08B889]">{row.auditProcessRate}%</div>
                           <div className="mt-0.5 font-mono text-[11px] text-slate-400">
-                              已办 {row.totalAudited} / 待审 {row.reportedCount} 件
+                              已办 {row.totalAudited} / 待办 {Math.max(0, row.reportedCount - row.totalAudited)} 次
                           </div>
                         </td>
                           <td className="px-3 py-3.5 text-center">

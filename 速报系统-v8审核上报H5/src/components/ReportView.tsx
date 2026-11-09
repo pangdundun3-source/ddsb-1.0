@@ -379,7 +379,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
     onCloseForm?.();
   };
 
-  // KPI：报送待办=当前存量；累计采纳/整体采纳率/首审直通率=近7日（与审核上报PC ReportSummary 对齐）
+  // KPI：报送待办=当前存量；累计采纳量/整体采纳率/首审直通率=近7日（与审核上报PC ReportSummary 对齐）
   const toDateKey = (value?: string) => (value || '').slice(0, 10);
   const shiftDateKey = (dateKey: string, days: number) => {
     const base = new Date(`${dateKey.replace(/-/g, '/')} 00:00:00`);
@@ -419,10 +419,24 @@ export const ReportView: React.FC<ReportViewProps> = ({
       r.identificationTag === 'official_first' ||
       r.identificationTag === 'suspected_first'
   ).length;
-  const recentAdoptedFirstCount =
-    taggedFirstCount ||
-    (recentAdoptedCount > 0 ? Math.max(1, Math.round(recentAdoptedCount * 0.72)) : 0);
-  const recentAdoptedDuplicateCount = Math.max(0, recentAdoptedCount - recentAdoptedFirstCount);
+  const taggedDuplicateCount = recentAdoptedReports.filter(
+    (r) =>
+      r.identificationTag === 'official_repeat' ||
+      r.identificationTag === 'suspected_repeat'
+  ).length;
+  const hasOriginTags = taggedFirstCount > 0 || taggedDuplicateCount > 0;
+  const recentAdoptedFirstCount = hasOriginTags
+    ? taggedFirstCount
+    : recentAdoptedCount > 0
+      ? Math.max(1, Math.round(recentAdoptedCount * 0.7))
+      : 0;
+  const recentAdoptedDuplicateCount = hasOriginTags
+    ? taggedDuplicateCount
+    : Math.max(0, Math.round(recentAdoptedCount * 0.22));
+  const recentAdoptedOtherCount = Math.max(
+    0,
+    recentAdoptedCount - recentAdoptedFirstCount - recentAdoptedDuplicateCount,
+  );
 
   const reportListItems = reports.filter((r) => !isTransferRelatedReport(r));
 
@@ -924,10 +938,10 @@ export const ReportView: React.FC<ReportViewProps> = ({
                 <span className="absolute right-0.5 top-0.5 scale-90 origin-top-right rounded px-0.5 py-px text-[7px] font-bold leading-none text-cyan-100 bg-cyan-400/30">
                   近7日
                 </span>
-                <p className="text-[9px] text-slate-100/90 font-semibold truncate pr-5">累计采纳</p>
+                <p className="text-[9px] text-slate-100/90 font-semibold truncate pr-5">累计采纳量</p>
                 <p className="mt-1 text-base leading-none font-black font-mono text-white">{recentAdoptedCount}</p>
                 <p className="mt-0.5 text-[8px] leading-tight text-slate-200/75 truncate">
-                  首{recentAdoptedFirstCount}·重{recentAdoptedDuplicateCount}
+                  首{recentAdoptedFirstCount}·重{recentAdoptedDuplicateCount}·其他{recentAdoptedOtherCount}
                 </p>
               </div>
               <div className="relative min-w-0 rounded-lg border border-white/20 bg-white/15 px-1.5 py-1.5">

@@ -117,12 +117,12 @@ export const AllOrgMacroSection: React.FC<AllOrgMacroSectionProps> = ({ onSelect
           </div>
         </div>
 
-        {/* Metric 4: 审核响应均时 */}
+        {/* Metric 4: 平均审核耗时 */}
         <div className="bg-gradient-to-br from-amber-50/80 to-white p-3.5 rounded-xl border border-amber-100/90 shadow-2xs space-y-1.5">
           <div className="flex items-center justify-between text-gray-500">
             <span className="text-[11px] font-bold flex items-center space-x-1">
               <Clock className="w-3.5 h-3.5 text-amber-600" />
-              <span>全域审核响应</span>
+              <span>平均审核耗时</span>
             </span>
             <span className="text-[9px] bg-amber-100/70 text-amber-800 font-bold px-1.5 py-0.2 rounded">
               流转时效

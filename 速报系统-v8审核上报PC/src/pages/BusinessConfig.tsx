@@ -448,7 +448,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
       },
       {
         id: 'sm_107',
-        name: '平均审核响应与流转处置耗时',
+        name: '平均审核耗时与流转处置耗时',
         isDefault: true,
         status: '启用',
         updateTime: '2023-10-01 00:00:00',
@@ -459,7 +459,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
         timeDimension: 'multi',
         unit: '分钟',
         precision: 'decimal_1',
-        targetBenchmark: '平均审核响应 ≤ 15 分钟'
+        targetBenchmark: '平均审核耗时 ≤ 15 分钟'
       },
       {
         id: 'sm_108',
@@ -2776,7 +2776,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
                       >
                         <option value="count">基础计数 (COUNT / SUM 累加)</option>
                         <option value="rate">比例转化 (通过率 / 办结率 / 采纳率 %)</option>
-                        <option value="avg">均值耗时 (AVG 审核响应 / 处置时长)</option>
+                        <option value="avg">均值耗时 (AVG 审核耗时 / 处置时长)</option>
                         <option value="trend">趋势对比 (日/月/年 环比与同比增幅)</option>
                         <option value="distribution">多维结构分布 (分类/渠道/机构构成占比)</option>
                       </select>
