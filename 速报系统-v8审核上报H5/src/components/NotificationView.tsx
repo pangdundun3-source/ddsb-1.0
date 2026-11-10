@@ -3,6 +3,7 @@ import { AppNotification, IdentificationTag, SpeedReport } from '../types';
 import {
   Bell,
   Megaphone,
+  Check,
   CheckCircle2,
   Clock,
   CheckCheck,
@@ -201,13 +202,13 @@ export const NotificationView: React.FC<NotificationViewProps> = ({
             {view.identificationTag && (
               <IdentificationBadge tag={view.identificationTag} size="xs" className="shrink-0" />
             )}
-            {notif.isRead ? (
-              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200/80">
-                已读
-              </span>
-            ) : (
-              <span className="shrink-0 w-2 h-2 rounded-full bg-blue-600 ring-2 ring-blue-100 mt-1" aria-label="未读" />
-            )}
+            <span className="shrink-0 w-3.5 h-3.5 mt-0.5 inline-flex items-center justify-center">
+              {notif.isRead ? (
+                <Check className="w-3.5 h-3.5 text-slate-400" strokeWidth={2.5} aria-label="已读" />
+              ) : (
+                <span className="w-2 h-2 rounded-full bg-blue-600 ring-2 ring-blue-100" aria-label="未读" />
+              )}
+            </span>
           </span>
           <span
             className={`block text-[11px] leading-relaxed line-clamp-2 ${

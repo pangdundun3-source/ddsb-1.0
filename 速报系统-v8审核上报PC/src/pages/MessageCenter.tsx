@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCheck, ChevronLeft, ChevronRight, Inbox, RotateCcw, Search } from 'lucide-react';
+import { Check, CheckCheck, ChevronLeft, ChevronRight, Inbox, RotateCcw, Search } from 'lucide-react';
 import type { NotificationItem, NotificationType } from '../types';
 import { NOTIFICATION_TYPE_META, isWithinRetention } from '../data/notifications';
 import { AnnouncementModal } from '../components/AnnouncementModal';
@@ -218,10 +218,13 @@ export const MessageCenter: React.FC<MessageCenterProps> = ({
                   const meta = NOTIFICATION_TYPE_META[item.type];
                   return (
                     <li key={item.id} className="group flex items-start gap-3 px-5 py-3.5 hover:bg-slate-50 transition-colors">
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full mt-2 shrink-0 ${item.isUnread ? 'bg-[#2563EB]' : 'bg-transparent'}`}
-                        aria-label={item.isUnread ? '未读' : undefined}
-                      />
+                      <span className="w-3.5 h-3.5 mt-1 shrink-0 inline-flex items-center justify-center">
+                        {item.isUnread ? (
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#2563EB]" aria-label="未读" />
+                        ) : (
+                          <Check className="w-3.5 h-3.5 text-slate-400" strokeWidth={2.5} aria-label="已读" />
+                        )}
+                      </span>
                       <button onClick={() => handleOpen(item)} className="min-w-0 flex-1 text-left cursor-pointer">
                         <span className="flex items-center gap-2 min-w-0">
                           <span className={`text-[11px] font-semibold px-1.5 py-px rounded shrink-0 ${meta.tone}`}>
@@ -236,11 +239,6 @@ export const MessageCenter: React.FC<MessageCenterProps> = ({
                           </span>
                           {item.originLabel && item.originLabel !== '识别中' && (
                             <ReportOriginBadge label={item.originLabel} size="sm" className="shrink-0" />
-                          )}
-                          {!item.isUnread && (
-                            <span className="shrink-0 px-1.5 py-px rounded text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200/80">
-                              已读
-                            </span>
                           )}
                         </span>
                         <span
