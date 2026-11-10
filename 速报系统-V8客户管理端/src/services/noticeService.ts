@@ -1,7 +1,8 @@
 import { NoticeItem, NewNoticeFormData, NoticeReader } from '../types';
 import { INITIAL_NOTICES } from '../data/mockNotices';
 
-const NOTICE_STORAGE_KEY = 'ddsb_system_notices_v2';
+/** v3：刷新种子数据（含 24 小时撤回窗口演示样例） */
+const NOTICE_STORAGE_KEY = 'ddsb_system_notices_v3';
 
 export const getStoredNotices = (): NoticeItem[] => {
   try {

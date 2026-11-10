@@ -58,28 +58,82 @@ export const InstitutionBusinessConfig: React.FC<InstitutionBusinessConfigProps>
       .filter((item) => !kw || item.name.includes(kw));
   }, [institutions, keyword, statusTab]);
 
+  const hasKeyword = Boolean(keyword.trim());
+  const listEmpty = visibleInstitutions.length === 0;
+
+  // 主从联动：筛空则清空选中；有结果但当前不在列表中则选第一项
+  useEffect(() => {
+    if (listEmpty) {
+      if (selectedId !== null) setSelectedId(null);
+      return;
+    }
+    const stillVisible = visibleInstitutions.some((item) => item.id === selectedId);
+    if (!stillVisible) {
+      setSelectedId(visibleInstitutions[0].id);
+    }
+  }, [listEmpty, visibleInstitutions, selectedId]);
+
   const changeStatusTab = (tab: StatusTab) => {
     setStatusTab(tab);
-    const selected = institutions.find((item) => item.id === selectedId);
-    if (!selected || isExpired(selected) !== (tab === 'expired')) {
-      setSelectedId(institutions.find((item) => isExpired(item) === (tab === 'expired'))?.id ?? null);
-    }
+    const firstInTab = institutions.find((item) => isExpired(item) === (tab === 'expired'));
+    setSelectedId(firstInTab?.id ?? null);
     try {
       localStorage.setItem(STATUS_TAB_STORAGE_KEY, tab);
     } catch {
       // Local storage can be disabled in private or restricted browser contexts.
     }
   };
-  const selectedInstitution = institutions.find((item) => item.id === selectedId) ?? null;
+
+  const clearKeyword = () => setKeyword('');
+
+  const selectedInstitution =
+    selectedId !== null && visibleInstitutions.some((item) => item.id === selectedId)
+      ? (institutions.find((item) => item.id === selectedId) ?? null)
+      : null;
 
   useEffect(() => {
-    if (selectedId === null) return;
+    if (selectedId === null) {
+      try {
+        localStorage.removeItem(SELECTED_STORAGE_KEY);
+      } catch {
+        // ignore
+      }
+      return;
+    }
     try {
       localStorage.setItem(SELECTED_STORAGE_KEY, String(selectedId));
     } catch {
       // Local storage can be disabled in private or restricted browser contexts.
     }
   }, [selectedId]);
+
+  const renderRightEmpty = () => {
+    if (listEmpty && hasKeyword) {
+      return (
+        <div className="h-full min-h-[440px] flex flex-col items-center justify-center text-center px-6">
+          <span className="material-symbols-outlined text-[48px] text-gray-300 mb-2">search_off</span>
+          <div className="text-sm font-semibold text-gray-700">当前筛选下暂无机构</div>
+        </div>
+      );
+    }
+
+    if (listEmpty) {
+      return (
+        <div className="h-full min-h-[440px] flex flex-col items-center justify-center text-center px-6">
+          <span className="material-symbols-outlined text-[48px] text-gray-300 mb-2">domain_disabled</span>
+          <div className="text-sm font-semibold text-gray-700">
+            当前分类下暂无{statusTab === 'opened' ? '已开通' : '已到期'}机构
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="h-full min-h-[440px] flex items-center justify-center text-sm text-gray-400">
+        请选择左侧机构
+      </div>
+    );
+  };
 
   return (
     <div className="p-6 flex-1 flex flex-col gap-4 min-w-[1024px] w-full">
@@ -128,7 +182,7 @@ export const InstitutionBusinessConfig: React.FC<InstitutionBusinessConfigProps>
               {keyword && (
                 <button
                   type="button"
-                  onClick={() => setKeyword('')}
+                  onClick={clearKeyword}
                   aria-label="清空机构搜索"
                   title="清空搜索"
                   className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600 rounded cursor-pointer"
@@ -139,8 +193,21 @@ export const InstitutionBusinessConfig: React.FC<InstitutionBusinessConfigProps>
             </div>
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-0.5">
-            {visibleInstitutions.length === 0 ? (
-              <div className="py-10 text-center text-xs text-gray-400">未找到匹配的机构</div>
+            {listEmpty ? (
+              <div className="py-10 px-2 text-center space-y-2">
+                <div className="text-xs text-gray-400">
+                  {hasKeyword ? '未找到匹配的机构' : `暂无${statusTab === 'opened' ? '已开通' : '已到期'}机构`}
+                </div>
+                {hasKeyword && (
+                  <button
+                    type="button"
+                    onClick={clearKeyword}
+                    className="text-[11px] text-[#1890ff] hover:underline cursor-pointer"
+                  >
+                    清空搜索
+                  </button>
+                )}
+              </div>
             ) : (
               visibleInstitutions.map((institution) => {
                 const active = institution.id === selectedId;
@@ -182,7 +249,7 @@ export const InstitutionBusinessConfig: React.FC<InstitutionBusinessConfigProps>
               showToast={(msg) => onShowToast?.(msg)}
             />
           ) : (
-            <div className="h-full min-h-[440px] flex items-center justify-center text-sm text-gray-400">请选择左侧机构</div>
+            renderRightEmpty()
           )}
         </div>
       </div>

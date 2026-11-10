@@ -230,7 +230,8 @@ export const INITIAL_NOTICES: NoticeItem[] = [
     targetOrgs: ['台中市网信办', '市公安局网安支队', '市委统战部', '市融媒体中心'],
     publisher: '孙网安 (网安应急处)',
     publishOrg: '台中市网信办',
-    publishTime: '2026-08-24 16:20',
+    // 原型演示：落在当前演示日 24 小时窗口内，便于验证「限时撤回」
+    publishTime: '2026-11-09 08:30',
     status: '已发布',
     isPinned: false,
     summary: '针对近期利用生成式AI技术伪造社会治安与民生虚假音视频的新趋势提出4点核查防范措施。',

@@ -197,16 +197,50 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
     return { total, published, urgent, drafts, confirmNeeded, avgReadRate };
   }, [notices]);
 
+  /** 发布后可撤回时限（小时） */
+  const RECALL_WINDOW_HOURS = 24;
+
+  /** 是否为我发布的公告（撤回仅针对此类数据） */
+  const isMyNotice = (item: NoticeItem) =>
+    item.publisher.includes(currentUser) || item.publishOrg.includes(currentOrg);
+
+  const parseNoticeTime = (value: string) => {
+    const parsed = new Date(value.trim().replace(/-/g, '/'));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  /** 是否仍在发布后 24 小时撤回窗口内 */
+  const isWithinRecallWindow = (item: NoticeItem) => {
+    const publishedAt = parseNoticeTime(item.publishTime);
+    if (!publishedAt) return false;
+    return Date.now() - publishedAt.getTime() <= RECALL_WINDOW_HOURS * 60 * 60 * 1000;
+  };
+
+  /** 可撤回：本人发布 + 已发布 + 未超 24 小时 */
+  const canRecallNotice = (item: NoticeItem) =>
+    item.status === '已发布' && isMyNotice(item) && isWithinRecallWindow(item);
+
+  const recallWindowHint = (item: NoticeItem) => {
+    const publishedAt = parseNoticeTime(item.publishTime);
+    if (!publishedAt) return `仅发布后 ${RECALL_WINDOW_HOURS} 小时内可撤回`;
+    const remainMs = RECALL_WINDOW_HOURS * 60 * 60 * 1000 - (Date.now() - publishedAt.getTime());
+    if (remainMs <= 0) return `已超过 ${RECALL_WINDOW_HOURS} 小时，不可撤回`;
+    const remainH = Math.max(1, Math.ceil(remainMs / (60 * 60 * 1000)));
+    return `发布后 ${RECALL_WINDOW_HOURS} 小时内可撤回（剩余约 ${remainH} 小时）`;
+  };
+
   // Filtered notice items
   const filteredNotices = useMemo(() => {
     return notices
       .filter((item) => {
         // Tab Filter
-        if (activeTab === 'mine' && !item.publisher.includes(currentUser) && !item.publishOrg.includes(currentOrg)) {
-          return false;
+        if (activeTab === 'mine') {
+          if (!isMyNotice(item)) return false;
+          // 草稿只在草稿箱；「我发布的」展示已发布/已撤回
+          if (item.status === '草稿') return false;
         }
         if (activeTab === 'draft' && item.status !== '草稿') return false;
-        if (activeTab !== 'draft' && item.status === '草稿' && activeTab !== 'mine') return false;
+        if (activeTab === 'all' && item.status === '草稿') return false;
 
         // Category Filter
         if (selectedCategory !== 'all' && item.category !== selectedCategory) return false;
@@ -380,6 +414,15 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
 
   const handleRecall = (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
+    const targetNotice = notices.find((n) => n.id === id);
+    if (!targetNotice || !canRecallNotice(targetNotice)) {
+      if (targetNotice && isMyNotice(targetNotice) && targetNotice.status === '已发布' && !isWithinRecallWindow(targetNotice)) {
+        showToast(`发布已超过 ${RECALL_WINDOW_HOURS} 小时，不可撤回`);
+      } else {
+        showToast('仅可撤回本人已发布且未超 24 小时的公告');
+      }
+      return;
+    }
     const updated = notices.map((n) =>
       n.id === id ? { ...n, status: '已撤回' as NoticeStatus } : n
     );
@@ -1357,7 +1400,7 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
               </button>
             </div>
 
-            {selectedNotice.status !== '已发布' && (
+            {selectedNotice.status === '草稿' && (
               <button
                 onClick={() => handleStartEdit(selectedNotice, 'detail')}
                 className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center space-x-1.5"
@@ -1367,24 +1410,36 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
               </button>
             )}
 
-            {selectedNotice.status === '已发布' && (
+            {selectedNotice.status === '已发布' && isMyNotice(selectedNotice) && canRecallNotice(selectedNotice) && (
               <button
                 onClick={(e) => handleRecall(selectedNotice.id, e)}
                 className="px-3.5 py-2 bg-white hover:bg-amber-50 text-slate-700 hover:text-amber-700 border border-slate-200 text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center space-x-1.5"
-                title="撤回该公告"
+                title={recallWindowHint(selectedNotice)}
               >
                 <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
                 <span>撤回</span>
               </button>
             )}
+            {selectedNotice.status === '已发布' &&
+              isMyNotice(selectedNotice) &&
+              !isWithinRecallWindow(selectedNotice) && (
+                <span
+                  className="px-3 py-2 text-[11px] font-medium text-slate-400 border border-dashed border-slate-200 rounded-xl"
+                  title={recallWindowHint(selectedNotice)}
+                >
+                  已超 24 小时不可撤回
+                </span>
+              )}
 
-            <button
-              onClick={() => setDeleteConfirmNotice(selectedNotice)}
-              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-xl transition-colors cursor-pointer"
-              title="删除公文"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+            {selectedNotice.status === '草稿' && (
+              <button
+                onClick={() => setDeleteConfirmNotice(selectedNotice)}
+                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-xl transition-colors cursor-pointer"
+                title="删除公文"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -1781,31 +1836,38 @@ export const NoticeManagement: React.FC<NoticeManagementProps> = ({
                             <Eye className="w-3 h-3" />
                             <span>详情</span>
                           </button>
-                          {notice.status !== '已发布' && (
-                            <button
-                              onClick={() => handleStartEdit(notice, 'list')}
-                              className="p-1 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors cursor-pointer"
-                              title="编辑公文详情"
-                            >
-                              <Edit className="w-3.5 h-3.5" />
-                            </button>
+                          {/* 草稿箱：详情 + 编辑 + 删除 */}
+                          {activeTab === 'draft' && (
+                            <>
+                              <button
+                                onClick={() => handleStartEdit(notice, 'list')}
+                                className="px-2.5 py-1 bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-blue-700 rounded text-[11px] font-bold transition-colors cursor-pointer flex items-center space-x-1"
+                                title="编辑公文详情"
+                              >
+                                <Edit className="w-3 h-3" />
+                                <span>编辑</span>
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirmNotice(notice)}
+                                className="px-2.5 py-1 bg-slate-50 hover:bg-rose-50 text-slate-500 hover:text-rose-600 rounded text-[11px] font-bold transition-colors cursor-pointer flex items-center space-x-1"
+                                title="删除公文"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                <span>删除</span>
+                              </button>
+                            </>
                           )}
-                          {notice.status === '已发布' && (
+                          {/* 全部公告 / 我发布的：详情 + 撤回（本人发布且 24 小时内） */}
+                          {activeTab !== 'draft' && canRecallNotice(notice) && (
                             <button
                               onClick={(e) => handleRecall(notice.id, e)}
-                              className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors cursor-pointer"
-                              title="撤回公告"
+                              className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded text-[11px] font-bold transition-colors cursor-pointer flex items-center space-x-1"
+                              title={recallWindowHint(notice)}
                             >
-                              <RotateCcw className="w-3.5 h-3.5" />
+                              <RotateCcw className="w-3 h-3" />
+                              <span>撤回</span>
                             </button>
                           )}
-                          <button
-                            onClick={() => setDeleteConfirmNotice(notice)}
-                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
-                            title="删除公文"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
                         </div>
                       </td>
                     </tr>

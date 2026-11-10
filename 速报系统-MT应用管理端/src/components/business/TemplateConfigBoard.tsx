@@ -130,6 +130,8 @@ export interface BusinessTemplateItem {
   /** 平台全局设为标准模板后，全局与机构新增模板时可直接调用 */
   isPreset?: boolean;
   status: '启用' | '停用';
+  /** 创建时间；缺省时排序回退到 updateTime */
+  createTime?: string;
   updateTime: string;
   description: string;
   fields: TemplateFieldItem[];
@@ -532,6 +534,7 @@ const initialDefaultTemplates: BusinessTemplateItem[] = [
     templateType: '报送',
     isDefault: true,
     status: '启用',
+    createTime: '2023-10-24 10:00:00',
     updateTime: '2023-10-24 10:00:00',
     description: '适用于日常标准文字、图片、附件类线索报送场景',
     fields: standardReportFields,
@@ -546,6 +549,7 @@ const initialDefaultTemplates: BusinessTemplateItem[] = [
     templateType: '报送',
     isDefault: false,
     status: '启用',
+    createTime: '2023-11-02 14:30:22',
     updateTime: '2023-11-02 14:30:22',
     description: '精简版快速通道，优先确保应急态势快速流转',
     fields: [
@@ -565,6 +569,7 @@ const initialDefaultTemplates: BusinessTemplateItem[] = [
     templateType: '激活',
     isDefault: true,
     status: '启用',
+    createTime: '2023-10-25 11:20:00',
     updateTime: '2023-10-25 11:20:00',
     description: '新用户与网格人员入驻时统一采用的实名核验与激活标准表单',
     fields: standardActivationFields,
@@ -581,6 +586,7 @@ const initialDefaultTemplates: BusinessTemplateItem[] = [
     templateType: '激活',
     isDefault: false,
     status: '启用',
+    createTime: '2023-11-01 09:40:15',
     updateTime: '2023-11-01 09:40:15',
     description: '专用于一线直报员与特约网格员的快速身份激活通道',
     fields: [
@@ -1065,34 +1071,63 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   // Filter templates by current top tab
   const currentCategoryTemplates = templates.filter(t => t.templateType === topTab);
 
-  // Active preview template object
+  const parseTemplateTimeMs = (value?: string) => {
+    if (!value) return 0;
+    const ms = new Date(value.trim().replace(/-/g, '/')).getTime();
+    return Number.isNaN(ms) ? 0 : ms;
+  };
+  const templateCreateTimeMs = (t: BusinessTemplateItem) =>
+    parseTemplateTimeMs(t.createTime || t.updateTime);
+  const normalizedTemplateKeyword = templateSearchKeyword.trim().toLowerCase();
+  // 启用在前、停用在后；各组按创建时间倒序
+  const visibleTemplates = [...currentCategoryTemplates]
+    .filter(t =>
+      !normalizedTemplateKeyword ||
+      t.name.toLowerCase().includes(normalizedTemplateKeyword) ||
+      (t.description || '').toLowerCase().includes(normalizedTemplateKeyword)
+    )
+    .sort((a, b) => {
+      const aOff = a.status === '启用' ? 0 : 1;
+      const bOff = b.status === '启用' ? 0 : 1;
+      if (aOff !== bOff) return aOff - bOff;
+      return templateCreateTimeMs(b) - templateCreateTimeMs(a);
+    });
+  const templateListEmpty = visibleTemplates.length === 0;
+  const hasTemplateKeyword = Boolean(normalizedTemplateKeyword);
+
+  // Active preview：仅取当前可见列表，筛空时不回落到筛外模板
   const activeTemplate =
-    currentCategoryTemplates.find(t => t.id === selectedTemplateId) ||
-    currentCategoryTemplates[0] ||
-    templates[0];
+    visibleTemplates.find(t => t.id === selectedTemplateId) ||
+    visibleTemplates[0] ||
+    null;
+
+  const pendingForActive =
+    activeTemplate && pendingOtherConfig?.templateId === activeTemplate.id
+      ? pendingOtherConfig
+      : null;
 
   // Active scoreRuleId with pending state fallback
   const currentScoreRuleId =
-    pendingOtherConfig?.templateId === activeTemplate?.id && pendingOtherConfig.scoreRuleId !== undefined
-      ? pendingOtherConfig.scoreRuleId
+    pendingForActive?.scoreRuleId !== undefined
+      ? pendingForActive.scoreRuleId
       : activeTemplate?.scoreRuleId || '';
 
   // Active scoreTiming with pending state fallback
   const currentScoreTiming =
-    pendingOtherConfig?.templateId === activeTemplate?.id && pendingOtherConfig.scoreTiming !== undefined
-      ? pendingOtherConfig.scoreTiming
+    pendingForActive?.scoreTiming !== undefined
+      ? pendingForActive.scoreTiming
       : activeTemplate?.scoreTiming || '终审打分';
 
   // Active includeInEvaluation with pending state fallback
   const currentIncludeInEvaluation =
-    pendingOtherConfig?.templateId === activeTemplate?.id && pendingOtherConfig.includeInEvaluation !== undefined
-      ? pendingOtherConfig.includeInEvaluation
+    pendingForActive?.includeInEvaluation !== undefined
+      ? pendingForActive.includeInEvaluation
       : activeTemplate?.includeInEvaluation ?? true;
 
   // Active auditFlowId with pending state fallback
   const currentAuditFlowId =
-    pendingOtherConfig?.templateId === activeTemplate?.id && pendingOtherConfig.auditFlowId !== undefined
-      ? pendingOtherConfig.auditFlowId
+    pendingForActive?.auditFlowId !== undefined
+      ? pendingForActive.auditFlowId
       : activeTemplate?.auditFlowId || '';
 
   // Default verification options fallback
@@ -1104,8 +1139,8 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
 
   // Active verification options with pending state fallback
   const currentVerificationOptions =
-    pendingOtherConfig?.templateId === activeTemplate?.id && pendingOtherConfig.verificationOptions !== undefined
-      ? pendingOtherConfig.verificationOptions
+    pendingForActive?.verificationOptions !== undefined
+      ? pendingForActive.verificationOptions
       : activeTemplate?.verificationOptions || defaultVerificationOptions;
 
   // Default adapted roles fallback
@@ -1113,27 +1148,27 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
 
   // Active adapted roles with pending state fallback
   const currentAdaptedRoles =
-    pendingOtherConfig?.templateId === activeTemplate?.id && pendingOtherConfig.adaptedRoles !== undefined
-      ? pendingOtherConfig.adaptedRoles
+    pendingForActive?.adaptedRoles !== undefined
+      ? pendingForActive.adaptedRoles
       : activeTemplate?.adaptedRoles || defaultAdaptedRoles;
 
   // Check if there are unsaved pending changes compared to activeTemplate
   const isOtherConfigDirty = Boolean(
-    pendingOtherConfig &&
-    pendingOtherConfig.templateId === activeTemplate?.id &&
+    pendingForActive &&
+    activeTemplate &&
     (
-      (pendingOtherConfig.scoreRuleId !== undefined && pendingOtherConfig.scoreRuleId !== activeTemplate?.scoreRuleId) ||
-      (pendingOtherConfig.scoreTiming !== undefined && pendingOtherConfig.scoreTiming !== (activeTemplate?.scoreTiming || '终审打分')) ||
-      (pendingOtherConfig.includeInEvaluation !== undefined && pendingOtherConfig.includeInEvaluation !== (activeTemplate?.includeInEvaluation ?? true)) ||
-      (pendingOtherConfig.auditFlowId !== undefined && pendingOtherConfig.auditFlowId !== activeTemplate?.auditFlowId) ||
-      (pendingOtherConfig.verificationOptions !== undefined && (
-        pendingOtherConfig.verificationOptions.phoneVerify !== (activeTemplate?.verificationOptions?.phoneVerify ?? defaultVerificationOptions.phoneVerify) ||
-        pendingOtherConfig.verificationOptions.idCardVerify !== (activeTemplate?.verificationOptions?.idCardVerify ?? defaultVerificationOptions.idCardVerify) ||
-        pendingOtherConfig.verificationOptions.bankCardVerify !== (activeTemplate?.verificationOptions?.bankCardVerify ?? defaultVerificationOptions.bankCardVerify)
+      (pendingForActive.scoreRuleId !== undefined && pendingForActive.scoreRuleId !== activeTemplate.scoreRuleId) ||
+      (pendingForActive.scoreTiming !== undefined && pendingForActive.scoreTiming !== (activeTemplate.scoreTiming || '终审打分')) ||
+      (pendingForActive.includeInEvaluation !== undefined && pendingForActive.includeInEvaluation !== (activeTemplate.includeInEvaluation ?? true)) ||
+      (pendingForActive.auditFlowId !== undefined && pendingForActive.auditFlowId !== activeTemplate.auditFlowId) ||
+      (pendingForActive.verificationOptions !== undefined && (
+        pendingForActive.verificationOptions.phoneVerify !== (activeTemplate.verificationOptions?.phoneVerify ?? defaultVerificationOptions.phoneVerify) ||
+        pendingForActive.verificationOptions.idCardVerify !== (activeTemplate.verificationOptions?.idCardVerify ?? defaultVerificationOptions.idCardVerify) ||
+        pendingForActive.verificationOptions.bankCardVerify !== (activeTemplate.verificationOptions?.bankCardVerify ?? defaultVerificationOptions.bankCardVerify)
       )) ||
-      (pendingOtherConfig.adaptedRoles !== undefined && (
-        pendingOtherConfig.adaptedRoles.length !== (activeTemplate?.adaptedRoles || defaultAdaptedRoles).length ||
-        pendingOtherConfig.adaptedRoles.some(r => !(activeTemplate?.adaptedRoles || defaultAdaptedRoles).includes(r))
+      (pendingForActive.adaptedRoles !== undefined && (
+        pendingForActive.adaptedRoles.length !== (activeTemplate.adaptedRoles || defaultAdaptedRoles).length ||
+        pendingForActive.adaptedRoles.some(r => !(activeTemplate.adaptedRoles || defaultAdaptedRoles).includes(r))
       ))
     )
   );
@@ -1147,30 +1182,20 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     setSelectedTemplateId(id);
   };
 
-  const templateSortRank = (t: BusinessTemplateItem) =>
-    t.status !== '启用' ? 2 : isGlobalScope && t.isPreset ? 0 : 1;
-  const normalizedTemplateKeyword = templateSearchKeyword.trim().toLowerCase();
-  const visibleTemplates = [...currentCategoryTemplates]
-    .filter(t =>
-      !normalizedTemplateKeyword ||
-      t.name.toLowerCase().includes(normalizedTemplateKeyword) ||
-      (t.description || '').toLowerCase().includes(normalizedTemplateKeyword)
-    )
-    .sort((a, b) => templateSortRank(a) - templateSortRank(b));
   const [presetTipClosed, setPresetTipClosed] = useState(false);
   const showPresetTip =
     isGlobalScope && !presetTipClosed && !currentCategoryTemplates.some(t => t.isPreset && t.status === '启用');
 
-
-  // Auto ensure valid selectedTemplateId on topTab change
+  // 主从联动：筛空清空选中；有结果但当前不在可见列表则选第一项
   useEffect(() => {
-    const matched = templates.filter(t => t.templateType === topTab);
-    if (!matched.some(t => t.id === selectedTemplateId)) {
-      if (matched.length > 0) {
-        setSelectedTemplateId(matched[0].id);
-      }
+    if (templateListEmpty) {
+      if (selectedTemplateId) setSelectedTemplateId('');
+      return;
     }
-  }, [topTab, templates]);
+    if (!visibleTemplates.some(t => t.id === selectedTemplateId)) {
+      setSelectedTemplateId(visibleTemplates[0].id);
+    }
+  }, [templateListEmpty, visibleTemplates, selectedTemplateId]);
 
   // Toggle template enabled status
   const handleToggleTemplateStatus = async (id: string, e?: React.MouseEvent) => {
@@ -1464,6 +1489,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
         name: designerName.trim(),
         description: designerDesc.trim(),
         fields: fieldsToSave,
+        createTime: nowStr,
         updateTime: nowStr
       };
       const updated = [...templates, newItem];
@@ -2921,6 +2947,26 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   // =========================================================================
   const isActivationMode = topTab === '激活';
 
+  const renderTemplatePanelEmpty = () => {
+    if (templateListEmpty && hasTemplateKeyword) {
+      return (
+        <div className="h-full min-h-[360px] flex flex-col items-center justify-center text-center px-6">
+          <span className="material-symbols-outlined text-[48px] text-gray-300 mb-2">search_off</span>
+          <div className="text-sm font-semibold text-gray-700">当前筛选下暂无模板</div>
+        </div>
+      );
+    }
+    if (templateListEmpty) {
+      return (
+        <div className="h-full min-h-[360px] flex flex-col items-center justify-center text-center px-6">
+          <span className="material-symbols-outlined text-[48px] text-gray-300 mb-2">draft</span>
+          <div className="text-sm font-semibold text-gray-700">暂无{topTab}模板</div>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="space-y-4">
       {/* Floating Toast Notification */}
@@ -3049,9 +3095,9 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                 </button>
               </div>
             )}
-            {visibleTemplates.length === 0 && (
+            {templateListEmpty && (
               <div className="py-10 text-center text-[11px] text-gray-400 border border-dashed border-gray-200 rounded-xl">
-                {templateSearchKeyword.trim() ? '未找到匹配模板' : `暂无${topTab}模板`}
+                {hasTemplateKeyword ? '未找到匹配模板' : `暂无${topTab}模板`}
               </div>
             )}
             {visibleTemplates.map(tpl => {
@@ -3253,23 +3299,27 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
         {/* COLUMN 2: 移动端填报实时模拟 (Center Column, flex-1) */}
         {/* ================================================================= */}
         <div className="flex-1 min-w-0 flex flex-col bg-white lg:min-w-[320px]">
+          {templateListEmpty || !activeTemplate ? (
+            renderTemplatePanelEmpty()
+          ) : (
+            <>
           {/* Top Info Header */}
           <div className="h-[52px] px-4 border-b border-gray-200/80 flex items-center justify-between shrink-0 bg-white gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
               <span className="text-xs font-bold text-gray-800 truncate">
-                当前预览: {activeTemplate?.name}
+                当前预览: {activeTemplate.name}
               </span>
               <span
                 className={`px-1.5 py-0.2 text-[10px] font-bold rounded border shrink-0 ${
-                  activeTemplate?.status === '启用'
+                  activeTemplate.status === '启用'
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                     : 'bg-gray-100 text-gray-500 border-gray-200'
                 }`}
               >
-                {activeTemplate?.status}
+                {activeTemplate.status}
               </span>
-              {!isGlobalScope && activeTemplate?.isDefault && (
+              {!isGlobalScope && activeTemplate.isDefault && (
                 <span className="px-1.5 py-0.2 bg-gray-100 text-gray-600 text-[10px] font-bold rounded border border-gray-200 shrink-0">
                   系统默认
                 </span>
@@ -3277,7 +3327,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-            {isGlobalScope && activeTemplate && (
+            {isGlobalScope && (
               <button
                 type="button"
                 onClick={() => handleTogglePreset(activeTemplate.id)}
@@ -3297,7 +3347,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
               </button>
             )}
 
-            {(isGlobalScope || !activeTemplate?.isDefault) && (
+            {(isGlobalScope || !activeTemplate.isDefault) && (
               <button
                 type="button"
                 onClick={() => handleOpenDesigner('edit', activeTemplate)}
@@ -3325,19 +3375,21 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                 {renderPreviewDeviceToggle()}
               </div>
               <span className="text-[11px] text-gray-400">
-                共 {activeTemplate?.fields.length || 0} 个表单项 · 可直接体验输入
+                共 {activeTemplate.fields.length} 个表单项 · 可直接体验输入
               </span>
             </div>
 
             {/* Phone Mockup in Center */}
             <div className="flex-1 flex items-start justify-center pb-2">
               {renderPhoneSimulator(
-                activeTemplate?.fields || [],
-                isActivationMode ? '账号激活' : activeTemplate?.name || '快速上报',
+                activeTemplate.fields,
+                isActivationMode ? '账号激活' : activeTemplate.name || '快速上报',
                 isActivationMode
               )}
             </div>
           </div>
+            </>
+          )}
         </div>
 
         {/* Resize handle: center | right */}
@@ -3361,6 +3413,10 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
         {/* COLUMN 3: 其他业务配置 (Right Column, ~310px) */}
         {/* ================================================================= */}
         <div className="tpl-board-col-right w-full shrink-0 border-t lg:border-t-0 flex flex-col bg-white">
+          {templateListEmpty || !activeTemplate ? (
+            renderTemplatePanelEmpty()
+          ) : (
+            <>
           {/* Header */}
           <div className="h-[52px] px-4 border-b border-gray-200/80 flex items-center justify-between shrink-0 bg-white">
             <div className="flex items-center gap-1.5 text-xs font-bold text-gray-800">
@@ -3798,6 +3854,8 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
               </div>
             )}
           </div>
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -198,6 +198,8 @@ interface ConfigModuleItem {
   isDefault?: boolean;
   status: '启用' | '停用';
   activatedStatus?: '已开通' | '未开通';
+  /** 创建时间；缺省时排序回退到 updateTime */
+  createTime?: string;
   updateTime: string;
   description?: string;
   fields?: TemplateField[];
@@ -2476,6 +2478,25 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
     return matchesQuery;
   });
 
+  const parseConfigTimeMs = (value?: string) => {
+    if (!value) return 0;
+    const ms = new Date(value.trim().replace(/-/g, '/')).getTime();
+    return Number.isNaN(ms) ? 0 : ms;
+  };
+  const itemCreateTimeMs = (item: { createTime?: string; updateTime?: string }) =>
+    parseConfigTimeMs(item.createTime || item.updateTime);
+  /** 启用在前、停用在后；各组按创建时间倒序 */
+  const compareEnabledThenCreateTimeDesc = (
+    a: { status: string; createTime?: string; updateTime?: string },
+    b: { status: string; createTime?: string; updateTime?: string }
+  ) => {
+    const aOff = a.status === '启用' ? 0 : 1;
+    const bOff = b.status === '启用' ? 0 : 1;
+    if (aOff !== bOff) return aOff - bOff;
+    return itemCreateTimeMs(b) - itemCreateTimeMs(a);
+  };
+  const sortedFilteredList = [...filteredList].sort(compareEnabledThenCreateTimeDesc);
+
   const statsMetrics = (dataStore.stats_metric || []).filter(item => {
     if (metricCategoryFilter !== 'all' && item.metricCategory !== metricCategoryFilter) return false;
     if (!metricNameQuery) return true;
@@ -3391,6 +3412,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
         sortOrder: formSortOrder,
         isDefault: editingItem ? editingItem.isDefault : false,
         status: formScoreStatus,
+        createTime: editingItem?.createTime || nowStr,
         updateTime: nowStr,
         description: editingItem?.description || ''
       };
@@ -3624,6 +3646,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
           name: formName.trim(),
           isDefault: false,
           status: formScoreStatus,
+          createTime: nowStr,
           updateTime: nowStr,
           description: formDesc.trim() || '自定义打分规则组',
           totalScore: formTotalScore,
@@ -3743,6 +3766,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
         flowMode: formFlowMode,
         isDefault: editingItem ? editingItem.isDefault : false,
         status: formScoreStatus,
+        createTime: editingItem?.createTime || nowStr,
         updateTime: nowStr,
         description: formDesc.trim() || '自定义多级审核流程规则',
         relatedTemplateId: relTplId,
@@ -4143,12 +4167,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
             ) : activeModule === 'data_dict' ? (
               <div className="space-y-3">
                 {(() => {
-                  const sortedDictList = [...filteredList].sort((a, b) => {
-                    const aCat = a.dictCategory || 'reject_reason';
-                    const bCat = b.dictCategory || 'reject_reason';
-                    if (aCat !== bCat) return aCat.localeCompare(bCat);
-                    return (a.sortOrder || 999) - (b.sortOrder || 999);
-                  });
+                  const sortedDictList = sortedFilteredList;
 
                   return (
                     <>
@@ -4272,13 +4291,13 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
               </div>
             ) : activeModule === 'audit_score' ? (
               <div className="space-y-4">
-                {filteredList.length === 0 ? (
+                {sortedFilteredList.length === 0 ? (
                   <div className="py-12 text-center text-gray-400 text-xs bg-white rounded-xl border border-gray-100 shadow-2xs">
                     暂无匹配的审核打分规则
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredList.map(item => {
+                    {sortedFilteredList.map(item => {
                       const isEnabled = item.status === '启用';
                       const levels = item.scoreLevels || [];
                       return (
@@ -4584,13 +4603,13 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
               </div>
             ) : activeModule === 'audit_flow' ? (
               <div className="space-y-4">
-                {filteredList.length === 0 ? (
+                {sortedFilteredList.length === 0 ? (
                   <div className="py-12 text-center text-gray-400 text-xs bg-white rounded-xl border border-gray-100 shadow-2xs">
                     暂无相关审核流程配置
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredList.map(item => {
+                    {sortedFilteredList.map(item => {
                       const isSelected = selectedAuditFlowId === item.id;
                       const isEnabled = item.status === '启用';
 

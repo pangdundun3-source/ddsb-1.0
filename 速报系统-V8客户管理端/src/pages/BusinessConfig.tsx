@@ -242,6 +242,8 @@ interface ConfigModuleItem {
   isDefault?: boolean;
   status: '启用' | '停用';
   activatedStatus?: '已开通' | '未开通';
+  /** 创建时间；缺省时排序回退到 updateTime */
+  createTime?: string;
   updateTime: string;
   description?: string;
   fields?: TemplateField[];
@@ -2850,17 +2852,30 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     return 1; // 停用
   };
 
+  const parseConfigTimeMs = (value?: string) => {
+    if (!value) return 0;
+    const ms = new Date(value.trim().replace(/-/g, '/')).getTime();
+    return Number.isNaN(ms) ? 0 : ms;
+  };
+  const itemCreateTimeMs = (item: { createTime?: string; updateTime?: string }) =>
+    parseConfigTimeMs(item.createTime || item.updateTime);
+  /** 启用在前、停用在后；各组按创建时间倒序 */
+  const compareEnabledThenCreateTimeDesc = (a: ConfigModuleItem, b: ConfigModuleItem) => {
+    const aOff = a.status === '启用' ? 0 : 1;
+    const bOff = b.status === '启用' ? 0 : 1;
+    if (aOff !== bOff) return aOff - bOff;
+    return itemCreateTimeMs(b) - itemCreateTimeMs(a);
+  };
+
   const sortedConfigList =
-    activeModule === 'report_template'
-      ? [...filteredList].sort((a, b) => Number(a.status !== '启用') - Number(b.status !== '启用'))
-      : activeModule === 'data_dict'
-        ? [...filteredList].sort((a, b) => {
-            const categoryCompare = (a.dictCategory || 'reject_reason').localeCompare(b.dictCategory || 'reject_reason');
-            return categoryCompare || (a.sortOrder || 999) - (b.sortOrder || 999);
-          })
-        : activeModule === 'value_added'
-          ? [...filteredList].sort((a, b) => valueAddedSortRank(a) - valueAddedSortRank(b))
-          : filteredList;
+    activeModule === 'report_template' ||
+    activeModule === 'audit_score' ||
+    activeModule === 'audit_flow' ||
+    activeModule === 'data_dict'
+      ? [...filteredList].sort(compareEnabledThenCreateTimeDesc)
+      : activeModule === 'value_added'
+        ? [...filteredList].sort((a, b) => valueAddedSortRank(a) - valueAddedSortRank(b))
+        : filteredList;
 
   const statsMetrics = (dataStore.stats_metric || []).filter(item => {
     if (metricCategoryFilter !== 'all' && item.metricCategory !== metricCategoryFilter) return false;
@@ -3703,6 +3718,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       templateType: item.templateType || '报送',
       isDefault: false,
       status: item.status || '停用',
+      createTime: nowStr,
       updateTime: nowStr,
       description: item.description || '',
       fields: duplicatedFields,
@@ -3794,6 +3810,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         templateType: formTemplateType,
         isDefault: false,
         status: formScoreStatus,
+        createTime: nowStr,
         updateTime: nowStr,
         description: formDesc.trim() || `${formTemplateType}模板配置`,
         fields: savedFields
@@ -4288,6 +4305,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         sortOrder: formSortOrder,
         isDefault: editingItem ? editingItem.isDefault : false,
         status: formScoreStatus,
+        createTime: editingItem?.createTime || nowStr,
         updateTime: nowStr,
         description: formDesc.trim() || '自定义数据字典条目配置'
       };
@@ -4503,6 +4521,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
           name: formName.trim(),
           isDefault: false,
           status: formScoreStatus,
+          createTime: nowStr,
           updateTime: nowStr,
           description: formDesc.trim() || '自定义打分规则组',
           totalScore: formTotalScore,
@@ -4629,6 +4648,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         name: formName.trim(),
         isDefault: editingItem ? editingItem.isDefault : false,
         status: formScoreStatus,
+        createTime: editingItem?.createTime || nowStr,
         updateTime: nowStr,
         description: formDesc.trim() || '自定义审核流程层级规则',
         relatedTemplateId: relTplId,
@@ -4688,6 +4708,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         templateType: activeModule === 'report_template' ? formTemplateType : undefined,
         isDefault: false,
         status: activeModule === 'report_template' ? formScoreStatus : '启用',
+        createTime: nowStr,
         updateTime: nowStr,
         description: formDesc.trim() || '自定义模版配置',
         fields: activeModule === 'report_template' ? formFields : undefined
