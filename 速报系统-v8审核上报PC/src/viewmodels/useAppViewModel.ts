@@ -215,9 +215,13 @@ export const useAppViewModel = () => {
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
     try {
       // 清掉历史缓存，避免刷新仍看到上次点过的已读状态
-      ['ddsb_pc_notifications_v1', 'ddsb_pc_notifications_v2', 'ddsb_pc_notifications_v3', NOTIFICATIONS_STORAGE_KEY].forEach(
-        (key) => localStorage.removeItem(key)
-      );
+      [
+        'ddsb_pc_notifications_v1',
+        'ddsb_pc_notifications_v2',
+        'ddsb_pc_notifications_v3',
+        'ddsb_pc_notifications_v4',
+        NOTIFICATIONS_STORAGE_KEY
+      ].forEach((key) => localStorage.removeItem(key));
     } catch {
       // ignore
     }
@@ -233,12 +237,12 @@ export const useAppViewModel = () => {
     );
   };
 
-  /** 速报审核完成后，对应的待审核提醒自动转为已读 */
+  /** 速报审核完成后，对应的待办通知自动转为已读 */
   const resolvePendingNotifications = (reportIds: number[]) => {
     const now = formatNotificationTime();
     setNotifications((previous) =>
       previous.map((n) =>
-        n.type === 'audit_pending' && n.isUnread && n.relatedReportId !== undefined && reportIds.includes(n.relatedReportId)
+        n.type === 'todo' && n.isUnread && n.relatedReportId !== undefined && reportIds.includes(n.relatedReportId)
           ? { ...n, isUnread: false, readAt: now }
           : n
       )
@@ -306,7 +310,7 @@ export const useAppViewModel = () => {
         ? reports.find((report) => report.id === item.relatedReportId)
         : undefined;
 
-    if (item.type === 'audit_pending') {
+    if (item.type === 'todo') {
       if (related && related.auditStatus === '待审核') {
         setSelectedAudit(related);
         handleNavigate('audit-detail');

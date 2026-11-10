@@ -114,10 +114,10 @@ export interface ReportTemplate {
 
 export type NotificationType =
   | '平台公告'
-  | '审核结果通知'
+  | '结果通知'
   | '待办通知';
 
-/** 审核结果通知的细分结论（列表摘要/强调色用） */
+/** 结果通知的细分结论（列表摘要/强调色用） */
 export type NotificationResultKind = 'mid_pass' | 'rejected' | 'adopted' | 'transferred';
 
 export interface AppNotification {
@@ -131,7 +131,7 @@ export interface AppNotification {
   relatedReportId?: string;
   publisher?: string;
   priority?: 'normal' | 'urgent' | 'important';
-  /** 仅审核结果通知：中间通过 / 驳回 / 终审采纳 / 转办 */
+  /** 仅结果通知：中间通过 / 驳回 / 终审采纳 / 转办 */
   resultKind?: NotificationResultKind;
 }
 

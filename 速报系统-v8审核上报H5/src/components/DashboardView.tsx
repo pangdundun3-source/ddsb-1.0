@@ -59,7 +59,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       };
     }
     return {
-      badgeText: '审核结果通知',
+      badgeText: '结果通知',
       badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
       iconBg: 'bg-emerald-50 border-emerald-100 text-emerald-600',
       icon: <CheckCircle2 className="w-3.5 h-3.5" />,

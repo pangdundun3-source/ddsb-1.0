@@ -96,7 +96,7 @@ interface CardView {
   unreadBorder: string;
 }
 
-/** 类型标签只保留三类：平台公告 / 待办通知 / 审核结果通知 */
+/** 类型标签只保留三类：平台公告 / 待办通知 / 结果通知 */
 const getCardView = (notif: AppNotification, relatedReport?: SpeedReport): CardView => {
   if (notif.type === '平台公告') {
     return {
@@ -112,14 +112,14 @@ const getCardView = (notif: AppNotification, relatedReport?: SpeedReport): CardV
     };
   }
 
-  if (notif.type === '审核结果通知') {
+  if (notif.type === '结果通知') {
     const kind = resolveResultKind(notif, relatedReport);
     const summary = notif.content?.trim()
       ? notif.content
       : defaultResultSummary(kind, relatedReport, notif.content);
     const isReject = kind === 'rejected';
     return {
-      badgeText: '审核结果通知',
+      badgeText: '结果通知',
       badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
       badgeIcon: <CheckCircle2 className="w-3 h-3" />,
       title: relatedReport?.title || notif.title,

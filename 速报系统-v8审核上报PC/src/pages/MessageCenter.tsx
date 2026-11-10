@@ -7,19 +7,15 @@ import { ReportOriginBadge } from '../components/ReportOriginBadge';
 
 type ReadTab = 'unread' | 'read';
 /** 已读列表类型筛选（未读不做类型筛） */
-type TypeFilter = 'all' | 'platform_notice' | 'todo' | 'audit_result';
+type TypeFilter = 'all' | 'platform_notice' | 'todo' | 'result';
 
 const PAGE_SIZE = 10;
 
 const TYPE_FILTERS: { id: TypeFilter; label: string; match: (t: NotificationType) => boolean }[] = [
   { id: 'all', label: '全部', match: () => true },
   { id: 'platform_notice', label: '平台公告', match: (t) => t === 'platform_notice' },
-  { id: 'todo', label: '待办任务', match: (t) => t === 'audit_pending' },
-  {
-    id: 'audit_result',
-    label: '审核结果',
-    match: (t) => t === 'audit_approved' || t === 'audit_rejected'
-  }
+  { id: 'todo', label: '待办通知', match: (t) => t === 'todo' },
+  { id: 'result', label: '结果通知', match: (t) => t === 'result' }
 ];
 
 interface MessageCenterProps {
@@ -249,7 +245,9 @@ export const MessageCenter: React.FC<MessageCenterProps> = ({
                         </span>
                         <span
                           className={`mt-1 block text-xs truncate ${
-                            item.contentHighlight && item.isUnread ? 'text-[#DC2626]' : 'text-slate-500'
+                            (item.contentHighlight || item.resultKind === 'rejected') && item.isUnread
+                              ? 'text-[#DC2626] font-medium'
+                              : 'text-slate-500'
                           }`}
                           title={item.content}
                         >

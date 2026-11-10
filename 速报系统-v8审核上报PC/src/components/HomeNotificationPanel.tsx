@@ -103,7 +103,11 @@ export const HomeNotificationPanel: React.FC<HomeNotificationPanelProps> = ({
                     </div>
                     <div className="mt-1 flex items-center gap-3 text-xs">
                       <span
-                        className={`truncate flex-1 ${item.contentHighlight ? 'text-[#DC2626]' : 'text-slate-500'}`}
+                        className={`truncate flex-1 ${
+                          item.contentHighlight || item.resultKind === 'rejected'
+                            ? 'text-[#DC2626] font-medium'
+                            : 'text-slate-500'
+                        }`}
                         title={item.content}
                       >
                         {item.content}

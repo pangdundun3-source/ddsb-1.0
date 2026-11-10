@@ -20,7 +20,11 @@ export type PageId =
   | 'system-logs'
   | 'messages';
 
-export type NotificationType = 'platform_notice' | 'audit_pending' | 'audit_approved' | 'audit_rejected';
+/** 与 H5 一致：平台公告 / 待办通知 / 结果通知 */
+export type NotificationType = 'platform_notice' | 'todo' | 'result';
+
+/** 结果通知的细分结论（列表摘要/强调色用） */
+export type NotificationResultKind = 'mid_pass' | 'rejected' | 'adopted' | 'transferred';
 
 export interface NotificationItem {
   id: string;
@@ -34,6 +38,8 @@ export interface NotificationItem {
   relatedReportId?: number;
   /** 业务速报定标/预判标识，展示在标题后：疑似首发 / 疑似重复 / 首发 / 重复 */
   originLabel?: OriginTypeLabel;
+  /** 仅结果通知：中间通过 / 驳回 / 终审采纳 / 转办 */
+  resultKind?: NotificationResultKind;
   announcementContent?: string;
 }
 

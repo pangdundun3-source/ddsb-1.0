@@ -1,4 +1,4 @@
-﻿import { SpeedReport, ReportTemplate, AppNotification, UserProfile } from '../types';
+import { SpeedReport, ReportTemplate, AppNotification, UserProfile } from '../types';
 
 export const INITIAL_USER: UserProfile = {
   id: 'usr_001',
@@ -757,7 +757,7 @@ export const REPORT_TEMPLATES: ReportTemplate[] = [
 ];
 
 export const INITIAL_NOTIFICATIONS: AppNotification[] = [
-  // —— 未读：平台公告 / 待办通知 / 审核结果通知 ——
+  // —— 未读：平台公告 / 待办通知 / 结果通知 ——
   {
     id: 'notif_announcement_001',
     type: '平台公告',
@@ -790,7 +790,7 @@ export const INITIAL_NOTIFICATIONS: AppNotification[] = [
   },
   {
     id: 'notif_result_adopted_001',
-    type: '审核结果通知',
+    type: '结果通知',
     title: '智慧停车 App 升级引发市民集中反馈',
     content: '已采纳，评分 95 分',
     time: '2026-11-09 14:08',
@@ -801,7 +801,7 @@ export const INITIAL_NOTIFICATIONS: AppNotification[] = [
   },
   {
     id: 'notif_result_mid_001',
-    type: '审核结果通知',
+    type: '结果通知',
     title: '短视频平台涉及虚假宣传的群众举报核查',
     content: '审核已通过，进入下一审核节点',
     time: '2026-11-09 13:22',
@@ -812,7 +812,7 @@ export const INITIAL_NOTIFICATIONS: AppNotification[] = [
   },
   {
     id: 'notif_result_reject_001',
-    type: '审核结果通知',
+    type: '结果通知',
     title: '老旧小区改造政策解读及反馈收集',
     content: '审核已驳回，驳回原因：信息不完整，请补充现场照片与路线示意图后重新提交。',
     time: '2026-11-09 11:30',
@@ -834,7 +834,7 @@ export const INITIAL_NOTIFICATIONS: AppNotification[] = [
   // —— 已读 ——
   {
     id: 'notif_result_adopted_002',
-    type: '审核结果通知',
+    type: '结果通知',
     title: '全市防汛排涝工作舆情监测快报',
     content: '已采纳，评分 90 分',
     time: '2026-11-07 17:30',
@@ -868,7 +868,7 @@ export const INITIAL_NOTIFICATIONS: AppNotification[] = [
   },
   {
     id: 'notif_result_reject_002',
-    type: '审核结果通知',
+    type: '结果通知',
     title: '食品安全周宣传活动效果评估',
     content: '审核已驳回，驳回原因：佐证不足，请补充现场活动照片与宣传物料投放记录。',
     time: '2026-11-04 10:00',

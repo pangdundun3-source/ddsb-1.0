@@ -294,7 +294,7 @@ export default function App() {
     if (target) {
       const newNotif: AppNotification = {
         id: `notif_${Date.now()}`,
-        type: '审核结果通知',
+        type: '结果通知',
         title: target.title,
         content: `已采纳${score != null || target.score != null ? `，评分 ${score ?? target.score} 分` : ''}`,
         time: now,
@@ -327,7 +327,7 @@ export default function App() {
     if (target) {
       const newNotif: AppNotification = {
         id: `notif_${Date.now()}`,
-        type: '审核结果通知',
+        type: '结果通知',
         title: target.title,
         content: `审核已驳回，驳回原因：${reason.replace(/^驳回原因[:：]\s*/, '')}`,
         time: new Date().toISOString().replace('T', ' ').substring(0, 16),
@@ -360,7 +360,7 @@ export default function App() {
     if (target) {
       const newNotif: AppNotification = {
         id: `notif_${Date.now()}`,
-        type: '审核结果通知',
+        type: '结果通知',
         title: target.title,
         content: `已转办至 ${dept}`,
         time: new Date().toISOString().replace('T', ' ').substring(0, 16),
@@ -419,7 +419,7 @@ export default function App() {
 
     const newNotif: AppNotification = {
       id: `notif_${Date.now()}`,
-      type: '审核结果通知',
+      type: '结果通知',
       title: `同地址速报已批量通过（${idsToApprove.length} 条）`,
       content: score != null ? `已采纳，评分 ${score} 分` : '审核已通过，进入下一审核节点',
       time: new Date().toISOString().replace('T', ' ').substring(0, 16),
