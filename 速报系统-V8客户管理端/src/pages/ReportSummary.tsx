@@ -347,6 +347,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
             <div className="flex items-center space-x-2 text-xs shrink-0">
               <span className="text-gray-500 whitespace-nowrap hidden sm:inline">报送时间:</span>
               <DateRangeField
+                variant="native"
                 startValue={startDate}
                 endValue={endDate}
                 onStartChange={setStartDate}

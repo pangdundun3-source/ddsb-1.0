@@ -260,6 +260,7 @@ export default function App() {
             auditPendingList={reports.filter((report) => report.auditStatus === '待审核')}
             allReports={reports}
             initialDrawerReport={activePage === 'audit-detail' ? selectedAudit : null}
+            currentUser="张三"
             onSelectAudit={setSelectedAudit}
             onApproveAudit={handleApproveAudit}
             onRejectAudit={handleRejectAudit}

@@ -33,6 +33,8 @@ interface ReportAuditProps {
   auditPendingList: ReportItem[];
   allReports?: ReportItem[];
   initialDrawerReport?: ReportItem | null;
+  /** 当前登录账号，审核人筛选默认选中 */
+  currentUser?: string;
   onSelectAudit: (report: ReportItem) => void;
   onApproveAudit?: (id: number, score?: number, isBatch?: boolean) => void;
   onRejectAudit?: (id: number, reason: string, detail: string) => void;
@@ -42,10 +44,29 @@ interface ReportAuditProps {
   onNavigate: (page: PageId) => void;
 }
 
+const matchesAuditorFilter = (item: ReportItem, selected: string, currentUser: string) => {
+  if (!selected) return true;
+  const auditor = (item.auditor || '').trim();
+  if (
+    auditor === selected ||
+    auditor.startsWith(`${selected} `) ||
+    auditor.startsWith(`${selected}(`) ||
+    auditor.startsWith(`${selected}（`)
+  ) {
+    return true;
+  }
+  // 待审且未指定审核人：归入当前账号待办
+  if (selected === currentUser && item.auditStatus === '待审核' && !auditor) {
+    return true;
+  }
+  return false;
+};
+
 export const ReportAudit: React.FC<ReportAuditProps> = ({
   auditPendingList,
   allReports = [],
   initialDrawerReport,
+  currentUser = '张三',
   onSelectAudit,
   onApproveAudit,
   onRejectAudit,
@@ -57,7 +78,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
   // Navigation tabs & Filter States
   const [activeTab, setActiveTab] = useState<'待审核' | '已驳回' | '已通过' | '已采纳' | '全部'>('待审核');
   const [keyword, setKeyword] = useState('');
-  const [selectedAuditor, setSelectedAuditor] = useState('');
+  const [selectedAuditor, setSelectedAuditor] = useState(currentUser);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -94,8 +115,14 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
   // Source list for auditing
   const sourceList = allReports.length > 0 ? allReports : auditPendingList;
   const auditorOptions = Array.from(
-    new Set(sourceList.map((item) => item.auditor?.trim()).filter((name): name is string => Boolean(name)))
-  ).sort((a, b) => a.localeCompare(b, 'zh-CN'));
+    new Set(
+      [currentUser, ...sourceList.map((item) => item.auditor?.trim()).filter((name): name is string => Boolean(name))]
+    )
+  ).sort((a, b) => {
+    if (a === currentUser) return -1;
+    if (b === currentUser) return 1;
+    return a.localeCompare(b, 'zh-CN');
+  });
 
   // KPI：审核待办=当前存量；近7日审核/处理率/响应=滚动窗口（锚定数据最新日，避免原型历史日期全空）
   const toDateKey = (value?: string) => (value || '').slice(0, 10);
@@ -189,7 +216,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
       }
     }
 
-    if (selectedAuditor && (item.auditor || '') !== selectedAuditor) return false;
+    if (!matchesAuditorFilter(item, selectedAuditor, currentUser)) return false;
 
     const submitDate = (item.submitTime || '').slice(0, 10);
     if (startDate && submitDate < startDate) return false;
@@ -200,7 +227,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
 
   const handleReset = () => {
     setKeyword('');
-    setSelectedAuditor('');
+    setSelectedAuditor(currentUser);
     setStartDate('');
     setEndDate('');
     setActiveTab('待审核');

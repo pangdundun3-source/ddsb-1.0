@@ -26,6 +26,8 @@ import {
   FileText
 } from 'lucide-react';
 import { DateRangeField } from '../components/DateRangeField';
+import { OrgFilterSelect } from '../components/OrgFilterSelect';
+import { INITIAL_ORG_NODES, matchOrganizationByFilter } from '../data/userOrgShared';
 import { getAuditArrivedAt, getRejectTime } from '../services/reportWorkflowService';
 
 interface ReportAuditProps {
@@ -56,7 +58,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
     initialTab
   );
   const [keyword, setKeyword] = useState('');
-  const [selectedAuditor, setSelectedAuditor] = useState('');
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -72,9 +74,6 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
 
   // Source list for auditing
   const sourceList = allReports.length > 0 ? allReports : auditPendingList;
-  const auditorOptions = Array.from(
-    new Set(sourceList.map((item) => item.auditor?.trim()).filter((name): name is string => Boolean(name)))
-  ).sort((a, b) => a.localeCompare(b, 'zh-CN'));
 
   // KPI：审核待办=当前存量；近7日审核/处理率/响应=滚动窗口（锚定数据最新日，避免原型历史日期全空）
   const toDateKey = (value?: string) => (value || '').slice(0, 10);
@@ -167,7 +166,9 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
       }
     }
 
-    if (selectedAuditor && (item.auditor || '') !== selectedAuditor) return false;
+    if (!matchOrganizationByFilter(item.organization, selectedOrgId, INITIAL_ORG_NODES)) {
+      return false;
+    }
 
     const submitDate = (item.submitTime || '').slice(0, 10);
     if (startDate && submitDate < startDate) return false;
@@ -178,7 +179,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
 
   const handleReset = () => {
     setKeyword('');
-    setSelectedAuditor('');
+    setSelectedOrgId(null);
     setStartDate('');
     setEndDate('');
     setActiveTab('待审核');
@@ -190,7 +191,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, keyword, selectedAuditor, startDate, endDate]);
+  }, [activeTab, keyword, selectedOrgId, startDate, endDate]);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -408,6 +409,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
           <div className="flex items-center space-x-2 shrink-0">
             <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">报送时间</label>
             <DateRangeField
+              variant="native"
               startValue={startDate}
               endValue={endDate}
               onStartChange={setStartDate}
@@ -417,20 +419,13 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
               endTitle="报送结束日期"
             />
           </div>
-          <div className="flex items-center space-x-2 shrink-0">
-            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">审核人</label>
-            <select
-              value={selectedAuditor}
-              onChange={(e) => setSelectedAuditor(e.target.value)}
-              className="w-[120px] px-2.5 py-2 bg-white border border-gray-300 hover:border-gray-400 focus:border-[#1E5ABB] rounded-lg text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15"
-            >
-              <option value="">全部审核人</option>
-              {auditorOptions.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
+          <div className="flex items-center space-x-2 shrink-0 min-w-0">
+            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">组织节点</label>
+            <OrgFilterSelect
+              value={selectedOrgId}
+              onChange={setSelectedOrgId}
+              triggerClassName="min-w-[120px] max-w-[150px]"
+            />
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button

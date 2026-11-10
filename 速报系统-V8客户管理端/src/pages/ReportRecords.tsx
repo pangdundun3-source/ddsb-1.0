@@ -297,6 +297,7 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
           <div className="flex items-center space-x-2 shrink-0">
             <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">报送时间</label>
             <DateRangeField
+              variant="native"
               startValue={startDate}
               endValue={endDate}
               onStartChange={setStartDate}

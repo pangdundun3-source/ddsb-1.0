@@ -449,9 +449,9 @@ const sectionClass = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-[0
 export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
   const [tab, setTab] = useState<EvalTab>(() => readEvalHash().tab);
   const [perspective, setPerspective] = useState<Perspective>(() => readEvalHash().perspective);
-  const [period, setPeriod] = useState<Period>('day');
-  const [startDate, setStartDate] = useState(PERIOD_DEFAULTS.day.start.replaceAll('-', '/'));
-  const [endDate, setEndDate] = useState(PERIOD_DEFAULTS.day.end.replaceAll('-', '/'));
+  const [period, setPeriod] = useState<Period>('week');
+  const [startDate, setStartDate] = useState(PERIOD_DEFAULTS.week.start.replaceAll('-', '/'));
+  const [endDate, setEndDate] = useState(PERIOD_DEFAULTS.week.end.replaceAll('-', '/'));
   const [personOrgFilter, setPersonOrgFilter] = useState<string | null>(null);
   const [personGroupFilter, setPersonGroupFilter] = useState<string[]>([]);
   const [personPage, setPersonPage] = useState(1);
@@ -489,9 +489,9 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
   };
 
   const resetFilters = () => {
-    setPeriod('day');
-    setStartDate(PERIOD_DEFAULTS.day.start.replaceAll('-', '/'));
-    setEndDate(PERIOD_DEFAULTS.day.end.replaceAll('-', '/'));
+    setPeriod('week');
+    setStartDate(PERIOD_DEFAULTS.week.start.replaceAll('-', '/'));
+    setEndDate(PERIOD_DEFAULTS.week.end.replaceAll('-', '/'));
     setPersonOrgFilter(null);
     setPersonGroupFilter([]);
     setReporterSort('adopted');

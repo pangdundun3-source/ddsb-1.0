@@ -208,6 +208,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
           <div className="flex items-center space-x-1.5 shrink-0">
             <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">采纳时间</label>
             <DateRangeField
+              variant="native"
               startValue={startDate}
               endValue={endDate}
               onStartChange={setStartDate}
@@ -227,9 +228,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
               triggerClassName="min-w-[120px] max-w-[150px]"
             />
           </div>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
           <div className="flex items-center space-x-1.5 shrink-0">
             <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">标识</label>
             <select
@@ -242,7 +241,9 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
               <option value="重复">重复</option>
             </select>
           </div>
+        </div>
 
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
           <div className="flex items-center space-x-1.5 shrink-0">
             <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">转办状态</label>
             <select

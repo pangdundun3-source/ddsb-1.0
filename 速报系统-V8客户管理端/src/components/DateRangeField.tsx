@@ -16,6 +16,11 @@ export interface DateRangeFieldProps {
   fullWidth?: boolean;
   readOnly?: boolean;
   onRequestEdit?: () => void;
+  /**
+   * native：筛选栏双日期输入（报送/审核管理还原样式）
+   * panel：统计/考核用弹层面板（起止/周/月/季/年）
+   */
+  variant?: 'native' | 'panel';
   showNaturalPresets?: boolean;
   /**
    * 锁定为单一选择模式（不展示左侧快捷切换）。未传时行为与原来一致。
@@ -46,6 +51,9 @@ export interface DateRangeFieldProps {
 type PanelMode = 'range' | 'week' | 'month' | 'quarter' | 'year';
 
 const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
+
+const nativeDateInputClass =
+  'relative min-w-0 flex-1 h-full border-0 bg-transparent px-0.5 text-xs text-gray-700 focus:outline-none focus:ring-0 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0';
 
 const toDateKey = (date: Date) => {
   const y = date.getFullYear();
@@ -242,7 +250,61 @@ const countUnitSpan = (mode: PanelMode, a: string, b: string) => {
   return 1;
 };
 
-export const DateRangeField: React.FC<DateRangeFieldProps> = ({
+/** 筛选栏还原样式：起止合并在同一框内的双原生日期输入 */
+const NativeDateRangeField: React.FC<DateRangeFieldProps> = ({
+  startValue,
+  endValue,
+  onStartChange,
+  onEndChange,
+  title = '时间区间',
+  startTitle = '开始日期',
+  endTitle = '结束日期',
+  className = '',
+  inputClassName,
+  fullWidth = false,
+  readOnly = false,
+  onRequestEdit,
+}) => {
+  const resolvedInputClass =
+    inputClassName ?? (fullWidth ? 'min-w-0 flex-1' : 'w-[118px] flex-none');
+  const requestEdit = () => {
+    if (readOnly) onRequestEdit?.();
+  };
+  return (
+    <div
+      className={`flex items-center gap-1 h-[34px] pl-2 pr-2.5 rounded-lg border border-gray-300 bg-white shadow-2xs hover:border-gray-400 focus-within:border-[#1E5ABB] focus-within:ring-2 focus-within:ring-[#1E5ABB]/15 transition-all ${
+        fullWidth ? 'w-full' : ''
+      } ${readOnly ? 'cursor-pointer bg-slate-50' : ''} ${className}`}
+      title={readOnly ? `${title}（点击可自定义）` : title}
+      onClick={requestEdit}
+    >
+      <input
+        type="date"
+        value={startValue}
+        readOnly={readOnly}
+        onChange={(e) => onStartChange(e.target.value)}
+        onFocus={requestEdit}
+        title={startTitle}
+        aria-label={startTitle}
+        className={`${nativeDateInputClass} ${resolvedInputClass} ${readOnly ? 'pointer-events-none text-slate-500' : ''}`}
+      />
+      <span className="text-gray-300 select-none shrink-0 text-xs">至</span>
+      <input
+        type="date"
+        value={endValue}
+        readOnly={readOnly}
+        onChange={(e) => onEndChange(e.target.value)}
+        onFocus={requestEdit}
+        title={endTitle}
+        aria-label={endTitle}
+        className={`${nativeDateInputClass} ${resolvedInputClass} ${readOnly ? 'pointer-events-none text-slate-500' : ''}`}
+      />
+      <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0 pointer-events-none" />
+    </div>
+  );
+};
+
+const PanelDateRangeField: React.FC<DateRangeFieldProps> = ({
   startValue,
   endValue,
   onStartChange,
@@ -1163,4 +1225,11 @@ export const DateRangeField: React.FC<DateRangeFieldProps> = ({
       )}
     </div>
   );
+};
+
+export const DateRangeField: React.FC<DateRangeFieldProps> = (props) => {
+  if (props.variant === 'native') {
+    return <NativeDateRangeField {...props} />;
+  }
+  return <PanelDateRangeField {...props} />;
 };
