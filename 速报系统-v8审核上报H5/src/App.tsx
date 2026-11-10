@@ -53,7 +53,14 @@ export default function App() {
   });
 
   const [notifications, setNotifications] = useState<AppNotification[]>(() => {
-    return INITIAL_NOTIFICATIONS;
+    try {
+      localStorage.removeItem('wechat_v8_notifications');
+      localStorage.removeItem('wechat_v8_notifications_v3');
+    } catch {
+      // ignore
+    }
+    // 原型阶段每次刷新从实验种子恢复
+    return INITIAL_NOTIFICATIONS.map((n) => ({ ...n }));
   });
 
   // UI Navigation State
@@ -87,10 +94,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('wechat_v8_reports', JSON.stringify(reports));
   }, [reports]);
-
-  useEffect(() => {
-    localStorage.setItem('wechat_v8_notifications', JSON.stringify(notifications));
-  }, [notifications]);
 
   useEffect(() => {
     localStorage.setItem('wechat_v8_oa_screen', JSON.stringify(isOfficialAccount));
@@ -196,12 +199,13 @@ export default function App() {
       // Add notification for audit (提醒审核人审核)
       const newNotif: AppNotification = {
         id: `notif_${Date.now()}`,
-        type: '待审核通知',
-        title: `【待审核提醒】新提交速报待审核: ${newReport.title}`,
-        content: `上报人 ${newReport.author} 已提交【${newReport.type}】类速报，系统已完成查重预判断打标，请审核人及时登录审查。`,
+        type: '待办通知',
+        title: newReport.title,
+        content: `${newReport.author} · ${newReport.authorDept}`,
         time: now,
         isRead: false,
         relatedReportId: newReport.id,
+        publisher: `${newReport.author} · ${newReport.authorDept}`,
       };
       setNotifications((prev) => [newNotif, ...prev]);
     } else {
@@ -250,7 +254,7 @@ export default function App() {
     // 撤回：从列表中移除待审状态并进入编辑修改状态
     setReports((prev) => prev.filter((report) => report.id !== id));
     setNotifications((prev) =>
-      prev.filter((notification) => !(notification.relatedReportId === id && notification.type === '待审核通知'))
+      prev.filter((notification) => !(notification.relatedReportId === id && notification.type === '待办通知'))
     );
     if (selectedReport?.id === id) {
       setSelectedReport(null);
@@ -291,11 +295,12 @@ export default function App() {
       const newNotif: AppNotification = {
         id: `notif_${Date.now()}`,
         type: '审核结果通知',
-        title: `【审核结果通知】速报已采纳定标: ${target.title}`,
-        content: `审核节点结果：审核通过并已采纳。定标结果：${officialTag === 'official_first' ? '【首发】' : '【重复】'}。您上报的《${target.title}》已完成正式定标归档。`,
+        title: target.title,
+        content: `已采纳${score != null || target.score != null ? `，评分 ${score ?? target.score} 分` : ''}`,
         time: now,
         isRead: false,
         relatedReportId: target.id,
+        resultKind: 'adopted',
       };
       setNotifications((prev) => [newNotif, ...prev]);
     }
@@ -323,11 +328,12 @@ export default function App() {
       const newNotif: AppNotification = {
         id: `notif_${Date.now()}`,
         type: '审核结果通知',
-        title: `【审核结果通知】速报被驳回重修: ${target.title}`,
-        content: `审核节点结果：驳回重修。驳回原因：${reason}`,
+        title: target.title,
+        content: `审核已驳回，驳回原因：${reason.replace(/^驳回原因[:：]\s*/, '')}`,
         time: new Date().toISOString().replace('T', ' ').substring(0, 16),
         isRead: false,
         relatedReportId: target.id,
+        resultKind: 'rejected',
       };
       setNotifications((prev) => [newNotif, ...prev]);
     }
@@ -355,11 +361,12 @@ export default function App() {
       const newNotif: AppNotification = {
         id: `notif_${Date.now()}`,
         type: '审核结果通知',
-        title: `【审核结果通知】速报已转办至: ${dept}`,
-        content: `审核节点结果：转办。《${target.title}》已转办至 ${dept} 进行专班处置。`,
+        title: target.title,
+        content: `已转办至 ${dept}`,
         time: new Date().toISOString().replace('T', ' ').substring(0, 16),
         isRead: false,
         relatedReportId: target.id,
+        resultKind: 'transferred',
       };
       setNotifications((prev) => [newNotif, ...prev]);
     }
@@ -413,10 +420,11 @@ export default function App() {
     const newNotif: AppNotification = {
       id: `notif_${Date.now()}`,
       type: '审核结果通知',
-      title: `【审核结果通知】同地址速报已批量通过 (${idsToApprove.length}条)`,
-      content: `审核节点结果：批量审核通过。系统已批量审核通过 ${idsToApprove.length} 条关联/同地址速报。`,
+      title: `同地址速报已批量通过（${idsToApprove.length} 条）`,
+      content: score != null ? `已采纳，评分 ${score} 分` : '审核已通过，进入下一审核节点',
       time: new Date().toISOString().replace('T', ' ').substring(0, 16),
       isRead: false,
+      resultKind: score != null ? 'adopted' : 'mid_pass',
     };
     setNotifications((prev) => [newNotif, ...prev]);
     resolvePendingNotifications(idsToApprove);
@@ -459,7 +467,7 @@ export default function App() {
     const now = nowText();
     setNotifications((prev) =>
       prev.map((n) =>
-        n.type === '待审核通知' && !n.isRead && n.relatedReportId && reportIds.includes(n.relatedReportId)
+        n.type === '待办通知' && !n.isRead && n.relatedReportId && reportIds.includes(n.relatedReportId)
           ? { ...n, isRead: true, readAt: now }
           : n
       )
@@ -478,7 +486,7 @@ export default function App() {
       const target = reports.find((r) => r.id === notif.relatedReportId);
       if (target) {
         const wantsAudit =
-          notif.type === '待审核通知' && target.status === 'pending_audit';
+          notif.type === '待办通知' && target.status === 'pending_audit';
         if (wantsAudit && !isExternalAuditEnabled()) {
           void alertDialog(getExternalAuditModuleTip(), {
             title: '无法进入审核管理',
@@ -833,6 +841,7 @@ export default function App() {
                   onNewReport={handleOpenNewReport}
                   latestNotification={latestNotif}
                   notifications={notifications}
+                  reports={reports}
                   onNavigateToMessages={() => {
                     setCurrentTab('message');
                     setViewMode('main');

@@ -2917,6 +2917,19 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
     const targetItem = list.find((item) => item.id === id);
     if (!targetItem) return;
 
+    // 系统默认审核流程 / 打分规则不支持启停（避免机构侧级联解绑污染继承关系）
+    if (
+      (activeModule === 'audit_flow' || activeModule === 'audit_score') &&
+      targetItem.isDefault
+    ) {
+      await alertDialog(
+        activeModule === 'audit_flow'
+          ? '系统默认审核流程不支持启停。如需调整，请新建自定义审核流程。'
+          : '系统默认打分规则不支持启停。如需调整，请新建自定义打分规则。'
+      );
+      return;
+    }
+
     // Special constraint for value_added: Cannot toggle if not activated (未开通)
     // 全开放启禁模式（valueAddedAllOperable）下所有增值业务均可直接启禁
     if (!valueAddedAllOperable && activeModule === 'value_added' && targetItem.activatedStatus === '未开通') {
@@ -3889,7 +3902,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                   {isGlobalScope && (activeModule === 'audit_score' || activeModule === 'audit_flow') && (
                     <ControlNoticeTip
                       title={`全平台系统默认${activeModule === 'audit_score' ? '打分规则' : '审核流程'}管控说明`}
-                      content={`此处新建的${activeModule === 'audit_score' ? '打分规则' : '审核流程'}为全平台所有机构初始化的系统默认${activeModule === 'audit_score' ? '打分规则' : '审核流程'}。机构端仅支持启用、停用，不支持编辑和删除；如需个性化，机构可另建自定义${activeModule === 'audit_score' ? '打分规则' : '审核流程'}。`}
+                      content={`此处新建的${activeModule === 'audit_score' ? '打分规则' : '审核流程'}为全平台所有机构初始化的系统默认${activeModule === 'audit_score' ? '打分规则' : '审核流程'}。系统默认项不支持启停、编辑和删除；如需个性化，机构可另建自定义${activeModule === 'audit_score' ? '打分规则' : '审核流程'}。`}
                     />
                   )}
                   {activeModule === 'value_added' && (
@@ -4340,13 +4353,22 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                   type="button"
                                   role="switch"
                                   aria-checked={isEnabled}
+                                  disabled={Boolean(item.isDefault)}
                                   onClick={() => handleToggleStatus(item.id)}
-                                  className={`relative inline-flex h-6 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none cursor-pointer select-none text-[11px] font-medium ${
+                                  className={`relative inline-flex h-6 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none select-none text-[11px] font-medium ${
+                                    item.isDefault ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                                  } ${
                                     isEnabled
                                       ? 'bg-[#1890ff] text-white pl-2.5 pr-6.5'
                                       : 'bg-gray-200 text-gray-500 pl-6.5 pr-2.5 hover:bg-gray-300'
                                   }`}
-                                  title={isEnabled ? '当前已生效，点击停用' : '点击启用此打分规则'}
+                                  title={
+                                    item.isDefault
+                                      ? '系统默认打分规则不支持启停'
+                                      : isEnabled
+                                        ? '当前已生效，点击停用'
+                                        : '点击启用此打分规则'
+                                  }
                                 >
                                   <span
                                     className={`pointer-events-none absolute top-0.5 bottom-0.5 w-5 h-5 rounded-full bg-white shadow-xs transition-all duration-200 ease-in-out ${
@@ -4685,13 +4707,22 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                   type="button"
                                   role="switch"
                                   aria-checked={isEnabled}
+                                  disabled={Boolean(item.isDefault)}
                                   onClick={() => handleToggleStatus(item.id)}
-                                  className={`relative inline-flex h-6 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none cursor-pointer select-none text-[11px] font-medium ${
+                                  className={`relative inline-flex h-6 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none select-none text-[11px] font-medium ${
+                                    item.isDefault ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                                  } ${
                                     isEnabled
                                       ? 'bg-[#1890ff] text-white pl-2.5 pr-6.5'
                                       : 'bg-gray-200 text-gray-500 pl-6.5 pr-2.5 hover:bg-gray-300'
                                   }`}
-                                  title={isEnabled ? '当前已生效，点击停用' : '点击启用此审核流程'}
+                                  title={
+                                    item.isDefault
+                                      ? '系统默认审核流程不支持启停'
+                                      : isEnabled
+                                        ? '当前已生效，点击停用'
+                                        : '点击启用此审核流程'
+                                  }
                                 >
                                   <span
                                     className={`pointer-events-none absolute top-0.5 bottom-0.5 w-5 h-5 rounded-full bg-white shadow-xs transition-all duration-200 ease-in-out ${

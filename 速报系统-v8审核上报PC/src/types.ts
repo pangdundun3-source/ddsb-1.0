@@ -32,6 +32,8 @@ export interface NotificationItem {
   isUnread: boolean;
   readAt?: string;
   relatedReportId?: number;
+  /** 业务速报定标/预判标识，展示在标题后：疑似首发 / 疑似重复 / 首发 / 重复 */
+  originLabel?: OriginTypeLabel;
   announcementContent?: string;
 }
 

@@ -1,14 +1,16 @@
 import React from 'react';
-import { ChevronRight, FileText, Sparkles, Megaphone, Clock, CheckCircle2, XCircle, Bell, X } from 'lucide-react';
+import { ChevronRight, FileText, Sparkles, Megaphone, Clock, CheckCircle2, X } from 'lucide-react';
 import { REPORT_TEMPLATES } from '../data/mockData';
 import { isTemplateBlockedByExternalAudit } from '../shared/valueAddedAccess';
-import { UserProfile, AppNotification } from '../types';
+import { UserProfile, AppNotification, SpeedReport } from '../types';
+import { IdentificationBadge } from './IdentificationBadge';
 
 interface DashboardViewProps {
   user: UserProfile;
   onNewReport: (templateId: string) => void;
   latestNotification?: AppNotification;
   notifications?: AppNotification[];
+  reports?: SpeedReport[];
   onNavigateToMessages?: () => void;
   onSelectNotification?: (notif: AppNotification) => void;
   onDismissNotification?: (notifId: string) => void;
@@ -26,6 +28,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onNewReport,
   latestNotification,
   notifications = [],
+  reports = [],
   onNavigateToMessages,
   onSelectNotification,
   onDismissNotification,
@@ -44,30 +47,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         hoverBorder: 'hover:border-violet-300',
       };
     }
-    if (notif.type === '待审核通知') {
+    if (notif.type === '待办通知') {
       return {
-        badgeText: '待审核',
+        badgeText: '待办通知',
         badgeClass: 'bg-amber-50 text-amber-700 border-amber-200/80',
         iconBg: 'bg-amber-50 border-amber-100 text-amber-600',
         icon: <Clock className="w-3.5 h-3.5" />,
-        actionText: '查看详情',
+        actionText: '进入审核',
         actionColor: 'text-amber-600',
         hoverBorder: 'hover:border-amber-300',
       };
     }
-    if (notif.title.includes('驳回') || notif.content?.includes('驳回') || notif.content?.includes('退回')) {
-      return {
-        badgeText: '审核驳回',
-        badgeClass: 'bg-rose-50 text-rose-700 border-rose-200/80',
-        iconBg: 'bg-rose-50 border-rose-100 text-rose-600',
-        icon: <XCircle className="w-3.5 h-3.5" />,
-        actionText: '查看详情',
-        actionColor: 'text-rose-600',
-        hoverBorder: 'hover:border-rose-300',
-      };
-    }
     return {
-      badgeText: '审核通过',
+      badgeText: '审核结果通知',
       badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
       iconBg: 'bg-emerald-50 border-emerald-100 text-emerald-600',
       icon: <CheckCircle2 className="w-3.5 h-3.5" />,
@@ -99,6 +91,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* Optimized Home Message Card (Aligned with NotificationView Design + Dismiss) */}
       {latestNotification && (() => {
         const meta = getNoticeMeta(latestNotification);
+        const relatedTag = reports.find((r) => r.id === latestNotification.relatedReportId)?.identificationTag;
         return (
           <div
             onClick={() => {
@@ -112,15 +105,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               latestNotification.isRead ? 'border-slate-200/80 text-slate-700' : 'border-blue-200 text-slate-800'
             }`}
           >
-            {/* Row 1: Badge + Title + Unread Indicator + Close Button */}
+            {/* Row 1: Badge + Title + Origin + Unread Indicator + Close Button */}
             <div className="flex items-center gap-1.5 min-w-0">
               <span className={`shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${meta.badgeClass}`}>
                 {meta.icon}
                 <span>{meta.badgeText}</span>
               </span>
-              <h4 className="text-xs font-bold text-slate-900 leading-snug truncate flex-1">
+              <h4 className="text-xs font-bold text-slate-900 leading-snug truncate min-w-0 flex-1">
                 {latestNotification.title}
               </h4>
+              {relatedTag && <IdentificationBadge tag={relatedTag} size="xs" className="shrink-0" />}
               {!latestNotification.isRead && (
                 <span className="shrink-0 w-2 h-2 rounded-full bg-blue-600 ring-2 ring-blue-100" />
               )}

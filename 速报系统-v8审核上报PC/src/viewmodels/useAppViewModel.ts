@@ -214,23 +214,17 @@ export const useAppViewModel = () => {
   const [toastInfo, setToastInfo] = useState<ToastInfo | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
     try {
-      const saved = localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
-      if (saved) return JSON.parse(saved) as NotificationItem[];
+      // 清掉历史缓存，避免刷新仍看到上次点过的已读状态
+      ['ddsb_pc_notifications_v1', 'ddsb_pc_notifications_v2', 'ddsb_pc_notifications_v3', NOTIFICATIONS_STORAGE_KEY].forEach(
+        (key) => localStorage.removeItem(key)
+      );
     } catch {
-      // Fall back to demo data
+      // ignore
     }
-    return INITIAL_NOTIFICATIONS;
+    return INITIAL_NOTIFICATIONS.map((n) => ({ ...n }));
   });
 
   const [messageCenterTab, setMessageCenterTab] = useState<'unread' | 'read'>('unread');
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(notifications));
-    } catch {
-      // Ignore storage failures in restricted browser contexts.
-    }
-  }, [notifications]);
 
   const markNotificationsRead = (ids: string[]) => {
     const now = formatNotificationTime();

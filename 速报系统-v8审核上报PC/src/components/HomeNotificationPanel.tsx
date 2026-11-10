@@ -3,6 +3,7 @@ import { ChevronRight, Inbox } from 'lucide-react';
 import type { NotificationItem } from '../types';
 import { NOTIFICATION_TYPE_META } from '../data/notifications';
 import { AnnouncementModal } from './AnnouncementModal';
+import { ReportOriginBadge } from './ReportOriginBadge';
 
 const MAX_VISIBLE = 4;
 
@@ -53,7 +54,7 @@ export const HomeNotificationPanel: React.FC<HomeNotificationPanelProps> = ({
             disabled={unread.length === 0}
             className="text-slate-500 hover:text-[#1E5ABB] transition-colors cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
           >
-            全部标为已读
+            一键已读
           </button>
           <button
             onClick={() => onViewAll()}
@@ -96,6 +97,9 @@ export const HomeNotificationPanel: React.FC<HomeNotificationPanelProps> = ({
                       <span className="text-xs truncate font-bold text-slate-900 group-hover:text-[#1E5ABB] transition-colors">
                         {item.title}
                       </span>
+                      {item.originLabel && item.originLabel !== '识别中' && (
+                        <ReportOriginBadge label={item.originLabel} size="sm" className="shrink-0" />
+                      )}
                     </div>
                     <div className="mt-1 flex items-center gap-3 text-xs">
                       <span

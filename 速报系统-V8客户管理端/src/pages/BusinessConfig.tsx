@@ -3443,6 +3443,16 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     const targetItem = list.find((item) => item.id === id);
     if (!targetItem) return;
 
+    // 系统默认审核流程 / 打分规则不支持启停
+    if ((activeModule === 'audit_flow' || activeModule === 'audit_score') && targetItem.isDefault) {
+      await alertDialog(
+        activeModule === 'audit_flow'
+          ? '系统默认审核流程不支持启停。如需调整，请新建自定义审核流程。'
+          : '系统默认打分规则不支持启停。如需调整，请新建自定义打分规则。'
+      );
+      return;
+    }
+
     // Special constraint for value_added: Cannot toggle if not activated (未开通)
     if (activeModule === 'value_added' && targetItem.activatedStatus === '未开通') {
       alert('该增值业务属于“未开通”状态，无法进行启禁操作。如需开通请联系对应的销售人员！');
@@ -5251,16 +5261,25 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               <div className="shrink-0">
                                 <button
                                   type="button"
+                                  disabled={Boolean(item.isDefault)}
                                   onClick={e => {
                                     e.stopPropagation();
                                     handleToggleStatus(item.id);
                                   }}
-                                  className={`flex items-center gap-1.5 py-1 rounded-full cursor-pointer transition-colors shadow-2xs ${
+                                  className={`flex items-center gap-1.5 py-1 rounded-full transition-colors shadow-2xs ${
+                                    item.isDefault ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                                  } ${
                                     isEnabled
                                       ? 'pl-2.5 pr-1 bg-[#1E5ABB] text-white'
                                       : 'pl-1 pr-2.5 bg-gray-200 text-gray-500'
                                   }`}
-                                  title={isEnabled ? '点击停用' : '点击启用'}
+                                  title={
+                                    item.isDefault
+                                      ? '系统默认打分规则不支持启停'
+                                      : isEnabled
+                                        ? '点击停用'
+                                        : '点击启用'
+                                  }
                                 >
                                   {isEnabled ? (
                                     <>
@@ -6397,16 +6416,25 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               <div className="shrink-0">
                                 <button
                                   type="button"
+                                  disabled={Boolean(item.isDefault)}
                                   onClick={e => {
                                     e.stopPropagation();
                                     handleToggleStatus(item.id);
                                   }}
-                                  className={`flex items-center gap-1.5 py-1 rounded-full cursor-pointer transition-colors shadow-2xs ${
+                                  className={`flex items-center gap-1.5 py-1 rounded-full transition-colors shadow-2xs ${
+                                    item.isDefault ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                                  } ${
                                     isEnabled
                                       ? 'pl-2.5 pr-1 bg-[#1E5ABB] text-white'
                                       : 'pl-1 pr-2.5 bg-gray-200 text-gray-500'
                                   }`}
-                                  title={isEnabled ? '点击停用' : '点击启用'}
+                                  title={
+                                    item.isDefault
+                                      ? '系统默认审核流程不支持启停'
+                                      : isEnabled
+                                        ? '点击停用'
+                                        : '点击启用'
+                                  }
                                 >
                                   {isEnabled ? (
                                     <>
