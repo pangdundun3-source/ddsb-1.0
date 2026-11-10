@@ -312,13 +312,14 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
       <div className="bg-white rounded-xl px-5 py-4 border border-gray-200/80 shadow-2xs">
         <div className="flex flex-col lg:flex-row lg:flex-wrap items-stretch lg:items-center gap-3">
           {/* 综合检索框: 类似截图的全字段模糊检索 */}
-          <div className="flex-1 relative">
+          <div className="flex-1 min-w-0 relative">
             <input
               type="text"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="搜索上报标题、事件描述关键词..."
-              className="w-full pl-9 pr-8 py-2 bg-white border border-gray-200 hover:border-gray-300 focus:border-[#1E5ABB] rounded-lg text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 transition-all shadow-2xs"
+              placeholder="请输入事件标题、内容描述关键词进行检索"
+              title="请输入事件标题、内容描述关键词进行检索"
+              className="w-full min-w-0 overflow-hidden text-ellipsis whitespace-nowrap pl-9 pr-8 py-2 bg-white border border-gray-200 hover:border-gray-300 focus:border-[#1E5ABB] rounded-lg text-xs text-gray-800 placeholder:text-gray-400 placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 transition-all shadow-2xs"
             />
             <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-2.5" />
             {keyword && (

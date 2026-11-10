@@ -266,14 +266,15 @@ export const AuditView: React.FC<AuditViewProps> = ({
       </div>
       )}
 
-      <div className="relative">
+      <div className="relative min-w-0">
         <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="搜索上报标题、上报人姓名、组织节点进行检索"
-          className="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="请输入事件标题、内容描述关键词进行检索"
+          title="请输入事件标题、内容描述关键词进行检索"
+          className="w-full min-w-0 overflow-hidden text-ellipsis whitespace-nowrap pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         {searchQuery && (
           <button

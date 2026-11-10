@@ -988,15 +988,16 @@ export const ReportView: React.FC<ReportViewProps> = ({
             </div>
           )}
 
-          <div className="relative">
+          <div className="relative min-w-0">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
-              placeholder="搜索上报标题或描述关键词进行检索"
-              aria-label="搜索上报标题或描述关键词"
-              className="w-full pl-9 pr-9 py-2.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-blue-500 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/15 transition-all shadow-2xs"
+              placeholder="请输入事件标题、内容描述关键词进行检索"
+              title="请输入事件标题、内容描述关键词进行检索"
+              aria-label="请输入事件标题、内容描述关键词进行检索"
+              className="w-full min-w-0 overflow-hidden text-ellipsis whitespace-nowrap pl-9 pr-9 py-2.5 bg-white border border-slate-200 hover:border-slate-300 focus:border-blue-500 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-blue-500/15 transition-all shadow-2xs"
             />
             {searchKeyword && (
               <button

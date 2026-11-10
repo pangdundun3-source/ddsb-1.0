@@ -117,9 +117,9 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
                 type="text"
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
-                placeholder="请输入事件标题、审核人、所属机构"
-                title="请输入事件标题名称、审核人员姓名、所属机构进行检索"
-                className="w-full min-w-0 pl-8 pr-8 py-2 bg-white border border-gray-300 hover:border-gray-400 focus:border-[#1E5ABB] rounded-lg text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 transition-all shadow-2xs"
+                placeholder="请输入事件标题、内容描述关键词进行检索"
+                title="请输入事件标题、内容描述关键词进行检索"
+                className="w-full min-w-0 overflow-hidden text-ellipsis whitespace-nowrap pl-8 pr-8 py-2 bg-white border border-gray-300 hover:border-gray-400 focus:border-[#1E5ABB] rounded-lg text-xs text-gray-800 placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 transition-all shadow-2xs"
               />
               <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
               {keyword && (
