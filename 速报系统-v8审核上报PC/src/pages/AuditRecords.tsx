@@ -36,6 +36,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
+  const [resultTab, setResultTab] = useState<'全部' | '已通过' | '已驳回'>('全部');
 
   const baseFiltered = records.filter((rec) => {
     if (keyword.trim()) {
@@ -64,14 +65,22 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
     return true;
   });
 
-  /** 审核记录仅展示已采纳（已通过）数据 */
-  const filtered = baseFiltered.filter((rec) => rec.auditResult === '已通过');
+  const passedCount = baseFiltered.filter((rec) => rec.auditResult === '已通过').length;
+  const rejectedCount = baseFiltered.filter((rec) => rec.auditResult === '被驳回').length;
+
+  /** 审核记录展示通过 + 驳回结论；可用 Tab 筛选 */
+  const filtered = baseFiltered.filter((rec) => {
+    if (resultTab === '已通过') return rec.auditResult === '已通过';
+    if (resultTab === '已驳回') return rec.auditResult === '被驳回';
+    return true;
+  });
 
   const handleReset = () => {
     setKeyword('');
     setStartDate('');
     setEndDate('');
     setSelectedOrgId(null);
+    setResultTab('全部');
   };
 
   // Pagination (页码管理 + 每页条数设置)
@@ -80,7 +89,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [keyword, selectedOrgId, startDate, endDate]);
+  }, [keyword, selectedOrgId, startDate, endDate, resultTab]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
@@ -104,7 +113,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
           <div className="flex items-center space-x-2">
             <h2 className="text-xl font-bold text-gray-800 tracking-tight">审核记录</h2>
           </div>
-          <p className="text-xs text-gray-400 mt-1">显示账号已处理的速报审核流水记录</p>
+          <p className="text-xs text-gray-400 mt-1">已完成的审核结论留痕（通过 / 驳回），不随上报人删改消失</p>
         </div>
       </div>
 
@@ -179,11 +188,54 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
 
       {/* Data Table */}
       <div className="bg-white rounded-xl border border-gray-200/80 shadow-2xs overflow-hidden">
-        <div className="px-5 py-2.5 bg-gray-50/70 border-b border-gray-100 text-xs text-gray-600">
-          共 <strong className="text-[#1E5ABB] font-mono">{filtered.length}</strong> 条审核记录
+        <div className="px-5 flex items-center justify-between gap-3 border-b border-gray-100 text-sm">
+          <div className="flex items-center gap-6 min-w-0">
+            {(
+              [
+                { value: '全部' as const, label: '全部', count: baseFiltered.length },
+                { value: '已通过' as const, label: '已通过', count: passedCount },
+                { value: '已驳回' as const, label: '已驳回', count: rejectedCount }
+              ] as const
+            ).map((tab) => {
+              const active = resultTab === tab.value;
+              return (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => setResultTab(tab.value)}
+                  className={`relative py-3 flex items-center gap-1.5 cursor-pointer transition-colors ${
+                    active ? 'text-[#1E5ABB] font-bold' : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                >
+                  {tab.label}
+                  <span
+                    className={`min-w-[20px] px-1.5 rounded-full text-[11px] font-mono leading-[18px] text-center ${
+                      active ? 'bg-[#1E5ABB] text-white' : 'bg-gray-100 text-gray-500'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                  {active && (
+                    <span className="absolute left-0 right-0 -bottom-px h-0.5 rounded-full bg-[#1E5ABB]" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <span className="shrink-0 text-xs text-gray-500 py-3">
+            共 <strong className="text-[#1E5ABB] font-mono">{filtered.length}</strong> 条
+          </span>
         </div>
         <div className="divide-y divide-gray-100">
-          {pagedReports.length === 0 && <div className="py-12 text-center text-xs text-gray-400">暂无审核记录</div>}
+          {pagedReports.length === 0 && (
+            <div className="py-12 text-center text-xs text-gray-400">
+              {resultTab === '已通过'
+                ? '当前筛选条件下暂无已通过记录'
+                : resultTab === '已驳回'
+                  ? '当前筛选条件下暂无已驳回记录'
+                  : '暂无审核记录'}
+            </div>
+          )}
           {pagedReports.map((item, index) => {
             const reportMatch = allReports.find((r) => r.id === item.reportId);
             const submitterName = item.submitter || reportMatch?.author || '网格员';

@@ -853,7 +853,7 @@ export const H5MobilePortal: React.FC<H5MobilePortalProps> = ({
                         { id: 'all', label: '全部记录' },
                         { id: '待审核', label: `待审核 (${pendingCount})` },
                         { id: '已通过', label: `已通过 (${passedCount})` },
-                        { id: '已驳回', label: '已驳回' }
+                        { id: '已驳回', label: '驳回待重报' }
                       ].map((f) => (
                         <button
                           key={f.id}

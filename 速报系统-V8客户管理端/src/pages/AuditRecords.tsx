@@ -43,6 +43,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
   const [selectedIdent, setSelectedIdent] = useState('全部');
   const [transferFilter, setTransferFilter] = useState<'全部' | '待转办' | '已转办'>('全部');
+  const [resultTab, setResultTab] = useState<'全部' | '已采纳' | '已驳回'>('已采纳');
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>(loadWarehouses);
   const [assignmentVersion, setAssignmentVersion] = useState(0);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -100,14 +101,23 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
       if (recDate > endDate) return false;
     }
     if (transferFilter !== '全部') {
+      // 转办筛选仅针对已采纳结论；驳回记录不参与转办状态
+      if (rec.auditResult !== '已通过') return false;
       const reportMatch = allReports.find((r) => r.id === rec.reportId);
       if (getTransferStatus(reportMatch) !== transferFilter) return false;
     }
     return true;
   });
 
-  /** 审核记录仅展示已采纳（已通过）数据 */
-  const filtered = baseFiltered.filter((rec) => rec.auditResult === '已通过');
+  const adoptedCount = baseFiltered.filter((rec) => rec.auditResult === '已通过').length;
+  const rejectedCount = baseFiltered.filter((rec) => rec.auditResult === '被驳回').length;
+
+  /** 审核记录展示采纳 + 驳回结论；可用 Tab 筛选 */
+  const filtered = baseFiltered.filter((rec) => {
+    if (resultTab === '已采纳') return rec.auditResult === '已通过';
+    if (resultTab === '已驳回') return rec.auditResult === '被驳回';
+    return true;
+  });
 
   const handleReset = () => {
     setKeyword('');
@@ -116,6 +126,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
     setSelectedOrgId(null);
     setSelectedIdent('全部');
     setTransferFilter('全部');
+    setResultTab('已采纳');
   };
 
   // Pagination (页码管理 + 每页条数设置)
@@ -124,7 +135,13 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [keyword, selectedOrgId, selectedIdent, transferFilter, startDate, endDate]);
+  }, [keyword, selectedOrgId, selectedIdent, transferFilter, startDate, endDate, resultTab]);
+
+  useEffect(() => {
+    if (resultTab === '已驳回' && transferFilter !== '全部') {
+      setTransferFilter('全部');
+    }
+  }, [resultTab, transferFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
@@ -174,7 +191,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
           <div className="flex items-center space-x-2">
             <h2 className="text-xl font-bold text-gray-800 tracking-tight">审核记录</h2>
           </div>
-          <p className="text-xs text-gray-400 mt-1">显示账号已处理的速报审核流水记录</p>
+          <p className="text-xs text-gray-400 mt-1">已完成的终审结论留痕（采纳 / 驳回），不随上报人删改消失；仅已采纳可转办 / 加入仓库</p>
         </div>
       </div>
 
@@ -244,18 +261,20 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-          <div className="flex items-center space-x-1.5 shrink-0">
-            <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">转办状态</label>
-            <select
-              value={transferFilter}
-              onChange={(e) => setTransferFilter(e.target.value as '全部' | '待转办' | '已转办')}
-              className="w-[100px] px-2.5 py-2 border border-gray-300 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 cursor-pointer"
-            >
-              <option value="全部">全部</option>
-              <option value="待转办">待转办</option>
-              <option value="已转办">已转办</option>
-            </select>
-          </div>
+          {resultTab !== '已驳回' && (
+            <div className="flex items-center space-x-1.5 shrink-0">
+              <label className="text-gray-700 font-semibold whitespace-nowrap shrink-0">转办状态</label>
+              <select
+                value={transferFilter}
+                onChange={(e) => setTransferFilter(e.target.value as '全部' | '待转办' | '已转办')}
+                className="w-[100px] px-2.5 py-2 border border-gray-300 hover:border-gray-400 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 focus:border-[#1E5ABB] bg-white text-gray-700 cursor-pointer"
+              >
+                <option value="全部">全部</option>
+                <option value="待转办">待转办</option>
+                <option value="已转办">已转办</option>
+              </select>
+            </div>
+          )}
 
           <div className="flex items-center space-x-2 shrink-0 ml-auto">
             <button
@@ -278,36 +297,78 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
 
       {/* Data Table */}
       <div className="bg-white rounded-xl border border-gray-200/80 shadow-2xs overflow-hidden">
-        <div className="px-5 py-2.5 flex flex-wrap items-center justify-between gap-2 bg-gray-50/70 border-b border-gray-100 text-xs">
-          <label className="inline-flex items-center gap-2 text-gray-600 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={allPageSelected}
-              disabled={selectablePageIds.length === 0}
-              onChange={togglePage}
-              aria-label="全选本页"
-              className="accent-[#1E5ABB] cursor-pointer disabled:cursor-not-allowed"
-            />
-            <span>
-              共 <strong className="text-[#1E5ABB] font-mono">{filtered.length}</strong> 条审核记录
-              <span className="mx-2 text-gray-300">|</span>
-              已选 <strong className="text-[#1E5ABB] font-mono">{selectedIds.length}</strong> 条
-              <span className="ml-2 text-gray-400">（仅已采纳的数据可加入仓库）</span>
-            </span>
-          </label>
-          <button
-            type="button"
-            onClick={openBatchJoin}
-            disabled={selectedIds.length === 0}
-            title={selectedIds.length === 0 ? '请先勾选已采纳的数据' : undefined}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border font-semibold cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-          >
-            <Database className="w-3.5 h-3.5" />
-            批量加入仓库
-          </button>
+        <div className="px-5 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 text-sm">
+          <div className="flex items-center gap-6 min-w-0">
+            {(
+              [
+                { value: '已采纳' as const, label: '已采纳', count: adoptedCount },
+                { value: '已驳回' as const, label: '已驳回', count: rejectedCount },
+                { value: '全部' as const, label: '全部', count: baseFiltered.length }
+              ] as const
+            ).map((tab) => {
+              const active = resultTab === tab.value;
+              return (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => setResultTab(tab.value)}
+                  className={`relative py-3 flex items-center gap-1.5 cursor-pointer transition-colors ${
+                    active ? 'text-[#1E5ABB] font-bold' : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                >
+                  {tab.label}
+                  <span
+                    className={`min-w-[20px] px-1.5 rounded-full text-[11px] font-mono leading-[18px] text-center ${
+                      active ? 'bg-[#1E5ABB] text-white' : 'bg-gray-100 text-gray-500'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                  {active && (
+                    <span className="absolute left-0 right-0 -bottom-px h-0.5 rounded-full bg-[#1E5ABB]" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-3 shrink-0 py-2 text-xs">
+            <label className="inline-flex items-center gap-2 text-gray-600 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={allPageSelected}
+                disabled={selectablePageIds.length === 0}
+                onChange={togglePage}
+                aria-label="全选本页"
+                className="accent-[#1E5ABB] cursor-pointer disabled:cursor-not-allowed"
+              />
+              <span>
+                共 <strong className="text-[#1E5ABB] font-mono">{filtered.length}</strong> 条
+                <span className="mx-2 text-gray-300">|</span>
+                已选 <strong className="text-[#1E5ABB] font-mono">{selectedIds.length}</strong> 条
+              </span>
+            </label>
+            <button
+              type="button"
+              onClick={openBatchJoin}
+              disabled={selectedIds.length === 0}
+              title={selectedIds.length === 0 ? '请先勾选已采纳的数据' : undefined}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border font-semibold cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+            >
+              <Database className="w-3.5 h-3.5" />
+              批量加入仓库
+            </button>
+          </div>
         </div>
         <div className="divide-y divide-gray-100">
-          {pagedReports.length === 0 && <div className="py-12 text-center text-xs text-gray-400">暂无审核记录</div>}
+          {pagedReports.length === 0 && (
+            <div className="py-12 text-center text-xs text-gray-400">
+              {resultTab === '已采纳'
+                ? '当前筛选条件下暂无已采纳记录'
+                : resultTab === '已驳回'
+                  ? '当前筛选条件下暂无已驳回记录'
+                  : '暂无审核记录'}
+            </div>
+          )}
           {pagedReports.map((item, index) => {
             const reportMatch = allReports.find((r) => r.id === item.reportId);
             const submitterName = item.submitter || reportMatch?.author || '网格员';
@@ -317,7 +378,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
             const rejectReasonText = item.rejectReason || reportMatch?.rejectReason || '信息不完整';
             const rejectDetailText = item.rejectDetail || reportMatch?.rejectDetail;
             const passed = item.auditResult === '已通过';
-            const transferStatus = getTransferStatus(reportMatch);
+            const transferStatus = passed ? getTransferStatus(reportMatch) : null;
             const transferPending = transferStatus === '待转办';
             const metaParts = [
               { label: '报送人', person: submitterName, org: item.organization, time: submitTimeStr, fallbackOrg: undefined },
@@ -343,13 +404,15 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
                 <div className="flex-1 min-w-0 space-y-1">
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span
-                        className={`shrink-0 px-1.5 py-px rounded text-[11px] font-medium ${
-                          transferPending ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'
-                        }`}
-                      >
-                        {transferStatus}
-                      </span>
+                      {transferStatus && (
+                        <span
+                          className={`shrink-0 px-1.5 py-px rounded text-[11px] font-medium ${
+                            transferPending ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'
+                          }`}
+                        >
+                          {transferStatus}
+                        </span>
+                      )}
                       <span
                         className={`shrink-0 px-1.5 py-px rounded text-[11px] font-medium ${
                           passed ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
@@ -379,7 +442,7 @@ export const AuditRecords: React.FC<AuditRecordsProps> = ({
                       >
                         详情
                       </button>
-                      {reportMatch ? (
+                      {passed && reportMatch ? (
                         <button
                           type="button"
                           onClick={() => {

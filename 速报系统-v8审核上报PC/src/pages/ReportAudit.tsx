@@ -510,7 +510,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
               {(
                 [
                   { value: '待审核' as const, label: '待审核', count: pendingCount },
-                  { value: '已驳回' as const, label: '已驳回', count: rejectedCount }
+                  { value: '已驳回' as const, label: '驳回待重报', count: rejectedCount }
                 ] as const
               ).map((tab) => {
                 const active = activeTab === tab.value;
@@ -544,7 +544,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
               <div className="py-12 text-center text-xs text-gray-400">
                 <FileText className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                 {activeTab === '已驳回'
-                  ? '当前筛选条件下暂无已驳回记录'
+                  ? '当前筛选条件下暂无驳回待重报记录'
                   : '当前筛选条件下暂无待审核记录'}
               </div>
             ) : (
