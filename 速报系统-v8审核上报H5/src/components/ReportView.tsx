@@ -77,6 +77,18 @@ export const ReportView: React.FC<ReportViewProps> = ({
   };
   const [linkShot, setLinkShot] = useState<LinkShotState | null>(null);
   const [linkShotViewer, setLinkShotViewer] = useState<{ url: string; shotAt?: string } | null>(null);
+  const [templateShotPending, setTemplateShotPending] = useState(false);
+  const linkShotTimersRef = useRef<{ mock?: number; timeout?: number }>({});
+  const LINK_SHOT_TIMEOUT_MS = 20_000;
+  const LINK_SHOT_TIMEOUT_TIP = '截图超时，请稍后重试';
+
+  const clearLinkShotTimers = () => {
+    if (linkShotTimersRef.current.mock != null) window.clearTimeout(linkShotTimersRef.current.mock);
+    if (linkShotTimersRef.current.timeout != null) window.clearTimeout(linkShotTimersRef.current.timeout);
+    linkShotTimersRef.current = {};
+  };
+
+  useEffect(() => () => clearLinkShotTimers(), []);
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
   const [submitBlockTip, setSubmitBlockTip] = useState<string | null>(null);
   const [extraFieldValues, setExtraFieldValues] = useState<Record<string, TemplateFieldValue>>(
@@ -137,11 +149,40 @@ export const ReportView: React.FC<ReportViewProps> = ({
     }
   };
 
+  /** 主机名含 timeout → 不模拟成功，用于验收 20 秒超时（例：https://timeout.example.com/a） */
+  const shouldSimulateShotTimeout = (value: string) => {
+    try {
+      return /timeout/i.test(new URL(value.trim()).hostname);
+    } catch {
+      return false;
+    }
+  };
+
   const captureLinkShot = (url: string) => {
+    clearLinkShotTimers();
     setLinkShot({ status: 'loading', url });
-    window.setTimeout(() => {
+
+    linkShotTimersRef.current.timeout = window.setTimeout(() => {
       setLinkShot((prev) => {
-        if (!prev || prev.url !== url) return prev;
+        if (!prev || prev.url !== url || prev.status !== 'loading') return prev;
+        return { status: 'error', url, reason: LINK_SHOT_TIMEOUT_TIP };
+      });
+      onToast('截图超时，请稍后重试');
+      linkShotTimersRef.current.timeout = undefined;
+    }, LINK_SHOT_TIMEOUT_MS);
+
+    // 超时模拟链接：只等 20s 超时，不提前成功
+    if (shouldSimulateShotTimeout(url)) return;
+
+    // 原型模拟截图完成；正式接接口后改为请求回调里 clearLinkShotTimers + 写结果
+    linkShotTimersRef.current.mock = window.setTimeout(() => {
+      if (linkShotTimersRef.current.timeout != null) {
+        window.clearTimeout(linkShotTimersRef.current.timeout);
+        linkShotTimersRef.current.timeout = undefined;
+      }
+      linkShotTimersRef.current.mock = undefined;
+      setLinkShot((prev) => {
+        if (!prev || prev.url !== url || prev.status !== 'loading') return prev;
         const reason = simulateUnreachableReason(url);
         if (reason) return { status: 'error', url, reason };
         const now = new Date();
@@ -152,7 +193,10 @@ export const ReportView: React.FC<ReportViewProps> = ({
     }, 1200);
   };
 
-  const removeLinkShot = () => setLinkShot(null);
+  const removeLinkShot = () => {
+    clearLinkShotTimers();
+    setLinkShot(null);
+  };
 
   const renderLinkShotMock = (url: string, large = false) => {
     let host = url;
@@ -232,6 +276,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
       setFormDisposalAdvice(initialEditReport.disposalAdvice);
       setLinkShot(null);
       setLinkShotViewer(null);
+      setTemplateShotPending(false);
       setFieldErrors({});
       setExtraFieldValues(buildBackfilledTemplateValues(editTemplate, initialEditReport));
       setExtraFieldErrors({});
@@ -261,6 +306,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
       setFormDistrict('');
       setFormType('');
       setLinkShot(null);
+      setTemplateShotPending(false);
       setFieldErrors({});
     }
     onToast(`已切换为：${tpl.name}`);
@@ -286,6 +332,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
     setFormMatchedLink('');
     setLinkShot(null);
     setLinkShotViewer(null);
+    setTemplateShotPending(false);
     setFieldErrors({});
     resetExtraFields(template);
     setSubmitBlockTip(null);
@@ -293,6 +340,11 @@ export const ReportView: React.FC<ReportViewProps> = ({
   }
 
   const handleSubmitForm = () => {
+    if (linkShot?.status === 'loading' || templateShotPending) {
+      onToast('截图任务进行中，完成后才能提交审核');
+      return;
+    }
+
     const errors: Record<string, boolean> = {};
     const missing: string[] = [];
 
@@ -772,9 +824,15 @@ export const ReportView: React.FC<ReportViewProps> = ({
                           <div className="flex items-start gap-1.5 min-w-0">
                             <AlertCircle className="w-3.5 h-3.5 mt-px shrink-0" />
                             <div className="min-w-0">
-                              <div className="font-medium">原文地址不可访问</div>
-                              {linkShot.reason && (
-                                <div className="truncate text-rose-500/90">访问反馈：{linkShot.reason}</div>
+                              {linkShot.reason?.includes('超时') ? (
+                                <div className="font-medium truncate">{linkShot.reason}</div>
+                              ) : (
+                                <>
+                                  <div className="font-medium">原文地址不可访问</div>
+                                  {linkShot.reason && (
+                                    <div className="truncate text-rose-500/90">访问反馈：{linkShot.reason}</div>
+                                  )}
+                                </>
                               )}
                             </div>
                           </div>
@@ -842,6 +900,8 @@ export const ReportView: React.FC<ReportViewProps> = ({
                     setExtraFieldErrors((prev) => ({ ...prev, [fieldId]: false }));
                   }
                 }}
+                onScreenshotPendingChange={setTemplateShotPending}
+                onToast={onToast}
               />
             </div>
           </div>

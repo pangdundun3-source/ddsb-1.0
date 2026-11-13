@@ -23,7 +23,13 @@ interface TemplateExtraFieldsProps {
   values: Record<string, TemplateFieldValue>;
   errors: Record<string, boolean>;
   onChange: (fieldId: string, value: TemplateFieldValue) => void;
+  /** 任一链接字段截图任务进行中时通知父级，用于提交拦截 */
+  onScreenshotPendingChange?: (pending: boolean) => void;
+  onToast?: (msg: string) => void;
 }
+
+const LINK_SHOT_TIMEOUT_MS = 20_000;
+const LINK_SHOT_TIMEOUT_TIP = '截图超时，请稍后重试';
 
 const asString = (value: TemplateFieldValue | undefined) =>
   typeof value === 'string' ? value : '';
@@ -35,9 +41,10 @@ const asStringList = (value: TemplateFieldValue | undefined) =>
   Array.isArray(value) ? value : [];
 
 type LinkShotState = {
-  status: 'loading' | 'done' | 'empty' | 'invalid';
+  status: 'loading' | 'done' | 'empty' | 'invalid' | 'error';
   url: string;
   shotAt?: string;
+  reason?: string;
 };
 
 interface TemplateDatePickerProps {
@@ -323,11 +330,34 @@ export const TemplateExtraFields: React.FC<TemplateExtraFieldsProps> = ({
   values,
   errors,
   onChange,
+  onScreenshotPendingChange,
+  onToast,
 }) => {
   const [linkShots, setLinkShots] = useState<Record<string, LinkShotState>>({});
   const [linkShotViewer, setLinkShotViewer] = useState<{ url: string; shotAt?: string } | null>(null);
   const [attachmentWarnings, setAttachmentWarnings] = useState<Record<string, string>>({});
   const [openMultiSelectId, setOpenMultiSelectId] = useState<string | null>(null);
+  const linkShotTimersRef = React.useRef<Record<string, { mock?: number; timeout?: number }>>({});
+
+  const clearFieldShotTimers = (fieldId: string) => {
+    const timers = linkShotTimersRef.current[fieldId];
+    if (!timers) return;
+    if (timers.mock != null) window.clearTimeout(timers.mock);
+    if (timers.timeout != null) window.clearTimeout(timers.timeout);
+    delete linkShotTimersRef.current[fieldId];
+  };
+
+  useEffect(() => {
+    const pending = Object.values(linkShots).some((shot) => shot.status === 'loading');
+    onScreenshotPendingChange?.(pending);
+  }, [linkShots, onScreenshotPendingChange]);
+
+  useEffect(
+    () => () => {
+      Object.keys(linkShotTimersRef.current).forEach(clearFieldShotTimers);
+    },
+    []
+  );
 
   useEffect(() => {
     if (!openMultiSelectId) return;
@@ -343,26 +373,64 @@ export const TemplateExtraFields: React.FC<TemplateExtraFieldsProps> = ({
 
   if (fields.length === 0) return null;
 
+  const shouldSimulateShotTimeout = (value: string) => {
+    try {
+      return /timeout/i.test(new URL(value.trim()).hostname);
+    } catch {
+      return false;
+    }
+  };
+
   const captureLinkShot = (fieldId: string, rawUrl: string) => {
     const url = rawUrl.trim();
     if (!url) {
+      clearFieldShotTimers(fieldId);
       setLinkShots((prev) => ({ ...prev, [fieldId]: { status: 'empty', url: '' } }));
       return;
     }
     if (!isValidTemplateLink(url)) {
+      clearFieldShotTimers(fieldId);
       setLinkShots((prev) => ({ ...prev, [fieldId]: { status: 'invalid', url } }));
       return;
     }
+    clearFieldShotTimers(fieldId);
     setLinkShots((prev) => ({ ...prev, [fieldId]: { status: 'loading', url } }));
-    window.setTimeout(() => {
+
+    const timeoutId = window.setTimeout(() => {
+      setLinkShots((prev) => {
+        if (prev[fieldId]?.url !== url || prev[fieldId]?.status !== 'loading') return prev;
+        return { ...prev, [fieldId]: { status: 'error', url, reason: LINK_SHOT_TIMEOUT_TIP } };
+      });
+      onToast?.('截图超时，请稍后重试');
+      if (linkShotTimersRef.current[fieldId]) {
+        linkShotTimersRef.current[fieldId].timeout = undefined;
+      }
+    }, LINK_SHOT_TIMEOUT_MS);
+
+    // 超时模拟链接：只等 20s 超时（例 https://timeout.example.com/a）
+    if (shouldSimulateShotTimeout(url)) {
+      linkShotTimersRef.current[fieldId] = { timeout: timeoutId };
+      return;
+    }
+
+    // 原型模拟截图完成；正式接接口后改为请求回调里清理定时器并写结果
+    const mockId = window.setTimeout(() => {
+      const timers = linkShotTimersRef.current[fieldId];
+      if (timers?.timeout != null) {
+        window.clearTimeout(timers.timeout);
+        timers.timeout = undefined;
+      }
+      if (timers) timers.mock = undefined;
       const now = new Date();
       const pad = (value: number) => String(value).padStart(2, '0');
       const shotAt = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
       setLinkShots((prev) => {
-        if (prev[fieldId]?.url !== url) return prev;
+        if (prev[fieldId]?.url !== url || prev[fieldId]?.status !== 'loading') return prev;
         return { ...prev, [fieldId]: { status: 'done', url, shotAt } };
       });
     }, 900);
+
+    linkShotTimersRef.current[fieldId] = { mock: mockId, timeout: timeoutId };
   };
 
   return (
@@ -603,6 +671,7 @@ export const TemplateExtraFields: React.FC<TemplateExtraFieldsProps> = ({
                       placeholder={field.placeholder || 'https://...'}
                       onChange={(event) => {
                         onChange(field.id, event.target.value);
+                        clearFieldShotTimers(field.id);
                         setLinkShots((prev) => {
                           if (!prev[field.id]) return prev;
                           const next = { ...prev };
@@ -641,6 +710,23 @@ export const TemplateExtraFields: React.FC<TemplateExtraFieldsProps> = ({
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                     <span>网址格式不正确，请修改为以 http:// 或 https:// 开头的正确网址</span>
                   </p>
+                )}
+                {linkShot?.status === 'error' && (
+                  <div className="flex items-start justify-between gap-2 px-2.5 py-2 rounded-xl bg-rose-50 border border-rose-100 text-[11px] text-rose-600">
+                    <div className="flex items-start gap-1.5 min-w-0">
+                      <AlertCircle className="w-3.5 h-3.5 mt-px shrink-0" />
+                      <div className="min-w-0 font-medium truncate">
+                        {linkShot.reason || LINK_SHOT_TIMEOUT_TIP}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => captureLinkShot(field.id, asString(value))}
+                      className="shrink-0 font-medium hover:underline cursor-pointer"
+                    >
+                      重试
+                    </button>
+                  </div>
                 )}
                 {linkShot?.status === 'done' && (
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-2 flex items-center gap-3">
