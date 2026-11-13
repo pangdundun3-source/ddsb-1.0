@@ -2028,7 +2028,9 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
   const formatAssigneeUsersLabel = (node?: AuditNode | null, internal = false) => {
     const users = getAssigneeUsers(node);
     if (users.length === 0) return '';
-    const fallback = internal ? '内部机构' : '外部组织';
+    // 内部机构人员：仅展示姓名；外部仍带组织路径
+    if (internal) return users.map(user => user.userName).join('、');
+    const fallback = '外部组织';
     return users
       .map(user => `${getOrgNameById(user.orgId) || fallback} / ${user.userName}`)
       .join('、');
@@ -8631,17 +8633,29 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                                 id: String(person.id),
                                                 name: person.realName
                                               }));
+                                        /** 总机构终审·内部机构人员：扁平用户列表，不展示组织节点 */
+                                        const flatInternalPeople = isInternal
+                                          ? flatOrgs.flatMap(org =>
+                                              getInternalPeopleByOrgId(org.id).map(person => ({
+                                                ...person,
+                                                orgId: org.id,
+                                                key: `${org.id}:${person.id}`
+                                              }))
+                                            )
+                                          : [];
                                         return (
                                         <div className="relative" ref={externalPersonPickerRef}>
                                           <button
                                             type="button"
                                             onClick={() => {
-                                              setExternalPersonPickerOrgId(
-                                                selectedUsers[0]?.orgId ||
-                                                  selectedNode.assigneeOrgId ||
-                                                  flatOrgs[0]?.id ||
-                                                  null
-                                              );
+                                              if (!isInternal) {
+                                                setExternalPersonPickerOrgId(
+                                                  selectedUsers[0]?.orgId ||
+                                                    selectedNode.assigneeOrgId ||
+                                                    flatOrgs[0]?.id ||
+                                                    null
+                                                );
+                                              }
                                               setIsExternalPersonPickerOpen(open => !open);
                                             }}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-medium bg-white text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -8655,10 +8669,53 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                           </button>
                                           {isExternalPersonPickerOpen && (
                                             <div className="absolute left-0 right-0 top-full mt-1 z-30 border border-gray-200 rounded-lg overflow-hidden bg-white shadow-lg">
+                                              {isInternal ? (
+                                                <div className="h-44 text-xs overflow-y-auto">
+                                                  <div className="px-2 py-1.5 text-[10px] font-bold text-gray-500 sticky top-0 bg-white border-b border-gray-100">
+                                                    可选人员（多选）
+                                                  </div>
+                                                  {flatInternalPeople.length === 0 ? (
+                                                    <div className="px-2 py-3 text-gray-400 text-[11px]">暂无内部机构人员</div>
+                                                  ) : (
+                                                    flatInternalPeople.map(person => {
+                                                      const selected = selectedUsers.some(
+                                                        user => user.orgId === person.orgId && user.userName === person.name
+                                                      );
+                                                      return (
+                                                        <button
+                                                          key={person.key}
+                                                          type="button"
+                                                          onClick={() => {
+                                                            const nextUsers = selected
+                                                              ? selectedUsers.filter(
+                                                                  user => !(user.orgId === person.orgId && user.userName === person.name)
+                                                                )
+                                                              : [...selectedUsers, { orgId: person.orgId, userName: person.name }];
+                                                            handleUpdateAuditNode(
+                                                              selectedIndex,
+                                                              buildAssigneeUserUpdates(nextUsers)
+                                                            );
+                                                          }}
+                                                          className={`w-full text-left px-2 py-1.5 border-b border-gray-50 transition-colors flex items-center gap-1.5 ${
+                                                            selected ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-700 hover:bg-slate-50'
+                                                          }`}
+                                                        >
+                                                          {selected ? (
+                                                            <CheckSquare className="w-3.5 h-3.5 shrink-0 text-blue-600" />
+                                                          ) : (
+                                                            <Square className="w-3.5 h-3.5 shrink-0 text-gray-300" />
+                                                          )}
+                                                          <span className="truncate">{person.name}</span>
+                                                        </button>
+                                                      );
+                                                    })
+                                                  )}
+                                                </div>
+                                              ) : (
                                               <div className="grid grid-cols-2 h-44 text-xs">
                                                 <div className="border-r border-gray-100 overflow-y-auto bg-slate-50/80">
                                                   <div className="px-2 py-1.5 text-[10px] font-bold text-gray-500 sticky top-0 bg-slate-50 border-b border-gray-100">
-                                                    {isInternal ? '内部机构节点' : '外部组织节点'}
+                                                    外部组织节点
                                                   </div>
                                                   {flatOrgs.map(org => {
                                                     const active =
@@ -8737,9 +8794,10 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                                   })()}
                                                 </div>
                                               </div>
+                                              )}
                                               <div className="px-2.5 py-1.5 border-t border-gray-100 bg-gray-50 text-[11px] text-gray-600 flex items-center justify-between gap-2">
                                                 <span className="truncate">
-                                                  已选 {selectedUsers.length} 人（{isInternal ? '内部机构' : '可跨机构'}多选）
+                                                  已选 {selectedUsers.length} 人（{isInternal ? '可多选' : '可跨机构多选'}）
                                                 </span>
                                                 <button
                                                   type="button"
