@@ -463,11 +463,6 @@ export const ExternalOrgManagement: React.FC<ExternalOrgManagementProps> = ({
 
   const startAddOrg = (parentId: string | null, categoryId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    // 审核上报端：不能新增与本级并列的一级节点，只能在本级/自建子级下增加下级
-    if (embedded && !parentId) {
-      triggerToast('不能修改本级节点，请在本级下新增子机构');
-      return;
-    }
     setAddingOrgTarget({ parentId, categoryId });
     setAddingOrgName('');
     setViewingPersonnelId(null);
@@ -1950,22 +1945,20 @@ export const ExternalOrgManagement: React.FC<ExternalOrgManagementProps> = ({
                   {personnelList.filter((person) => !person.recycled).length}
                 </span>
               </span>
-              {!embedded && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    startAddOrg(null, categories[0]?.id || 'cat-1', e);
-                  }}
-                  className={`ml-1 p-0.5 rounded text-blue-700 hover:bg-blue-100 cursor-pointer shrink-0 transition-opacity ${
-                    isRootSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                  }`}
-                  title="新增一级机构"
-                  aria-label="新增一级机构"
-                >
-                  <Plus className="w-3 h-3" />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  startAddOrg(null, categories[0]?.id || 'cat-1', e);
+                }}
+                className={`ml-1 p-0.5 rounded text-blue-700 hover:bg-blue-100 cursor-pointer shrink-0 transition-opacity ${
+                  isRootSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                }`}
+                title={embedded ? '添加下级子机构' : '新增一级机构'}
+                aria-label={embedded ? '添加下级子机构' : '新增一级机构'}
+              >
+                <Plus className="w-3 h-3" />
+              </button>
             </div>
 
             <div className="ml-2 border-l border-gray-100 pl-2 space-y-1.5">
