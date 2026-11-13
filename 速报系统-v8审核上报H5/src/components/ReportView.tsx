@@ -341,7 +341,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
 
   const handleSubmitForm = () => {
     if (linkShot?.status === 'loading' || templateShotPending) {
-      onToast('截图任务进行中，完成后才能提交审核');
+      onToast('截图任务进行中，请稍后提交');
       return;
     }
 
