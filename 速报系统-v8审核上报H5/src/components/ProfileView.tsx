@@ -997,19 +997,19 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
           <div className="rounded-xl bg-white border border-slate-100 p-2.5 grid grid-cols-2 gap-x-2 gap-y-2.5 shadow-2xs">
             <div className="min-w-0 space-y-0.5">
-              <p className="text-[10px] font-medium text-slate-500 truncate">整体采纳率</p>
+              <p className="text-[10px] font-medium text-slate-500 truncate">整体采纳率（%）</p>
               <p className="text-sm font-black font-mono text-emerald-600 tabular-nums">
                 {reporterOverallPassRate}%
               </p>
             </div>
             <div className="min-w-0 space-y-0.5 border-l border-slate-100 pl-2">
-              <p className="text-[10px] font-medium text-slate-500 truncate">首审直通率</p>
+              <p className="text-[10px] font-medium text-slate-500 truncate">首审直通率（%）</p>
               <p className="text-sm font-black font-mono text-blue-600 tabular-nums">
                 {reporterFirstPassRate}%
               </p>
             </div>
             <div className="min-w-0 space-y-0.5">
-              <p className="text-[10px] font-medium text-slate-500 truncate">综合总分</p>
+              <p className="text-[10px] font-medium text-slate-500 truncate">综合得分</p>
               <p className="text-sm font-black font-mono text-amber-600 tabular-nums truncate">
                 {reporterComprehensiveScore > 0
                   ? reporterComprehensiveScore.toLocaleString('zh-CN', {
@@ -1079,7 +1079,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </span>
             </div>
             <div className="min-w-0 flex items-center justify-between gap-1 border-l border-slate-100 pl-2">
-              <span className="text-[10px] font-medium text-slate-500 truncate">审核处理率</span>
+              <span className="text-[10px] font-medium text-slate-500 truncate">审核处理率（%）</span>
               <span className="text-sm font-black font-mono text-blue-600 whitespace-nowrap shrink-0">
                 {auditorProcessRate}%
               </span>

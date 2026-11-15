@@ -404,7 +404,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
           {/* Card 3: 审核处理率 */}
           <div className="bg-white/10 border border-white/20 rounded-lg px-3.5 py-2.5 backdrop-blur-sm">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-blue-100">审核处理率</span>
+              <span className="text-xs font-medium text-blue-100">审核处理率（%）</span>
               <span className="text-[10px] px-1.5 py-px rounded bg-cyan-400/30 text-cyan-200 font-bold border border-cyan-400/40">
                 近7日
               </span>

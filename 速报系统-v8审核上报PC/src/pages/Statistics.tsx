@@ -1028,7 +1028,7 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
                     </span>
                   </div>
                   <div className="flex flex-col justify-between space-y-1 border-t sm:border-t-0 sm:border-l border-slate-200/60 pt-2 sm:pt-0 sm:pl-3">
-                    <span className="text-gray-500 text-[11px]">综合总分</span>
+                    <span className="text-gray-500 text-[11px]">综合得分</span>
                     <span className="text-sm font-black font-mono text-amber-600">
                       {typeof currentSubmitter.totalScore === 'number' ? currentSubmitter.totalScore.toLocaleString('zh-CN', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : currentSubmitter.totalScore} <span className="text-[10px] font-normal text-gray-500">分</span>
                     </span>
@@ -1296,7 +1296,7 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
                     <th className="py-3 px-3 text-center">一次性通过率(%)</th>
                     <th className="py-3 px-3 text-center">整体通过率(%)</th>
                     <th className="py-3 px-3 text-center">平均响应时效</th>
-                    <th className="py-3 px-3 text-center">综合总分</th>
+                    <th className="py-3 px-3 text-center">综合得分</th>
                     <th className="py-3 px-3 text-center">考评等次</th>
                   </tr>
                 </thead>

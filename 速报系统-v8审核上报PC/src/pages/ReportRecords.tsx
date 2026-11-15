@@ -135,7 +135,7 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
           }
         }
 
-        // Date Range
+        // Date Range（按采纳时间；无采纳时间则回退报送时间）
         const adoptDate = (item.auditTime || item.submitTime || '').slice(0, 10);
         if (startDate && adoptDate < startDate) return false;
         if (endDate && adoptDate > endDate) return false;
@@ -143,11 +143,12 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
         return true;
       })
       .sort((a, b) => {
+        const adoptKey = (item: ReportItem) => item.auditTime || item.submitTime || '';
         if (sortBy === 'time-desc') {
-          return (b.submitTime || '').localeCompare(a.submitTime || '');
+          return adoptKey(b).localeCompare(adoptKey(a));
         }
         if (sortBy === 'time-asc') {
-          return (a.submitTime || '').localeCompare(b.submitTime || '');
+          return adoptKey(a).localeCompare(adoptKey(b));
         }
         return 0;
       });
@@ -350,17 +351,28 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
                       {item.detailContent?.summary || '暂无内容描述'}
                     </p>
 
-                    <div className="flex items-center gap-1.5 min-w-0 whitespace-nowrap text-[11px] text-gray-400">
+                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 min-w-0 text-[11px] text-gray-400">
                       <span className="shrink-0 px-1 rounded bg-gray-100 text-gray-500">报送人</span>
                       <span className="shrink-0 text-gray-600">{item.author || currentUser}</span>
                       <span className="shrink-0 text-gray-300">·</span>
-                      <span title={getOrganizationPathText(item.organization, currentOrg?.name)} className="truncate">{orgName}</span>
+                      <span title={getOrganizationPathText(item.organization, currentOrg?.name)} className="truncate max-w-[180px]">{orgName}</span>
                       <span className="shrink-0 text-gray-300">·</span>
-                      <span className="shrink-0 font-mono">{item.submitTime || '2026-08-13 10:00'}</span>
+                      <span className="shrink-0 whitespace-nowrap">
+                        报送时间 <span className="font-mono text-gray-500">{item.submitTime || '--'}</span>
+                      </span>
+                      {isAdopted && (item.auditTime || item.submitTime) && (
+                        <>
+                          <span className="shrink-0 text-gray-300">·</span>
+                          <span className="shrink-0 whitespace-nowrap">
+                            采纳时间{' '}
+                            <span className="font-mono text-gray-500">{item.auditTime || item.submitTime}</span>
+                          </span>
+                        </>
+                      )}
                       {isRejected && (
                         <>
                           <span className="shrink-0 text-gray-300">·</span>
-                          <span className="shrink-0">
+                          <span className="shrink-0 whitespace-nowrap">
                             驳回时间 <span className="font-mono text-gray-500">{getRejectTime(item)}</span>
                           </span>
                           <span
@@ -457,10 +469,17 @@ export const ReportRecords: React.FC<ReportRecordsProps> = ({
                   </div>
 
                   {/* Time */}
-                  <div className="flex items-center justify-between gap-2 text-[11px] text-gray-400 pt-0.5">
-                    <span className="font-mono">{item.submitTime}</span>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-gray-400 pt-0.5">
+                    <span className="whitespace-nowrap">
+                      报送时间 <span className="font-mono text-gray-500">{item.submitTime || '--'}</span>
+                    </span>
+                    {isAdopted && (item.auditTime || item.submitTime) && (
+                      <span className="whitespace-nowrap">
+                        采纳时间 <span className="font-mono text-gray-500">{item.auditTime || item.submitTime}</span>
+                      </span>
+                    )}
                     {isRejected && (
-                      <span className="shrink-0">
+                      <span className="whitespace-nowrap">
                         驳回时间 <span className="font-mono text-gray-500">{getRejectTime(item)}</span>
                       </span>
                     )}

@@ -279,7 +279,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
           {/* Card 3: 整体采纳率（近7日） */}
           <div className="bg-white/10 border border-white/20 rounded-lg px-3.5 py-2.5 backdrop-blur-sm">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-blue-100">整体采纳率</span>
+              <span className="text-xs font-medium text-blue-100">整体采纳率（%）</span>
               <span className="text-[10px] px-1.5 py-px rounded bg-cyan-400/30 text-cyan-200 font-bold border border-cyan-400/40">
                 近7日
               </span>
@@ -295,7 +295,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
           {/* Card 4: 首审直通率（近7日） */}
           <div className="bg-white/10 border border-white/20 rounded-lg px-3.5 py-2.5 backdrop-blur-sm">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-blue-100">首审直通率</span>
+              <span className="text-xs font-medium text-blue-100">首审直通率（%）</span>
               <span className="text-[10px] px-1.5 py-px rounded bg-cyan-400/30 text-cyan-200 font-bold border border-cyan-400/40">
                 近7日
               </span>

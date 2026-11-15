@@ -1250,7 +1250,7 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
       ['累计上报合计', `${formatNumber(reportTotal)} 件`],
       ['整体采纳率', `${trendAgg.passRate}%`],
       ['首审直通率', `${trendAgg.directRate}%`],
-      ['在册网格员', `${reporterCount} 人`],
+      ['报送人员', `${reporterCount} 人`],
       ['人均累计报送量', `${perCapitaReport} 件`],
       [],
       ['三、审核结构汇总'],
@@ -1259,7 +1259,7 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
       ['累计处理合计', `${formatNumber(auditTotal)} 次`],
       ['平均审核耗时', `${trendAgg.avgTime} 分钟`],
       ['审核处理率', `${trendAgg.processRate}%`],
-      ['在册审核员', `${auditorCount} 人`],
+      ['审核人员', `${auditorCount} 人`],
       ['人均负荷', `${perCapitaAudit} 次`],
     ];
 
@@ -1314,7 +1314,7 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
       );
 
       const reportPanelCanvas = composeDonutPanelCanvas({
-        title: '网格员报送统计',
+        title: '报送统计',
         data: reportDonut,
         total: reportTotal,
         centerLabel: '累计上报',
@@ -1322,13 +1322,13 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
         footer: [
           { label: '整体采纳率', value: `${trendAgg.passRate}%`, color: '#08B889' },
           { label: '首审直通率', value: `${trendAgg.directRate}%`, color: '#1D58C9' },
-          { label: '在册网格员', value: `${reporterCount}人`, color: '#8656F4' },
+          { label: '报送人员', value: `${reporterCount}人`, color: '#8656F4' },
           { label: '人均累计报送量', value: `${perCapitaReport}件`, color: '#F5A400' },
         ],
       });
 
       const auditPanelCanvas = composeDonutPanelCanvas({
-        title: '审核员审核统计',
+        title: '审核统计',
         data: auditDonut,
         total: auditTotal,
         centerLabel: '累计处理',
@@ -1336,7 +1336,7 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
         footer: [
           { label: '平均审核耗时', value: `${trendAgg.avgTime}分钟`, color: '#08B889' },
           { label: '审核处理率', value: `${trendAgg.processRate}%`, color: '#1D58C9' },
-          { label: '在册审核员', value: `${auditorCount}人`, color: '#8656F4' },
+          { label: '审核人员', value: `${auditorCount}人`, color: '#8656F4' },
           { label: '人均负荷', value: `${perCapitaAudit}次`, color: '#F5A400' },
         ],
       });
@@ -1627,7 +1627,7 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <DonutPanel
-            title="网格员报送统计"
+            title="报送统计"
             iconColor="#1D58C9"
             data={reportDonut}
             total={reportTotal}
@@ -1635,12 +1635,12 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
             footer={[
               { label: '整体采纳率', value: `${trendAgg.passRate}%`, color: '#08B889' },
               { label: '首审直通率', value: `${trendAgg.directRate}%`, color: '#1D58C9' },
-              { label: '在册网格员', value: `${reporterCount}人`, color: '#8656F4' },
+              { label: '报送人员', value: `${reporterCount}人`, color: '#8656F4' },
               { label: '人均累计报送量', value: `${perCapitaReport}件`, color: '#F5A400' },
             ]}
           />
           <DonutPanel
-            title="审核员审核统计"
+            title="审核统计"
             iconColor="#08B889"
             data={auditDonut}
             total={auditTotal}
@@ -1649,7 +1649,7 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
             footer={[
               { label: '平均审核耗时', value: `${trendAgg.avgTime}分钟`, color: '#08B889' },
               { label: '审核处理率', value: `${trendAgg.processRate}%`, color: '#1D58C9' },
-              { label: '在册审核员', value: `${auditorCount}人`, color: '#8656F4' },
+              { label: '审核人员', value: `${auditorCount}人`, color: '#8656F4' },
               { label: '人均负荷', value: `${perCapitaAudit}次`, color: '#F5A400' },
             ]}
           />

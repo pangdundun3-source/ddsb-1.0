@@ -100,6 +100,8 @@ interface AuditorRow {
   passedCount: number;
   rejectedCount: number;
   auditProcessRate: number;
+  /** 人均负荷：考核周期内日均处理量（次） */
+  perCapitaLoad: number;
   avgResponseMin: number;
   avgScore: number;
   grade: Grade;
@@ -300,6 +302,7 @@ const auditorRecords: AuditorRow[] = orgRecords.flatMap((org, i) =>
       passedCount: totalAudited - rejectedCount,
       rejectedCount,
       auditProcessRate: round1((totalAudited / reportedCount) * 100),
+      perCapitaLoad: round1(totalAudited / EVAL_PERIOD_DAYS),
       avgResponseMin: round1(6.5 + i * 0.7 + j * 1.8 + r * 2),
       avgScore,
       grade: gradeForScore(avgScore),
@@ -666,6 +669,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
       stats: [
         { label: '累计处理', value: `${row.totalAudited} 次`, subLabel: `通过处理 ${row.passedCount} / 驳回处理 ${row.rejectedCount}`, isHighlight: true },
         { label: '审核处理率', value: `${row.auditProcessRate}%`, isHighlight: true },
+        { label: '人均负荷', value: `${row.perCapitaLoad} 次`, subLabel: '日均处理量' },
         { label: '平均审核耗时', value: `${row.avgResponseMin} 分钟` },
         { label: '单条平均得分', value: `${row.avgScore} 分` },
       ],
@@ -824,6 +828,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
       '审核处理率',
       '已办',
       '待办',
+      '人均负荷',
       '平均审核耗时',
     ];
     const rows = visibleAuditors.map((row) => [
@@ -837,6 +842,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
       `${row.auditProcessRate}%`,
       `${row.totalAudited} 次`,
       `${Math.max(0, row.reportedCount - row.totalAudited)} 次`,
+      `${row.perCapitaLoad} 次`,
       `${row.avgResponseMin} 分钟`,
     ]);
     downloadCsv(`审核考核_${stamp}.csv`, headers, rows);
@@ -1529,20 +1535,21 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                   </tbody>
                 </table>
               ) : (
-                <table className="w-full min-w-[1000px] text-left text-xs">
+                <table className="w-full min-w-[1120px] text-left text-xs">
                   <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-700">
                     <tr>
                       <th className="w-24 px-3 py-3.5 text-center font-semibold">全域排名</th>
                       <th className="px-3 py-3.5 font-semibold">人员 / 组织节点 / 群组</th>
                       <th className="px-3 py-3.5 text-center font-semibold">累计处理 (通过处理/驳回处理)</th>
                       <th className="px-3 py-3.5 text-center font-semibold">审核处理率 (已办/待办)</th>
+                      <th className="px-3 py-3.5 text-center font-semibold">人均负荷</th>
                       <th className="px-3 py-3.5 text-center font-semibold">平均审核耗时</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {pagedAuditors.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="py-12 text-center text-slate-400">没有符合条件的审核考核人员</td>
+                        <td colSpan={6} className="py-12 text-center text-slate-400">没有符合条件的审核考核人员</td>
                       </tr>
                     ) : (
                       pagedAuditors.map((row) => (
@@ -1569,6 +1576,10 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                               已办 {row.totalAudited} / 待办 {Math.max(0, row.reportedCount - row.totalAudited)} 次
                           </div>
                         </td>
+                          <td className="px-3 py-3.5 text-center">
+                            <div className="font-mono text-xs font-bold text-[#F5A400]">{row.perCapitaLoad} 次</div>
+                            <div className="mt-0.5 text-[11px] text-slate-400">日均处理量</div>
+                          </td>
                           <td className="px-3 py-3.5 text-center">
                             <div className="font-mono text-xs font-bold text-[#8C3BE0]">{row.avgResponseMin} 分钟</div>
                         </td>
