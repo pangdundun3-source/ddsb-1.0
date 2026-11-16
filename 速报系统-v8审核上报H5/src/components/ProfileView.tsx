@@ -508,17 +508,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   <h2 className="text-lg font-extrabold text-white leading-tight truncate">{detailName}</h2>
                   {renderRoleBadges()}
                 </div>
-                <div className="mt-2 space-y-1 text-[11px] text-sky-50/95">
-                  <p>
-                    微信号 <span className="font-mono font-semibold text-white">{user.account}</span>
-                  </p>
-                  <p>
-                    手机 <span className="font-mono font-semibold text-white">{user.phone}</span>
-                  </p>
+                <div className="mt-2 text-[11px] text-sky-50/95">
                   <p className="flex items-start gap-1 min-w-0">
                     <Building2 className="w-3.5 h-3.5 shrink-0 mt-0.5 text-sky-100" />
                     <span className="min-w-0">
-                      所属机构 <span className="font-semibold text-white break-all">{ownedInstitution}</span>
+                      组织节点 <span className="font-semibold text-white break-all">{ownedInstitution}</span>
                     </span>
                   </p>
                 </div>
@@ -859,7 +853,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           <div className="bg-white/5 p-2.5 rounded-xl flex items-center space-x-2.5 min-w-0">
             <Building2 className="w-4 h-4 text-sky-400 shrink-0" />
             <div className="min-w-0 flex-1">
-              <div className="text-[10px] text-slate-300">所属机构</div>
+              <div className="text-[10px] text-slate-300">组织节点</div>
               <div
                 className="text-xs font-bold text-sky-100 truncate mt-0.5"
                 title={`${user.department}-${user.subDepartment || '西坝区环保局'}`}

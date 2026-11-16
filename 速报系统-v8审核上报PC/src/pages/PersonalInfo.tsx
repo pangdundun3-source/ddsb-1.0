@@ -231,21 +231,13 @@ export const PersonalInfo: React.FC<PersonalInfoProps> = () => {
               </span>
             ))}
           </div>
-          <p className="text-xs text-slate-500 flex flex-wrap gap-x-4 gap-y-1">
-            <span>
-              微信号 <span className="font-mono text-slate-700">{profile.username}</span>
-            </span>
-            <span>
-              手机 <span className="font-mono text-slate-700">{profile.phone}</span>
-            </span>
-            {profile.associatedOrgs[0] && (
-              <span>
-                所属机构 <span className="text-slate-700">{profile.associatedOrgs[0]}</span>
-              </span>
-            )}
-          </p>
+          {profile.associatedOrgs[0] && (
+            <p className="text-xs text-slate-500">
+              组织节点 <span className="text-slate-700">{profile.associatedOrgs[0]}</span>
+            </p>
+          )}
         </div>
-        <div className="flex flex-col items-end gap-2 shrink-0">
+        <div className="shrink-0">
           <button
             onClick={openEditModal}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#1E5ABB] hover:bg-[#184996] text-white text-xs font-bold transition-colors cursor-pointer"
@@ -253,7 +245,6 @@ export const PersonalInfo: React.FC<PersonalInfoProps> = () => {
             <Edit className="w-3.5 h-3.5" />
             编辑资料
           </button>
-          <span className="text-[11px] text-slate-400 tabular-nums">资料更新于 {profile.updateTime}</span>
         </div>
       </section>
 
