@@ -16,6 +16,11 @@ export interface DateRangeFieldProps {
   fullWidth?: boolean;
   readOnly?: boolean;
   onRequestEdit?: () => void;
+  /**
+   * native：筛选栏双日期输入（报送/审核管理还原样式）
+   * panel：统计/考核用弹层面板（起止/周/月/季/年）
+   */
+  variant?: 'native' | 'panel';
   showNaturalPresets?: boolean;
   /**
    * 锁定为单一选择模式（不展示左侧快捷切换）。未传时行为与原来一致。
@@ -41,11 +46,27 @@ export interface DateRangeFieldProps {
    * 超出跨度的日期/周期自动置灰不可选，替代事后校验提示。
    */
   maxUnitSpan?: number;
+  /** 面板快捷模式切换时回调（range=按日） */
+  onModeChange?: (mode: DateRangeLockedMode | 'range') => void;
+  /** 「range」模式在快捷栏的文案，默认「按日」 */
+  rangeModeLabel?: string;
+  /**
+   * 外部受控的当前面板模式：用于触发器回填「按日/按周…」，以及再次打开弹窗时恢复选中项。
+   */
+  activeMode?: 'range' | 'week' | 'month' | 'quarter' | 'year';
+  /**
+   * 各快捷模式切换时的默认起止区间；传入后优先生效（用于与历史「按日近7日/按周近7周…」默认对齐）。
+   * 未传的模式仍用组件内置默认。
+   */
+  modeDefaultRanges?: Partial<Record<'range' | 'week' | 'month' | 'quarter' | 'year', { start: string; end: string }>>;
 }
 
 type PanelMode = 'range' | 'week' | 'month' | 'quarter' | 'year';
 
 const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
+
+const nativeDateInputClass =
+  'relative min-w-0 flex-1 h-full border-0 bg-transparent px-0.5 text-xs text-gray-700 focus:outline-none focus:ring-0 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0';
 
 const toDateKey = (date: Date) => {
   const y = date.getFullYear();
@@ -242,7 +263,61 @@ const countUnitSpan = (mode: PanelMode, a: string, b: string) => {
   return 1;
 };
 
-export const DateRangeField: React.FC<DateRangeFieldProps> = ({
+/** 筛选栏还原样式：起止合并在同一框内的双原生日期输入 */
+const NativeDateRangeField: React.FC<DateRangeFieldProps> = ({
+  startValue,
+  endValue,
+  onStartChange,
+  onEndChange,
+  title = '时间区间',
+  startTitle = '开始日期',
+  endTitle = '结束日期',
+  className = '',
+  inputClassName,
+  fullWidth = false,
+  readOnly = false,
+  onRequestEdit,
+}) => {
+  const resolvedInputClass =
+    inputClassName ?? (fullWidth ? 'min-w-0 flex-1' : 'w-[118px] flex-none');
+  const requestEdit = () => {
+    if (readOnly) onRequestEdit?.();
+  };
+  return (
+    <div
+      className={`flex items-center gap-1 h-[34px] pl-2 pr-2.5 rounded-lg border border-gray-300 bg-white shadow-2xs hover:border-gray-400 focus-within:border-[#1E5ABB] focus-within:ring-2 focus-within:ring-[#1E5ABB]/15 transition-all ${
+        fullWidth ? 'w-full' : ''
+      } ${readOnly ? 'cursor-pointer bg-slate-50' : ''} ${className}`}
+      title={readOnly ? `${title}（点击可自定义）` : title}
+      onClick={requestEdit}
+    >
+      <input
+        type="date"
+        value={startValue}
+        readOnly={readOnly}
+        onChange={(e) => onStartChange(e.target.value)}
+        onFocus={requestEdit}
+        title={startTitle}
+        aria-label={startTitle}
+        className={`${nativeDateInputClass} ${resolvedInputClass} ${readOnly ? 'pointer-events-none text-slate-500' : ''}`}
+      />
+      <span className="text-gray-300 select-none shrink-0 text-xs">至</span>
+      <input
+        type="date"
+        value={endValue}
+        readOnly={readOnly}
+        onChange={(e) => onEndChange(e.target.value)}
+        onFocus={requestEdit}
+        title={endTitle}
+        aria-label={endTitle}
+        className={`${nativeDateInputClass} ${resolvedInputClass} ${readOnly ? 'pointer-events-none text-slate-500' : ''}`}
+      />
+      <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0 pointer-events-none" />
+    </div>
+  );
+};
+
+const PanelDateRangeField: React.FC<DateRangeFieldProps> = ({
   startValue,
   endValue,
   onStartChange,
@@ -258,6 +333,10 @@ export const DateRangeField: React.FC<DateRangeFieldProps> = ({
   maxDate,
   validateRange,
   maxUnitSpan,
+  onModeChange,
+  rangeModeLabel = '按日',
+  activeMode,
+  modeDefaultRanges,
 }) => {
   const maxDateKey = useMemo(() => {
     const fromProp = parseDateKey(maxDate);
@@ -310,6 +389,17 @@ export const DateRangeField: React.FC<DateRangeFieldProps> = ({
   const applyDefaultForMode = (nextMode: PanelMode) => {
     setPickingEnd(false);
     setHoverDay(null);
+    const customDefault = modeDefaultRanges?.[nextMode];
+    if (customDefault?.start && customDefault?.end) {
+      setDraftStart(customDefault.start);
+      setDraftEnd(customDefault.end);
+      const endDate = parseDateKey(customDefault.end) || new Date();
+      const startDate = parseDateKey(customDefault.start) || endDate;
+      const month = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+      setLeftMonth(monthIndexOf(month) > monthIndexOf(maxMonthDate) ? maxMonthDate : month);
+      setViewYear(Math.min(endDate.getFullYear(), startDate.getFullYear(), maxMonthDate.getFullYear()));
+      return;
+    }
     if (nextMode === 'range') {
       const range = getRecentSevenDays(maxDateKey);
       setDraftStart(range.start);
@@ -367,15 +457,26 @@ export const DateRangeField: React.FC<DateRangeFieldProps> = ({
         setViewYear(Math.min(anchor.getFullYear(), maxMonthDate.getFullYear()));
         const month = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
         setLeftMonth(monthIndexOf(month) > monthIndexOf(maxMonthDate) ? maxMonthDate : month);
+      } else if (startValue && endValue) {
+        // 打开面板时：沿用外部已选区间与模式（回填按日/按周等）
+        setMode(activeMode || 'range');
+        setDraftStart(startValue);
+        setDraftEnd(endValue);
+        setPickingEnd(false);
+        setHoverDay(null);
+        const anchor = parseDateKey(endValue) || parseDateKey(startValue) || parseDateKey(maxDateKey) || new Date();
+        setViewYear(Math.min(anchor.getFullYear(), maxMonthDate.getFullYear()));
+        const month = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+        setLeftMonth(monthIndexOf(month) > monthIndexOf(maxMonthDate) ? maxMonthDate : month);
       } else {
-        // 打开面板时：起止默认最近一周
-        setMode('range');
-        applyDefaultForMode('range');
+        // 无外部值时：按日 + 最近 7 天
+        setMode(activeMode || 'range');
+        applyDefaultForMode(activeMode || 'range');
       }
     }
     wasOpenRef.current = open;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, maxDateKey, lockedMode]);
+  }, [open, maxDateKey, lockedMode, activeMode]);
 
   useEffect(() => {
     if (!open) return;
@@ -402,11 +503,13 @@ export const DateRangeField: React.FC<DateRangeFieldProps> = ({
 
   const switchMode = (nextMode: PanelMode) => {
     setMode(nextMode);
+    // 仅更新弹窗草稿，等点「确定」再回写父级，避免一选就刷新统计
     applyDefaultForMode(nextMode);
   };
 
   const commitRange = (start: string, end: string) => {
     if (isAfterMax(end) || isAfterMax(start)) return;
+    onModeChange?.(mode);
     onStartChange(start);
     onEndChange(end);
     setOpen(false);
@@ -730,7 +833,7 @@ export const DateRangeField: React.FC<DateRangeFieldProps> = ({
   );
 
   const modeButtons: { id: PanelMode; label: string }[] = [
-    { id: 'range', label: '起止' },
+    { id: 'range', label: rangeModeLabel },
     { id: 'week', label: '按周' },
     { id: 'month', label: '按月' },
     { id: 'quarter', label: '按季度' },
@@ -739,27 +842,43 @@ export const DateRangeField: React.FC<DateRangeFieldProps> = ({
 
   /** 右侧标题随左侧快捷切换；锁定模式用对应文案 */
   const panelTitle = lockedMode
-    ? ({ week: '按周', month: '按月', quarter: '按季度', year: '按年', range: '起止' } as const)[lockedMode]
-    : modeButtons.find((item) => item.id === mode)?.label ?? '起止';
+    ? ({ week: '按周', month: '按月', quarter: '按季度', year: '按年', range: rangeModeLabel } as const)[lockedMode]
+    : modeButtons.find((item) => item.id === mode)?.label ?? rangeModeLabel;
 
-  /** 锁定模式下触发器展示已选周期标题（跨多单位时展示区间） */
-  const lockedTriggerLabel = useMemo(() => {
-    if (!lockedMode || lockedMode === 'range' || !startValue || !endValue) return null;
+  /** 触发器展示用的模式：锁定模式优先，否则用外部回填的 activeMode */
+  const triggerMode = lockedMode || activeMode;
+
+  /** 周/月/季/年模式下触发器展示周期标题（跨多单位时展示区间） */
+  const unitTriggerLabel = useMemo(() => {
+    if (!triggerMode || triggerMode === 'range' || !startValue || !endValue) return null;
     const start = parseDateKey(startValue);
     const end = parseDateKey(endValue);
     if (!start || !end) return null;
-    if (lockedMode === 'week') {
+    if (triggerMode === 'week') {
       const withYear = start.getFullYear() !== end.getFullYear();
       return joinUnitRangeLabel(formatWeekUnitLabel(start, withYear), formatWeekUnitLabel(end, withYear));
     }
-    if (lockedMode === 'month') {
+    if (triggerMode === 'month') {
       return joinUnitRangeLabel(formatMonthUnitLabel(start), formatMonthUnitLabel(end));
     }
-    if (lockedMode === 'quarter') {
+    if (triggerMode === 'quarter') {
       return joinUnitRangeLabel(formatQuarterUnitLabel(start), formatQuarterUnitLabel(end));
     }
     return joinUnitRangeLabel(formatYearUnitLabel(start), formatYearUnitLabel(end));
-  }, [lockedMode, startValue, endValue]);
+  }, [triggerMode, startValue, endValue]);
+
+  const triggerModeLabel =
+    triggerMode === 'week'
+      ? '按周'
+      : triggerMode === 'month'
+        ? '按月'
+        : triggerMode === 'quarter'
+          ? '按季度'
+          : triggerMode === 'year'
+            ? '按年'
+            : triggerMode === 'range'
+              ? rangeModeLabel
+              : null;
 
   const renderMonthPane = (
     monthDate: Date,
@@ -863,10 +982,19 @@ export const DateRangeField: React.FC<DateRangeFieldProps> = ({
         title={readOnly ? `${title}（点击可自定义）` : title}
         onClick={openEditor}
       >
-        {lockedMode && lockedTriggerLabel ? (
+        {triggerModeLabel ? (
+          <span
+            className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
+              readOnly ? 'bg-slate-100 text-slate-500' : 'bg-[#EEF4FF] text-[#1B5BD6]'
+            }`}
+          >
+            {triggerModeLabel}
+          </span>
+        ) : null}
+        {unitTriggerLabel ? (
           <>
             <span className={`min-w-0 flex-1 truncate text-xs font-semibold ${readOnly ? 'text-slate-500' : 'text-gray-700'}`}>
-              {lockedTriggerLabel}
+              {unitTriggerLabel}
             </span>
             <span className={`shrink-0 font-mono text-[11px] ${readOnly ? 'text-slate-400' : 'text-slate-500'}`}>
               {formatSlash(startValue)} 至 {formatSlash(endValue)}
@@ -1163,4 +1291,11 @@ export const DateRangeField: React.FC<DateRangeFieldProps> = ({
       )}
     </div>
   );
+};
+
+export const DateRangeField: React.FC<DateRangeFieldProps> = (props) => {
+  if (props.variant === 'native') {
+    return <NativeDateRangeField {...props} />;
+  }
+  return <PanelDateRangeField {...props} />;
 };

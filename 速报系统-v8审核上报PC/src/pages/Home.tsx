@@ -510,7 +510,7 @@ export const Home: React.FC<HomeProps> = ({
                             <span className="shrink-0 font-mono text-gray-500">{item.submitTime}</span>
                             <span className="shrink-0 text-gray-300">·</span>
                             <span className="shrink-0">
-                              提交时间 <span className="font-mono text-gray-500">{getAuditArrivedAt(item)}</span>
+                              送审时间 <span className="font-mono text-gray-500">{getAuditArrivedAt(item)}</span>
                             </span>
                           </div>
                         </div>

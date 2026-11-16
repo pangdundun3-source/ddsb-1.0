@@ -30,19 +30,55 @@ interface StatisticsReferenceProps {
 }
 
 type Period = 'day' | 'week' | 'month' | 'quarter' | 'year';
+type RangePreset = 'd7' | 'd30' | 'd90' | 'custom';
 
 type DonutItem = { name: string; value: number; color: string };
 
 const STATS_MAX_DATE = '2026-11-09';
 
-/** 各周期默认区间：按日近7日、按周近7周、按月近7月、按季近4季、按年近3年 */
-const PERIOD_DEFAULTS: Record<Period, { start: string; end: string }> = {
-  day: { start: '2026-11-03', end: '2026-11-09' }, // 近 7 日
-  week: { start: '2026-09-28', end: '2026-11-09' }, // 近 7 周（周一起点）
-  month: { start: '2026-05-01', end: '2026-11-09' }, // 近 7 个月
-  quarter: { start: '2026-01-01', end: '2026-11-09' }, // 近 4 个季度
-  year: { start: '2024-01-01', end: '2026-11-09' }, // 近 3 年
+const shiftDateKey = (dateKey: string, days: number) => {
+  const base = new Date(`${dateKey.replace(/-/g, '/')} 00:00:00`);
+  if (Number.isNaN(base.getTime())) return dateKey;
+  base.setDate(base.getDate() + days);
+  const y = base.getFullYear();
+  const m = String(base.getMonth() + 1).padStart(2, '0');
+  const d = String(base.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 };
+
+/** 外层预设：近 N 日滚动窗（含锚定日） */
+const PRESET_RANGES: Record<Exclude<RangePreset, 'custom'>, { start: string; end: string }> = {
+  d7: { start: shiftDateKey(STATS_MAX_DATE, -6), end: STATS_MAX_DATE },
+  d30: { start: shiftDateKey(STATS_MAX_DATE, -29), end: STATS_MAX_DATE },
+  d90: { start: shiftDateKey(STATS_MAX_DATE, -89), end: STATS_MAX_DATE },
+};
+
+/** 自定义弹窗各粒度默认区间（按日近7日、按周近7周、按月近7月、按季近4季、按年近3年） */
+const PERIOD_DEFAULTS: Record<Period, { start: string; end: string }> = {
+  day: PRESET_RANGES.d7,
+  week: { start: '2026-09-28', end: '2026-11-09' },
+  month: { start: '2026-05-01', end: '2026-11-09' },
+  quarter: { start: '2026-01-01', end: '2026-11-09' },
+  year: { start: '2024-01-01', end: '2026-11-09' },
+};
+
+const PERIOD_LABELS: Record<Period, string> = {
+  day: '按日',
+  week: '按周',
+  month: '按月',
+  quarter: '按季度',
+  year: '按年',
+};
+
+const PRESET_LABELS: Record<RangePreset, string> = {
+  d7: '近7日',
+  d30: '近30日',
+  d90: '近90日',
+  custom: '自定义',
+};
+
+const panelModeToPeriod = (mode: 'range' | 'week' | 'month' | 'quarter' | 'year'): Period =>
+  mode === 'range' ? 'day' : mode;
 
 /** 统计控件可选区间硬上限（按统计单位点数） */
 const PERIOD_MAX_POINTS: Record<Period, number> = {
@@ -67,6 +103,7 @@ const TREND_TOOLTIP_ORDER = [
 
 type TrendRow = {
   label: string;
+  subLabel?: string;
   total: number;
   passed: number;
   rejected: number;
@@ -78,8 +115,6 @@ type TrendRow = {
   avgTime: number;
   audited: number;
 };
-
-const WEEKDAY_LABELS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
 const parseDateInput = (value: string) => {
   const normalized = value.replaceAll('/', '-');
@@ -130,7 +165,7 @@ const buildTrendSeries = (startValue: string, endValue: string, grain: Period): 
     return buildTrendSeries(PERIOD_DEFAULTS.day.start, PERIOD_DEFAULTS.day.end, 'day');
   }
 
-  const buckets: Array<{ label: string; seed: number; spanDays: number }> = [];
+  const buckets: Array<{ label: string; subLabel?: string; seed: number; spanDays: number }> = [];
 
   if (grain === 'day') {
     const days = dayDiffInclusive(start, end);
@@ -138,7 +173,7 @@ const buildTrendSeries = (startValue: string, endValue: string, grain: Period): 
       const date = new Date(start);
       date.setDate(start.getDate() + i);
       buckets.push({
-        label: `${WEEKDAY_LABELS[date.getDay()]} (${formatMd(date)})`,
+        label: formatMd(date),
         seed: date.getFullYear() * 10000 + (date.getMonth() + 1) * 100 + date.getDate(),
         spanDays: 1,
       });
@@ -152,7 +187,8 @@ const buildTrendSeries = (startValue: string, endValue: string, grain: Period): 
       const actualEnd = weekEnd > end ? end : weekEnd;
       const weekNo = getISOWeek(cursor);
       buckets.push({
-        label: `第${weekNo}周 (${formatMd(actualStart)}~${formatMd(actualEnd)})`,
+        label: `第${weekNo}周`,
+        subLabel: `${formatMd(actualStart)}~${formatMd(actualEnd)}`,
         seed: cursor.getFullYear() * 10000 + (cursor.getMonth() + 1) * 100 + cursor.getDate() + weekNo * 17,
         spanDays: dayDiffInclusive(actualStart, actualEnd),
       });
@@ -214,6 +250,7 @@ const buildTrendSeries = (startValue: string, endValue: string, grain: Period): 
     const audited = Math.max(passed, Math.round(total * (0.9 + r * 0.08)));
     return {
       label: bucket.label,
+      ...(bucket.subLabel ? { subLabel: bucket.subLabel } : {}),
       total,
       passed,
       rejected,
@@ -1084,13 +1121,17 @@ const DonutPanel: React.FC<{
 );
 
 export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavigate: _onNavigate }) => {
+  const [rangePreset, setRangePreset] = useState<RangePreset>('d7');
+  /** 趋势图粒度：预设固定按日；自定义跟弹窗所选 按日/周/月/季/年 */
   const [period, setPeriod] = useState<Period>('day');
-  const [startDate, setStartDate] = useState(PERIOD_DEFAULTS.day.start);
-  const [endDate, setEndDate] = useState(PERIOD_DEFAULTS.day.end);
+  const [startDate, setStartDate] = useState(PRESET_RANGES.d7.start);
+  const [endDate, setEndDate] = useState(PRESET_RANGES.d7.end);
   const [selectedOrg, setSelectedOrg] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [exportingPdf, setExportingPdf] = useState(false);
   const chartsExportRef = useRef<HTMLDivElement>(null);
+  /** 切入自定义时递增，重置日期弹窗内部模式为按日 */
+  const [customFieldKey, setCustomFieldKey] = useState(0);
   const [reportLines, setReportLines] = useState({
     total: true,
     passed: true,
@@ -1153,17 +1194,40 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
     window.setTimeout(() => setToast(null), 2400);
   };
 
-  const handlePeriodChange = (next: Period) => {
-    setPeriod(next);
-    const defaults = PERIOD_DEFAULTS[next];
-    setStartDate(defaults.start);
-    setEndDate(defaults.end);
+  const handleRangePresetChange = (next: RangePreset) => {
+    setRangePreset(next);
+    if (next === 'custom') {
+      setPeriod('day');
+      setStartDate(PRESET_RANGES.d7.start);
+      setEndDate(PRESET_RANGES.d7.end);
+      setCustomFieldKey((key) => key + 1);
+      return;
+    }
+    setPeriod('day');
+    setStartDate(PRESET_RANGES[next].start);
+    setEndDate(PRESET_RANGES[next].end);
+  };
+
+  const handleCustomModeChange = (mode: 'range' | 'week' | 'month' | 'quarter' | 'year') => {
+    const nextPeriod = panelModeToPeriod(mode);
+    setPeriod(nextPeriod);
+    setStartDate(PERIOD_DEFAULTS[nextPeriod].start);
+    setEndDate(PERIOD_DEFAULTS[nextPeriod].end);
+  };
+
+  const customModeDefaultRanges = {
+    range: PERIOD_DEFAULTS.day,
+    week: PERIOD_DEFAULTS.week,
+    month: PERIOD_DEFAULTS.month,
+    quarter: PERIOD_DEFAULTS.quarter,
+    year: PERIOD_DEFAULTS.year,
   };
 
   const resetFilters = () => {
+    setRangePreset('d7');
     setPeriod('day');
-    setStartDate(PERIOD_DEFAULTS.day.start);
-    setEndDate(PERIOD_DEFAULTS.day.end);
+    setStartDate(PRESET_RANGES.d7.start);
+    setEndDate(PRESET_RANGES.d7.end);
     setSelectedOrg(null);
   };
 
@@ -1177,15 +1241,36 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
     ? getOrgById(INITIAL_ORG_NODES, selectedOrg)?.name || '指定组织节点'
     : '全部组织节点';
   const periodPresetLabel =
-    period === 'day'
-      ? '按日'
-      : period === 'week'
-        ? '按周'
-        : period === 'month'
-          ? '按月'
-          : period === 'quarter'
-            ? '按季度'
-            : '按年';
+    rangePreset === 'custom'
+      ? `${PERIOD_LABELS[period]}（${startDate.replaceAll('/', '-')}~${endDate.replaceAll('/', '-')}）`
+      : `${PRESET_LABELS[rangePreset]}（${startDate.replaceAll('/', '-')}~${endDate.replaceAll('/', '-')}）`;
+
+  const trendChartBottom = period === 'week' ? 28 : 6;
+  const renderTrendXTick = (props: {
+    x?: number;
+    y?: number;
+    payload?: { value?: string; index?: number };
+    index?: number;
+  }) => {
+    const x = props.x ?? 0;
+    const y = props.y ?? 0;
+    const idx = props.payload?.index ?? props.index ?? 0;
+    const row = reportTrend[idx];
+    const main = row?.label ?? props.payload?.value ?? '';
+    const sub = row?.subLabel;
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text dy={12} textAnchor="middle" fill="#64748b" fontSize={10}>
+          {main}
+        </text>
+        {sub ? (
+          <text dy={26} textAnchor="middle" fill="#94a3b8" fontSize={9}>
+            {sub}
+          </text>
+        ) : null}
+      </g>
+    );
+  };
   const trendAgg = useMemo(() => {
     if (reportTrend.length === 0) {
       return { passRate: 0, directRate: 0, processRate: 0, avgTime: 0, total: 0 };
@@ -1214,10 +1299,9 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
 
   const handleExportData = () => {
     const stamp = formatExportDate();
-    const periodLabel = `${periodPresetLabel}（${startDate.replaceAll('/', '-')}~${endDate.replaceAll('/', '-')}）`;
     const sheet: Array<Array<string | number>> = [
       ['统计管理导出'],
-      ['统计周期', periodLabel],
+      ['统计周期', periodPresetLabel],
       ['组织范围', orgScopeLabel],
       [],
       ['一、指标趋势明细'],
@@ -1302,7 +1386,7 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
         [
           { text: '统计管理图表', size: 14, weight: '700' },
           {
-            text: `统计周期：${periodPresetLabel}（${startDate.replaceAll('/', '-')} ~ ${endDate.replaceAll('/', '-')}）  |  组织范围：${orgScopeLabel}`,
+            text: `统计周期：${periodPresetLabel}  |  组织范围：${orgScopeLabel}`,
             size: 10,
             color: '#64748b',
             weight: '400',
@@ -1483,19 +1567,18 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
               </div>
               {(
                 [
-                  ['day', '按日'],
-                  ['week', '按周'],
-                  ['month', '按月'],
-                  ['quarter', '按季度'],
-                  ['year', '按年'],
+                  ['d7', '近7日'],
+                  ['d30', '近30日'],
+                  ['d90', '近90日'],
+                  ['custom', '自定义'],
                 ] as const
               ).map(([key, label]) => (
                 <button
                   key={key}
                   type="button"
-                  onClick={() => handlePeriodChange(key)}
+                  onClick={() => handleRangePresetChange(key)}
                   className={`min-h-7 cursor-pointer rounded-xl px-3 py-1 text-xs transition select-none ${
-                    period === key
+                    rangePreset === key
                       ? 'bg-white font-semibold text-[#1B5BD6] shadow-xs'
                       : 'font-normal text-slate-700 hover:text-slate-900'
                   }`}
@@ -1505,28 +1588,28 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
               ))}
             </div>
 
-            <DateRangeField
-              startValue={startDate}
-              endValue={endDate}
-              lockedMode={period === 'day' ? 'range' : period}
-              unitRangeSelect={period !== 'day'}
-              maxDate={STATS_MAX_DATE}
-              maxUnitSpan={PERIOD_MAX_POINTS[period]}
-              onStartChange={setStartDate}
-              onEndChange={setEndDate}
-              title={
-                period === 'day'
-                  ? '选择起止日期'
-                  : period === 'week'
-                    ? '选择起止自然周'
-                    : period === 'month'
-                      ? '选择起止自然月'
-                      : period === 'quarter'
-                        ? '选择起止自然季度'
-                        : '选择起止自然年'
-              }
-              className="min-w-[320px]"
-            />
+            {rangePreset === 'custom' ? (
+              <DateRangeField
+                key={customFieldKey}
+                startValue={startDate}
+                endValue={endDate}
+                unitRangeSelect
+                maxDate={STATS_MAX_DATE}
+                maxUnitSpan={PERIOD_MAX_POINTS[period]}
+                onStartChange={setStartDate}
+                onEndChange={setEndDate}
+                onModeChange={handleCustomModeChange}
+                modeDefaultRanges={customModeDefaultRanges}
+                activeMode={period === 'day' ? 'range' : period}
+                rangeModeLabel="按日"
+                title="自定义统计周期"
+                className="min-w-[320px]"
+              />
+            ) : (
+              <span className="inline-flex min-h-8 items-center rounded-xl border border-slate-200 bg-white px-3 font-mono text-xs text-slate-600 tabular-nums">
+                {startDate.replaceAll('-', '/')} ~ {endDate.replaceAll('-', '/')}
+              </span>
+            )}
 
             <OrgFilterSelect
               value={selectedOrg}
@@ -1583,9 +1666,16 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
               }}
             >
               <ResponsiveContainer width="100%" height="100%" debounce={80}>
-                <ComposedChart data={reportTrend} margin={{ top: 8, right: 18, left: -12, bottom: 6 }}>
+                <ComposedChart data={reportTrend} margin={{ top: 8, right: 18, left: -12, bottom: trendChartBottom }}>
                   <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} interval={0} />
+                  <XAxis
+                    dataKey="label"
+                    tick={renderTrendXTick}
+                    axisLine={false}
+                    tickLine={false}
+                    interval={0}
+                    height={period === 'week' ? 40 : 24}
+                  />
                   <YAxis yAxisId="count" tick={{ fill: '#64748b', fontSize: 9 }} axisLine={false} tickLine={false} unit="件" />
                   <YAxis yAxisId="rate" orientation="right" domain={[0, 100]} tick={{ fill: '#64748b', fontSize: 9 }} axisLine={false} tickLine={false} unit="%" />
                   <YAxis yAxisId="time" orientation="right" domain={[0, 30]} tick={{ fill: '#64748b', fontSize: 9 }} axisLine={false} tickLine={false} unit="分" hide />

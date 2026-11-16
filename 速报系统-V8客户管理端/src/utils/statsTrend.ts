@@ -4,6 +4,8 @@ export type StatsPeriod = 'day' | 'week' | 'month' | 'quarter' | 'year';
 
 export type TrendRow = {
   label: string;
+  /** 次行说明（如按周的起止日期），供坐标轴双行展示 */
+  subLabel?: string;
   total: number;
   passed: number;
   rejected: number;
@@ -26,7 +28,7 @@ export const TREND_VISIBLE_BY_PERIOD: Record<StatsPeriod, number> = {
 
 export const TREND_POINT_WIDTH_BY_PERIOD: Record<StatsPeriod, number> = {
   day: 88,
-  week: 120,
+  week: 148,
   month: 96,
   quarter: 110,
   year: 100,
@@ -44,8 +46,6 @@ export const chartColors = {
 };
 
 export const formatTrendNumber = (value: number) => value.toLocaleString('zh-CN');
-
-const WEEKDAY_LABELS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
 const parseDateInput = (value: string) => {
   const normalized = value.replaceAll('/', '-');
@@ -100,7 +100,7 @@ export const buildTrendSeries = (
     return buildTrendSeries(fallback.start, fallback.end, 'day', fallback);
   }
 
-  const buckets: Array<{ label: string; seed: number; spanDays: number }> = [];
+  const buckets: Array<{ label: string; subLabel?: string; seed: number; spanDays: number }> = [];
 
   if (grain === 'day') {
     const days = dayDiffInclusive(start, end);
@@ -108,7 +108,7 @@ export const buildTrendSeries = (
       const date = new Date(start);
       date.setDate(start.getDate() + i);
       buckets.push({
-        label: `${WEEKDAY_LABELS[date.getDay()]} (${formatMd(date)})`,
+        label: formatMd(date),
         seed: date.getFullYear() * 10000 + (date.getMonth() + 1) * 100 + date.getDate(),
         spanDays: 1,
       });
@@ -122,7 +122,8 @@ export const buildTrendSeries = (
       const actualEnd = weekEnd > end ? end : weekEnd;
       const weekNo = getISOWeek(cursor);
       buckets.push({
-        label: `第${weekNo}周 (${formatMd(actualStart)}~${formatMd(actualEnd)})`,
+        label: `第${weekNo}周`,
+        subLabel: `${formatMd(actualStart)}~${formatMd(actualEnd)}`,
         seed: cursor.getFullYear() * 10000 + (cursor.getMonth() + 1) * 100 + cursor.getDate() + weekNo * 17,
         spanDays: dayDiffInclusive(actualStart, actualEnd),
       });
@@ -184,6 +185,7 @@ export const buildTrendSeries = (
     const audited = Math.max(passed, Math.round(total * (0.9 + r * 0.08)));
     return {
       label: bucket.label,
+      ...(bucket.subLabel ? { subLabel: bucket.subLabel } : {}),
       total,
       passed,
       rejected,

@@ -24,18 +24,19 @@ interface HomeProps {
   currentUser?: string;
 }
 
+/** 组织节点近7日运行矩阵（mock：各列均为近7日口径） */
 const subOrgMatrixRaw = [
-  { name: '北屯区宣传部', todaySubmitted: 2, pendingAudit: 11, auditing: 3, rejectedResend: 4, reporterActive: '3/9', auditorActive: '1/3', avgMinutes: 135 },
-  { name: '市市场监管局宣教科', todaySubmitted: 4, pendingAudit: 6, auditing: 2, rejectedResend: 2, reporterActive: '4/6', auditorActive: '1/2', avgMinutes: 70 },
-  { name: '中共台中市委宣传部(本级)', todaySubmitted: 14, pendingAudit: 5, auditing: 4, rejectedResend: 0, reporterActive: '6/6', auditorActive: '3/3', avgMinutes: 9 },
-  { name: '南屯区宣传部', todaySubmitted: 8, pendingAudit: 4, auditing: 2, rejectedResend: 2, reporterActive: '5/7', auditorActive: '2/2', avgMinutes: 56 },
-  { name: '西区宣传部', todaySubmitted: 12, pendingAudit: 3, auditing: 2, rejectedResend: 1, reporterActive: '8/10', auditorActive: '2/2', avgMinutes: 18 },
-  { name: '高新区管委会舆情室', todaySubmitted: 6, pendingAudit: 3, auditing: 1, rejectedResend: 1, reporterActive: '2/5', auditorActive: '1/2', avgMinutes: 35 },
-  { name: '台中市网信办直属队', todaySubmitted: 9, pendingAudit: 2, auditing: 2, rejectedResend: 1, reporterActive: '7/8', auditorActive: '2/2', avgMinutes: 14 },
-  { name: '市卫健委宣传处', todaySubmitted: 2, pendingAudit: 2, auditing: 1, rejectedResend: 1, reporterActive: '2/5', auditorActive: '1/2', avgMinutes: 40 },
-  { name: '东湖区宣传处', todaySubmitted: 7, pendingAudit: 1, auditing: 1, rejectedResend: 0, reporterActive: '6/6', auditorActive: '2/2', avgMinutes: 22 },
-  { name: '市教育局宣教科', todaySubmitted: 3, pendingAudit: 1, auditing: 0, rejectedResend: 0, reporterActive: '3/4', auditorActive: '2/2', avgMinutes: 25 },
-  { name: '市政务服务局', todaySubmitted: 1, pendingAudit: 1, auditing: 0, rejectedResend: 0, reporterActive: '1/3', auditorActive: '1/1', avgMinutes: 30 },
+  { name: '北屯区宣传部', submitted: 18, pendingAudit: 11, auditing: 3, rejectedResend: 4, reporterActive: '3/9', auditorActive: '1/3', avgMinutes: 135 },
+  { name: '市市场监管局宣教科', submitted: 26, pendingAudit: 6, auditing: 2, rejectedResend: 2, reporterActive: '4/6', auditorActive: '1/2', avgMinutes: 70 },
+  { name: '中共台中市委宣传部(本级)', submitted: 86, pendingAudit: 5, auditing: 4, rejectedResend: 0, reporterActive: '6/6', auditorActive: '3/3', avgMinutes: 9 },
+  { name: '南屯区宣传部', submitted: 52, pendingAudit: 4, auditing: 2, rejectedResend: 2, reporterActive: '5/7', auditorActive: '2/2', avgMinutes: 56 },
+  { name: '西区宣传部', submitted: 71, pendingAudit: 3, auditing: 2, rejectedResend: 1, reporterActive: '8/10', auditorActive: '2/2', avgMinutes: 18 },
+  { name: '高新区管委会舆情室', submitted: 34, pendingAudit: 3, auditing: 1, rejectedResend: 1, reporterActive: '2/5', auditorActive: '1/2', avgMinutes: 35 },
+  { name: '台中市网信办直属队', submitted: 58, pendingAudit: 2, auditing: 2, rejectedResend: 1, reporterActive: '7/8', auditorActive: '2/2', avgMinutes: 14 },
+  { name: '市卫健委宣传处', submitted: 15, pendingAudit: 2, auditing: 1, rejectedResend: 1, reporterActive: '2/5', auditorActive: '1/2', avgMinutes: 40 },
+  { name: '东湖区宣传处', submitted: 41, pendingAudit: 1, auditing: 1, rejectedResend: 0, reporterActive: '6/6', auditorActive: '2/2', avgMinutes: 22 },
+  { name: '市教育局宣教科', submitted: 22, pendingAudit: 1, auditing: 0, rejectedResend: 0, reporterActive: '3/4', auditorActive: '2/2', avgMinutes: 25 },
+  { name: '市政务服务局', submitted: 9, pendingAudit: 1, auditing: 0, rejectedResend: 0, reporterActive: '1/3', auditorActive: '1/1', avgMinutes: 30 },
 ];
 
 const parseActiveParts = (value: string) => {
@@ -43,7 +44,7 @@ const parseActiveParts = (value: string) => {
   return { active: active || 0, total: total || 0 };
 };
 
-/** 上报员 + 审核员活跃合并为人员参与（参与/在册） */
+/** 近7日：上报员 + 审核员活跃合并为人员参与（参与/在册） */
 const mergeParticipation = (reporterActive: string, auditorActive: string) => {
   const reporter = parseActiveParts(reporterActive);
   const auditor = parseActiveParts(auditorActive);
@@ -56,7 +57,7 @@ const subOrgMatrixData = subOrgMatrixRaw.map((row) => ({
 }));
 
 const SORT_OPTIONS = {
-  submitted: '今日上报',
+  submitted: '累计上报',
   pending: '待审核',
   auditing: '审核中',
   rejected: '驳回待重报',
@@ -70,6 +71,15 @@ const TODO_LIMIT = 6;
 const parseActiveRatio = (value: string) => {
   const { active, total } = parseActiveParts(value);
   return total > 0 ? active / total : 0;
+};
+
+/** 平均审核耗时单位：分 / 时 / 天（与我的审核、审核统计一致） */
+const formatAvgAuditDuration = (minutes: number | null | undefined) => {
+  if (minutes == null || Number.isNaN(minutes)) return '—';
+  if (minutes < 1) return '< 1 分钟';
+  if (minutes < 60) return `${Math.round(minutes * 10) / 10} 分钟`;
+  if (minutes < 1440) return `${Math.round((minutes / 60) * 10) / 10} 小时`;
+  return `${Math.round((minutes / 1440) * 10) / 10} 天`;
 };
 
 const getGreeting = (hour: number) => (hour < 12 ? '上午好' : hour < 18 ? '下午好' : '晚上好');
@@ -109,11 +119,12 @@ export const Home: React.FC<HomeProps> = ({
   );
   const rejectedCount = reports.filter((r) => r.auditStatus === '被驳回' || r.auditStatus === '已驳回').length;
   const toTransferCount = reports.filter((r) => r.auditStatus === '待转办').length;
-  const todaySubmitted = subOrgMatrixData.reduce((sum, org) => sum + org.todaySubmitted, 0);
+  // 顶部 KPI「今日上报」与矩阵近7日口径分离
+  const todaySubmitted = 68;
 
   const sortedOrgs = useMemo(() => {
     const list = [...subOrgMatrixData];
-    if (sortKey === 'submitted') list.sort((a, b) => b.todaySubmitted - a.todaySubmitted);
+    if (sortKey === 'submitted') list.sort((a, b) => b.submitted - a.submitted);
     if (sortKey === 'pending') list.sort((a, b) => b.pendingAudit - a.pendingAudit);
     if (sortKey === 'auditing') list.sort((a, b) => b.auditing - a.auditing);
     if (sortKey === 'rejected') list.sort((a, b) => b.rejectedResend - a.rejectedResend);
@@ -297,7 +308,7 @@ export const Home: React.FC<HomeProps> = ({
                         <span className="shrink-0 font-mono text-gray-500">{item.submitTime}</span>
                         <span className="shrink-0 text-gray-300">·</span>
                         <span className="shrink-0">
-                          提交时间 <span className="font-mono text-gray-500">{getAuditArrivedAt(item)}</span>
+                          送审时间 <span className="font-mono text-gray-500">{getAuditArrivedAt(item)}</span>
                         </span>
                       </div>
                     </div>
@@ -321,17 +332,17 @@ export const Home: React.FC<HomeProps> = ({
         className="xl:col-span-7 flex h-full min-h-0 flex-col min-w-0"
         title={
           <>
-            组织节点运行矩阵
+            近7日运行矩阵
             <span className="text-xs font-normal text-slate-400">{subOrgMatrixData.length}</span>
           </>
         }
         extra={
           <label className="flex items-center gap-2 text-xs text-slate-600">
-            <span className="whitespace-nowrap">排序字段</span>
+            <span className="whitespace-nowrap">排序</span>
             <select
               value={sortKey}
               onChange={(event) => setSortKey(event.target.value as SortKey)}
-              className="min-w-[132px] px-2.5 py-1 bg-white border border-slate-200 hover:border-[#1E5ABB]/40 focus:border-[#1E5ABB] rounded-lg text-xs text-slate-700 outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 cursor-pointer"
+              className="min-w-[108px] px-2 py-1 bg-white border border-slate-200 hover:border-[#1E5ABB]/40 focus:border-[#1E5ABB] rounded-lg text-xs text-slate-700 outline-none focus:ring-2 focus:ring-[#1E5ABB]/15 cursor-pointer"
             >
               {sortKeys.map((key) => (
                 <option key={key} value={key}>
@@ -342,42 +353,56 @@ export const Home: React.FC<HomeProps> = ({
           </label>
         }
       >
-        <div className="min-h-0 flex-1 overflow-x-auto">
-          <table className="w-full min-w-[640px] table-fixed text-left text-xs">
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <table className="w-full table-fixed text-left text-xs">
             <colgroup>
-              <col className="w-[24%]" />
-              <col className="w-[11%]" />
-              <col className="w-[10%]" />
-              <col className="w-[10%]" />
+              <col className="w-[26%]" />
               <col className="w-[12%]" />
+              <col className="w-[10%]" />
+              <col className="w-[10%]" />
               <col className="w-[14%]" />
-              <col className="w-[19%]" />
+              <col className="w-[12%]" />
+              <col className="w-[16%]" />
             </colgroup>
             <thead className="text-slate-500 border-b border-slate-100">
               <tr>
-                <th className="py-2.5 px-2 font-medium leading-tight">组织节点名称</th>
-                <th className="py-2.5 px-1.5 font-medium text-right leading-tight">今日上报</th>
-                <th className="py-2.5 px-1.5 font-medium text-right leading-tight">待审核</th>
-                <th className="py-2.5 px-1.5 font-medium text-right leading-tight">审核中</th>
-                <th className="py-2.5 px-1.5 font-medium text-right leading-tight">驳回待重报</th>
-                <th className="py-2.5 px-1.5 font-medium text-right leading-tight">人员参与</th>
-                <th className="py-2.5 px-2 font-medium text-right leading-tight">平均审核耗时</th>
+                <th className="py-2.5 px-2 font-medium">组织节点</th>
+                <th className="py-2.5 px-0.5 font-medium text-right leading-tight" title="近7日累计上报">
+                  累计上报
+                </th>
+                <th className="py-2.5 px-0.5 font-medium text-right leading-tight" title="近7日待审核">
+                  待审核
+                </th>
+                <th className="py-2.5 px-0.5 font-medium text-right leading-tight" title="近7日审核中">
+                  审核中
+                </th>
+                <th className="py-2.5 px-0.5 font-medium text-right leading-tight" title="近7日驳回待重报">
+                  驳回待重报
+                </th>
+                <th className="py-2.5 px-0.5 font-medium text-right leading-tight" title="近7日人员参与">
+                  人员参与
+                </th>
+                <th className="py-2.5 px-2 font-medium text-right leading-tight" title="近7日平均审核耗时">
+                  平均审核耗时
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700 tabular-nums">
               {sortedOrgs.map((org) => (
                 <tr key={org.name} className="hover:bg-slate-50 transition-colors">
                   <td className="py-2.5 px-2">
-                    <span className="font-medium text-slate-900 leading-tight break-words">
+                    <span className="block truncate font-medium text-slate-900" title={org.name}>
                       {org.name}
                     </span>
                   </td>
-                  <td className="py-2.5 px-1.5 text-right">{org.todaySubmitted}</td>
-                  <td className="py-2.5 px-1.5 text-right">{org.pendingAudit}</td>
-                  <td className="py-2.5 px-1.5 text-right">{org.auditing}</td>
-                  <td className="py-2.5 px-1.5 text-right">{org.rejectedResend}</td>
-                  <td className="py-2.5 px-1.5 text-right">{org.participation}</td>
-                  <td className="py-2.5 px-2 text-right leading-tight">{org.avgMinutes} 分钟</td>
+                  <td className="py-2.5 px-0.5 text-right">{org.submitted}</td>
+                  <td className="py-2.5 px-0.5 text-right">{org.pendingAudit}</td>
+                  <td className="py-2.5 px-0.5 text-right">{org.auditing}</td>
+                  <td className="py-2.5 px-0.5 text-right">{org.rejectedResend}</td>
+                  <td className="py-2.5 px-0.5 text-right text-slate-600">{org.participation}</td>
+                  <td className="py-2.5 px-2 text-right text-slate-600 whitespace-nowrap">
+                    {formatAvgAuditDuration(org.avgMinutes)}
+                  </td>
                 </tr>
               ))}
             </tbody>

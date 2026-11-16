@@ -33,17 +33,53 @@ interface EvaluationReferenceProps {
 
 type EvalTab = 'org' | 'group' | 'person';
 type Period = 'day' | 'week' | 'month' | 'quarter' | 'year';
+type RangePreset = 'd7' | 'd30' | 'd90' | 'custom';
 
 const EVAL_MAX_DATE = '2026-11-09';
 
-/** 考核周期：按日默认近 7 日；周/月/季/年默认当前周期（结束日不超过锚定日） */
+const shiftDateKey = (dateKey: string, days: number) => {
+  const base = new Date(`${dateKey.replace(/-/g, '/')} 00:00:00`);
+  if (Number.isNaN(base.getTime())) return dateKey;
+  base.setDate(base.getDate() + days);
+  const y = base.getFullYear();
+  const m = String(base.getMonth() + 1).padStart(2, '0');
+  const d = String(base.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+/** 外层预设：近 N 日滚动窗（含锚定日） */
+const PRESET_RANGES: Record<Exclude<RangePreset, 'custom'>, { start: string; end: string }> = {
+  d7: { start: shiftDateKey(EVAL_MAX_DATE, -6), end: EVAL_MAX_DATE },
+  d30: { start: shiftDateKey(EVAL_MAX_DATE, -29), end: EVAL_MAX_DATE },
+  d90: { start: shiftDateKey(EVAL_MAX_DATE, -89), end: EVAL_MAX_DATE },
+};
+
+/**
+ * 自定义弹窗各粒度默认区间（与改版前外层一致）：
+ * 按日近 7 日；周/月/季/年默认当前周期（结束日不超过锚定日）
+ */
 const PERIOD_DEFAULTS: Record<Period, { start: string; end: string }> = {
-  day: { start: '2026-11-03', end: '2026-11-09' }, // 近 7 日
+  day: PRESET_RANGES.d7,
   week: { start: '2026-11-09', end: '2026-11-09' }, // 本周（周一为锚定日）
   month: { start: '2026-11-01', end: '2026-11-09' }, // 本月
   quarter: { start: '2026-10-01', end: '2026-11-09' }, // 本季度（Q4）
   year: { start: '2026-01-01', end: '2026-11-09' }, // 本年
 };
+
+/** 统计控件可选区间硬上限（按统计单位点数） */
+const PERIOD_MAX_POINTS: Record<Period, number> = {
+  day: 90,
+  week: 52,
+  month: 36,
+  quarter: 16,
+  year: 10,
+};
+
+const panelModeToPeriod = (mode: 'range' | 'week' | 'month' | 'quarter' | 'year'): Period =>
+  mode === 'range' ? 'day' : mode;
+
+const toSlashDate = (value: string) => value.replaceAll('-', '/');
+const toDashDate = (value: string) => value.replaceAll('/', '-');
 type Perspective = 'report' | 'audit';
 type Grade = '卓越' | '优秀' | '良好' | '合格';
 
@@ -452,9 +488,12 @@ const sectionClass = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-[0
 export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
   const [tab, setTab] = useState<EvalTab>(() => readEvalHash().tab);
   const [perspective, setPerspective] = useState<Perspective>(() => readEvalHash().perspective);
-  const [period, setPeriod] = useState<Period>('week');
-  const [startDate, setStartDate] = useState(PERIOD_DEFAULTS.week.start.replaceAll('-', '/'));
-  const [endDate, setEndDate] = useState(PERIOD_DEFAULTS.week.end.replaceAll('-', '/'));
+  const [rangePreset, setRangePreset] = useState<RangePreset>('d7');
+  /** 趋势/明细粒度：预设固定按日；自定义跟弹窗所选 按日/周/月/季/年 */
+  const [period, setPeriod] = useState<Period>('day');
+  const [startDate, setStartDate] = useState(toSlashDate(PRESET_RANGES.d7.start));
+  const [endDate, setEndDate] = useState(toSlashDate(PRESET_RANGES.d7.end));
+  const [customFieldKey, setCustomFieldKey] = useState(0);
   const [personOrgFilter, setPersonOrgFilter] = useState<string | null>(null);
   const [personGroupFilter, setPersonGroupFilter] = useState<string[]>([]);
   const [personPage, setPersonPage] = useState(1);
@@ -492,9 +531,10 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
   };
 
   const resetFilters = () => {
-    setPeriod('week');
-    setStartDate(PERIOD_DEFAULTS.week.start.replaceAll('-', '/'));
-    setEndDate(PERIOD_DEFAULTS.week.end.replaceAll('-', '/'));
+    setRangePreset('d7');
+    setPeriod('day');
+    setStartDate(toSlashDate(PRESET_RANGES.d7.start));
+    setEndDate(toSlashDate(PRESET_RANGES.d7.end));
     setPersonOrgFilter(null);
     setPersonGroupFilter([]);
     setReporterSort('adopted');
@@ -504,11 +544,33 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
     showToast('筛选条件已重置');
   };
 
-  const handlePeriodChange = (p: Period) => {
-    setPeriod(p);
-    const next = PERIOD_DEFAULTS[p];
-    setStartDate(next.start.replaceAll('-', '/'));
-    setEndDate(next.end.replaceAll('-', '/'));
+  const handleRangePresetChange = (next: RangePreset) => {
+    setRangePreset(next);
+    if (next === 'custom') {
+      setPeriod('day');
+      setStartDate(toSlashDate(PRESET_RANGES.d7.start));
+      setEndDate(toSlashDate(PRESET_RANGES.d7.end));
+      setCustomFieldKey((key) => key + 1);
+      return;
+    }
+    setPeriod('day');
+    setStartDate(toSlashDate(PRESET_RANGES[next].start));
+    setEndDate(toSlashDate(PRESET_RANGES[next].end));
+  };
+
+  const handleCustomModeChange = (mode: 'range' | 'week' | 'month' | 'quarter' | 'year') => {
+    const nextPeriod = panelModeToPeriod(mode);
+    setPeriod(nextPeriod);
+    setStartDate(toSlashDate(PERIOD_DEFAULTS[nextPeriod].start));
+    setEndDate(toSlashDate(PERIOD_DEFAULTS[nextPeriod].end));
+  };
+
+  const customModeDefaultRanges = {
+    range: PERIOD_DEFAULTS.day,
+    week: PERIOD_DEFAULTS.week,
+    month: PERIOD_DEFAULTS.month,
+    quarter: PERIOD_DEFAULTS.quarter,
+    year: PERIOD_DEFAULTS.year,
   };
 
   const sortOrgLikeRecords = (list: OrgRecord[], sortKey: string) => {
@@ -878,19 +940,18 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
             </div>
             {(
               [
-                ['day', '按日'],
-                ['week', '按周'],
-                ['month', '按月'],
-                ['quarter', '按季度'],
-                ['year', '按年'],
+                ['d7', '近7日'],
+                ['d30', '近30日'],
+                ['d90', '近90日'],
+                ['custom', '自定义'],
               ] as const
             ).map(([key, label]) => (
               <button
                 key={key}
                 type="button"
-                onClick={() => handlePeriodChange(key)}
+                onClick={() => handleRangePresetChange(key)}
                 className={`min-h-7 cursor-pointer rounded-xl px-3 py-1 text-xs transition select-none ${
-                  period === key
+                  rangePreset === key
                     ? 'bg-white font-semibold text-[#1B5BD6] shadow-xs'
                     : 'font-normal text-slate-700 hover:text-slate-900'
                 }`}
@@ -900,26 +961,28 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
             ))}
           </div>
 
-          <DateRangeField
-            startValue={startDate.replaceAll('/', '-')}
-            endValue={endDate.replaceAll('/', '-')}
-            lockedMode={period === 'day' ? 'range' : period}
-            maxDate={EVAL_MAX_DATE}
-            onStartChange={(value) => setStartDate(value.replaceAll('-', '/'))}
-            onEndChange={(value) => setEndDate(value.replaceAll('-', '/'))}
-            title={
-              period === 'day'
-                ? '选择起止日期'
-                : period === 'week'
-                  ? '选择自然周'
-                  : period === 'month'
-                    ? '选择自然月'
-                    : period === 'quarter'
-                      ? '选择自然季度'
-                      : '选择自然年'
-            }
-            className="min-w-[260px]"
-          />
+          {rangePreset === 'custom' ? (
+            <DateRangeField
+              key={customFieldKey}
+              startValue={toDashDate(startDate)}
+              endValue={toDashDate(endDate)}
+              unitRangeSelect
+              maxDate={EVAL_MAX_DATE}
+              maxUnitSpan={PERIOD_MAX_POINTS[period]}
+              onStartChange={(value) => setStartDate(toSlashDate(value))}
+              onEndChange={(value) => setEndDate(toSlashDate(value))}
+              onModeChange={handleCustomModeChange}
+              modeDefaultRanges={customModeDefaultRanges}
+              activeMode={period === 'day' ? 'range' : period}
+              rangeModeLabel="按日"
+              title="自定义统计周期"
+              className="min-w-[260px]"
+            />
+          ) : (
+            <span className="inline-flex min-h-8 items-center rounded-xl border border-slate-200 bg-white px-3 font-mono text-xs text-slate-600 tabular-nums">
+              {startDate} ~ {endDate}
+            </span>
+          )}
 
         </div>
 
