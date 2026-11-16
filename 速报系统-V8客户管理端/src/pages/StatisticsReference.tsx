@@ -4,6 +4,7 @@ import {
   Clock,
   Download,
   FileText,
+  RefreshCw,
   TrendingUp,
 } from 'lucide-react';
 import {
@@ -80,6 +81,15 @@ const PRESET_LABELS: Record<RangePreset, string> = {
 const panelModeToPeriod = (mode: 'range' | 'week' | 'month' | 'quarter' | 'year'): Period =>
   mode === 'range' ? 'day' : mode;
 
+const formatStatsClock = (date = new Date()) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${d} ${hh}:${mm}`;
+};
+
 /** 统计控件可选区间硬上限（按统计单位点数） */
 const PERIOD_MAX_POINTS: Record<Period, number> = {
   day: 90,
@@ -97,7 +107,6 @@ const TREND_TOOLTIP_ORDER = [
   '首审直通率',
   '整体采纳率',
   '审核处理率',
-  '转办闭环率',
   '平均审核耗时',
 ] as const;
 
@@ -345,7 +354,6 @@ type TrendLineFlags = {
   directRate: boolean;
   passRate: boolean;
   processRate: boolean;
-  closedRate: boolean;
   avgTime: boolean;
 };
 
@@ -446,7 +454,6 @@ const drawTrendChartCanvas = (
   if (lines.directRate) drawLine((r) => r.directRate, chartColors.purple, [4, 4], yRate);
   if (lines.passRate) drawLine((r) => r.passRate, chartColors.teal, null, yRate);
   if (lines.processRate) drawLine((r) => r.processRate, chartColors.cyan, [3, 3], yRate);
-  if (lines.closedRate) drawLine((r) => r.closedRate, chartColors.amber, [5, 3], yRate);
   if (lines.avgTime) drawLine((r) => r.avgTime, '#EC4899', null, yTime);
 
   ctx.fillStyle = '#64748b';
@@ -614,13 +621,6 @@ const drawTrendDataTableCanvas = (
       align: 'right' as const,
       get: (row: TrendRow) => `${row.processRate}`,
       active: lines.processRate,
-    },
-    {
-      key: 'closedRate',
-      header: '转办闭环率(%)',
-      align: 'right' as const,
-      get: (row: TrendRow) => `${row.closedRate}`,
-      active: lines.closedRate,
     },
     {
       key: 'avgTime',
@@ -1128,6 +1128,8 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
   const [endDate, setEndDate] = useState(PRESET_RANGES.d7.end);
   const [selectedOrg, setSelectedOrg] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [statsUpdatedAt, setStatsUpdatedAt] = useState(() => formatStatsClock());
+  const [refreshingStats, setRefreshingStats] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const chartsExportRef = useRef<HTMLDivElement>(null);
   /** 切入自定义时递增，重置日期弹窗内部模式为按日 */
@@ -1139,7 +1141,6 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
     directRate: true,
     passRate: true,
     processRate: true,
-    closedRate: true,
     avgTime: true,
   });
 
@@ -1192,6 +1193,19 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
   const showToast = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(null), 2400);
+  };
+
+  const handleRefreshStats = () => {
+    if (refreshingStats) return;
+    setRefreshingStats(true);
+    if (rangePreset !== 'custom') {
+      setPeriod('day');
+      setStartDate(PRESET_RANGES[rangePreset].start);
+      setEndDate(PRESET_RANGES[rangePreset].end);
+    }
+    setStatsUpdatedAt(formatStatsClock());
+    showToast('统计数据已刷新');
+    window.setTimeout(() => setRefreshingStats(false), 450);
   };
 
   const handleRangePresetChange = (next: RangePreset) => {
@@ -1313,7 +1327,6 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
         '首审直通率',
         '整体采纳率',
         '审核处理率',
-        '转办闭环率',
         '平均审核耗时',
       ],
       ...reportTrend.map((row) => [
@@ -1324,7 +1337,6 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
         `${row.directRate}%`,
         `${row.passRate}%`,
         `${row.processRate}%`,
-        `${row.closedRate}%`,
         `${row.avgTime} 分钟`,
       ]),
       [],
@@ -1378,7 +1390,6 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
         reportLines.directRate ? { label: '首审直通率', color: chartColors.purple } : null,
         reportLines.passRate ? { label: '整体采纳率', color: chartColors.teal } : null,
         reportLines.processRate ? { label: '审核处理率', color: chartColors.cyan } : null,
-        reportLines.closedRate ? { label: '转办闭环率', color: chartColors.amber } : null,
         reportLines.avgTime ? { label: '平均审核耗时', color: '#EC4899' } : null,
       ].filter(Boolean) as Array<{ label: string; color: string }>;
 
@@ -1532,11 +1543,25 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
               <BarChart3 className="h-5 w-5" />
             </span>
             <div className="min-w-0">
-              <h1 className="truncate text-base font-bold text-slate-900">统计管理与效能分析</h1>
+              <h1 className="truncate text-base font-bold text-slate-900">统计效能分析</h1>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="inline-flex items-center gap-1.5 text-xs text-slate-400 tabular-nums">
+              <span>统计更新</span>
+              <span>{statsUpdatedAt}</span>
+              <button
+                type="button"
+                onClick={handleRefreshStats}
+                title="刷新统计数据"
+                aria-label="刷新统计数据"
+                className="inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded text-slate-400 transition hover:text-[#2F74FF] disabled:cursor-wait"
+                disabled={refreshingStats}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${refreshingStats ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
             <button
               type="button"
               onClick={handleExportPdf}
@@ -1644,7 +1669,6 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
             <ChartLegendButton label="首审直通率(%)" color={chartColors.purple} active={reportLines.directRate} onClick={() => toggleLine('directRate')} />
             <ChartLegendButton label="整体采纳率(%)" color={chartColors.teal} active={reportLines.passRate} onClick={() => toggleLine('passRate')} />
             <ChartLegendButton label="审核处理率(%)" color={chartColors.cyan} active={reportLines.processRate} onClick={() => toggleLine('processRate')} />
-            <ChartLegendButton label="转办闭环率(%)" color={chartColors.amber} active={reportLines.closedRate} onClick={() => toggleLine('closedRate')} />
             <ChartLegendButton label="平均审核耗时" color="#EC4899" active={reportLines.avgTime} onClick={() => toggleLine('avgTime')} />
           </div>
 
@@ -1707,7 +1731,6 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
                   {reportLines.directRate && <Line yAxisId="rate" type="monotone" dataKey="directRate" name="首审直通率" stroke={chartColors.purple} strokeDasharray="4 4" strokeWidth={1.6} dot={{ r: 2, fill: chartColors.purple }} isAnimationActive={false} />}
                   {reportLines.passRate && <Line yAxisId="rate" type="monotone" dataKey="passRate" name="整体采纳率" stroke={chartColors.teal} strokeWidth={1.6} dot={{ r: 2, fill: chartColors.teal }} isAnimationActive={false} />}
                   {reportLines.processRate && <Line yAxisId="rate" type="monotone" dataKey="processRate" name="审核处理率" stroke={chartColors.cyan} strokeDasharray="3 3" strokeWidth={1.6} dot={{ r: 2, fill: chartColors.cyan }} isAnimationActive={false} />}
-                  {reportLines.closedRate && <Line yAxisId="rate" type="monotone" dataKey="closedRate" name="转办闭环率" stroke={chartColors.amber} strokeDasharray="5 3" strokeWidth={1.6} dot={{ r: 2, fill: chartColors.amber }} isAnimationActive={false} />}
                   {reportLines.avgTime && <Line yAxisId="time" type="monotone" dataKey="avgTime" name="平均审核耗时" stroke="#EC4899" strokeWidth={1.6} dot={{ r: 2, fill: '#EC4899' }} isAnimationActive={false} />}
                 </ComposedChart>
               </ResponsiveContainer>

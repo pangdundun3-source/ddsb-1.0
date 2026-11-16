@@ -136,6 +136,15 @@ const PRESET_LABELS: Record<RangePreset, string> = {
 const panelModeToPeriod = (mode: 'range' | 'week' | 'month' | 'quarter' | 'year'): Period =>
   mode === 'range' ? 'day' : mode;
 
+const formatStatsClock = (date = new Date()) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${d} ${hh}:${mm}`;
+};
+
 /** 平均审核耗时：标题不带单位，数值后按分钟/小时/天动态展示 */
 const formatAuditResponseDisplay = (minutes: number) => {
   if (minutes <= 0) return { value: '< 1', unit: '分钟' };
@@ -157,6 +166,8 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
   const [tableTab, setTableTab] = useState<'my_submit' | 'my_audit' | 'org' | 'category' | 'person'>('my_submit');
   const [searchQuery, setSearchQuery] = useState('');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [statsUpdatedAt, setStatsUpdatedAt] = useState(() => formatStatsClock());
+  const [refreshingStats, setRefreshingStats] = useState(false);
   /** 切入自定义时递增，重置日期弹窗内部模式为按日 */
   const [customFieldKey, setCustomFieldKey] = useState(0);
   const timeDim: TimeDimension =
@@ -189,6 +200,19 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
   const showToast = (text: string) => {
     setToastMsg(text);
     setTimeout(() => setToastMsg(null), 3000);
+  };
+
+  const handleRefreshStats = () => {
+    if (refreshingStats) return;
+    setRefreshingStats(true);
+    if (rangePreset !== 'custom') {
+      setPeriod('day');
+      setStartDate(PRESET_RANGES[rangePreset].start);
+      setEndDate(PRESET_RANGES[rangePreset].end);
+    }
+    setStatsUpdatedAt(formatStatsClock());
+    showToast('统计数据已刷新');
+    window.setTimeout(() => setRefreshingStats(false), 450);
   };
 
   const handleRangePresetChange = (next: RangePreset) => {
@@ -850,7 +874,21 @@ export const Statistics: React.FC<{ scope: StatisticsScope }> = ({ scope }) => {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="inline-flex items-center gap-1.5 text-xs text-slate-400 tabular-nums">
+              <span>统计更新</span>
+              <span>{statsUpdatedAt}</span>
+              <button
+                type="button"
+                onClick={handleRefreshStats}
+                title="刷新统计数据"
+                aria-label="刷新统计数据"
+                className="inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded text-slate-400 transition hover:text-[#2F74FF] disabled:cursor-wait"
+                disabled={refreshingStats}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${refreshingStats ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
             <button
               onClick={() => showToast('已成功导出【统计管理与多维效能分析报表.xlsx】！')}
               className="px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-lg border border-emerald-200 shadow-2xs flex items-center space-x-1.5 transition-colors cursor-pointer"

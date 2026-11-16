@@ -9,6 +9,7 @@ import {
   FileText,
   Globe2,
   RefreshCcw,
+  RefreshCw,
   Send,
   ShieldCheck,
   Target,
@@ -80,6 +81,16 @@ const panelModeToPeriod = (mode: 'range' | 'week' | 'month' | 'quarter' | 'year'
 
 const toSlashDate = (value: string) => value.replaceAll('-', '/');
 const toDashDate = (value: string) => value.replaceAll('/', '-');
+
+const formatStatsClock = (date = new Date()) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${d} ${hh}:${mm}`;
+};
+
 type Perspective = 'report' | 'audit';
 type Grade = '卓越' | '优秀' | '良好' | '合格';
 
@@ -370,18 +381,26 @@ interface GlobalKpiCardProps {
 }
 
 const GlobalKpiCard: React.FC<GlobalKpiCardProps> = ({ title, icon, color, value, unit, hint }) => (
-  <div className="flex min-h-[96px] flex-col justify-between rounded-xl border border-slate-200/90 bg-white px-3.5 py-3 shadow-2xs transition hover:border-slate-300 hover:shadow-xs">
-    <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
-      <span style={{ color }}>{icon}</span>
-      {title}
+  <div className="flex min-h-[104px] min-w-0 flex-col justify-between rounded-xl border border-slate-200/90 bg-gradient-to-b from-white to-slate-50/70 px-3.5 py-3 shadow-2xs transition hover:border-slate-300 hover:shadow-xs">
+    <span className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-slate-600">
+      <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-slate-50" style={{ color }}>
+        {icon}
+      </span>
+      <span className="truncate">{title}</span>
     </span>
-    <div className="mt-2 flex items-baseline gap-1">
-      <strong className="font-mono text-[26px] font-bold leading-none tracking-tight" style={{ color }}>
+    <div className="mt-2.5 flex min-w-0 items-baseline gap-1">
+      <strong className="truncate font-mono text-[24px] font-bold leading-none tracking-tight sm:text-[26px]" style={{ color }}>
         {value}
       </strong>
-      {unit && <span className="text-xs text-slate-400">{unit}</span>}
+      {unit && <span className="shrink-0 text-xs text-slate-400">{unit}</span>}
     </div>
-    {hint ? <p className="mt-2 truncate text-[11px] text-slate-400">{hint}</p> : <span className="mt-2 h-[15px]" />}
+    {hint ? (
+      <p className="mt-2 truncate whitespace-nowrap text-[10px] leading-4 text-slate-400" title={hint}>
+        {hint}
+      </p>
+    ) : (
+      <span className="mt-2 h-4" />
+    )}
   </div>
 );
 
@@ -467,7 +486,7 @@ const readEvalHash = (): { tab: EvalTab; perspective: Perspective } => {
   const query = window.location.hash.split('?')[1] || '';
   const params = new URLSearchParams(query);
   const tabParam = params.get('tab');
-  // 群组考核本期暂缓：deep link 到 tab=group 时回落到组织节点考核
+  // 群组考核入口隐藏：deep link 到 tab=group 时回落到组织节点考核
   const tab: EvalTab = tabParam === 'person' ? 'person' : 'org';
   return {
     tab,
@@ -503,6 +522,8 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
   const [reporterSort, setReporterSort] = useState<string>('adopted');
   const [auditorSort, setAuditorSort] = useState<string>('audited');
   const [toast, setToast] = useState<string | null>(null);
+  const [statsUpdatedAt, setStatsUpdatedAt] = useState(() => formatStatsClock());
+  const [refreshingStats, setRefreshingStats] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState<ProfileDetailData | null>(null);
 
   useEffect(() => {
@@ -525,9 +546,26 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
     setPersonPage(1);
   }, [perspective, personOrgFilter, personGroupFilter, reporterSort, auditorSort]);
 
+  useEffect(() => {
+    if (tab === 'group') setTab('org');
+  }, [tab]);
+
   const showToast = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(null), 2400);
+  };
+
+  const handleRefreshStats = () => {
+    if (refreshingStats) return;
+    setRefreshingStats(true);
+    if (rangePreset !== 'custom') {
+      setPeriod('day');
+      setStartDate(toSlashDate(PRESET_RANGES[rangePreset].start));
+      setEndDate(toSlashDate(PRESET_RANGES[rangePreset].end));
+    }
+    setStatsUpdatedAt(formatStatsClock());
+    showToast('统计数据已刷新');
+    window.setTimeout(() => setRefreshingStats(false), 450);
   };
 
   const resetFilters = () => {
@@ -761,7 +799,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
 
   const evalTabs: { id: EvalTab; label: string; desc: string; icon: React.ReactNode }[] = [
     { id: 'org', label: '组织节点考核', desc: '按组织节点排行', icon: <Building2 className="h-4 w-4" /> },
-    // 群组考核本期暂缓，入口隐藏，后期再加
+    // 群组考核入口隐藏，页面与数据保留便于后期再开
     { id: 'person', label: '人员考核', desc: '报送考核与审核考核', icon: <UserRound className="h-4 w-4" /> },
   ];
 
@@ -792,12 +830,65 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
         '整体采纳率(%)',
         '平均审核耗时',
         '审核处理率(%)',
+        '综合得分',
+      ];
+      const rows = sortedOrgs.map((row, index) => {
+        const directCount = Math.round((row.total * row.directRate) / 100);
+        return [
+          index + 1,
+          row.name,
+          getParticipationCount(row),
+          row.staff,
+          getParticipationRate(row),
+          row.total,
+          getDailyAvg(row),
+          row.perCapita,
+          row.adopted,
+          row.repeatCount,
+          row.firstCount,
+          row.otherCount,
+          row.directRate,
+          directCount,
+          row.passRate,
+          `${row.avgTime} 分钟`,
+          getProcessRate(row),
+          row.score,
+        ];
+      });
+      downloadCsv(`组织节点考核_${stamp}.csv`, headers, rows);
+      showToast(`已导出组织节点考核数据（${sortedOrgs.length} 条）`);
+      return;
+    }
+
+    if (tab === 'group') {
+      if (sortedGroups.length === 0) {
+        showToast('暂无可导出的群组数据');
+        return;
+      }
+      const headers = [
+        '排名',
+        '群组名称',
+        '参与人数',
+        '在册人数',
+        '参与率(%)',
+        '累计报送量',
+        '日均报送量',
+        '人均报送量',
+        '累计采纳量',
+        '重复采纳量',
+        '首发采纳量',
+        '其他采纳量',
+        '首审直通率(%)',
+        '首审直通通过件数',
+        '整体采纳率(%)',
+        '平均审核耗时',
+        '审核处理率(%)',
         '转办闭环率(%)',
         '办结件数',
         '转办件数',
         '综合得分',
       ];
-      const rows = sortedOrgs.map((row, index) => {
+      const rows = sortedGroups.map((row, index) => {
         const directCount = Math.round((row.total * row.directRate) / 100);
         const { transferTotal, closedCount } = getTransferCounts(row);
         return [
@@ -824,8 +915,8 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
           row.score,
         ];
       });
-      downloadCsv(`组织节点考核_${stamp}.csv`, headers, rows);
-      showToast(`已导出组织节点考核数据（${sortedOrgs.length} 条）`);
+      downloadCsv(`群组考核_${stamp}.csv`, headers, rows);
+      showToast(`已导出群组考核数据（${sortedGroups.length} 条）`);
       return;
     }
 
@@ -924,11 +1015,27 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
 
   const renderPageFilters = () => (
     <section className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.03)] sm:px-5">
-      <div className="flex min-w-0 items-center gap-3 border-b border-slate-100 pb-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-xs">
-          <Trophy className="h-5 w-5" />
-        </span>
-        <h1 className="truncate text-base font-bold text-slate-900">{activeTabMeta.label}</h1>
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-xs">
+            <Trophy className="h-5 w-5" />
+          </span>
+          <h1 className="truncate text-base font-bold text-slate-900">{activeTabMeta.label}</h1>
+        </div>
+        <div className="inline-flex items-center gap-1.5 text-xs text-slate-400 tabular-nums">
+          <span>统计更新</span>
+          <span>{statsUpdatedAt}</span>
+          <button
+            type="button"
+            onClick={handleRefreshStats}
+            title="刷新统计数据"
+            aria-label="刷新统计数据"
+            className="inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded text-slate-400 transition hover:text-[#2F74FF] disabled:cursor-wait"
+            disabled={refreshingStats}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshingStats ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 pt-3">
@@ -1061,7 +1168,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                 </span>
               </div>
             </div>
-            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <GlobalKpiCard
                 title="累计报送量"
                 icon={<FileText className="h-4 w-4" />}
@@ -1076,21 +1183,21 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                 color="#08B889"
                 value="9,370"
                 unit="件"
-                hint="重复 2,066 · 首发 6,554 · 其他 750"
+                hint="重复2066 / 首发6554 / 其他750"
               />
               <GlobalKpiCard
                 title="首审直通率"
                 icon={<Target className="h-4 w-4" />}
                 color="#08B889"
                 value="77.4%"
-                hint="通过 8,111/10,480 件"
+                hint="通过 8111/10480 件"
               />
               <GlobalKpiCard
                 title="整体采纳率"
                 icon={<Zap className="h-4 w-4" />}
                 color="#2F74FF"
                 value="89.4%"
-                hint="通过 9,370/10,480 件"
+                hint="通过 9370/10480 件"
               />
               <GlobalKpiCard
                 title="平均审核耗时"
@@ -1099,13 +1206,6 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                 value="13.8"
                 unit="分钟"
                 hint="审核处理率 98.8%"
-              />
-              <GlobalKpiCard
-                title="转办闭环率"
-                icon={<RefreshCcw className="h-4 w-4" />}
-                color="#08A69A"
-                value="95.4%"
-                hint={`办结 ${orgRecords.reduce((s, r) => s + getTransferCounts(r).closedCount, 0).toLocaleString()}/${orgRecords.reduce((s, r) => s + getTransferCounts(r).transferTotal, 0).toLocaleString()} 件`}
               />
             </div>
           </section>
@@ -1132,7 +1232,6 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                   <option value="passRate">按整体采纳率排名</option>
                   <option value="directRate">按首审直通率排名</option>
                   <option value="avgTime">按平均审核耗时 (最快)</option>
-                  <option value="closedRate">按转办闭环率排名</option>
                   <option value="participation">按参与率排名</option>
                 </select>
                 {renderExportButton()}
@@ -1140,7 +1239,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1380px] text-left text-xs">
+              <table className="w-full min-w-[1200px] text-left text-xs">
                 <thead className="bg-slate-50/90 text-slate-500 select-none border-b border-slate-200">
                   <tr>
                     <th className="px-3 py-3.5 text-center font-semibold text-slate-700">排名</th>
@@ -1151,13 +1250,11 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                     <th className="px-3 py-3.5 text-center font-semibold text-slate-700">首审直通率 (通过/总件数)</th>
                     <th className="px-3 py-3.5 text-center font-semibold text-slate-700">整体采纳率 (通过/总件数)</th>
                     <th className="px-3 py-3.5 text-center font-semibold text-slate-700">平均审核耗时</th>
-                    <th className="px-3 py-3.5 text-center font-semibold text-slate-700">转办闭环率 (办结/转办)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {sortedOrgs.map((row, index) => {
                     const directCount = Math.round((row.total * row.directRate) / 100);
-                    const { transferTotal, closedCount } = getTransferCounts(row);
                     return (
                     <tr key={row.name} onClick={() => openOrgProfile(row)} className="cursor-pointer transition hover:bg-blue-50/40">
                       <td className="px-3 py-3.5 text-center">
@@ -1219,12 +1316,6 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                           <span className="text-[10px] font-medium text-slate-400">
                             处理率 {getProcessRate(row)}%
                           </span>
-                        </div>
-                      </td>
-                      <td className={`px-3 py-3.5 text-center font-mono ${orgSort === 'closedRate' ? 'bg-teal-50/40' : ''}`}>
-                        <div className="font-mono text-xs font-bold text-teal-700">{row.closedRate}%</div>
-                        <div className="mt-0.5 font-mono text-[11px] text-slate-400">
-                          办结 {closedCount}/{transferTotal} 件
                         </div>
                       </td>
                     </tr>
