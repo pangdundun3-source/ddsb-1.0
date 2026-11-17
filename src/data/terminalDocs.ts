@@ -28,7 +28,7 @@ const DOC_LABELS: Record<string, string> = { CHANGELOG: '更新记录', PRD: 'PR
 
 /** 飞书 Wiki：四端统一打开同一份合并 PRD */
 const SUITE_FEISHU_PRD =
-  'https://bvhnst56r3r.feishu.cn/wiki/MHKmwpOo4iEMj1k08d1chz9bnuf';
+  'https://bvhnst56r3r.feishu.cn/wiki/XIiUw8y2mi89z5kxJDMcwEuznCg';
 const EXTERNAL_DOC_URLS: Record<string, Partial<Record<string, string>>> = {
   'mt-app': { PRD: SUITE_FEISHU_PRD },
   'v8-client': { PRD: SUITE_FEISHU_PRD },
