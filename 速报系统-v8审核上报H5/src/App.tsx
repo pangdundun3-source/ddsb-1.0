@@ -834,6 +834,11 @@ export default function App() {
                 ...activatedData,
                 role: targetRole,
               }));
+              try {
+                localStorage.setItem('wechat_v8_user_activated', JSON.stringify(true));
+              } catch {
+                // ignore
+              }
               setIsActivationH5View(false);
               setIsLoggedIn(true);
               setIsOfficialAccount(false);

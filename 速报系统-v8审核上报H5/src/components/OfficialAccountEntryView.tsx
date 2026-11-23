@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ChevronLeft,
   User,
@@ -24,7 +24,13 @@ import {
   ChevronRight,
   Video,
   File,
+  Search,
+  MoreHorizontal,
+  BadgeCheck,
+  Bell,
+  MessageSquare,
 } from 'lucide-react';
+import { confirmDialog } from './ConfirmDialog';
 import { SpeedReport, UserProfile, UserRole } from '../types';
 import {
   GUIDE_AFTER_KEYWORD,
@@ -56,6 +62,10 @@ import {
 import { getAuditAssignmentStatus, getAuditBlockTip } from '../utils/submitGuard';
 
 const OA_AVATAR_SRC = `${import.meta.env.BASE_URL}oa-avatar.jpg`;
+
+/** 关注后欢迎/激活引导文案（默认会话与再次关注共用） */
+const FOLLOW_WELCOME_TEXT =
+  '欢迎关注【点点速豹】\n请您完成账号激活与实名认证，验证通过后即可开通平台使用权限。';
 
 const OfficialAccountAvatar: React.FC<{ className?: string }> = ({
   className = 'w-10 h-10 rounded-[8px]',
@@ -112,11 +122,12 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
   // Mode: custom menu vs text chat input
   const [inputMode, setInputMode] = useState<'menu' | 'chat'>('menu');
   const [inputText, setInputText] = useState<string>('');
-  const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
+  const [showServiceProfile, setShowServiceProfile] = useState<boolean>(false);
   const [showPlusDrawer, setShowPlusDrawer] = useState<boolean>(false);
   const [showActivationModal, setShowActivationModal] = useState<boolean>(false);
   const [showAuditMenu, setShowAuditMenu] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [serviceProfileTab, setServiceProfileTab] = useState<'all' | 'service'>('all');
 
   const closeFlyoutMenus = () => {
     setShowAuditMenu(false);
@@ -126,17 +137,39 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
   const [quickDraft, setQuickDraft] = useState<QuickReportDraft | null>(null);
 
   // New follower activation state (User must activate after following before using platform functions)
-  const [isActivated, setIsActivated] = useState<boolean>(true);
+  const [isActivated, setIsActivated] = useState<boolean>(() => {
+    try {
+      const raw = localStorage.getItem('wechat_v8_user_activated');
+      return raw == null ? true : JSON.parse(raw) === true;
+    } catch {
+      return true;
+    }
+  });
+  /** 是否已关注该服务号 */
+  const [isFollowing, setIsFollowing] = useState<boolean>(() => {
+    try {
+      const raw = localStorage.getItem('wechat_v8_oa_following');
+      return raw == null ? true : JSON.parse(raw) === true;
+    } catch {
+      return true;
+    }
+  });
 
   useEffect(() => {
     localStorage.setItem('wechat_v8_user_activated', JSON.stringify(isActivated));
   }, [isActivated]);
+
+  useEffect(() => {
+    localStorage.setItem('wechat_v8_oa_following', JSON.stringify(isFollowing));
+  }, [isFollowing]);
 
   const orgOptions = React.useMemo(() => {
     const primary = user?.department || '台中市网信办';
     const extras = user?.associatedDepts || [];
     return Array.from(new Set([primary, ...extras]));
   }, [user]);
+
+  const openActivationRef = useRef<() => void>(() => {});
 
   // Open H5 Activation flow
   const handleOpenActivation = () => {
@@ -146,6 +179,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
       setShowActivationModal(true);
     }
   };
+  openActivationRef.current = handleOpenActivation;
 
   const pushAccountReply = (
     text: string,
@@ -165,21 +199,42 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     }, delay);
   };
 
+  /** 关注后推送欢迎消息（含前往验证激活） */
+  const handleToggleFollow = async () => {
+    if (isFollowing) {
+      const ok = await confirmDialog('取消关注后将无法接收该服务号消息，确定取消关注？', {
+        title: '取消关注',
+        okText: '不再关注',
+        cancelText: '再想想',
+        danger: true,
+      });
+      if (!ok) return;
+      setIsFollowing(false);
+      onToast('已取消关注', 'info');
+      return;
+    }
+    setIsFollowing(true);
+    setIsActivated(false);
+    setShowServiceProfile(false);
+    setInputMode('chat');
+    onToast('已关注服务号', 'success');
+    pushAccountReply(
+      FOLLOW_WELCOME_TEXT,
+      {
+        label: '前往验证激活',
+        action: () => openActivationRef.current(),
+      },
+      450
+    );
+  };
+
   const resetQuickFlow = () => {
     setQuickPhase('idle');
     setQuickDraft(null);
   };
 
-  const ensureQuickReportReady = (): boolean => {
-    if (!isActivated) {
-      pushAccountReply(
-        '您的微信尚未绑定速豹账号，暂无法报送。\n请先完成激活绑定后再试。',
-        { label: '前往验证激活', action: () => handleOpenActivation() }
-      );
-      return false;
-    }
-    return true;
-  };
+  /** 底部菜单/快捷报送不做激活拦截；激活仅作关注后消息引导 */
+  const ensureQuickReportReady = (): boolean => true;
 
   const startQuickReportMode = (from: 'menu' | 'keyword') => {
     setQuickPhase('awaiting_body');
@@ -350,8 +405,17 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     addMediaAsAttachment('file', mock.attachmentHint || '情况说明.pdf', '[文件] 情况说明');
   };
 
-  // Chat conversation messages（日常会话不重复推「欢迎关注 / 激活」；激活卡仅未激活时展示）
-  const [messages, setMessages] = useState<ChatMessage[]>([
+  // 默认即展示「关注后」欢迎激活推送 + 助手引导
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [
+    {
+      id: 'msg_follow_welcome',
+      sender: 'account',
+      text: FOLLOW_WELCOME_TEXT,
+      cardAction: {
+        label: '前往验证激活',
+        action: () => openActivationRef.current(),
+      },
+    },
     {
       id: 'msg_welcome',
       sender: 'account',
@@ -485,13 +549,6 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     }
 
     if (isEntryKeyword(userMsgText)) {
-      if (!isActivated) {
-        pushAccountReply(
-          '您的微信尚未绑定速豹账号，暂无法报送。\n请先完成激活绑定后再试。',
-          { label: '前往验证激活', action: () => handleOpenActivation() }
-        );
-        return;
-      }
       startQuickReportMode('keyword');
       return;
     }
@@ -578,11 +635,15 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
           点点速豹
         </div>
 
-        {/* Right: Contact / Official Account Profile Icon */}
+        {/* Right: 进入服务号资料页（关注/取关） */}
         <button
-          onClick={() => setShowProfileModal(true)}
+          onClick={() => {
+            closeFlyoutMenus();
+            setServiceProfileTab('all');
+            setShowServiceProfile(true);
+          }}
           className="p-1 -mr-1 text-slate-800 hover:text-black active:opacity-60 transition-opacity"
-          title="公众号信息"
+          title="服务号资料"
         >
           <User className="w-6 h-6 stroke-[1.7]" />
         </button>
@@ -657,48 +718,6 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
           </div>
         ))}
 
-        {/* 激活通知：仅「刚关注且未激活」时出现一次；已激活日常会话不再推送 */}
-        {!isActivated && (
-          <div className="flex items-start gap-2.5 justify-start">
-            <OfficialAccountAvatar />
-
-            <div className="relative max-w-[82%]">
-              <div className="absolute top-3 -left-[6px] w-0 h-0 border-t-[5px] border-t-transparent border-r-[6px] border-r-white border-b-[5px] border-b-transparent z-10" />
-              <div
-                id="activation-login-notification-card"
-                className="bg-white rounded-xl p-3.5 border border-black/[0.06] shadow-xs text-xs text-slate-700 cursor-pointer hover:shadow-md transition-all active:scale-[0.99] group"
-                onClick={() => handleOpenActivation()}
-              >
-                <div className="flex items-start justify-between mb-1.5">
-                  <div className="flex items-center space-x-1.5">
-                    <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
-                    <h3 className="text-[14.5px] font-bold text-slate-900 tracking-tight">
-                      账号激活与实名认证通知
-                    </h3>
-                  </div>
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border shrink-0 text-amber-700 bg-amber-50 border-amber-300">
-                    待激活认证
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-400 mb-2 font-normal">关注后推送</p>
-                <p className="text-[12.5px] text-slate-700 leading-relaxed mb-3 whitespace-pre-line">
-                  欢迎关注【点点速豹】
-                  {'\n'}
-                  请您完成账号激活与实名认证，验证通过后即可开通平台使用权限。
-                </p>
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-slate-800 font-medium text-[12px]">
-                  <span className="font-semibold flex items-center text-blue-600 group-hover:text-blue-700">
-                    前往验证激活
-                  </span>
-                  <div className="flex items-center text-slate-400 text-xs group-hover:text-blue-600 transition-colors">
-                    <span className="mr-0.5">前往验证激活</span>
-                    <ChevronRight className="w-4 h-4" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* 4. WeChat Bottom Bar - Custom Menu or Chat Input Mode */}
@@ -736,21 +755,21 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
                 type="button"
                 onClick={() => {
                   closeFlyoutMenus();
-                  onEnterProfile('v8_org');
+                  onEnterProfile('external');
                 }}
                 className="w-full px-3 py-3 text-[13px] border-b border-white/10 active:bg-white/10"
               >
-                V8机构用户
+                外部组织用户
               </button>
               <button
                 type="button"
                 onClick={() => {
                   closeFlyoutMenus();
-                  onEnterProfile('external');
+                  onEnterProfile('v8_org');
                 }}
                 className="w-full px-3 py-3 text-[13px] active:bg-white/10"
               >
-                外部组织用户
+                V8机构用户
               </button>
             </div>
           )}
@@ -780,15 +799,6 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
           <button
             id="menu-btn-quick-report"
             onClick={() => {
-              if (!isActivated) {
-                setInputMode('chat');
-                pushAccountReply(
-                  '您的微信尚未绑定速豹账号，暂无法报送。\n请先完成激活绑定后再试。',
-                  { label: '前往验证激活', action: () => handleOpenActivation() },
-                  100
-                );
-                return;
-              }
               startQuickReportMode('menu');
             }}
             className="flex-1 flex items-center justify-center border-l border-[#e5e5e5] text-[#222222] text-[12px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-0.5 whitespace-nowrap overflow-hidden"
@@ -974,68 +984,179 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
         </div>
       )}
 
-      {/* 6. Official Account Profile Card Modal */}
-      {showProfileModal && (
-        <div className="absolute inset-0 bg-black/50 z-50 flex flex-col justify-end animate-in fade-in duration-200">
-          <div className="bg-white rounded-t-2xl p-5 space-y-4 max-h-[85%] overflow-y-auto">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center space-x-3">
-                <OfficialAccountAvatar className="w-14 h-14 rounded-xl" />
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">点点速豹</h3>
-                  <p className="text-xs text-slate-500 font-mono">微信号：diandian_subao_h5</p>
-                  <div className="flex items-center space-x-1 text-[11px] text-emerald-600 mt-0.5">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>微信官方认证 · 台中市网信办</span>
+      {/* 6. 服务号资料页（白色主题，关注/取关） */}
+      {showServiceProfile && (
+        <div className="absolute inset-0 z-50 flex flex-col bg-white animate-in slide-in-from-right duration-200">
+          {/* iOS Status Bar */}
+          <div className="bg-white pt-2 px-6 pb-1 flex justify-between items-center text-[11.5px] font-semibold text-black select-none shrink-0">
+            <span className="font-bold tracking-tight text-[13px]">09:31</span>
+            <div className="flex items-center space-x-1.5 text-black">
+              <div className="flex items-end space-x-[2px] h-[11px] pb-[0.5px]">
+                <div className="w-[3px] h-[4px] bg-black rounded-[0.5px]"></div>
+                <div className="w-[3px] h-[6px] bg-black rounded-[0.5px]"></div>
+                <div className="w-[3px] h-[8.5px] bg-black rounded-[0.5px]"></div>
+                <div className="w-[3px] h-[11px] bg-black rounded-[0.5px]"></div>
+              </div>
+              <svg className="w-[15px] h-[15px] text-black fill-current ml-0.5" viewBox="0 0 24 24">
+                <path d="M12 4C7.31 4 3.07 5.9 0 8.98L12 21 24 8.98C20.93 5.9 16.69 4 12 4zm0 3.5c3.8 0 7.23 1.54 9.72 4.03L12 19.34 2.28 11.53C4.77 9.04 8.2 7.5 12 7.5z" />
+              </svg>
+              <div className="flex items-center ml-0.5">
+                <div className="w-[25px] h-[12.5px] rounded-[4px] border border-black p-[0.8px] flex items-center justify-center relative bg-[#facc15]">
+                  <span className="text-[9px] font-black text-black leading-none scale-90 tracking-tighter">80</span>
+                </div>
+                <div className="w-[1.2px] h-[4.5px] bg-black rounded-r-[1px] -ml-[0.5px]"></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Nav */}
+          <div className="bg-white px-3 py-2 flex items-center justify-between border-b border-black/[0.04] shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowServiceProfile(false)}
+              className="p-1 -ml-1 text-slate-800 active:opacity-60"
+              title="返回会话"
+            >
+              <ChevronLeft className="w-6 h-6 stroke-[2.2]" />
+            </button>
+            <div className="text-[17px] font-medium text-slate-900">服务号</div>
+            <div className="flex items-center">
+              <button
+                type="button"
+                onClick={() => onToast('搜索', 'info')}
+                className="p-1.5 text-slate-800 active:opacity-60"
+                title="搜索"
+              >
+                <Search className="w-5 h-5 stroke-[1.8]" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onToast('更多设置', 'info')}
+                className="p-1.5 -mr-1 text-slate-800 active:opacity-60"
+                title="更多"
+              >
+                <MoreHorizontal className="w-5 h-5 stroke-[1.8]" />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto bg-white">
+            {/* Profile header */}
+            <div className="px-5 pt-5 pb-4">
+              <div className="flex items-start gap-3.5">
+                <OfficialAccountAvatar className="w-[64px] h-[64px] rounded-full" />
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <h2 className="text-[22px] font-bold text-slate-900 leading-tight tracking-tight">点点速豹</h2>
+                  <div className="mt-1.5 flex items-center gap-1 text-[13px] text-slate-600">
+                    <span className="truncate">西安康奈网络科技有限公司</span>
+                    <BadgeCheck className="w-4 h-4 text-[#10aeff] shrink-0 fill-[#10aeff]/15" />
                   </div>
+                  <p className="mt-1 text-[12px] text-slate-400">陕西 西安</p>
                 </div>
               </div>
+
+              <p className="mt-4 text-[14px] text-slate-700 leading-relaxed">
+                察微于阡陌，防患于未然
+              </p>
               <button
-                onClick={() => setShowProfileModal(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-full"
+                type="button"
+                onClick={() => onToast('已复制官网地址 subao.cn', 'success')}
+                className="mt-1 text-[13px] text-[#576b95] active:opacity-70"
               >
-                <X className="w-5 h-5" />
+                subao.cn
               </button>
+              <p className="mt-2 text-[12px] text-slate-400">2个朋友关注</p>
+
+              <div className="mt-4 grid grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => void handleToggleFollow()}
+                  className={`py-2.5 rounded-lg text-[14px] font-medium transition-colors active:scale-[0.98] ${
+                    isFollowing
+                      ? 'bg-[#f2f2f2] text-slate-800 hover:bg-[#ebebeb]'
+                      : 'bg-[#07c160] text-white hover:bg-[#06ad56]'
+                  }`}
+                >
+                  {isFollowing ? '已关注服务号' : '关注服务号'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onToast('私信功能演示中', 'info')}
+                  className="py-2.5 rounded-lg bg-[#f2f2f2] hover:bg-[#ebebeb] text-slate-800 text-[14px] font-medium transition-colors active:scale-[0.98] flex items-center justify-center gap-1"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  私信
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-2 text-xs text-slate-600 pt-2 border-t border-slate-100">
-              <div className="flex">
-                <span className="text-slate-400 w-16 shrink-0">功能介绍</span>
-                <span className="text-slate-800 leading-relaxed">
-                  台中市网信办“吹哨报到·点点速豹”移动端官方工作台。为全市上报员、基层瞭望员、审核员提供突发事件速报、网络谣言核实、民生诉求直报与流转审批服务。
-                </span>
-              </div>
-              <div className="flex">
-                <span className="text-slate-400 w-16 shrink-0">主体信息</span>
-                <span className="text-slate-800">台中市委网络安全和信息化委员会办公室</span>
-              </div>
-              <div className="flex">
-                <span className="text-slate-400 w-16 shrink-0">服务端口</span>
-                <span className="text-slate-800">移动端微信公众号H5 v8.2 审核协同专版</span>
-              </div>
+            {/* Tabs */}
+            <div className="px-5 flex items-center gap-6 border-b border-slate-100">
+              {(
+                [
+                  { id: 'all' as const, label: '全部' },
+                  { id: 'service' as const, label: '服务' },
+                ]
+              ).map((tab) => {
+                const active = serviceProfileTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setServiceProfileTab(tab.id)}
+                    className={`relative py-2.5 text-[15px] transition-colors ${
+                      active ? 'text-slate-900 font-semibold' : 'text-slate-400'
+                    }`}
+                  >
+                    {tab.label}
+                    {active && (
+                      <span className="absolute left-1/2 -translate-x-1/2 bottom-0 w-5 h-[2px] rounded-full bg-slate-900" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
-            <div className="pt-3 grid grid-cols-2 gap-3">
-              <button
-                onClick={() => {
-                  setShowProfileModal(false);
-                  onEnterWorkbench('上报员');
-                }}
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors shadow-xs flex items-center justify-center space-x-1.5"
-              >
-                <ShieldCheck className="w-4 h-4" />
-                <span>进入工作台</span>
-              </button>
-              <button
-                onClick={() => {
-                  setShowProfileModal(false);
-                  onEnterReport();
-                }}
-                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition-colors flex items-center justify-center space-x-1.5"
-              >
-                <FileText className="w-4 h-4" />
-                <span>页面上报</span>
-              </button>
+            {/* Content */}
+            <div className="px-5 py-16 flex flex-col items-center text-center">
+              {serviceProfileTab === 'all' ? (
+                <>
+                  <div className="w-14 h-14 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center mb-3">
+                    <Bell className="w-6 h-6 text-slate-300" />
+                  </div>
+                  <p className="text-[14px] text-slate-500">作者还没有发表过内容</p>
+                  <p className="text-[12px] text-slate-300 mt-1">期待更新</p>
+                </>
+              ) : (
+                <div className="w-full space-y-2.5 text-left">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowServiceProfile(false);
+                      onEnterWorkbench();
+                    }}
+                    className="w-full px-4 py-3.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between active:bg-slate-100"
+                  >
+                    <span className="text-[14px] text-slate-800 font-medium">进入工作台</span>
+                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowServiceProfile(false);
+                      startQuickReportMode('menu');
+                    }}
+                    disabled={!isFollowing}
+                    className="w-full px-4 py-3.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between active:bg-slate-100 disabled:opacity-40"
+                  >
+                    <span className="text-[14px] text-slate-800 font-medium">快捷报送</span>
+                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                  </button>
+                  {!isFollowing && (
+                    <p className="text-[11px] text-amber-600 px-1">取关后需重新关注方可使用服务能力</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
