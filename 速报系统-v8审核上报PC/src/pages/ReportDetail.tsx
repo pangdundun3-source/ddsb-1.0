@@ -462,6 +462,18 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
             </div>
 
             <div className="flex items-center space-x-2 shrink-0">
+              {isPending && onWithdrawReport && (
+                <button
+                  type="button"
+                  onClick={() => setIsWithdrawModalOpen(true)}
+                  className="px-3.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-xs font-semibold flex items-center space-x-1 cursor-pointer transition-colors shadow-2xs"
+                  title="撤回至草稿箱"
+                >
+                  <Undo2 className="w-3.5 h-3.5" />
+                  <span>撤回草稿</span>
+                </button>
+              )}
+
               {(isPending || isDraft || isRejected) && onDeleteReport && (
                 <button
                   type="button"
@@ -628,6 +640,17 @@ export const ReportDetail: React.FC<ReportDetailProps> = ({
 
         {/* Dynamic Action Buttons according to Status & Entry Source */}
         <div className="flex items-center space-x-2">
+          {sourcePage !== 'audit-records' && isPending && onWithdrawReport && (
+            <button
+              onClick={() => setIsWithdrawModalOpen(true)}
+              className="px-3.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-xs font-semibold shadow-2xs flex items-center space-x-1 cursor-pointer"
+              title="撤回至草稿箱"
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+              <span>撤回草稿</span>
+            </button>
+          )}
+
           {/* If from Report Management and Draft or Rejected: Edit / Resubmit */}
           {sourcePage !== 'audit-records' && (isDraft || isRejected) && (
             <button

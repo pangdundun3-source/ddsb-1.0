@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ChevronLeft,
   User,
@@ -22,43 +22,48 @@ import {
   MapPin,
   BellRing,
   ChevronRight,
+  Video,
+  File,
 } from 'lucide-react';
 import { SpeedReport, UserProfile, UserRole } from '../types';
 import {
   GUIDE_AFTER_KEYWORD,
   GUIDE_AFTER_MENU,
   LIGHT_TIP,
+  QuickAttachment,
   QuickReportDraft,
   QuickReportPhase,
   buildClueFromUserText,
   buildQuickReportDraft,
   buildSoftExtraValues,
-  clueFromMultimodalSuccess,
   finalizeDraftWithOrg,
   formatConfirmPrompt,
+  formatDraftSavedPrompt,
   formatOrgPrompt,
   formatSuccessPrompt,
-  hasHttpLink,
   isCancelKeyword,
   isEntryKeyword,
   isFormKeyword,
   looksLikeStructuredClue,
-  sourceKindToTag,
+  makeQuickAttachment,
+  mergeAttachments,
+  toReportAttachments,
 } from '../utils/quickReportChat';
 import {
-  LINK_ANALYZING_TEXT,
-  formatLinkParseSuccessNotice,
-  parseLinkMultimodal,
-} from '../utils/linkMultimodalMock';
-import {
-  IMAGE_ANALYZING_TEXT,
-  ImageCaptureSource,
-  VOICE_ANALYZING_TEXT,
-  formatMultimodalSuccessNotice,
-  parseImageOcrMock,
-  parseLocationClueMock,
-  parseVoiceAsrMock,
+  makeFileAttachmentMock,
+  makeVideoAttachmentMock,
 } from '../utils/multimodalClueMock';
+import { getAuditAssignmentStatus, getAuditBlockTip } from '../utils/submitGuard';
+
+const OA_AVATAR_SRC = `${import.meta.env.BASE_URL}oa-avatar.jpg`;
+
+const OfficialAccountAvatar: React.FC<{ className?: string }> = ({
+  className = 'w-10 h-10 rounded-[8px]',
+}) => (
+  <div className={`${className} overflow-hidden shrink-0 shadow-xs bg-white`}>
+    <img src={OA_AVATAR_SRC} alt="点点速豹" className="w-full h-full object-cover" />
+  </div>
+);
 
 interface OfficialAccountEntryViewProps {
   onEnterReport: () => void;
@@ -71,8 +76,10 @@ interface OfficialAccountEntryViewProps {
   onToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
   /** 当前登录/绑定用户，用于多机构与提交署名 */
   user?: UserProfile;
-  /** 快捷上报确认提交 */
+  /** 快捷上报直接提交 */
   onQuickReportSubmit?: (payload: Partial<SpeedReport>) => string;
+  /** 快捷上报保存草稿 */
+  onQuickReportSaveDraft?: (payload: Partial<SpeedReport>) => string;
   /** 去完善：打开 H5 预填表单 */
   onQuickReportRefine?: (payload: Partial<SpeedReport>) => void;
 }
@@ -99,6 +106,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
   onToast,
   user,
   onQuickReportSubmit,
+  onQuickReportSaveDraft,
   onQuickReportRefine,
 }) => {
   // Mode: custom menu vs text chat input
@@ -116,8 +124,6 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
   };
   const [quickPhase, setQuickPhase] = useState<QuickReportPhase>('idle');
   const [quickDraft, setQuickDraft] = useState<QuickReportDraft | null>(null);
-  /** 多模态解析异步序号，取消/重发时作废进行中的解析 */
-  const multimodalParseSeqRef = useRef(0);
 
   // New follower activation state (User must activate after following before using platform functions)
   const [isActivated, setIsActivated] = useState<boolean>(true);
@@ -160,7 +166,6 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
   };
 
   const resetQuickFlow = () => {
-    multimodalParseSeqRef.current += 1;
     setQuickPhase('idle');
     setQuickDraft(null);
   };
@@ -177,7 +182,6 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
   };
 
   const startQuickReportMode = (from: 'menu' | 'keyword') => {
-    multimodalParseSeqRef.current += 1;
     setQuickPhase('awaiting_body');
     setQuickDraft(null);
     setInputMode('chat');
@@ -186,51 +190,55 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     pushAccountReply(from === 'menu' ? GUIDE_AFTER_MENU : GUIDE_AFTER_KEYWORD, undefined, 200);
   };
 
-  const buildReportPayload = (draft: QuickReportDraft): Partial<SpeedReport> => {
+  /** 与页面「新建报送模板」表单字段对齐，供直接提交 / 保存草稿 / 去完善共用 */
+  const buildReportPayload = (
+    draft: QuickReportDraft,
+    status: 'pending_audit' | 'draft'
+  ): Partial<SpeedReport> => {
     const tpl = draft.matched!.template;
-    const now = new Date();
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(
-      now.getHours()
-    )}:${pad(now.getMinutes())}`;
-    const sourceKind = draft.clue.sourceKind || 'text';
-    const sourceTag = sourceKindToTag(sourceKind);
-    const baseSummary = draft.clue.summary || draft.clue.title || '';
-    const sourceNote =
-      draft.clue.sourceLabel && sourceKind !== 'text'
-        ? `（来源：${draft.clue.sourceLabel}${
-            draft.clue.attachmentHint ? `·${draft.clue.attachmentHint}` : ''
-          }）`
-        : '';
+    const stamp = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const title = (draft.clue.title || '').trim() || (status === 'draft' ? '未命名草稿' : '未命名线索');
+    const summary = (draft.clue.summary || draft.clue.title || '').trim();
+    const district = draft.clue.district || '全市';
+    const authorDept = draft.selectedOrg || user?.department || '';
+    const type = tpl.defaultType;
     return {
-      id: `rep_qr_${Date.now()}`,
-      title: draft.clue.title || '未命名线索',
-      summary: `${baseSummary}${sourceNote}`,
-      district: draft.clue.district || '',
+      id: `rep_${status === 'draft' ? 'draft_' : ''}${Date.now()}`,
+      title,
       address: draft.clue.district || '',
-      matchedLink: draft.clue.link || '',
       source: tpl.defaultSource,
-      type: tpl.defaultType,
-      author: user?.name || '上报员',
-      authorDept: draft.selectedOrg || user?.department || '',
-      gridNo: user?.gridCode || '',
-      coreDemand: '',
-      sentimentTrend: '',
-      disposalAdvice: '',
-      tags: Array.from(new Set(['快捷上报', sourceTag])),
+      district,
+      type,
+      summary,
+      coreDemand: summary,
+      disposalAdvice: status === 'draft' ? '' : '待审核部门研判处置。',
+      matchedLink: draft.clue.link || '',
       templateId: tpl.id,
       templateFieldValues: buildSoftExtraValues(draft),
-      createTime: stamp,
+      attachments: toReportAttachments(draft.attachments),
+      author: user?.name || '上报员',
+      authorDept,
+      gridNo: user?.gridCode || '',
+      sentimentTrend: '',
+      status,
       updateTime: stamp,
-      status: 'pending_audit',
+      createTime: stamp,
+      tags:
+        status === 'draft'
+          ? ['草稿', '快捷上报', type, authorDept].filter(Boolean)
+          : [district, type, authorDept, '快捷上报'].filter(Boolean),
     };
+  };
+
+  const goFinalConfirm = (draft: QuickReportDraft) => {
+    setQuickDraft(draft);
+    setQuickPhase('awaiting_confirm');
+    pushAccountReply(formatConfirmPrompt(draft));
   };
 
   const goConfirmWithOrg = (draft: QuickReportDraft, org: string) => {
     const finalized = finalizeDraftWithOrg(draft, org);
-    setQuickDraft(finalized);
-    setQuickPhase('awaiting_confirm');
-    pushAccountReply(formatConfirmPrompt(finalized));
+    goFinalConfirm(finalized);
   };
 
   const handleDraftReady = (draft: QuickReportDraft) => {
@@ -249,6 +257,26 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     goConfirmWithOrg(draft, org);
   };
 
+  const appendAttachmentsToDraft = (
+    extras: QuickAttachment[],
+    options?: { notice?: string; rePromptConfirm?: boolean }
+  ) => {
+    setQuickDraft((prev) => {
+      if (!prev) return prev;
+      const next: QuickReportDraft = {
+        ...prev,
+        attachments: mergeAttachments(prev.attachments, extras),
+      };
+      window.setTimeout(() => {
+        if (options?.notice) pushAccountReply(options.notice, undefined, 120);
+        if (options?.rePromptConfirm) {
+          pushAccountReply(formatConfirmPrompt(next), undefined, 380);
+        }
+      }, 0);
+      return next;
+    });
+  };
+
   const processBodyAsDraft = (raw: string) => {
     const clueOrError = buildClueFromUserText(raw);
     if ('error' in clueOrError) {
@@ -265,32 +293,6 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     handleDraftReady(built);
   };
 
-  /** 含链接时先展示「解析中」，再合并文案/多模态结果进入选机构 */
-  const processBodyWithOptionalLinkParse = (raw: string) => {
-    if (!hasHttpLink(raw)) {
-      processBodyAsDraft(raw);
-      return;
-    }
-
-    const seq = ++multimodalParseSeqRef.current;
-    setQuickPhase('awaiting_body');
-    pushAccountReply(LINK_ANALYZING_TEXT, undefined, 180);
-
-    window.setTimeout(() => {
-      if (seq !== multimodalParseSeqRef.current) return;
-
-      const linkOnly = parseLinkMultimodal(raw);
-      if (linkOnly.ok) {
-        pushAccountReply(formatLinkParseSuccessNotice(linkOnly), undefined, 120);
-      }
-
-      window.setTimeout(() => {
-        if (seq !== multimodalParseSeqRef.current) return;
-        processBodyAsDraft(raw);
-      }, linkOnly.ok ? 420 : 200);
-    }, 1100);
-  };
-
   const pushUserBubble = (text: string) => {
     setMessages((prev) => [
       ...prev,
@@ -303,115 +305,49 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     ]);
   };
 
-  const finishWithMultimodalClue = (raw: string, clue: ReturnType<typeof clueFromMultimodalSuccess>) => {
-    const built = buildQuickReportDraft(raw, orgOptions, clue);
-    if ('error' in built) {
-      setQuickPhase('awaiting_body');
-      pushAccountReply(built.error, undefined, 200);
-      return;
-    }
-    handleDraftReady(built);
-  };
-
-  /** 图片 OCR：相册 / 拍照；不在快捷报送中时自动进入 awaiting_body */
-  const runImageMultimodal = (
-    source: ImageCaptureSource,
-    options?: { skipUserBubble?: boolean }
+  /** 图片/视频/文档：仅挂到当次报送附件，不做内容识别 */
+  const addMediaAsAttachment = (
+    kind: 'image' | 'video' | 'file',
+    name: string,
+    userLabel: string
   ) => {
     if (!ensureQuickReportReady()) return;
     setShowPlusDrawer(false);
     setInputMode('chat');
     closeFlyoutMenus();
-    if (quickPhase === 'idle' || quickPhase === 'awaiting_org' || quickPhase === 'awaiting_confirm') {
-      setQuickPhase('awaiting_body');
-      setQuickDraft(null);
-    }
+    pushUserBubble(userLabel);
 
-    const label =
-      source === 'camera' ? '[图片] 现场拍照凭证' : source === 'blur_demo' ? '[图片] 模糊样例' : '[图片] 相册截图凭证';
-    if (!options?.skipUserBubble) pushUserBubble(label);
-
-    const seq = ++multimodalParseSeqRef.current;
-    pushAccountReply(IMAGE_ANALYZING_TEXT, undefined, 200);
-
-    window.setTimeout(() => {
-      if (seq !== multimodalParseSeqRef.current) return;
-      const result = parseImageOcrMock(source);
-      if (!result.ok) {
-        pushAccountReply(result.reason, undefined, 150);
-        setQuickPhase('awaiting_body');
-        return;
-      }
-      pushAccountReply(formatMultimodalSuccessNotice(result), undefined, 150);
-      window.setTimeout(() => {
-        if (seq !== multimodalParseSeqRef.current) return;
-        finishWithMultimodalClue(label, clueFromMultimodalSuccess(result, label));
-      }, 420);
-    }, 1200);
-  };
-
-  /** 语音 ASR */
-  const runVoiceMultimodal = (options?: { skipUserBubble?: boolean }) => {
-    if (!ensureQuickReportReady()) return;
-    setShowPlusDrawer(false);
-    setInputMode('chat');
-    closeFlyoutMenus();
-    if (quickPhase === 'idle' || quickPhase === 'awaiting_org' || quickPhase === 'awaiting_confirm') {
-      setQuickPhase('awaiting_body');
-      setQuickDraft(null);
-    }
-
-    const label = '[语音] 15″';
-    if (!options?.skipUserBubble) pushUserBubble(label);
-
-    const seq = ++multimodalParseSeqRef.current;
-    pushAccountReply(VOICE_ANALYZING_TEXT, undefined, 200);
-
-    window.setTimeout(() => {
-      if (seq !== multimodalParseSeqRef.current) return;
-      const result = parseVoiceAsrMock('default');
-      if (!result.ok) {
-        pushAccountReply(result.reason, undefined, 150);
-        setQuickPhase('awaiting_body');
-        return;
-      }
+    if (!quickDraft) {
+      if (quickPhase === 'idle') setQuickPhase('awaiting_body');
       pushAccountReply(
-        `${formatMultimodalSuccessNotice(result)}\n\n（已根据转写内容生成报送草稿）`,
+        '图片、视频仅作为当次报送的附件上传，不参与线索识别。\n请先发送结构化文字生成线索，再点「+」补充附件。',
         undefined,
-        150
+        200
       );
-      window.setTimeout(() => {
-        if (seq !== multimodalParseSeqRef.current) return;
-        finishWithMultimodalClue(result.transcript || label, clueFromMultimodalSuccess(result, label));
-      }, 420);
-    }, 1300);
-  };
-
-  /** 位置上报：快捷报送中直接生成含属地草稿 */
-  const runLocationMultimodal = () => {
-    setShowPlusDrawer(false);
-    if (quickPhase !== 'awaiting_body') {
-      onToast('已获取当前网格位置：台中市西坝区阳光花园', 'success');
       return;
     }
-    if (!ensureQuickReportReady()) return;
 
-    const label = '[位置] 台中市西坝区阳光花园';
-    pushUserBubble(label);
-    onToast('已获取当前网格位置：台中市西坝区阳光花园', 'success');
+    const inConfirm = quickPhase === 'awaiting_confirm';
+    appendAttachmentsToDraft([makeQuickAttachment(kind, name)], {
+      notice: `已添加附件：${name}`,
+      rePromptConfirm: inConfirm,
+    });
+    if (!inConfirm && quickPhase === 'awaiting_org') {
+      pushAccountReply('附件已加入本条报送，可继续选择机构。', undefined, 280);
+    }
+  };
 
-    const seq = ++multimodalParseSeqRef.current;
-    pushAccountReply('已写入当前位置，正在生成线索草稿…', undefined, 200);
-
-    window.setTimeout(() => {
-      if (seq !== multimodalParseSeqRef.current) return;
-      const result = parseLocationClueMock();
-      pushAccountReply(formatMultimodalSuccessNotice(result), undefined, 120);
-      window.setTimeout(() => {
-        if (seq !== multimodalParseSeqRef.current) return;
-        finishWithMultimodalClue(label, clueFromMultimodalSuccess(result, label));
-      }, 360);
-    }, 700);
+  const uploadAlbumPhoto = () =>
+    addMediaAsAttachment('image', '相册截图_凭证.jpg', '[图片] 相册截图');
+  const uploadCameraPhoto = () =>
+    addMediaAsAttachment('image', '现场照片_路口积水.jpg', '[图片] 现场拍照');
+  const uploadVideo = () => {
+    const mock = makeVideoAttachmentMock();
+    addMediaAsAttachment('video', mock.attachmentHint || '现场视频.mp4', '[视频] 现场视频');
+  };
+  const uploadFile = () => {
+    const mock = makeFileAttachmentMock();
+    addMediaAsAttachment('file', mock.attachmentHint || '情况说明.pdf', '[文件] 情况说明');
   };
 
   // Chat conversation messages（日常会话不重复推「欢迎关注 / 激活」；激活卡仅未激活时展示）
@@ -419,7 +355,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     {
       id: 'msg_welcome',
       sender: 'account',
-      text: '您好，点点速豹助手为您服务。\n发送【报送】或点击菜单「快捷报送」，可发送原文链接、文字、图片或语音，自动识别并匹配模板快捷提交。',
+      text: '您好，点点速豹助手为您服务。\n发送【报送】或点击菜单「快捷报送」，粘贴结构化文字即可生成线索；图片、视频、文件可作为当次附件上传。',
     },
   ]);
 
@@ -453,8 +389,8 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     if (isFormKeyword(userMsgText)) {
       resetQuickFlow();
       pushAccountReply('已为您打开手动报送入口：', {
-        label: '进入 手动报送',
-        action: () => onEnterReportList(),
+        label: '进入首页',
+        action: () => onEnterWorkbench(),
       });
       return;
     }
@@ -470,8 +406,20 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     }
 
     if (quickPhase === 'awaiting_confirm' && quickDraft?.matched) {
-      if (userMsgText === '1' && quickDraft.canDirectSubmit) {
-        const payload = buildReportPayload(quickDraft);
+      if (userMsgText === '1') {
+        if (!quickDraft.canDirectSubmit) {
+          pushAccountReply('当前缺少必填项，无法直接提交。请回复【2】保存草稿，或【3】去完善。');
+          return;
+        }
+        const auditOrg = quickDraft.selectedOrg || user?.department || '';
+        const blockTip = getAuditBlockTip(
+          getAuditAssignmentStatus(auditOrg, quickDraft.matched.template.id)
+        );
+        if (blockTip) {
+          pushAccountReply(`${blockTip}\n也可回复【2】保存为草稿，或【3】去完善。`);
+          return;
+        }
+        const payload = buildReportPayload(quickDraft, 'pending_audit');
         const reportId = onQuickReportSubmit?.(payload) || payload.id || '';
         pushAccountReply(
           formatSuccessPrompt({
@@ -489,9 +437,31 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
         return;
       }
       if (userMsgText === '2') {
-        const payload = buildReportPayload(quickDraft);
+        const payload = buildReportPayload(quickDraft, 'draft');
+        if (!payload.title?.trim() && !payload.summary?.trim()) {
+          pushAccountReply('请至少有标题或内容后再保存草稿。');
+          return;
+        }
+        const reportId = onQuickReportSaveDraft?.(payload) || payload.id || '';
+        pushAccountReply(
+          formatDraftSavedPrompt({
+            title: payload.title || '',
+            org: payload.authorDept || '',
+            templateName: quickDraft.matched.template.name,
+            reportId,
+          }),
+          {
+            label: '查看草稿箱',
+            action: () => onEnterReportList(),
+          }
+        );
+        resetQuickFlow();
+        return;
+      }
+      if (userMsgText === '3') {
+        const payload = buildReportPayload(quickDraft, 'draft');
         onQuickReportRefine?.(payload);
-        pushAccountReply('已为您打开完善页面，可修改模板与细项后提交。');
+        pushAccountReply('已为您打开完善页面，可按新建报送模板继续编辑后提交或存草稿。');
         resetQuickFlow();
         return;
       }
@@ -502,32 +472,15 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
       }
       pushAccountReply(
         quickDraft.canDirectSubmit
-          ? '请回复【1】确认提交、【2】去完善，或【0】取消。'
-          : '当前缺少必填项，请回复【2】去完善，或【0】取消。'
+          ? '请回复【1】直接提交、【2】保存为草稿、【3】去完善，或【0】取消。'
+          : '当前缺少必填项，请回复【2】保存为草稿、【3】去完善，或【0】取消。'
       );
       return;
     }
 
-    if (
-      quickPhase === 'awaiting_body' ||
-      looksLikeStructuredClue(userMsgText) ||
-      hasHttpLink(userMsgText) ||
-      /\[图片\]/.test(userMsgText) ||
-      /\[语音\]/.test(userMsgText)
-    ) {
+    if (quickPhase === 'awaiting_body' || looksLikeStructuredClue(userMsgText)) {
       if (!ensureQuickReportReady()) return;
-      // 文字里带模态标记时，走对应 Mock（便于演示；用户气泡已由发送逻辑插入）
-      if (/\[图片\]/.test(userMsgText)) {
-        runImageMultimodal(userMsgText.includes('模糊') ? 'blur_demo' : 'album', {
-          skipUserBubble: true,
-        });
-        return;
-      }
-      if (/\[语音\]/.test(userMsgText)) {
-        runVoiceMultimodal({ skipUserBubble: true });
-        return;
-      }
-      processBodyWithOptionalLinkParse(userMsgText);
+      processBodyAsDraft(userMsgText);
       return;
     }
 
@@ -658,38 +611,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
             }`}
           >
             {/* Account Avatar */}
-            {msg.sender === 'account' && (
-              <div className="w-10 h-10 rounded-[8px] overflow-hidden shrink-0 shadow-xs bg-[#2458a6] relative flex items-center justify-center p-1">
-                {/* 4 Blue grid squares pattern */}
-                <div className="w-full h-full grid grid-cols-2 grid-rows-2 gap-[1.5px] p-0.5">
-                  <div className="bg-[#1f4e96] rounded-[2px]"></div>
-                  <div className="bg-[#2a63b8] rounded-[2px]"></div>
-                  <div className="bg-[#2a63b8] rounded-[2px]"></div>
-                  <div className="bg-[#1f4e96] rounded-[2px]"></div>
-                </div>
-
-                {/* Overlaid Whistle (哨子) with radiating soundwaves */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <svg
-                    className="w-6 h-6 text-white filter drop-shadow-xs"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    {/* Whistle loop and body */}
-                    <circle cx="7" cy="14" r="3.5" fill="rgba(255,255,255,0.2)" />
-                    <path d="M10.5 14h7l2-5H9a5 5 0 0 0-2 0" />
-                    <path d="M14 9v5" />
-                    {/* Radiating sound arcs */}
-                    <path d="M18 6a4 4 0 0 1 3 3" strokeWidth="2" />
-                    <path d="M19.5 3.5a7 7 0 0 1 4 4" strokeWidth="1.6" />
-                  </svg>
-                </div>
-              </div>
-            )}
+            {msg.sender === 'account' && <OfficialAccountAvatar />}
 
             {/* Speech Bubble */}
             <div
@@ -738,31 +660,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
         {/* 激活通知：仅「刚关注且未激活」时出现一次；已激活日常会话不再推送 */}
         {!isActivated && (
           <div className="flex items-start gap-2.5 justify-start">
-            <div className="w-10 h-10 rounded-[8px] overflow-hidden shrink-0 shadow-xs bg-[#2458a6] relative flex items-center justify-center p-1">
-              <div className="w-full h-full grid grid-cols-2 grid-rows-2 gap-[1.5px] p-0.5">
-                <div className="bg-[#1f4e96] rounded-[2px]"></div>
-                <div className="bg-[#2a63b8] rounded-[2px]"></div>
-                <div className="bg-[#2a63b8] rounded-[2px]"></div>
-                <div className="bg-[#1f4e96] rounded-[2px]"></div>
-              </div>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <svg
-                  className="w-6 h-6 text-white filter drop-shadow-xs"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="7" cy="14" r="3.5" fill="rgba(255,255,255,0.2)" />
-                  <path d="M10.5 14h7l2-5H9a5 5 0 0 0-2 0" />
-                  <path d="M14 9v5" />
-                  <path d="M18 6a4 4 0 0 1 3 3" strokeWidth="2" />
-                  <path d="M19.5 3.5a7 7 0 0 1 4 4" strokeWidth="1.6" />
-                </svg>
-              </div>
-            </div>
+            <OfficialAccountAvatar />
 
             <div className="relative max-w-[82%]">
               <div className="absolute top-3 -left-[6px] w-0 h-0 border-t-[5px] border-t-transparent border-r-[6px] border-r-white border-b-[5px] border-b-transparent z-10" />
@@ -903,10 +801,10 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
             id="menu-btn-manual-report"
             onClick={() => {
               closeFlyoutMenus();
-              onEnterReportList();
+              onEnterWorkbench();
             }}
             className="flex-1 flex items-center justify-center border-l border-[#e5e5e5] text-[#222222] text-[12px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-0.5 whitespace-nowrap overflow-hidden"
-            title="手动报送（页面填报）"
+            title="手动报送（进入首页）"
           >
             <span>手动报送</span>
           </button>
@@ -951,11 +849,13 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
             </div>
           </button>
 
-          {/* Mic Button → 语音转写报送 */}
+          {/* Mic：引导用微信转文字后再发结构化文字 */}
           <button
-            onClick={() => runVoiceMultimodal()}
+            onClick={() =>
+              onToast('请用微信「按住说话 → 转文字」后，粘贴结构化文字发送', 'info')
+            }
             className="p-1 text-slate-700 hover:text-black"
-            title="语音口述报送"
+            title="语音请先转文字"
           >
             <Mic className="w-6 h-6 stroke-[1.8]" />
           </button>
@@ -973,7 +873,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
               }}
               placeholder={
                 quickPhase === 'awaiting_body'
-                  ? '链接/文字，或点+传图、点麦说话...'
+                  ? '粘贴结构化文字线索...'
                   : quickPhase === 'awaiting_org' || quickPhase === 'awaiting_confirm'
                     ? '回复数字...'
                     : '发消息...'
@@ -1011,7 +911,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
         </div>
       )}
 
-      {/* Drawer for Plus button in chat mode */}
+      {/* Drawer for Plus button in chat mode：图/视频/文档仅作附件 */}
       {showPlusDrawer && inputMode === 'chat' && (
         <div className="bg-[#f0f0f0] border-t border-[#dcdcdc] p-4 grid grid-cols-4 gap-4 z-30 animate-in slide-in-from-bottom duration-150">
           <button
@@ -1024,7 +924,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
             <span className="text-[11px] text-slate-600">吹哨速报</span>
           </button>
           <button
-            onClick={() => runImageMultimodal('album')}
+            onClick={uploadAlbumPhoto}
             className="flex flex-col items-center space-y-1"
           >
             <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-emerald-600 shadow-xs border border-slate-200">
@@ -1033,22 +933,43 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
             <span className="text-[11px] text-slate-600">照片</span>
           </button>
           <button
-            onClick={() => runImageMultimodal('camera')}
+            onClick={uploadCameraPhoto}
             className="flex flex-col items-center space-y-1"
           >
             <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-amber-600 shadow-xs border border-slate-200">
               <Camera className="w-6 h-6" />
             </div>
-            <span className="text-[11px] text-slate-600">拍照拍摄</span>
+            <span className="text-[11px] text-slate-600">拍照</span>
           </button>
           <button
-            onClick={() => runLocationMultimodal()}
+            onClick={uploadVideo}
+            className="flex flex-col items-center space-y-1"
+          >
+            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-violet-600 shadow-xs border border-slate-200">
+              <Video className="w-6 h-6" />
+            </div>
+            <span className="text-[11px] text-slate-600">视频</span>
+          </button>
+          <button
+            onClick={uploadFile}
+            className="flex flex-col items-center space-y-1"
+          >
+            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-sky-600 shadow-xs border border-slate-200">
+              <File className="w-6 h-6" />
+            </div>
+            <span className="text-[11px] text-slate-600">文件</span>
+          </button>
+          <button
+            onClick={() => {
+              setShowPlusDrawer(false);
+              onToast('已获取当前网格位置：台中市西坝区阳光花园', 'success');
+            }}
             className="flex flex-col items-center space-y-1"
           >
             <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-red-600 shadow-xs border border-slate-200">
               <MapPin className="w-6 h-6" />
             </div>
-            <span className="text-[11px] text-slate-600">位置上报</span>
+            <span className="text-[11px] text-slate-600">位置</span>
           </button>
         </div>
       )}
@@ -1059,23 +980,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
           <div className="bg-white rounded-t-2xl p-5 space-y-4 max-h-[85%] overflow-y-auto">
             <div className="flex items-start justify-between">
               <div className="flex items-center space-x-3">
-                <div className="w-14 h-14 rounded-xl overflow-hidden shadow-xs bg-[#2458a6] relative flex items-center justify-center p-1 shrink-0">
-                  <div className="w-full h-full grid grid-cols-2 grid-rows-2 gap-[1.5px] p-0.5">
-                    <div className="bg-[#1f4e96] rounded-[2px]"></div>
-                    <div className="bg-[#2a63b8] rounded-[2px]"></div>
-                    <div className="bg-[#2a63b8] rounded-[2px]"></div>
-                    <div className="bg-[#1f4e96] rounded-[2px]"></div>
-                  </div>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                      <circle cx="7" cy="14" r="3.5" />
-                      <path d="M10.5 14h7l2-5H9a5 5 0 0 0-2 0" />
-                      <path d="M14 9v5" />
-                      <path d="M18 6a4 4 0 0 1 3 3" strokeWidth="2" />
-                      <path d="M19.5 3.5a7 7 0 0 1 4 4" strokeWidth="1.6" />
-                    </svg>
-                  </div>
-                </div>
+                <OfficialAccountAvatar className="w-14 h-14 rounded-xl" />
                 <div>
                   <h3 className="text-lg font-bold text-slate-900">点点速豹</h3>
                   <p className="text-xs text-slate-500 font-mono">微信号：diandian_subao_h5</p>

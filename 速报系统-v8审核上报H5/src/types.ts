@@ -28,6 +28,16 @@ export type IdentificationTag =
   | 'official_first'   // 首发报送 (正式定标)
   | 'official_repeat'; // 重复报送 (正式定标)
 
+/** 当次报送附件（图片 / 视频 / 文件等） */
+export interface ReportAttachment {
+  id: string;
+  name: string;
+  size?: string;
+  type: 'image' | 'video' | 'file' | 'pdf' | 'link';
+  url?: string;
+  thumbnailUrl?: string;
+}
+
 export interface SpeedReport {
   id: string;
   title: string;
@@ -57,6 +67,8 @@ export interface SpeedReport {
   identificationTime?: string;          // 预判或正式定标时间
   templateId?: TemplateType;
   templateFieldValues?: Record<string, TemplateFieldValue>;
+  /** 当次报送附件：图片、视频、文件 */
+  attachments?: ReportAttachment[];
   tags: string[];
 }
 

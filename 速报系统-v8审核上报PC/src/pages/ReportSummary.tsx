@@ -35,13 +35,21 @@ interface ReportSummaryProps {
   onOpenEditReport?: (report: ReportItem) => void;
   onOpenNewReport?: (templateData?: any) => void;
   onNavigate: (page: PageId) => void;
-  initialTab?: '待审核' | '审核中' | '已驳回';
+  initialTab?: '待审核' | '审核中' | '已驳回' | '草稿箱';
   focusReport?: ReportItem | null;
   onFocusConsumed?: () => void;
 }
 
-const tabForStatus = (status: ReportItem['auditStatus']): '待审核' | '审核中' | '已驳回' =>
-  status === '待审核' ? '待审核' : status === '审核中' ? '审核中' : '已驳回';
+type SummaryTab = '待审核' | '审核中' | '已驳回' | '草稿箱';
+
+const tabForStatus = (status: ReportItem['auditStatus']): SummaryTab =>
+  status === '草稿'
+    ? '草稿箱'
+    : status === '待审核'
+      ? '待审核'
+      : status === '审核中'
+        ? '审核中'
+        : '已驳回';
 
 export const ReportSummary: React.FC<ReportSummaryProps> = ({
   reports,
@@ -56,7 +64,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   onFocusConsumed
 }) => {
   // Filter States
-  const [activeTab, setActiveTab] = useState<'待审核' | '审核中' | '已驳回'>(() =>
+  const [activeTab, setActiveTab] = useState<SummaryTab>(() =>
     focusReport ? tabForStatus(focusReport.auditStatus) : initialTab
   );
   const [keyword, setKeyword] = useState('');
@@ -65,6 +73,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
 
   // Modals
   const [deleteTarget, setDeleteTarget] = useState<ReportItem | null>(null);
+  const [withdrawTarget, setWithdrawTarget] = useState<ReportItem | null>(null);
   const [drawerReport, setDrawerReport] = useState<ReportItem | null>(focusReport ?? null);
 
   useEffect(() => {
@@ -101,6 +110,7 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   const rejectedCount = activeReports.filter((r) => r.auditStatus === '被驳回' || r.auditStatus === '已驳回').length;
   const pendingCount = activeReports.filter((r) => r.auditStatus === '待审核').length;
   const inReviewCount = activeReports.filter((r) => r.auditStatus === '审核中').length;
+  const draftCount = reports.filter((r) => r.auditStatus === '草稿').length;
   const todoCount = pendingCount + inReviewCount + rejectedCount;
 
   const recentReports = activeReports.filter((r) => inRecentWindow(toDateKey(r.submitTime)));
@@ -143,13 +153,15 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
 
   // Tab Filtering
   const filtered = reports.filter((item) => {
-    // 报送待办排除草稿状态（草稿箱功能已移除）
-    if (item.auditStatus === '草稿') return false;
-
     // Tab filter
-    if (activeTab === '待审核' && item.auditStatus !== '待审核') return false;
-    if (activeTab === '审核中' && item.auditStatus !== '审核中') return false;
-    if (activeTab === '已驳回' && item.auditStatus !== '被驳回' && item.auditStatus !== '已驳回') return false;
+    if (activeTab === '草稿箱') {
+      if (item.auditStatus !== '草稿') return false;
+    } else {
+      if (item.auditStatus === '草稿') return false;
+      if (activeTab === '待审核' && item.auditStatus !== '待审核') return false;
+      if (activeTab === '审核中' && item.auditStatus !== '审核中') return false;
+      if (activeTab === '已驳回' && item.auditStatus !== '被驳回' && item.auditStatus !== '已驳回') return false;
+    }
 
     // Search filters (智能综合模糊检索: 标题、上报人员、事件来源、所属机构、发生地址)
     if (keyword.trim()) {
@@ -372,16 +384,17 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
         <div className="bg-white rounded-xl border border-gray-200/80 shadow-2xs overflow-hidden">
           <div className="px-5 flex items-center gap-6 border-b border-gray-100 text-sm">
             {[
-              { id: '待审核', label: '待审核', count: pendingCount },
-              { id: '审核中', label: '审核中', count: inReviewCount },
-              { id: '已驳回', label: '被驳回', count: rejectedCount }
+              { id: '待审核' as const, label: '待审核', count: pendingCount },
+              { id: '审核中' as const, label: '审核中', count: inReviewCount },
+              { id: '已驳回' as const, label: '被驳回', count: rejectedCount },
+              { id: '草稿箱' as const, label: '草稿箱', count: draftCount }
             ].map((tab) => {
               const active = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => setActiveTab(tab.id)}
                   className={`relative py-3 flex items-center gap-1.5 cursor-pointer transition-colors ${
                     active ? 'text-[#1E5ABB] font-bold' : 'text-gray-500 hover:text-gray-800'
                   }`}
@@ -403,12 +416,13 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
             {filtered.length === 0 ? (
               <div className="py-12 text-center text-xs text-gray-400">
                 <FileText className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                未查找到匹配的上报记录
+                {activeTab === '草稿箱' ? '草稿箱暂无数据，新建报送时可先保存草稿' : '未查找到匹配的上报记录'}
               </div>
             ) : (
               pagedReports.map((item, index) => {
                 const isPending = item.auditStatus === '待审核';
                 const isRejected = item.auditStatus === '被驳回' || item.auditStatus === '已驳回';
+                const isDraft = item.auditStatus === '草稿';
                 const openDetail = () => {
                   onSelectReport(item);
                   setDrawerReport(item);
@@ -423,29 +437,42 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                           <AuditStatusBadge status={item.auditStatus} audience="report" variant="chip" />
                           <button
                             type="button"
-                            onClick={openDetail}
+                            onClick={isDraft && onOpenEditReport ? () => onOpenEditReport(item) : openDetail}
                             title={item.title}
                             className="text-sm font-semibold text-gray-900 hover:text-[#1E5ABB] text-left truncate min-w-0 cursor-pointer"
                           >
                             {item.title}
                           </button>
-                          <ReportOriginBadge report={item} size="sm" className="shrink-0" />
+                          {!isDraft && <ReportOriginBadge report={item} size="sm" className="shrink-0" />}
                         </div>
                         <div className="flex items-center gap-3 text-xs shrink-0">
-                          <button type="button" onClick={openDetail} className="text-gray-500 hover:text-gray-800 hover:underline cursor-pointer">
-                            详情
-                          </button>
-                          {isRejected && (
+                          {!isDraft && (
+                            <button type="button" onClick={openDetail} className="text-gray-500 hover:text-gray-800 hover:underline cursor-pointer">
+                              详情
+                            </button>
+                          )}
+                          {isPending && onWithdrawReport && (
+                            <button
+                              type="button"
+                              onClick={() => setWithdrawTarget(item)}
+                              className="text-amber-600 hover:text-amber-800 hover:underline font-semibold cursor-pointer inline-flex items-center gap-0.5"
+                              title="撤回至草稿箱"
+                            >
+                              <Undo2 className="w-3 h-3" />
+                              撤回
+                            </button>
+                          )}
+                          {(isDraft || isRejected) && (
                             <button
                               type="button"
                               onClick={() => onOpenEditReport && onOpenEditReport(item)}
                               className="text-indigo-600 hover:text-indigo-800 hover:underline font-semibold cursor-pointer inline-flex items-center gap-0.5"
                             >
                               <FileEdit className="w-3 h-3" />
-                              编辑
+                              {isDraft ? '继续编辑' : '编辑'}
                             </button>
                           )}
-                          {(isPending || isRejected) && onDeleteReport && (
+                          {(isPending || isRejected || isDraft) && onDeleteReport && (
                             <button
                               type="button"
                               onClick={() => setDeleteTarget(item)}
@@ -536,6 +563,39 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
                 className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold shadow-sm"
               >
                 确认删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {withdrawTarget && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-gray-200">
+            <div className="flex items-center space-x-3 text-amber-600">
+              <AlertCircle className="w-6 h-6 shrink-0" />
+              <h3 className="text-base font-bold text-gray-900">确认撤回报送？</h3>
+            </div>
+            <p className="text-xs text-gray-600 leading-relaxed">
+              撤回后《<strong className="text-gray-900">{withdrawTarget.title}</strong>》将转入草稿箱，审核侧暂停处理。可继续编辑后重新送审。
+            </p>
+            <div className="flex justify-end space-x-3 pt-2">
+              <button
+                onClick={() => setWithdrawTarget(null)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => {
+                  if (onWithdrawReport) onWithdrawReport(withdrawTarget.id);
+                  setWithdrawTarget(null);
+                  setActiveTab('草稿箱');
+                  setDrawerReport(null);
+                }}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold shadow-sm"
+              >
+                确认撤回
               </button>
             </div>
           </div>

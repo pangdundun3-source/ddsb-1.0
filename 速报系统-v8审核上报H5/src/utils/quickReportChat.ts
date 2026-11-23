@@ -2,18 +2,11 @@ import { REPORT_TEMPLATES } from '../data/mockData';
 import { isTemplateBlockedByExternalAudit } from '../shared/valueAddedAccess';
 import { ReportTemplate, TemplateType } from '../types';
 import {
-  LinkMultimodalSuccess,
-  extractHttpUrl,
-  hasHttpLink,
-  parseLinkMultimodal,
-} from './linkMultimodalMock';
-import {
   ClueSourceKind,
   MultimodalClueSuccess,
   sourceKindToTag,
 } from './multimodalClueMock';
 
-export { hasHttpLink, extractHttpUrl } from './linkMultimodalMock';
 export { sourceKindToTag } from './multimodalClueMock';
 export type { ClueSourceKind } from './multimodalClueMock';
 
@@ -22,6 +15,14 @@ export type QuickReportPhase =
   | 'awaiting_body'
   | 'awaiting_org'
   | 'awaiting_confirm';
+
+export type QuickAttachmentKind = 'text' | 'image' | 'video' | 'file' | 'link';
+
+export interface QuickAttachment {
+  id: string;
+  name: string;
+  kind: QuickAttachmentKind;
+}
 
 export interface ParsedClue {
   reporterHint?: string;
@@ -50,7 +51,62 @@ export interface QuickReportDraft {
   selectedOrg?: string;
   missingLabels: string[];
   canDirectSubmit: boolean;
+  /** 当次报送附件（文本/图/视频/文档/链接） */
+  attachments: QuickAttachment[];
 }
+
+export const makeQuickAttachment = (
+  kind: QuickAttachmentKind,
+  name: string
+): QuickAttachment => ({
+  id: `att_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+  kind,
+  name,
+});
+
+export const mergeAttachments = (
+  current: QuickAttachment[] | undefined,
+  extras: QuickAttachment[]
+) => [...(current || []), ...extras];
+
+export const formatAttachmentLines = (attachments: QuickAttachment[]) => {
+  if (!attachments.length) return ['（暂无附件，可补充图片、视频或文件）'];
+  return attachments.map((item, index) => {
+    const kindLabel =
+      item.kind === 'image'
+        ? '图片'
+        : item.kind === 'video'
+          ? '视频'
+          : item.kind === 'file'
+            ? '文件'
+            : item.kind === 'link'
+              ? '链接'
+              : '文本';
+    return `${index + 1}. [${kindLabel}] ${item.name}`;
+  });
+};
+
+/** 当次可上传附件：图片 / 视频 / 文件 */
+export const mediaAttachmentsOnly = (attachments: QuickAttachment[] | undefined) =>
+  (attachments || []).filter(
+    (item) => item.kind === 'image' || item.kind === 'video' || item.kind === 'file'
+  );
+
+/** 写入报送 attachments（链接走 matchedLink，文本种子不单独挂附件） */
+export const toReportAttachments = (attachments: QuickAttachment[] | undefined) =>
+  mediaAttachmentsOnly(attachments).map((item) => ({
+    id: item.id,
+    name: item.name,
+    type:
+      item.kind === 'image'
+        ? ('image' as const)
+        : item.kind === 'video'
+          ? ('video' as const)
+          : /\.pdf$/i.test(item.name)
+            ? ('pdf' as const)
+            : ('file' as const),
+    size: '—',
+  }));
 
 const ENTRY_KEYWORDS = ['快捷报送', '快捷上报', '报送', '线索', '转报送', '消息报送'];
 const CANCEL_KEYWORDS = ['取消', '0'];
@@ -121,21 +177,6 @@ export const parseClueText = (raw: string): ParsedClue => {
   };
 };
 
-/** 文案字段优先，空缺项用链接多模态结果补全 */
-export const mergeClueWithLinkResult = (
-  base: ParsedClue,
-  linkResult: LinkMultimodalSuccess
-): ParsedClue => ({
-  ...base,
-  link: base.link || linkResult.link,
-  title: base.title || linkResult.title,
-  summary: base.summary || linkResult.summary || linkResult.title,
-  timeText: base.timeText || linkResult.timeText,
-  district: base.district || linkResult.district,
-  sourceKind: base.sourceKind || 'link',
-  sourceLabel: base.sourceLabel || `链接识别·${linkResult.sourceHost}`,
-});
-
 /** 文案字段优先，空缺项用图片/语音/位置多模态结果补全 */
 export const mergeClueWithMultimodal = (
   base: ParsedClue,
@@ -169,37 +210,14 @@ export const clueFromMultimodalSuccess = (
   raw: mm.transcript || rawFallback || mm.title,
 });
 
-/**
- * 同步构建线索：结构化文案优先；若含链接则用 Mock 多模态补全空缺。
- * 对话侧「解析中」动效可先展示，再调用本函数。
- */
+/** 仅从结构化文字抽取字段；不解析链接内容 */
 export const buildClueFromUserText = (raw: string): ParsedClue | { error: string } => {
   const textClue = parseClueText(raw);
-  const url = extractHttpUrl(raw) || textClue.link;
-
-  if (!url) {
-    return {
-      ...textClue,
-      sourceKind: textClue.sourceKind || 'text',
-      sourceLabel: textClue.sourceLabel || '文字线索',
-    };
-  }
-
-  const linkResult = parseLinkMultimodal(url);
-  if (!linkResult.ok) {
-    // 文案已有标题时，链接失败不阻断，仅保留文案抽取结果
-    if (textClue.title?.trim()) {
-      return {
-        ...textClue,
-        link: textClue.link || url,
-        sourceKind: 'text',
-        sourceLabel: '文字线索',
-      };
-    }
-    return { error: linkResult.reason };
-  }
-
-  return mergeClueWithLinkResult({ ...textClue, link: textClue.link || url }, linkResult);
+  return {
+    ...textClue,
+    sourceKind: textClue.sourceKind || 'text',
+    sourceLabel: textClue.sourceLabel || '文字线索',
+  };
 };
 
 const findTemplate = (id: TemplateType) =>
@@ -333,7 +351,7 @@ export const buildSoftExtraValues = (draft: QuickReportDraft) => {
       return;
     }
     if (field.type === 'attachment') {
-      values[field.id] = [];
+      values[field.id] = mediaAttachmentsOnly(draft.attachments).map((item) => item.name);
       return;
     }
     values[field.id] = '';
@@ -357,16 +375,10 @@ export const buildQuickReportDraft = (
   }
 
   if (!clue.title?.trim()) {
-    if (hasHttpLink(raw) || clue.link) {
-      return {
-        error:
-          '未能从链接识别出标题。请换一条可访问的原文链接，或按下列格式补充后重发：\n\n涉事属地：\n信息发布时间：\n信息标题：\n链接：',
-      };
-    }
     if (!looksLikeStructuredClue(raw)) {
       return {
         error:
-          '已进入快捷上报，但未能稳定识别标题/属地等关键信息。\n可直接发送原文链接，或按下列格式重发；也可回复【表单】改为页面填写：\n\n涉事属地：\n信息发布时间：\n信息标题：\n链接：',
+          '已进入快捷上报，但未能稳定识别标题/属地等关键信息。\n请按下列格式发送结构化文字；也可回复【表单】改为页面填写：\n\n涉事属地：\n信息发布时间：\n信息标题：\n链接：',
       };
     }
     return {
@@ -377,12 +389,27 @@ export const buildQuickReportDraft = (
 
   const uniqueOrgs = Array.from(new Set(orgOptions.filter(Boolean)));
 
+  const seedAttachments: QuickAttachment[] = [];
+  if (clue.link) {
+    seedAttachments.push(makeQuickAttachment('link', clue.link));
+  }
+  if ((clue.raw || raw).trim()) {
+    const short = (clue.title || '线索正文').slice(0, 16);
+    seedAttachments.push(makeQuickAttachment('text', `${short}.txt`));
+  }
+  if (clue.attachmentHint && (clue.sourceKind === 'image' || clue.sourceKind === 'video')) {
+    seedAttachments.push(
+      makeQuickAttachment(clue.sourceKind === 'video' ? 'video' : 'image', clue.attachmentHint)
+    );
+  }
+
   return {
     clue: { ...clue, raw: clue.raw || raw },
     orgOptions: uniqueOrgs,
     selectedOrg: uniqueOrgs.length === 1 ? uniqueOrgs[0] : undefined,
     missingLabels: [],
     canDirectSubmit: false,
+    attachments: seedAttachments,
   };
 };
 
@@ -426,10 +453,15 @@ export const formatConfirmPrompt = (draft: QuickReportDraft) => {
   if (matched?.reason) {
     lines.push(`匹配说明：${matched.reason}`);
   }
+  const mediaAtts = mediaAttachmentsOnly(draft.attachments);
   lines.push(
     `标题：${draft.clue.title}`,
     `属地：${draft.clue.district || '未识别'}｜时间：${draft.clue.timeText || '未识别'}`,
-    `链接：${draft.clue.link || '未识别'}`
+    `链接：${draft.clue.link || '未识别'}`,
+    '',
+    mediaAtts.length
+      ? `当次附件：\n${formatAttachmentLines(mediaAtts).join('\n')}\n可点「+」继续补充图片、视频或文件。`
+      : '当次附件：暂无。可点「+」补充图片、视频或文件。'
   );
 
   if (draft.clue.reporterHint) {
@@ -441,10 +473,16 @@ export const formatConfirmPrompt = (draft: QuickReportDraft) => {
       '',
       `缺少：${draft.missingLabels.slice(0, 6).join('、')}${draft.missingLabels.length > 6 ? '…' : ''}`
     );
-    lines.push('', '模板如需更换，请回复【2】在页面中修改。', '2 去完善', '0 取消');
+    lines.push(
+      '',
+      '可先保存草稿，或去页面完善后再提交。',
+      '2 保存为草稿',
+      '3 去完善',
+      '0 取消'
+    );
   } else {
-    lines.push('', '说明：模板细项将按初值提交，可点「去完善」修改。');
-    lines.push('', '1 确认提交', '2 去完善（可改模板或补全信息）', '0 取消');
+    lines.push('', '说明：模板细项将按初值提交；也可先存草稿或去完善后再报。');
+    lines.push('', '1 直接提交', '2 保存为草稿', '3 去完善', '0 取消');
   }
   return lines.join('\n');
 };
@@ -463,11 +501,25 @@ export const formatSuccessPrompt = (params: {
     '可在「我的报送」查看进度。',
   ].join('\n');
 
+export const formatDraftSavedPrompt = (params: {
+  title: string;
+  org: string;
+  templateName: string;
+  reportId: string;
+}) =>
+  [
+    '已保存为草稿。',
+    `模板：${params.templateName}｜机构：${params.org}`,
+    `标题：${params.title}`,
+    `单号：${params.reportId}`,
+    '可在「我的报送 → 草稿箱」继续编辑；草稿默认保留 24 小时。',
+  ].join('\n');
+
 export const GUIDE_AFTER_MENU =
-  '【快捷报送】\n支持四种输入：\n1）原文链接（自动识标题）\n2）结构化文字（属地/时间/标题/链接）\n3）图片截图或现场拍照（OCR）\n4）语音口述（转写）\n\n也可点「+」选照片/拍照，或点麦克风发语音。\n流程：解析线索 → 确认报送机构 → 按该机构自动匹配模板。\n完整表单请走菜单「手动报送」。\n回复【取消】退出。';
+  '【快捷报送】\n请发送结构化文字线索（含属地、时间、标题等字段）。\n可点「+」补充图片、视频、文件等附件，随本条报送一并提交。\n\n流程：文字抽取 → 确认提交（可直接提交或保存草稿）。\n完整表单请走菜单「手动报送」。\n回复【取消】退出。';
 
 export const GUIDE_AFTER_KEYWORD =
-  '已进入快捷报送。\n请发送原文链接、文字线索、图片或语音。\n将先解析并请您确认机构，再自动匹配模板。\n点「+」可传图；点麦克风可口述。\n回复【取消】退出；回复【表单】改为页面填写。';
+  '已进入快捷报送。\n请先发送结构化文字生成线索；可点「+」补充图片、视频、文件等附件。\n回复【取消】退出；回复【表单】改为页面填写。';
 
 export const LIGHT_TIP =
-  '如需快速报送：点击菜单「快捷报送」，或发送【报送】后发链接/文字/图片/语音。\n完整填写请使用「手动报送」。';
+  '如需快速报送：点击菜单「快捷报送」，或发送【报送】后粘贴结构化文字。\n图片、视频、文件请在生成线索后作为当次附件上传。\n完整填写请使用「手动报送」。';

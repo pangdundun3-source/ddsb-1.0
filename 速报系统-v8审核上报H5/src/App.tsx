@@ -319,8 +319,34 @@ export default function App() {
       return;
     }
 
-    // 撤回：从列表中移除待审状态并进入编辑修改状态
-    setReports((prev) => prev.filter((report) => report.id !== id));
+    const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const draftTags = Array.from(
+      new Set(
+        ['草稿', current.type, current.authorDept, ...(current.tags || []).filter((t) => t === '快捷上报')].filter(
+          Boolean
+        )
+      )
+    );
+
+    // 撤回至草稿箱：状态改 draft，清除预判断标识，审核侧待办通知移除
+    setReports((prev) =>
+      prev.map((report) =>
+        report.id === id
+          ? {
+              ...report,
+              status: 'draft' as const,
+              updateTime: now,
+              tags: draftTags,
+              identificationTag: undefined,
+              identificationReason: undefined,
+              identificationTime: undefined,
+              rejectReason: undefined,
+              auditRemarks: undefined,
+              score: undefined,
+            }
+          : report
+      )
+    );
     setNotifications((prev) =>
       prev.filter((notification) => !(notification.relatedReportId === id && notification.type === '待办通知'))
     );
@@ -328,10 +354,10 @@ export default function App() {
       setSelectedReport(null);
       setSelectedReportEntry(null);
     }
-    setEditingReport(current);
+    setEditingReport(null);
     setIsCreatingNewReport(false);
     setCurrentTab('report');
-    showToast('已撤回待审速报，进入编辑状态');
+    showToast('已撤回至草稿箱\n草稿默认保留 24 小时');
   };
 
   const handleApproveReport = (id: string, score?: number) => {
@@ -909,11 +935,19 @@ export default function App() {
               setIsActivationH5View(true);
             }}
             onQuickReportSubmit={(payload) => {
-              const id = payload.id || `rep_qr_${Date.now()}`;
-              handleSaveReport({ ...payload, id }, true);
+              // 与页面新建报送「提交审核」同一套 handleSaveReport（含预判断打标）
+              const id = payload.id || `rep_${Date.now()}`;
+              handleSaveReport({ ...payload, id, status: 'pending_audit' }, true);
+              return id;
+            }}
+            onQuickReportSaveDraft={(payload) => {
+              // 与页面新建报送「保存草稿」同一套草稿箱逻辑（默认保留 24 小时）
+              const id = payload.id || `rep_draft_${Date.now()}`;
+              handleSaveReport({ ...payload, id, status: 'draft' }, false);
               return id;
             }}
             onQuickReportRefine={(payload) => {
+              // 打开与新建模板相同的上报表单，预填线索后可继续存草稿/提交
               setPortalUserKind('external');
               resetModuleViewState();
               setIsLoggedIn(true);
@@ -923,11 +957,13 @@ export default function App() {
               setEditingReport({
                 ...(payload as SpeedReport),
                 id: payload.id || `rep_draft_${Date.now()}`,
-                status: 'pending_audit',
-                tags: payload.tags || ['快捷上报'],
+                status: 'draft',
+                tags: payload.tags?.length
+                  ? payload.tags
+                  : ['草稿', '快捷上报', payload.type, payload.authorDept].filter(Boolean) as string[],
               });
               setIsCreatingNewReport(false);
-              showToast('已带入线索草稿，请完善后提交');
+              showToast('已带入线索，可按报送模板完善后提交或存草稿');
             }}
             onToast={showToast}
           />

@@ -1,6 +1,6 @@
 /** 快捷报送：图片 OCR / 语音 ASR Mock（可替换为真实服务） */
 
-export type ClueSourceKind = 'text' | 'link' | 'image' | 'voice' | 'location';
+export type ClueSourceKind = 'text' | 'link' | 'image' | 'video' | 'voice' | 'location';
 
 export type MultimodalClueFields = {
   title: string;
@@ -131,12 +131,36 @@ export const parseLocationClueMock = (): MultimodalClueSuccess => ({
   attachmentHint: '定位：台中市西坝区阳光花园',
 });
 
+/** 视频作为附件入报送（本期不做内容解析，仅挂附件） */
+export const makeVideoAttachmentMock = () => ({
+  ok: true as const,
+  sourceKind: 'video' as const,
+  sourceLabel: '现场视频',
+  title: '',
+  summary: '',
+  timeText: mockTime(0),
+  attachmentHint: '现场视频_路口积水.mp4',
+});
+
+/** 文档作为附件入报送 */
+export const makeFileAttachmentMock = () => ({
+  ok: true as const,
+  sourceKind: 'text' as const,
+  sourceLabel: '文档附件',
+  title: '',
+  summary: '',
+  timeText: mockTime(0),
+  attachmentHint: '情况说明.pdf',
+});
+
 export const sourceKindToTag = (kind: ClueSourceKind): string => {
   switch (kind) {
     case 'link':
       return '链接识别';
     case 'image':
       return '图片OCR';
+    case 'video':
+      return '视频附件';
     case 'voice':
       return '语音转写';
     case 'location':

@@ -89,6 +89,8 @@ interface NewReportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (newReport: NewReportFormData) => void;
+  /** 保存草稿（不送审） */
+  onSaveDraft?: (newReport: NewReportFormData, editing?: ReportItem | null) => void;
   initialTemplate?: ReportTemplateInput | null;
   editingReport?: ReportItem | null;
   onUpdate?: (report: ReportItem) => void;
@@ -98,6 +100,7 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
   isOpen,
   onClose,
   onSubmit,
+  onSaveDraft,
   initialTemplate,
   editingReport,
   onUpdate
@@ -304,6 +307,47 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
   if (!isOpen) return null;
 
   const selectedTemplate = getTemplateById(selectedTemplateId);
+
+  const buildFormData = (): NewReportFormData => {
+    const attachmentField = selectedTemplate.extraFields.find((field) => field.type === 'attachment');
+    const templateFieldValues: Record<string, TemplateFieldValue> = {
+      ...extraFieldValues,
+      ...(attachmentField
+        ? { [attachmentField.id]: attachments.map((attachment) => attachment.name) }
+        : {})
+    };
+    return {
+      title: title.trim() || '未命名草稿',
+      source,
+      region,
+      occurAddress,
+      infoType,
+      author,
+      organization,
+      summary,
+      demands: demands || summary,
+      recommendations: recommendations || '',
+      attachments,
+      templateId: selectedTemplate.id,
+      templateName: selectedTemplate.name,
+      templateFieldValues
+    };
+  };
+
+  const handleSaveDraft = () => {
+    if (!onSaveDraft) return;
+    if (!title.trim() && !summary.trim()) {
+      triggerToast('请至少填写标题或内容描述后再保存草稿');
+      return;
+    }
+    onSaveDraft(buildFormData(), editingReport);
+    setTitle('');
+    setSummary('');
+    setDemands('');
+    setRecommendations('');
+    setOccurAddress('');
+    onClose();
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -760,12 +804,21 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
             >
               取消
             </button>
+            {onSaveDraft && (
+              <button
+                type="button"
+                onClick={handleSaveDraft}
+                className="px-4 py-2 border border-[#1E5ABB]/40 bg-white hover:bg-blue-50 text-[#1E5ABB] rounded-lg font-semibold text-xs cursor-pointer transition-colors"
+              >
+                保存草稿
+              </button>
+            )}
             <button
               type="submit"
               form="new-report-form"
               className="px-6 py-2 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg font-bold text-xs shadow-md transition-all cursor-pointer active:scale-98 flex items-center space-x-1.5"
             >
-              <span>提交审核</span>
+              <span>{isEditMode && editingReport?.auditStatus === '草稿' ? '提交审核' : isEditMode ? '重新提交' : '提交审核'}</span>
             </button>
           </div>
         </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SpeedReport, ReportTemplate, UserProfile, ReportStatus, ReportType, ReportSource, IdentificationTag, TemplateFieldValue } from '../types';
 import { REPORT_TEMPLATES, DISTRICT_OPTIONS, TYPE_OPTIONS, SOURCE_OPTIONS } from '../data/mockData';
-import { Plus, Save, Send, ChevronRight, X, Sparkles, Filter, Link, FileText, Trash2, CheckCircle2, Clock, AlertCircle, PencilLine, Search, Camera, Loader2, RefreshCw } from 'lucide-react';
+import { Plus, Save, Send, ChevronRight, X, Sparkles, Filter, Link, FileText, Trash2, CheckCircle2, Clock, AlertCircle, PencilLine, Search, Camera, Loader2, RefreshCw, Undo2 } from 'lucide-react';
 import { BackNavigationBar } from './BackNavigationBar';
 import { IdentificationBadge } from './IdentificationBadge';
 import { RecallConfirmDialog } from './RecallConfirmDialog';
@@ -56,6 +56,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
 }) => {
   const [activeFilter, setActiveFilter] = useState<string>('pending');
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [recallTargetId, setRecallTargetId] = useState<string | null>(null);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [isCreating, setIsCreating] = useState<boolean>(!!initialEditReport || !!isCreatingNew);
   const [selectedTemplate, setSelectedTemplate] = useState<ReportTemplate>(REPORT_TEMPLATES[0]);
@@ -357,6 +358,8 @@ export const ReportView: React.FC<ReportViewProps> = ({
       matchedLink: formMatchedLink || (typeof templateLinkValue === 'string' ? templateLinkValue : ''),
       templateId: selectedTemplate.id,
       templateFieldValues: { ...extraFieldValues },
+      // 保留快捷报送等入口带入的当次附件（图片/视频/文件）
+      attachments: editingReport?.attachments,
       author: user.name,
       authorDept: user.department,
       gridNo: user.gridCode,
@@ -1184,6 +1187,23 @@ export const ReportView: React.FC<ReportViewProps> = ({
                           <span>删除</span>
                         </button>
                       )}
+                      {report.status === 'pending_audit' && onRecallReport && (
+                        <button
+                          type="button"
+                          onTouchStart={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setRecallTargetId(report.id);
+                          }}
+                          className="-my-1 -mx-1 px-1.5 py-1 text-amber-600 hover:text-amber-800 font-medium flex items-center gap-0.5 rounded-md hover:bg-amber-50 active:scale-95 transition-all cursor-pointer"
+                          aria-label="撤回至草稿箱"
+                          title="撤回至草稿箱"
+                        >
+                          <Undo2 className="w-3.5 h-3.5" />
+                          <span>撤回</span>
+                        </button>
+                      )}
                       {report.status === 'rejected' && onEditReport && (
                         <button
                           type="button"
@@ -1234,6 +1254,21 @@ export const ReportView: React.FC<ReportViewProps> = ({
           onConfirm={() => {
             onDeleteReport(deleteTargetId);
             setDeleteTargetId(null);
+          }}
+        />
+      )}
+
+      {recallTargetId && onRecallReport && (
+        <RecallConfirmDialog
+          title="确认撤回这条待审核速报？"
+          message="撤回后将转入草稿箱，审核侧暂停处理。可在草稿箱继续编辑后重新提交；草稿默认保留 24 小时。"
+          cancelLabel="取消"
+          confirmLabel="确认撤回"
+          onCancel={() => setRecallTargetId(null)}
+          onConfirm={() => {
+            onRecallReport(recallTargetId);
+            setRecallTargetId(null);
+            setActiveFilter('draft');
           }}
         />
       )}

@@ -69,6 +69,7 @@ export default function App() {
     handleSwitchOrg,
     handleNavigate,
     handleCreateReport,
+    handleSaveDraftReport,
     handleDeleteReport,
     handleWithdrawReport,
     handleResubmitReport,
@@ -342,6 +343,7 @@ export default function App() {
         initialTemplate={newReportTemplate}
         editingReport={editingReport}
         onSubmit={handleCreateReport}
+        onSaveDraft={handleSaveDraftReport}
         onUpdate={handleResubmitReport}
       />
 

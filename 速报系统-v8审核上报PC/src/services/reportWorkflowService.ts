@@ -251,6 +251,57 @@ export const createSubmittedReport = (
   ]);
 };
 
+/** 保存为草稿（不送审、不打预判断） */
+export const createDraftReport = (
+  input: NewReportFormData,
+  id = Date.now(),
+  saveTime = getNowText()
+): ReportItem => {
+  const report = createReportFromForm(input, id, saveTime, []);
+  return {
+    ...report,
+    auditStatus: '草稿',
+    score: '--',
+    originLabel: undefined,
+    originReason: undefined,
+    originSimilarReports: undefined,
+    timeline: [
+      {
+        title: '保存草稿',
+        operator: `${input.author}·${input.organization}`,
+        time: saveTime,
+        status: 'current',
+        note: '草稿默认可继续编辑后提交送审'
+      }
+    ]
+  };
+};
+
+/** 将已有记录更新为草稿内容（保持草稿或从待审/驳回撤回后的编辑保存） */
+export const saveReportAsDraft = (report: ReportItem, now = getNowText()): ReportItem =>
+  appendTimeline(
+    {
+      ...report,
+      auditStatus: '草稿',
+      submitTime: report.submitTime || now,
+      rejectReason: undefined,
+      rejectDetail: undefined,
+      score: '--',
+      originLabel: undefined,
+      originReason: undefined,
+      originSimilarReports: undefined
+    },
+    [
+      {
+        title: '保存草稿',
+        operator: `${report.author}·${report.organization}`,
+        time: now,
+        status: 'current',
+        note: '已保存至草稿箱'
+      }
+    ]
+  );
+
 export const resubmitReport = (
   report: ReportItem,
   now = getNowText(),

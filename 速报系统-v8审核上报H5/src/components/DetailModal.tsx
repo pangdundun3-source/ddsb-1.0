@@ -20,6 +20,7 @@ import {
   X,
   ChevronLeft,
   Trash2,
+  Undo2,
 } from 'lucide-react';
 import { BackNavigationBar } from './BackNavigationBar';
 import { RecallConfirmDialog } from './RecallConfirmDialog';
@@ -1220,21 +1221,33 @@ export const DetailModal: React.FC<DetailModalProps> = ({
               <span>修改补充并重新提交</span>
             </button>
           </div>
-        ) : report.status === 'pending_audit' && onDeleteReport ? (
+        ) : report.status === 'pending_audit' && (onRecallReport || onDeleteReport) ? (
           <div className="flex items-center space-x-2">
-            <button
-              type="button"
-              onClick={() => setShowDeleteConfirm(true)}
-              className="flex-1 py-2.5 px-3 bg-red-50 hover:bg-red-100 text-red-600 font-semibold text-xs rounded-xl flex items-center justify-center space-x-1 transition-colors border border-red-200 cursor-pointer"
-            >
-              <Trash2 className="w-3.5 h-3.5 mr-1" />
-              <span>删除速报</span>
-            </button>
+            {onRecallReport && (
+              <button
+                type="button"
+                onClick={handleRecall}
+                className="flex-1 py-2.5 px-3 bg-amber-50 hover:bg-amber-100 text-amber-700 font-semibold text-xs rounded-xl flex items-center justify-center space-x-1 transition-colors border border-amber-200 cursor-pointer"
+              >
+                <Undo2 className="w-3.5 h-3.5 mr-1" />
+                <span>撤回草稿</span>
+              </button>
+            )}
+            {onDeleteReport && (
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="flex-1 py-2.5 px-3 bg-red-50 hover:bg-red-100 text-red-600 font-semibold text-xs rounded-xl flex items-center justify-center space-x-1 transition-colors border border-red-200 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-1" />
+                <span>删除</span>
+              </button>
+            )}
             <button
               onClick={onClose}
               className="flex-1 py-2.5 px-3 bg-slate-900 hover:bg-black text-white font-semibold text-xs rounded-xl transition-colors cursor-pointer"
             >
-              关闭详情
+              关闭
             </button>
           </div>
         ) : (
@@ -1250,7 +1263,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
       {showRecallConfirm && (
         <RecallConfirmDialog
           title="确认撤回这条待审核速报？"
-          message="撤回后将重新进入编辑状态，修改后可直接重新提交。"
+          message="撤回后将转入草稿箱，审核侧暂停处理。可在草稿箱继续编辑后重新提交；草稿默认保留 24 小时。"
           onCancel={() => setShowRecallConfirm(false)}
           onConfirm={handleConfirmRecall}
         />
