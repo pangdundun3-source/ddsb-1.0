@@ -1,4 +1,5 @@
 export type ReportStatus =
+  | 'draft'            // 草稿
   | 'pending_audit'    // 待审核
   | 'auditing'         // 审核中
   | 'approved'         // 已通过
@@ -136,6 +137,9 @@ export interface AppNotification {
 }
 
 export type UserRole = '上报员' | '审核员';
+
+/** H5 门户身份：外部组织（全功能）/ V8 机构（仅审核+我的） */
+export type PortalUserKind = 'external' | 'v8_org';
 
 export interface UserProfile {
   id: string;

@@ -5,13 +5,16 @@ import {
   AppNotification,
   AppTab,
   UserRole,
+  PortalUserKind,
 } from './types';
 import {
   INITIAL_USER,
   INITIAL_REPORTS,
   INITIAL_NOTIFICATIONS,
   REPORT_TEMPLATES,
+  createDemoDraftReports,
 } from './data/mockData';
+import { purgeExpiredDrafts } from './utils/draftRetention';
 
 import { WeChatPhoneShell } from './components/WeChatPhoneShell';
 import { LoginView } from './components/LoginView';
@@ -37,6 +40,9 @@ import { alertDialog, ConfirmDialogHost } from './components/ConfirmDialog';
 export default function App() {
   // Application State with LocalStorage Persistence
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  /** 外部组织=全功能；V8 机构=仅审核+我的 */
+  const [portalUserKind, setPortalUserKind] = useState<PortalUserKind>('external');
+  const isV8OrgUser = portalUserKind === 'v8_org';
 
   // Always land on the official account home when the link is opened
   const [isOfficialAccount, setIsOfficialAccount] = useState<boolean>(true);
@@ -44,13 +50,43 @@ export default function App() {
   const [user, setUser] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('wechat_v8_user');
     if (!saved) return INITIAL_USER;
-    const parsed = JSON.parse(saved) as UserProfile;
-    return parsed.role === '审核员' ? parsed : { ...parsed, role: '上报员' };
+    try {
+      const parsed = JSON.parse(saved) as UserProfile;
+      const withRole = parsed.role === '审核员' ? parsed : { ...parsed, role: '上报员' as const };
+      const orgCount = new Set(
+        [withRole.department, ...(withRole.associatedDepts || [])].filter(Boolean)
+      ).size;
+      // 本地缓存若仍是单机构，合并演示双机构，避免个人中心看不到「切换」
+      if (orgCount < 2) {
+        return {
+          ...withRole,
+          department: INITIAL_USER.department,
+          associatedDepts: INITIAL_USER.associatedDepts,
+          subDepartment: INITIAL_USER.subDepartment,
+        };
+      }
+      return withRole;
+    } catch {
+      return INITIAL_USER;
+    }
   });
 
-  const [reports, setReports] = useState<SpeedReport[]>(() => {
-    return INITIAL_REPORTS;
-  });
+  const [reports, setReports] = useState<SpeedReport[]>(() =>
+    purgeExpiredDrafts([...createDemoDraftReports(), ...INITIAL_REPORTS])
+  );
+
+  // 草稿箱默认仅保留 24 小时，超时自动清除
+  useEffect(() => {
+    const sweep = () => {
+      setReports((prev) => {
+        const next = purgeExpiredDrafts(prev);
+        return next.length === prev.length ? prev : next;
+      });
+    };
+    sweep();
+    const timer = window.setInterval(sweep, 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const [notifications, setNotifications] = useState<AppNotification[]>(() => {
     try {
@@ -151,10 +187,19 @@ export default function App() {
   };
 
   const handleChangeDepartment = (newDept: string) => {
-    setUser((prev) => ({
-      ...prev,
-      department: newDept,
-    }));
+    setUser((prev) => {
+      const allOrgs = Array.from(
+        new Set([prev.department, ...(prev.associatedDepts || [])].filter(Boolean))
+      );
+      if (!allOrgs.includes(newDept)) {
+        return { ...prev, department: newDept };
+      }
+      return {
+        ...prev,
+        department: newDept,
+        associatedDepts: allOrgs.filter((org) => org !== newDept),
+      };
+    });
   };
 
   const handleUpdateUser = (patch: Partial<UserProfile>) => {
@@ -169,6 +214,27 @@ export default function App() {
     setPendingTemplateId(null);
     const isNew = !reports.some((r) => r.id === reportPayload.id);
     const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const nextStatus = isSubmit ? 'pending_audit' : 'draft';
+
+    if (!isSubmit) {
+      const draftReport: SpeedReport = {
+        ...(reportPayload as SpeedReport),
+        status: 'draft',
+        updateTime: now,
+        createTime: reportPayload.createTime || now,
+        tags: reportPayload.tags?.length ? reportPayload.tags : ['草稿'],
+      };
+      if (isNew) {
+        setReports((prev) => [draftReport, ...prev]);
+      } else {
+        setReports((prev) =>
+          prev.map((r) => (r.id === reportPayload.id ? { ...r, ...draftReport } : r))
+        );
+      }
+      showToast('已保存到草稿箱\n草稿默认保留 24 小时');
+      setEditingReport(null);
+      return;
+    }
 
     let identificationTag = reportPayload.identificationTag;
     let identificationReason = reportPayload.identificationReason;
@@ -184,7 +250,7 @@ export default function App() {
     if (isNew) {
       const newReport: SpeedReport = {
         ...(reportPayload as SpeedReport),
-        status: 'pending_audit',
+        status: nextStatus,
         identificationTag,
         identificationReason,
         identificationTime,
@@ -196,7 +262,6 @@ export default function App() {
       showToast(
         `操作成功\n速报已成功提交送审 (${IDENTIFICATION_CONFIG[identificationTag || 'identifying'].shortLabel}) !`
       );
-      // Add notification for audit (提醒审核人审核)
       const newNotif: AppNotification = {
         id: `notif_${Date.now()}`,
         type: '待办通知',
@@ -215,9 +280,12 @@ export default function App() {
             ? ({
                 ...r,
                 ...reportPayload,
-                status: 'pending_audit',
-                identificationTag: identificationTag || calculatePreJudgment({ ...r, ...reportPayload }, prev).tag,
-                identificationReason: identificationReason || calculatePreJudgment({ ...r, ...reportPayload }, prev).reason,
+                status: nextStatus,
+                identificationTag:
+                  identificationTag || calculatePreJudgment({ ...r, ...reportPayload }, prev).tag,
+                identificationReason:
+                  identificationReason ||
+                  calculatePreJudgment({ ...r, ...reportPayload }, prev).reason,
                 identificationTime: identificationTime || now,
                 updateTime: now,
               } as SpeedReport)
@@ -521,7 +589,7 @@ export default function App() {
   };
 
   const handleResetDemoData = () => {
-    setReports(INITIAL_REPORTS);
+    setReports(purgeExpiredDrafts([...createDemoDraftReports(), ...INITIAL_REPORTS]));
     setNotifications(INITIAL_NOTIFICATIONS);
     setUser(INITIAL_USER);
     showToast('已重置恢复初始演示数据');
@@ -608,6 +676,10 @@ export default function App() {
       <WeChatPhoneShell
         currentTab={currentTab}
         onSelectTab={(tab) => {
+          if (isV8OrgUser && tab !== 'audit' && tab !== 'profile') {
+            showToast('V8机构用户仅可使用审核与个人中心', 'info');
+            return;
+          }
           if (tab === 'audit' && !isExternalAuditEnabled()) {
             void alertDialog(getExternalAuditModuleTip(), {
               title: '无法进入审核管理',
@@ -630,6 +702,7 @@ export default function App() {
         unreadNotifCount={unreadNotifCount}
         onOpenActionSheet={() => setIsActionSheetOpen(true)}
         onResetDemoData={handleResetDemoData}
+        v8OrgNav={isV8OrgUser}
         isOfficialAccount={!isActivationH5View && isOfficialAccount}
         onToggleOfficialAccount={() => {
           if (isActivationH5View) {
@@ -644,6 +717,7 @@ export default function App() {
             setIsActivationH5View(false);
           }
           setIsOfficialAccount(true);
+          setPortalUserKind('external');
           showToast('已返回“点点速豹”公众号');
         }}
         canGoBack={
@@ -696,6 +770,7 @@ export default function App() {
           isActivationDetail
         }
         hideFAB={
+          isV8OrgUser ||
           !!selectedAnnouncement ||
           isActivationH5View ||
           isOfficialAccount ||
@@ -761,22 +836,26 @@ export default function App() {
           />
         ) : isOfficialAccount ? (
           <OfficialAccountEntryView
+            user={user}
             onEnterReport={() => {
+              setPortalUserKind('external');
               resetModuleViewState();
               setIsOfficialAccount(false);
               setIsLoggedIn(true);
               setCurrentTab('report');
               setIsCreatingNewReport(true);
-              showToast('已进入“快速上报”通道');
+              showToast('已进入页面上报');
             }}
             onEnterReportList={() => {
+              setPortalUserKind('external');
               resetModuleViewState();
               setIsOfficialAccount(false);
               setIsLoggedIn(true);
               setCurrentTab('report');
-              showToast('已打开快速上报列表');
+              showToast('已进入手动报送');
             }}
             onEnterWorkbench={(targetRole) => {
+              setPortalUserKind('external');
               if (targetRole) {
                 setUser((prev) => ({ ...prev, role: targetRole }));
               }
@@ -784,9 +863,9 @@ export default function App() {
               setIsLoggedIn(true);
               setIsOfficialAccount(false);
               setCurrentTab('home');
-              showToast('已进入工作台首页');
+              showToast('已进入首页');
             }}
-            onEnterAuditList={() => {
+            onEnterAuditList={(kind = 'external') => {
               if (!isExternalAuditEnabled()) {
                 void alertDialog(getExternalAuditModuleTip(), {
                   title: '无法进入审核管理',
@@ -795,25 +874,60 @@ export default function App() {
                 return;
               }
               resetModuleViewState();
+              setPortalUserKind(kind);
               setIsLoggedIn(true);
               setIsOfficialAccount(false);
               setCurrentTab('audit');
-              showToast('已打开快速审核列表');
+              if (kind === 'v8_org') {
+                setUser((prev) => ({ ...prev, role: '审核员' }));
+                showToast('已进入 V8 机构审核');
+              } else {
+                showToast('已进入外部组织审核');
+              }
             }}
-            onEnterProfile={() => {
+            onEnterProfile={(kind = 'external') => {
               resetModuleViewState();
+              setPortalUserKind(kind);
               setIsLoggedIn(true);
               setIsOfficialAccount(false);
-              setCurrentTab('profile');
-              showToast('已进入个人中心（我的）');
+              if (kind === 'v8_org') {
+                setUser((prev) => ({ ...prev, role: '审核员' }));
+                setCurrentTab('profile');
+                showToast('已进入 V8 机构用户（审核 / 我的）');
+              } else {
+                setCurrentTab('profile');
+                showToast('已进入外部组织用户个人中心');
+              }
             }}
             onEnterLogin={() => {
+              setPortalUserKind('external');
               resetModuleViewState();
               setIsLoggedIn(false);
               setIsOfficialAccount(false);
             }}
             onEnterActivationH5={() => {
               setIsActivationH5View(true);
+            }}
+            onQuickReportSubmit={(payload) => {
+              const id = payload.id || `rep_qr_${Date.now()}`;
+              handleSaveReport({ ...payload, id }, true);
+              return id;
+            }}
+            onQuickReportRefine={(payload) => {
+              setPortalUserKind('external');
+              resetModuleViewState();
+              setIsLoggedIn(true);
+              setIsOfficialAccount(false);
+              setCurrentTab('report');
+              setPendingTemplateId(payload.templateId || null);
+              setEditingReport({
+                ...(payload as SpeedReport),
+                id: payload.id || `rep_draft_${Date.now()}`,
+                status: 'pending_audit',
+                tags: payload.tags || ['快捷上报'],
+              });
+              setIsCreatingNewReport(false);
+              showToast('已带入线索草稿，请完善后提交');
             }}
             onToast={showToast}
           />
@@ -920,6 +1034,8 @@ export default function App() {
                 onToggleUserDetail={setIsProfileDetail}
                 showActivationDetail={isActivationDetail}
                 onToggleActivationDetail={setIsActivationDetail}
+                hideReportStats={isV8OrgUser}
+                isV8OrgUser={isV8OrgUser}
               />
             )}
           </>

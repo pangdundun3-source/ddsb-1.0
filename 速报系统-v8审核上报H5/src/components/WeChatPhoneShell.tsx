@@ -34,6 +34,8 @@ interface WeChatPhoneShellProps {
   isLoggedIn: boolean;
   hideTabBar?: boolean;
   hideFAB?: boolean;
+  /** V8 机构用户：底部仅「审核 + 我的」 */
+  v8OrgNav?: boolean;
   isOfficialAccount?: boolean;
   onToggleOfficialAccount?: () => void;
   onCloseH5?: () => void;
@@ -56,6 +58,7 @@ export const WeChatPhoneShell: React.FC<WeChatPhoneShellProps> = ({
   isLoggedIn,
   hideTabBar = false,
   hideFAB = false,
+  v8OrgNav = false,
   isOfficialAccount = false,
   onToggleOfficialAccount,
   onCloseH5,
@@ -243,62 +246,65 @@ export const WeChatPhoneShell: React.FC<WeChatPhoneShellProps> = ({
           {/* Bottom WeChat Tab Bar (Only when logged in and in H5 mode) */}
           {isLoggedIn && !hideTabBar && !isOfficialAccount && (
             <nav className="bg-white border-t border-slate-200 px-1 py-1 flex items-center justify-around z-30 select-none shadow-xs relative">
-              {/* 首页 */}
-              <button
-                onClick={() => onSelectTab('home')}
-                className={`flex flex-col items-center justify-center flex-1 py-1 transition-colors ${
-                  currentTab === 'home' ? 'text-blue-600 font-semibold' : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                <Home className="w-5 h-5 mb-0.5" />
-                <span className="text-[10px]">首页</span>
-              </button>
+              {!v8OrgNav && (
+                <>
+                  <button
+                    onClick={() => onSelectTab('home')}
+                    className={`flex flex-col items-center justify-center flex-1 py-1 transition-colors ${
+                      currentTab === 'home' ? 'text-blue-600 font-semibold' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    <Home className="w-5 h-5 mb-0.5" />
+                    <span className="text-[10px]">首页</span>
+                  </button>
 
-              {/* 消息 */}
-              <button
-                onClick={() => onSelectTab('message')}
-                className={`flex flex-col items-center justify-center flex-1 py-1 relative transition-colors ${
-                  currentTab === 'message' ? 'text-blue-600 font-semibold' : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                <Bell className="w-5 h-5 mb-0.5" />
-                <span className="text-[10px]">消息</span>
-                {unreadNotifCount > 0 && (
-                  <span className="absolute top-0 right-3.5 min-w-[14px] h-[14px] px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                    {unreadNotifCount > 99 ? '99+' : unreadNotifCount}
-                  </span>
-                )}
-              </button>
+                  <button
+                    onClick={() => onSelectTab('message')}
+                    className={`flex flex-col items-center justify-center flex-1 py-1 relative transition-colors ${
+                      currentTab === 'message' ? 'text-blue-600 font-semibold' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    <Bell className="w-5 h-5 mb-0.5" />
+                    <span className="text-[10px]">消息</span>
+                    {unreadNotifCount > 0 && (
+                      <span className="absolute top-0 right-3.5 min-w-[14px] h-[14px] px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                        {unreadNotifCount > 99 ? '99+' : unreadNotifCount}
+                      </span>
+                    )}
+                  </button>
 
-              {/* 报送 */}
-              <button
-                onClick={() => onSelectTab('report')}
-                className={`flex flex-col items-center justify-center flex-1 py-1 relative transition-colors ${
-                  currentTab === 'report' ? 'text-blue-600 font-semibold' : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                <FileText className="w-5 h-5 mb-0.5" />
-                <span className="text-[10px]">报送</span>
-                {reportPendingCount > 0 && (
-                  <span className="absolute top-0 right-3.5 min-w-[14px] h-[14px] px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                    {reportPendingCount}
-                  </span>
-                )}
-              </button>
+                  <button
+                    onClick={() => onSelectTab('report')}
+                    className={`flex flex-col items-center justify-center flex-1 py-1 relative transition-colors ${
+                      currentTab === 'report' ? 'text-blue-600 font-semibold' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    <FileText className="w-5 h-5 mb-0.5" />
+                    <span className="text-[10px]">报送</span>
+                    {reportPendingCount > 0 && (
+                      <span className="absolute top-0 right-3.5 min-w-[14px] h-[14px] px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                        {reportPendingCount}
+                      </span>
+                    )}
+                  </button>
+                </>
+              )}
 
               <button
                 onClick={() => onSelectTab('audit')}
-                className={`flex flex-col items-center justify-center flex-1 py-1 relative transition-colors ${
+                className={`flex flex-col items-center justify-center flex-1 py-1 transition-colors ${
                   currentTab === 'audit' ? 'text-blue-600 font-semibold' : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
-                <CheckSquare className="w-5 h-5 mb-0.5" />
+                <span className="relative inline-flex mb-0.5">
+                  <CheckSquare className="w-5 h-5" />
+                  {auditPendingCount > 0 && (
+                    <span className="absolute -top-1.5 -right-2.5 min-w-[14px] h-[14px] px-1 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
+                      {auditPendingCount}
+                    </span>
+                  )}
+                </span>
                 <span className="text-[10px]">审核</span>
-                {auditPendingCount > 0 && (
-                  <span className="absolute top-0 right-3.5 min-w-[14px] h-[14px] px-1 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                    {auditPendingCount}
-                  </span>
-                )}
               </button>
 
               <button

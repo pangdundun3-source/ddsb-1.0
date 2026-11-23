@@ -5,13 +5,68 @@ export const INITIAL_USER: UserProfile = {
   name: '张三',
   account: 'grid_zhangsan',
   role: '上报员',
-  department: '台中市网信办',
-  associatedDepts: [],
-  subDepartment: '西坝区环保局',
+  department: '牡丹江东宁市网信办',
+  /** 原型：双机构切换（个人中心 / 快捷上报共用） */
+  associatedDepts: ['绥化市网信办'],
+  subDepartment: '东宁市网格站',
   gridCode: 'XBA-03-018',
   ticketNo: 'V8-H5-20260813-001',
   phone: '138****9210',
   avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+};
+
+const formatDemoStamp = (date: Date) => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(
+    date.getHours()
+  )}:${pad(date.getMinutes())}`;
+};
+
+/** 草稿演示数据：时间相对当前，便于验证 24 小时保留 */
+export const createDemoDraftReports = (): SpeedReport[] => {
+  const recent = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2 小时前
+  const stamp = formatDemoStamp(recent);
+  return [
+    {
+      id: 'rep_draft_001',
+      title: '（草稿）绥化市厂房火灾线索待完善',
+      status: 'draft',
+      createTime: stamp,
+      updateTime: stamp,
+      author: '张三',
+      authorDept: '牡丹江东宁市网信办',
+      source: '社交媒体',
+      district: '绥化市',
+      address: '绥化市',
+      type: '突发事件',
+      gridNo: 'XBA-03-018',
+      matchedLink: 'https://v.kuaishou.com/nkXQ62IF',
+      summary: '厂房火灾线索草稿，待补充现场人数与紧急等级后提交。',
+      coreDemand: '',
+      sentimentTrend: '',
+      disposalAdvice: '',
+      tags: ['草稿', '突发事件'],
+    },
+    {
+      id: 'rep_draft_002',
+      title: '（草稿）民生诉求核查材料未齐',
+      status: 'draft',
+      createTime: stamp,
+      updateTime: stamp,
+      author: '张三',
+      authorDept: '牡丹江东宁市网信办',
+      source: '网格巡查',
+      district: '西坝区',
+      address: '西坝区',
+      type: '民生诉求',
+      gridNo: 'XBA-03-018',
+      summary: '诉求反映草稿，附件与牵头部门待补。',
+      coreDemand: '',
+      sentimentTrend: '',
+      disposalAdvice: '',
+      tags: ['草稿', '民生诉求'],
+    },
+  ];
 };
 
 export const INITIAL_REPORTS: SpeedReport[] = [

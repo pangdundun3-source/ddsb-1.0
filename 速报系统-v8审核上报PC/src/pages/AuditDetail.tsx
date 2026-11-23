@@ -27,6 +27,20 @@ import { AuditFlowTimeline } from '../components/AuditFlowTimeline';
 import { getFinalAuditScore, isFinalAuditStage } from '../auditStage';
 import { ReportOriginBadge } from '../components/ReportOriginBadge';
 
+/** 驳回类型标签；类型文案只读回填，仅允许补充后半段说明 */
+const REJECT_TYPE_OPTIONS = [
+  { value: '信息不完整', template: '信息不完整。请补充：' },
+  { value: '内容重复/同源', template: '内容重复/同源。说明：' },
+  { value: '属虚假误报', template: '属虚假误报。说明：' },
+  { value: '非本辖区职责', template: '非本辖区职责。说明：' },
+  { value: '佐证不足', template: '佐证不足。请补充佐证：' },
+] as const;
+
+type RejectTypeValue = (typeof REJECT_TYPE_OPTIONS)[number]['value'];
+
+const getRejectTemplate = (type: string) =>
+  REJECT_TYPE_OPTIONS.find((item) => item.value === type)?.template || `${type}。请补充：`;
+
 interface AuditDetailProps {
   report: ReportItem | null;
   allReports?: ReportItem[];
@@ -51,8 +65,9 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
   const [isUrlMatched, setIsUrlMatched] = useState(true);
   const [auditMode, setAuditMode] = useState<'pass' | 'reject'>('pass');
   const [selectedScore, setSelectedScore] = useState<number>(5);
-  const [rejectReason, setRejectReason] = useState('信息不完整');
-  const [rejectDetail, setRejectDetail] = useState('');
+  const [rejectReason, setRejectReason] = useState<RejectTypeValue | ''>('');
+  /** 仅用户可编辑的补充说明（不含锁定的类型前缀） */
+  const [rejectSupplement, setRejectSupplement] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
   const [urlCopied, setUrlCopied] = useState(false);
   const [drawerActiveTab, setDrawerActiveTab] = useState<'detail' | 'flow'>('detail');
@@ -250,12 +265,36 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
   const canScore = isFinalAuditStage(report);
   const finalScore = getFinalAuditScore(report);
 
+  const applyRejectType = (nextType: string) => {
+    const matched = REJECT_TYPE_OPTIONS.find((item) => item.value === nextType);
+    if (!matched) return;
+    const normalized = matched.value;
+
+    // 再次点击已选标签：取消选择
+    if (normalized === rejectReason) {
+      setRejectReason('');
+      setRejectSupplement('');
+      return;
+    }
+
+    // 换类型只换锁定前缀，保留已写补充说明
+    setRejectReason(normalized);
+  };
+
+  const enterRejectMode = () => {
+    setAuditMode('reject');
+  };
+
   const handleSubmitAudit = () => {
     const isBatch = selectedBatchIds.length > 0;
     if (auditMode === 'pass') {
       onApprove(report.id, canScore ? selectedScore : undefined, isBatch, selectedBatchIds);
     } else {
-      onReject(report.id, rejectReason, rejectDetail, isBatch, selectedBatchIds);
+      if (!rejectReason) {
+        return;
+      }
+      const detail = `${getRejectTemplate(rejectReason)}${rejectSupplement.trim()}`.trim();
+      onReject(report.id, rejectReason, detail, isBatch, selectedBatchIds);
     }
     handleClose();
   };
@@ -822,7 +861,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
                 <button
                   type="button"
                   id="btn-audit-mode-reject"
-                  onClick={() => setAuditMode('reject')}
+                  onClick={enterRejectMode}
                   className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
                     auditMode === 'reject'
                       ? 'bg-rose-600 text-white shadow-sm'
@@ -835,7 +874,7 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
               </div>
             </div>
 
-            {/* 右侧：通过模式评分 或 驳回模式分类 */}
+            {/* 右侧：通过模式评分 */}
             {auditMode === 'pass' && canScore && (
               <div className="flex items-center space-x-2 text-xs">
                 <span className="text-amber-900 font-bold shrink-0">终审评分：</span>
@@ -858,37 +897,49 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
               </div>
             )}
 
-            {auditMode === 'reject' && (
-              <div className="flex items-center space-x-2 text-xs">
-                <span className="text-rose-900 font-bold shrink-0">驳回类型：</span>
-                <select
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
-                  className="px-3 py-1.5 border border-rose-200 rounded-lg bg-white text-slate-700 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 shadow-2xs"
-                >
-                  <option value="信息不完整">信息不完整</option>
-                  <option value="内容重复/同源">内容重复/同源</option>
-                  <option value="属虚假误报">属虚假误报</option>
-                  <option value="非本辖区职责">非本辖区职责</option>
-                  <option value="佐证不足">佐证不足</option>
-                </select>
-              </div>
-            )}
           </div>
 
-          {/* 驳回模式下的详细意见说明输入框 */}
+          {/* 驳回模式：标签选类型并回填原因（类型标签在文本框内底部） */}
           {auditMode === 'reject' && (
             <div className="space-y-1.5 pt-1 animate-in fade-in">
-              <label className="block text-[11px] font-medium text-slate-500">
-                驳回指引与整改说明（将同步通知上报单位与作者）：
-              </label>
-              <textarea
-                rows={2}
-                value={rejectDetail}
-                onChange={(e) => setRejectDetail(e.target.value)}
-                placeholder="请输入详细的驳回原因、需要补充的佐证材料或修改建议..."
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all resize-none shadow-2xs"
-              />
+              <label className="block text-[11px] font-medium text-slate-500">驳回原因</label>
+              <div className="rounded-lg border border-slate-300 bg-white shadow-2xs focus-within:ring-2 focus-within:ring-rose-500/20 focus-within:border-rose-500 transition-all overflow-hidden">
+                {rejectReason ? (
+                  <div className="px-3 pt-2 pb-1.5 space-y-1.5">
+                    <div className="text-xs font-semibold text-rose-700 leading-relaxed select-none">
+                      {getRejectTemplate(rejectReason)}
+                    </div>
+                    <textarea
+                      rows={2}
+                      value={rejectSupplement}
+                      onChange={(e) => setRejectSupplement(e.target.value)}
+                      placeholder="请补充详细原因与整改要求…"
+                      className="w-full px-0 py-0 border-0 bg-transparent text-slate-700 text-xs focus:outline-none resize-none placeholder:text-slate-400"
+                    />
+                  </div>
+                ) : (
+                  <div className="px-3 pt-2.5 pb-2 text-xs text-slate-400 select-none">请选择驳回原因</div>
+                )}
+                <div className="flex flex-wrap gap-1.5 px-2.5 py-2 border-t border-slate-100 bg-slate-50/80">
+                  {REJECT_TYPE_OPTIONS.map((item) => {
+                    const active = rejectReason === item.value;
+                    return (
+                      <button
+                        key={item.value}
+                        type="button"
+                        onClick={() => applyRejectType(item.value)}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-all cursor-pointer ${
+                          active
+                            ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                            : 'bg-white text-slate-600 border-slate-200 hover:border-rose-300 hover:text-rose-700 hover:bg-rose-50'
+                        }`}
+                      >
+                        {item.value}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -951,7 +1002,12 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
                 type="button"
                 id="btn-confirm-drawer-reject"
                 onClick={handleSubmitAudit}
-                className="px-6 py-2 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold text-xs rounded-xl shadow-sm hover:shadow transition-all flex items-center space-x-1.5 cursor-pointer"
+                disabled={!rejectReason}
+                className={`px-6 py-2 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center space-x-1.5 ${
+                  rejectReason
+                    ? 'bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white hover:shadow cursor-pointer'
+                    : 'bg-rose-300/70 text-white/80 cursor-not-allowed'
+                }`}
               >
                 <Send className="w-3.5 h-3.5" />
                 <span>

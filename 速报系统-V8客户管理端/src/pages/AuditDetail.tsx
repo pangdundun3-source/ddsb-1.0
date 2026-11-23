@@ -38,6 +38,7 @@ import {
   Zap,
   Database,
 } from 'lucide-react';
+import { buildRejectDetail } from '../utils/rejectReasonOptions';
 import { loadWarehouses, saveWarehouses, warehouseNowText, isWarehouseEnabled, type WarehouseItem } from '../data/warehouses';
 import { addRecordsToWarehouses } from '../data/warehouseAssignments';
 import { AttachmentPreviewModal } from '../components/AttachmentPreviewModal';
@@ -86,7 +87,8 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
   const [isUrlMatched, setIsUrlMatched] = useState(true);
   const [auditMode, setAuditMode] = useState<'pass' | 'reject'>('pass');
   const [selectedScore, setSelectedScore] = useState<number>(5);
-  const [rejectReason, setRejectReason] = useState('信息不完整');
+  const [rejectReason, setRejectReason] = useState('');
+  /** 仅补充说明；提交时与类型模板拼接 */
   const [rejectDetail, setRejectDetail] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState<any | null>(null);
@@ -410,10 +412,12 @@ export const AuditDetail: React.FC<AuditDetailProps> = ({
         identMap
       );
     } else {
+      if (!rejectReason) return;
+      const detail = buildRejectDetail(rejectReason, rejectDetail);
       if (isUrlMatched && selectedBatchIds.length > 0) {
-        [report.id, ...selectedBatchIds].forEach((id) => onReject(id, rejectReason, rejectDetail));
+        [report.id, ...selectedBatchIds].forEach((id) => onReject(id, rejectReason, detail));
       } else {
-        onReject(report.id, rejectReason, rejectDetail);
+        onReject(report.id, rejectReason, detail);
       }
     }
     handleClose();

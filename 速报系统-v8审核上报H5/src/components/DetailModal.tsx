@@ -23,6 +23,12 @@ import {
 } from 'lucide-react';
 import { BackNavigationBar } from './BackNavigationBar';
 import { RecallConfirmDialog } from './RecallConfirmDialog';
+import {
+  REJECT_TYPE_OPTIONS,
+  RejectTypeValue,
+  buildRejectDetail,
+  getRejectTemplate,
+} from '../utils/rejectReasonOptions';
 
 /** 与审核上报 PC「流转状态」人员头像展示对齐 */
 interface FlowPerson {
@@ -186,8 +192,9 @@ export const DetailModal: React.FC<DetailModalProps> = ({
   const [matchLinkInput, setMatchLinkInput] = useState<string>('');
   const [hasMatched, setHasMatched] = useState<boolean>(false);
   const [auditSheetMode, setAuditSheetMode] = useState<'pass' | 'reject' | null>(null);
-  const [rejectReasonCategory, setRejectReasonCategory] = useState<string>('信息不完整');
-  const [rejectDetailText, setRejectDetailText] = useState<string>('信息不完整，请补充政策原文链接和群众反馈截图后重新提交。');
+  const [rejectReasonCategory, setRejectReasonCategory] = useState<RejectTypeValue | ''>('');
+  /** 仅补充说明，类型前缀只读 */
+  const [rejectSupplement, setRejectSupplement] = useState('');
   const [previewDetailReport, setPreviewDetailReport] = useState<SpeedReport | null>(null);
   const canAudit = allowAuditActions && !auditOnlyPreview && report?.status === 'pending_audit';
   const canEdit = !auditOnlyPreview && report?.status === 'rejected';
@@ -276,6 +283,17 @@ export const DetailModal: React.FC<DetailModalProps> = ({
   const showMatchedResults = hasMatched && Boolean(normalizedMatchLink);
   const approvalScore = report.score ?? 92;
 
+  const applyRejectType = (nextType: string) => {
+    const matched = REJECT_TYPE_OPTIONS.find((item) => item.value === nextType);
+    if (!matched) return;
+    if (matched.value === rejectReasonCategory) {
+      setRejectReasonCategory('');
+      setRejectSupplement('');
+      return;
+    }
+    setRejectReasonCategory(matched.value);
+  };
+
   const handleSubmitAudit = (conclusion: 'pass' | 'reject') => {
     if (!canAudit) return;
     if (conclusion === 'pass') {
@@ -288,7 +306,11 @@ export const DetailModal: React.FC<DetailModalProps> = ({
       setAuditSheetMode(null);
       onClose();
     } else {
-      const fullReason = `${rejectReasonCategory}: ${rejectDetailText}`;
+      if (!rejectReasonCategory) {
+        onToast('请选择驳回原因');
+        return;
+      }
+      const fullReason = buildRejectDetail(rejectReasonCategory, rejectSupplement);
       if (isBatchMode && onBatchReject) {
         onBatchReject(targetBatchIds, fullReason);
       } else {
@@ -1155,7 +1177,11 @@ export const DetailModal: React.FC<DetailModalProps> = ({
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={() => setAuditSheetMode('reject')}
+              onClick={() => {
+                setRejectReasonCategory('');
+                setRejectSupplement('');
+                setAuditSheetMode('reject');
+              }}
               className="py-3 px-4 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center space-x-1.5 transition-all active:scale-[0.99]"
             >
               <XCircle className="w-4 h-4" />
@@ -1281,31 +1307,44 @@ export const DetailModal: React.FC<DetailModalProps> = ({
                 确认后将审核通过并进入下一处理节点。
               </div>
             ) : (
-              <div className="space-y-2.5">
-                <div>
-                  <label className="text-[11px] font-bold text-slate-700 block mb-1">驳回原因</label>
-                  <select
-                    value={rejectReasonCategory}
-                    onChange={(e) => setRejectReasonCategory(e.target.value)}
-                    className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-red-500 font-medium"
-                  >
-                    <option value="信息不完整">信息不完整</option>
-                    <option value="事实核对不符">事实核对不符</option>
-                    <option value="内容重复/同源">内容重复/同源</option>
-                    <option value="不属于本网格/部门">不属于本网格/部门</option>
-                    <option value="需要补充佐证材料">需要补充佐证材料</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-slate-700 block mb-1">详细修改指引说明</label>
-                  <textarea
-                    rows={3}
-                    value={rejectDetailText}
-                    onChange={(e) => setRejectDetailText(e.target.value)}
-                    placeholder="请输入具体的驳回理由及修改意见..."
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-red-500 resize-none"
-                  />
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-slate-700 block">驳回原因</label>
+                <div className="rounded-xl border border-slate-300 bg-white overflow-hidden focus-within:border-red-500 transition-colors">
+                  {rejectReasonCategory ? (
+                    <div className="px-3 pt-2.5 pb-2 space-y-1.5">
+                      <div className="text-xs font-semibold text-rose-700 leading-relaxed select-none">
+                        {getRejectTemplate(rejectReasonCategory)}
+                      </div>
+                      <textarea
+                        rows={3}
+                        value={rejectSupplement}
+                        onChange={(e) => setRejectSupplement(e.target.value)}
+                        placeholder="请补充详细原因与整改要求…"
+                        className="w-full p-0 border-0 bg-transparent text-xs text-slate-800 focus:outline-none resize-none placeholder:text-slate-400"
+                      />
+                    </div>
+                  ) : (
+                    <div className="px-3 py-3 text-xs text-slate-400 select-none">请选择驳回原因</div>
+                  )}
+                  <div className="flex flex-wrap gap-1.5 px-2.5 py-2 border-t border-slate-100 bg-slate-50/80">
+                    {REJECT_TYPE_OPTIONS.map((item) => {
+                      const active = rejectReasonCategory === item.value;
+                      return (
+                        <button
+                          key={item.value}
+                          type="button"
+                          onClick={() => applyRejectType(item.value)}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-all ${
+                            active
+                              ? 'bg-rose-600 text-white border-rose-600'
+                              : 'bg-white text-slate-600 border-slate-200'
+                          }`}
+                        >
+                          {item.value}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             )}
@@ -1313,10 +1352,13 @@ export const DetailModal: React.FC<DetailModalProps> = ({
             <button
               type="button"
               onClick={() => handleSubmitAudit(auditSheetMode)}
+              disabled={auditSheetMode === 'reject' && !rejectReasonCategory}
               className={`w-full py-3 px-4 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center space-x-1.5 transition-all active:scale-[0.99] ${
                 auditSheetMode === 'pass'
                   ? 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800'
-                  : 'bg-red-600 hover:bg-red-700 active:bg-red-800'
+                  : rejectReasonCategory
+                    ? 'bg-red-600 hover:bg-red-700 active:bg-red-800'
+                    : 'bg-red-300/80 cursor-not-allowed'
               }`}
             >
               {auditSheetMode === 'pass' ? (

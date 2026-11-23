@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ChevronLeft,
   User,
@@ -23,17 +23,58 @@ import {
   BellRing,
   ChevronRight,
 } from 'lucide-react';
-import { UserRole } from '../types';
+import { SpeedReport, UserProfile, UserRole } from '../types';
+import {
+  GUIDE_AFTER_KEYWORD,
+  GUIDE_AFTER_MENU,
+  LIGHT_TIP,
+  QuickReportDraft,
+  QuickReportPhase,
+  buildClueFromUserText,
+  buildQuickReportDraft,
+  buildSoftExtraValues,
+  clueFromMultimodalSuccess,
+  finalizeDraftWithOrg,
+  formatConfirmPrompt,
+  formatOrgPrompt,
+  formatSuccessPrompt,
+  hasHttpLink,
+  isCancelKeyword,
+  isEntryKeyword,
+  isFormKeyword,
+  looksLikeStructuredClue,
+  sourceKindToTag,
+} from '../utils/quickReportChat';
+import {
+  LINK_ANALYZING_TEXT,
+  formatLinkParseSuccessNotice,
+  parseLinkMultimodal,
+} from '../utils/linkMultimodalMock';
+import {
+  IMAGE_ANALYZING_TEXT,
+  ImageCaptureSource,
+  VOICE_ANALYZING_TEXT,
+  formatMultimodalSuccessNotice,
+  parseImageOcrMock,
+  parseLocationClueMock,
+  parseVoiceAsrMock,
+} from '../utils/multimodalClueMock';
 
 interface OfficialAccountEntryViewProps {
   onEnterReport: () => void;
   onEnterReportList: () => void;
   onEnterWorkbench: (role?: UserRole) => void;
-  onEnterAuditList: () => void;
-  onEnterProfile: () => void;
+  onEnterAuditList: (kind?: 'external' | 'v8_org') => void;
+  onEnterProfile: (kind?: 'external' | 'v8_org') => void;
   onEnterLogin: () => void;
   onEnterActivationH5?: () => void;
   onToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
+  /** 当前登录/绑定用户，用于多机构与提交署名 */
+  user?: UserProfile;
+  /** 快捷上报确认提交 */
+  onQuickReportSubmit?: (payload: Partial<SpeedReport>) => string;
+  /** 去完善：打开 H5 预填表单 */
+  onQuickReportRefine?: (payload: Partial<SpeedReport>) => void;
 }
 
 interface ChatMessage {
@@ -56,6 +97,9 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
   onEnterLogin,
   onEnterActivationH5,
   onToast,
+  user,
+  onQuickReportSubmit,
+  onQuickReportRefine,
 }) => {
   // Mode: custom menu vs text chat input
   const [inputMode, setInputMode] = useState<'menu' | 'chat'>('menu');
@@ -63,13 +107,30 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [showPlusDrawer, setShowPlusDrawer] = useState<boolean>(false);
   const [showActivationModal, setShowActivationModal] = useState<boolean>(false);
+  const [showAuditMenu, setShowAuditMenu] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+
+  const closeFlyoutMenus = () => {
+    setShowAuditMenu(false);
+    setShowProfileMenu(false);
+  };
+  const [quickPhase, setQuickPhase] = useState<QuickReportPhase>('idle');
+  const [quickDraft, setQuickDraft] = useState<QuickReportDraft | null>(null);
+  /** 多模态解析异步序号，取消/重发时作废进行中的解析 */
+  const multimodalParseSeqRef = useRef(0);
 
   // New follower activation state (User must activate after following before using platform functions)
-  const [isActivated, setIsActivated] = useState<boolean>(false);
+  const [isActivated, setIsActivated] = useState<boolean>(true);
 
   useEffect(() => {
     localStorage.setItem('wechat_v8_user_activated', JSON.stringify(isActivated));
   }, [isActivated]);
+
+  const orgOptions = React.useMemo(() => {
+    const primary = user?.department || '台中市网信办';
+    const extras = user?.associatedDepts || [];
+    return Array.from(new Set([primary, ...extras]));
+  }, [user]);
 
   // Open H5 Activation flow
   const handleOpenActivation = () => {
@@ -80,12 +141,285 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     }
   };
 
-  // Chat conversation messages
+  const pushAccountReply = (
+    text: string,
+    cardAction?: ChatMessage['cardAction'],
+    delay = 350
+  ) => {
+    window.setTimeout(() => {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `reply_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          sender: 'account',
+          text,
+          cardAction,
+        },
+      ]);
+    }, delay);
+  };
+
+  const resetQuickFlow = () => {
+    multimodalParseSeqRef.current += 1;
+    setQuickPhase('idle');
+    setQuickDraft(null);
+  };
+
+  const ensureQuickReportReady = (): boolean => {
+    if (!isActivated) {
+      pushAccountReply(
+        '您的微信尚未绑定速豹账号，暂无法报送。\n请先完成激活绑定后再试。',
+        { label: '前往验证激活', action: () => handleOpenActivation() }
+      );
+      return false;
+    }
+    return true;
+  };
+
+  const startQuickReportMode = (from: 'menu' | 'keyword') => {
+    multimodalParseSeqRef.current += 1;
+    setQuickPhase('awaiting_body');
+    setQuickDraft(null);
+    setInputMode('chat');
+    closeFlyoutMenus();
+    setShowPlusDrawer(false);
+    pushAccountReply(from === 'menu' ? GUIDE_AFTER_MENU : GUIDE_AFTER_KEYWORD, undefined, 200);
+  };
+
+  const buildReportPayload = (draft: QuickReportDraft): Partial<SpeedReport> => {
+    const tpl = draft.matched!.template;
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(
+      now.getHours()
+    )}:${pad(now.getMinutes())}`;
+    const sourceKind = draft.clue.sourceKind || 'text';
+    const sourceTag = sourceKindToTag(sourceKind);
+    const baseSummary = draft.clue.summary || draft.clue.title || '';
+    const sourceNote =
+      draft.clue.sourceLabel && sourceKind !== 'text'
+        ? `（来源：${draft.clue.sourceLabel}${
+            draft.clue.attachmentHint ? `·${draft.clue.attachmentHint}` : ''
+          }）`
+        : '';
+    return {
+      id: `rep_qr_${Date.now()}`,
+      title: draft.clue.title || '未命名线索',
+      summary: `${baseSummary}${sourceNote}`,
+      district: draft.clue.district || '',
+      address: draft.clue.district || '',
+      matchedLink: draft.clue.link || '',
+      source: tpl.defaultSource,
+      type: tpl.defaultType,
+      author: user?.name || '上报员',
+      authorDept: draft.selectedOrg || user?.department || '',
+      gridNo: user?.gridCode || '',
+      coreDemand: '',
+      sentimentTrend: '',
+      disposalAdvice: '',
+      tags: Array.from(new Set(['快捷上报', sourceTag])),
+      templateId: tpl.id,
+      templateFieldValues: buildSoftExtraValues(draft),
+      createTime: stamp,
+      updateTime: stamp,
+      status: 'pending_audit',
+    };
+  };
+
+  const goConfirmWithOrg = (draft: QuickReportDraft, org: string) => {
+    const finalized = finalizeDraftWithOrg(draft, org);
+    setQuickDraft(finalized);
+    setQuickPhase('awaiting_confirm');
+    pushAccountReply(formatConfirmPrompt(finalized));
+  };
+
+  const handleDraftReady = (draft: QuickReportDraft) => {
+    setQuickDraft(draft);
+    if (draft.orgOptions.length > 1) {
+      setQuickPhase('awaiting_org');
+      pushAccountReply(formatOrgPrompt(draft));
+      return;
+    }
+    const org = draft.selectedOrg || draft.orgOptions[0];
+    if (!org) {
+      pushAccountReply('未找到可用报送机构，请先完成账号激活绑定。');
+      resetQuickFlow();
+      return;
+    }
+    goConfirmWithOrg(draft, org);
+  };
+
+  const processBodyAsDraft = (raw: string) => {
+    const clueOrError = buildClueFromUserText(raw);
+    if ('error' in clueOrError) {
+      setQuickPhase('awaiting_body');
+      pushAccountReply(clueOrError.error, undefined, 200);
+      return;
+    }
+    const built = buildQuickReportDraft(raw, orgOptions, clueOrError);
+    if ('error' in built) {
+      setQuickPhase('awaiting_body');
+      pushAccountReply(built.error, undefined, 200);
+      return;
+    }
+    handleDraftReady(built);
+  };
+
+  /** 含链接时先展示「解析中」，再合并文案/多模态结果进入选机构 */
+  const processBodyWithOptionalLinkParse = (raw: string) => {
+    if (!hasHttpLink(raw)) {
+      processBodyAsDraft(raw);
+      return;
+    }
+
+    const seq = ++multimodalParseSeqRef.current;
+    setQuickPhase('awaiting_body');
+    pushAccountReply(LINK_ANALYZING_TEXT, undefined, 180);
+
+    window.setTimeout(() => {
+      if (seq !== multimodalParseSeqRef.current) return;
+
+      const linkOnly = parseLinkMultimodal(raw);
+      if (linkOnly.ok) {
+        pushAccountReply(formatLinkParseSuccessNotice(linkOnly), undefined, 120);
+      }
+
+      window.setTimeout(() => {
+        if (seq !== multimodalParseSeqRef.current) return;
+        processBodyAsDraft(raw);
+      }, linkOnly.ok ? 420 : 200);
+    }, 1100);
+  };
+
+  const pushUserBubble = (text: string) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `user_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        sender: 'user',
+        text,
+        time: '刚刚',
+      },
+    ]);
+  };
+
+  const finishWithMultimodalClue = (raw: string, clue: ReturnType<typeof clueFromMultimodalSuccess>) => {
+    const built = buildQuickReportDraft(raw, orgOptions, clue);
+    if ('error' in built) {
+      setQuickPhase('awaiting_body');
+      pushAccountReply(built.error, undefined, 200);
+      return;
+    }
+    handleDraftReady(built);
+  };
+
+  /** 图片 OCR：相册 / 拍照；不在快捷报送中时自动进入 awaiting_body */
+  const runImageMultimodal = (
+    source: ImageCaptureSource,
+    options?: { skipUserBubble?: boolean }
+  ) => {
+    if (!ensureQuickReportReady()) return;
+    setShowPlusDrawer(false);
+    setInputMode('chat');
+    closeFlyoutMenus();
+    if (quickPhase === 'idle' || quickPhase === 'awaiting_org' || quickPhase === 'awaiting_confirm') {
+      setQuickPhase('awaiting_body');
+      setQuickDraft(null);
+    }
+
+    const label =
+      source === 'camera' ? '[图片] 现场拍照凭证' : source === 'blur_demo' ? '[图片] 模糊样例' : '[图片] 相册截图凭证';
+    if (!options?.skipUserBubble) pushUserBubble(label);
+
+    const seq = ++multimodalParseSeqRef.current;
+    pushAccountReply(IMAGE_ANALYZING_TEXT, undefined, 200);
+
+    window.setTimeout(() => {
+      if (seq !== multimodalParseSeqRef.current) return;
+      const result = parseImageOcrMock(source);
+      if (!result.ok) {
+        pushAccountReply(result.reason, undefined, 150);
+        setQuickPhase('awaiting_body');
+        return;
+      }
+      pushAccountReply(formatMultimodalSuccessNotice(result), undefined, 150);
+      window.setTimeout(() => {
+        if (seq !== multimodalParseSeqRef.current) return;
+        finishWithMultimodalClue(label, clueFromMultimodalSuccess(result, label));
+      }, 420);
+    }, 1200);
+  };
+
+  /** 语音 ASR */
+  const runVoiceMultimodal = (options?: { skipUserBubble?: boolean }) => {
+    if (!ensureQuickReportReady()) return;
+    setShowPlusDrawer(false);
+    setInputMode('chat');
+    closeFlyoutMenus();
+    if (quickPhase === 'idle' || quickPhase === 'awaiting_org' || quickPhase === 'awaiting_confirm') {
+      setQuickPhase('awaiting_body');
+      setQuickDraft(null);
+    }
+
+    const label = '[语音] 15″';
+    if (!options?.skipUserBubble) pushUserBubble(label);
+
+    const seq = ++multimodalParseSeqRef.current;
+    pushAccountReply(VOICE_ANALYZING_TEXT, undefined, 200);
+
+    window.setTimeout(() => {
+      if (seq !== multimodalParseSeqRef.current) return;
+      const result = parseVoiceAsrMock('default');
+      if (!result.ok) {
+        pushAccountReply(result.reason, undefined, 150);
+        setQuickPhase('awaiting_body');
+        return;
+      }
+      pushAccountReply(
+        `${formatMultimodalSuccessNotice(result)}\n\n（已根据转写内容生成报送草稿）`,
+        undefined,
+        150
+      );
+      window.setTimeout(() => {
+        if (seq !== multimodalParseSeqRef.current) return;
+        finishWithMultimodalClue(result.transcript || label, clueFromMultimodalSuccess(result, label));
+      }, 420);
+    }, 1300);
+  };
+
+  /** 位置上报：快捷报送中直接生成含属地草稿 */
+  const runLocationMultimodal = () => {
+    setShowPlusDrawer(false);
+    if (quickPhase !== 'awaiting_body') {
+      onToast('已获取当前网格位置：台中市西坝区阳光花园', 'success');
+      return;
+    }
+    if (!ensureQuickReportReady()) return;
+
+    const label = '[位置] 台中市西坝区阳光花园';
+    pushUserBubble(label);
+    onToast('已获取当前网格位置：台中市西坝区阳光花园', 'success');
+
+    const seq = ++multimodalParseSeqRef.current;
+    pushAccountReply('已写入当前位置，正在生成线索草稿…', undefined, 200);
+
+    window.setTimeout(() => {
+      if (seq !== multimodalParseSeqRef.current) return;
+      const result = parseLocationClueMock();
+      pushAccountReply(formatMultimodalSuccessNotice(result), undefined, 120);
+      window.setTimeout(() => {
+        if (seq !== multimodalParseSeqRef.current) return;
+        finishWithMultimodalClue(label, clueFromMultimodalSuccess(result, label));
+      }, 360);
+    }, 700);
+  };
+
+  // Chat conversation messages（日常会话不重复推「欢迎关注 / 激活」；激活卡仅未激活时展示）
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'msg_welcome',
       sender: 'account',
-      text: '欢迎关注“点点速豹”微信公众号！',
+      text: '您好，点点速豹助手为您服务。\n发送【报送】或点击菜单「快捷报送」，可发送原文链接、文字、图片或语音，自动识别并匹配模板快捷提交。',
     },
   ]);
 
@@ -95,9 +429,8 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     if (!inputText.trim()) return;
 
     const userMsgText = inputText.trim();
-    const newMsgId = `user_${Date.now()}`;
     const userMsg: ChatMessage = {
-      id: newMsgId,
+      id: `user_${Date.now()}`,
       sender: 'user',
       text: userMsgText,
       time: '刚刚',
@@ -106,41 +439,135 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     setMessages((prev) => [...prev, userMsg]);
     setInputText('');
 
-    // Automated smart reply
+    // —— 快捷上报状态机 ——
+    if (isCancelKeyword(userMsgText)) {
+      if (quickPhase !== 'idle') {
+        resetQuickFlow();
+        pushAccountReply('已取消快捷上报，草稿已清除。');
+      } else {
+        pushAccountReply('当前没有进行中的快捷上报。');
+      }
+      return;
+    }
+
+    if (isFormKeyword(userMsgText)) {
+      resetQuickFlow();
+      pushAccountReply('已为您打开手动报送入口：', {
+        label: '进入 手动报送',
+        action: () => onEnterReportList(),
+      });
+      return;
+    }
+
+    if (quickPhase === 'awaiting_org' && quickDraft) {
+      const index = Number(userMsgText) - 1;
+      if (Number.isInteger(index) && index >= 0 && index < quickDraft.orgOptions.length) {
+        goConfirmWithOrg(quickDraft, quickDraft.orgOptions[index]);
+        return;
+      }
+      pushAccountReply(`请回复 1～${quickDraft.orgOptions.length} 选择报送机构，或回复【取消】退出。`);
+      return;
+    }
+
+    if (quickPhase === 'awaiting_confirm' && quickDraft?.matched) {
+      if (userMsgText === '1' && quickDraft.canDirectSubmit) {
+        const payload = buildReportPayload(quickDraft);
+        const reportId = onQuickReportSubmit?.(payload) || payload.id || '';
+        pushAccountReply(
+          formatSuccessPrompt({
+            title: payload.title || '',
+            org: payload.authorDept || '',
+            templateName: quickDraft.matched.template.name,
+            reportId,
+          }),
+          {
+            label: '查看我的报送',
+            action: () => onEnterReportList(),
+          }
+        );
+        resetQuickFlow();
+        return;
+      }
+      if (userMsgText === '2') {
+        const payload = buildReportPayload(quickDraft);
+        onQuickReportRefine?.(payload);
+        pushAccountReply('已为您打开完善页面，可修改模板与细项后提交。');
+        resetQuickFlow();
+        return;
+      }
+      if (userMsgText === '0') {
+        resetQuickFlow();
+        pushAccountReply('已取消快捷上报，草稿已清除。');
+        return;
+      }
+      pushAccountReply(
+        quickDraft.canDirectSubmit
+          ? '请回复【1】确认提交、【2】去完善，或【0】取消。'
+          : '当前缺少必填项，请回复【2】去完善，或【0】取消。'
+      );
+      return;
+    }
+
+    if (
+      quickPhase === 'awaiting_body' ||
+      looksLikeStructuredClue(userMsgText) ||
+      hasHttpLink(userMsgText) ||
+      /\[图片\]/.test(userMsgText) ||
+      /\[语音\]/.test(userMsgText)
+    ) {
+      if (!ensureQuickReportReady()) return;
+      // 文字里带模态标记时，走对应 Mock（便于演示；用户气泡已由发送逻辑插入）
+      if (/\[图片\]/.test(userMsgText)) {
+        runImageMultimodal(userMsgText.includes('模糊') ? 'blur_demo' : 'album', {
+          skipUserBubble: true,
+        });
+        return;
+      }
+      if (/\[语音\]/.test(userMsgText)) {
+        runVoiceMultimodal({ skipUserBubble: true });
+        return;
+      }
+      processBodyWithOptionalLinkParse(userMsgText);
+      return;
+    }
+
+    if (isEntryKeyword(userMsgText)) {
+      if (!isActivated) {
+        pushAccountReply(
+          '您的微信尚未绑定速豹账号，暂无法报送。\n请先完成激活绑定后再试。',
+          { label: '前往验证激活', action: () => handleOpenActivation() }
+        );
+        return;
+      }
+      startQuickReportMode('keyword');
+      return;
+    }
+
+    // 原有轻量导航 + 低频引导
     setTimeout(() => {
-      let replyText = '您好！我是“点点速豹”智能助手。您可以点击底部菜单直接进入【工作台】、【快速上报】、【快速审核】或【个人中心】。';
-      let cardAction: { label: string; action: () => void } | undefined = undefined;
+      let replyText = LIGHT_TIP;
+      let cardAction: ChatMessage['cardAction'] | undefined;
 
       if (userMsgText.includes('工作台') || userMsgText.includes('首页') || userMsgText.includes('瞭望')) {
         replyText = '您可以直接进入工作台首页：';
-        cardAction = {
-          label: '进入 工作台首页',
-          action: () => onEnterWorkbench(),
-        };
-      } else if (userMsgText.includes('上报') || userMsgText.includes('快报') || userMsgText.includes('事件') || userMsgText.includes('列表')) {
-        replyText = '已为您匹配【快速上报】入口，点击下方卡片即可进入上报列表：';
-        cardAction = {
-          label: '进入 快速上报 (上报列表)',
-          action: () => onEnterReportList(),
-        };
+        cardAction = { label: '进入 工作台首页', action: () => onEnterWorkbench() };
       } else if (userMsgText.includes('审核') || userMsgText.includes('审查') || userMsgText.includes('批复')) {
-        replyText = '已为您匹配【快速审核】入口，点击下方卡片即可进入审核列表：';
+        replyText = '请选择审核身份：可点击菜单「报送审核」。';
         cardAction = {
-          label: '进入 快速审核 (审核列表)',
-          action: () => onEnterAuditList(),
+          label: '进入 外部组织审核',
+          action: () => onEnterAuditList('external'),
         };
-      } else if (userMsgText.includes('个人') || userMsgText.includes('中心') || userMsgText.includes('我的') || userMsgText.includes('资料') || userMsgText.includes('账号')) {
-        replyText = '已为您匹配【个人中心】入口，点击下方卡片即可进入我的列表主页：';
-        cardAction = {
-          label: '进入 个人中心 (我的)',
-          action: () => onEnterProfile(),
-        };
+      } else if (
+        userMsgText.includes('个人') ||
+        userMsgText.includes('中心') ||
+        userMsgText.includes('我的') ||
+        userMsgText.includes('资料')
+      ) {
+        replyText = '已为您匹配个人中心入口：';
+        cardAction = { label: '进入 个人中心', action: () => onEnterProfile() };
       } else if (userMsgText.includes('激活') || userMsgText.includes('开通') || userMsgText.includes('认证')) {
-        replyText = '系统检测到您有一条待处理的【账号激活与实名认证】通知。请点击下方卡片进入激活流程，验证您的业务激活码后系统将自动匹配对应工作岗位与权限：';
-        cardAction = {
-          label: '前往 账号激活认证',
-          action: () => handleOpenActivation(),
-        };
+        replyText = '请完成账号激活与实名认证，验证通过后即可开通平台使用权限。';
+        cardAction = { label: '前往验证激活', action: () => handleOpenActivation() };
       }
 
       setMessages((prev) => [
@@ -283,7 +710,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
                 />
               )}
 
-              <div>{msg.text}</div>
+              <div className="whitespace-pre-line">{msg.text}</div>
 
               {/* Action Card Button if present */}
               {msg.cardAction && (
@@ -308,100 +735,131 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
           </div>
         ))}
 
-        {/* 激活通知 - 由公众号发出的微信服务通知/卡片消息 */}
-        <div className="flex items-start gap-2.5 justify-start">
-          {/* Account Avatar */}
-          <div className="w-10 h-10 rounded-[8px] overflow-hidden shrink-0 shadow-xs bg-[#2458a6] relative flex items-center justify-center p-1">
-            {/* 4 Blue grid squares pattern */}
-            <div className="w-full h-full grid grid-cols-2 grid-rows-2 gap-[1.5px] p-0.5">
-              <div className="bg-[#1f4e96] rounded-[2px]"></div>
-              <div className="bg-[#2a63b8] rounded-[2px]"></div>
-              <div className="bg-[#2a63b8] rounded-[2px]"></div>
-              <div className="bg-[#1f4e96] rounded-[2px]"></div>
-            </div>
-
-            {/* Overlaid Whistle (哨子) with radiating soundwaves */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <svg
-                className="w-6 h-6 text-white filter drop-shadow-xs"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="7" cy="14" r="3.5" fill="rgba(255,255,255,0.2)" />
-                <path d="M10.5 14h7l2-5H9a5 5 0 0 0-2 0" />
-                <path d="M14 9v5" />
-                <path d="M18 6a4 4 0 0 1 3 3" strokeWidth="2" />
-                <path d="M19.5 3.5a7 7 0 0 1 4 4" strokeWidth="1.6" />
-              </svg>
-            </div>
-          </div>
-
-          {/* Message Card Bubble with Pointer */}
-          <div className="relative max-w-[82%]">
-            {/* Triangular Pointer Tail */}
-            <div className="absolute top-3 -left-[6px] w-0 h-0 border-t-[5px] border-t-transparent border-r-[6px] border-r-white border-b-[5px] border-b-transparent z-10" />
-
-            <div
-              id="activation-login-notification-card"
-              className="bg-white rounded-xl p-3.5 border border-black/[0.06] shadow-xs text-xs text-slate-700 cursor-pointer hover:shadow-md transition-all active:scale-[0.99] group"
-              onClick={() => {
-                handleOpenActivation();
-              }}
-            >
-              {/* Card Header */}
-              <div className="flex items-start justify-between mb-1.5">
-                <div className="flex items-center space-x-1.5">
-                  <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></div>
-                  <h3 className="text-[14.5px] font-bold text-slate-900 tracking-tight">
-                    账号激活与实名认证通知
-                  </h3>
-                </div>
-                <span
-                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border shrink-0 ${
-                    isActivated
-                      ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
-                      : 'text-amber-700 bg-amber-50 border-amber-300'
-                  }`}
+        {/* 激活通知：仅「刚关注且未激活」时出现一次；已激活日常会话不再推送 */}
+        {!isActivated && (
+          <div className="flex items-start gap-2.5 justify-start">
+            <div className="w-10 h-10 rounded-[8px] overflow-hidden shrink-0 shadow-xs bg-[#2458a6] relative flex items-center justify-center p-1">
+              <div className="w-full h-full grid grid-cols-2 grid-rows-2 gap-[1.5px] p-0.5">
+                <div className="bg-[#1f4e96] rounded-[2px]"></div>
+                <div className="bg-[#2a63b8] rounded-[2px]"></div>
+                <div className="bg-[#2a63b8] rounded-[2px]"></div>
+                <div className="bg-[#1f4e96] rounded-[2px]"></div>
+              </div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <svg
+                  className="w-6 h-6 text-white filter drop-shadow-xs"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 >
-                  {isActivated ? '认证已生效' : '待激活认证'}
-                </span>
+                  <circle cx="7" cy="14" r="3.5" fill="rgba(255,255,255,0.2)" />
+                  <path d="M10.5 14h7l2-5H9a5 5 0 0 0-2 0" />
+                  <path d="M14 9v5" />
+                  <path d="M18 6a4 4 0 0 1 3 3" strokeWidth="2" />
+                  <path d="M19.5 3.5a7 7 0 0 1 4 4" strokeWidth="1.6" />
+                </svg>
               </div>
-              <p className="text-[11px] text-slate-400 mb-2 font-normal">
-                9月9日 09:23
-              </p>
+            </div>
 
-              <p className="text-[12.5px] text-slate-700 leading-relaxed mb-3">
-                {isActivated
-                  ? '您的身份与岗位认证已生效，已为您开通对应的工作权限，可直接进入工作台协同办公。'
-                  : '您有一条待激活的认证通知。具体的所属机构与岗位身份将在完成激活验证后生效，验证通过后即可开通并使用平台相关功能。'}
-              </p>
-
-              {/* Card Action Footer */}
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-slate-800 font-medium text-[12px]">
-                <span className="font-semibold flex items-center text-blue-600 group-hover:text-blue-700">
-                  {isActivated ? '查看账号认证档案及详情' : '前往验证激活'}
-                </span>
-                <div className="flex items-center text-slate-400 text-xs group-hover:text-blue-600 transition-colors">
-                  <span className="mr-0.5">{isActivated ? '查看档案' : '去激活'}</span>
-                  <ChevronRight className="w-4 h-4" />
+            <div className="relative max-w-[82%]">
+              <div className="absolute top-3 -left-[6px] w-0 h-0 border-t-[5px] border-t-transparent border-r-[6px] border-r-white border-b-[5px] border-b-transparent z-10" />
+              <div
+                id="activation-login-notification-card"
+                className="bg-white rounded-xl p-3.5 border border-black/[0.06] shadow-xs text-xs text-slate-700 cursor-pointer hover:shadow-md transition-all active:scale-[0.99] group"
+                onClick={() => handleOpenActivation()}
+              >
+                <div className="flex items-start justify-between mb-1.5">
+                  <div className="flex items-center space-x-1.5">
+                    <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
+                    <h3 className="text-[14.5px] font-bold text-slate-900 tracking-tight">
+                      账号激活与实名认证通知
+                    </h3>
+                  </div>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border shrink-0 text-amber-700 bg-amber-50 border-amber-300">
+                    待激活认证
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mb-2 font-normal">关注后推送</p>
+                <p className="text-[12.5px] text-slate-700 leading-relaxed mb-3 whitespace-pre-line">
+                  欢迎关注【点点速豹】
+                  {'\n'}
+                  请您完成账号激活与实名认证，验证通过后即可开通平台使用权限。
+                </p>
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-slate-800 font-medium text-[12px]">
+                  <span className="font-semibold flex items-center text-blue-600 group-hover:text-blue-700">
+                    前往验证激活
+                  </span>
+                  <div className="flex items-center text-slate-400 text-xs group-hover:text-blue-600 transition-colors">
+                    <span className="mr-0.5">前往验证激活</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* 4. WeChat Bottom Bar - Custom Menu or Chat Input Mode */}
       {inputMode === 'menu' ? (
-        /* 1:1 Authentic WeChat Custom Menu Bar */
-        <div className="bg-[#f7f7f7] border-t border-[#dcdcdc] h-[52px] flex items-stretch z-30 shrink-0 select-none">
-          {/* Keyboard / Switcher Button */}
+        /* 菜单：快捷报送｜手动报送｜报送审核｜个人中心 */
+        <div className="relative bg-[#f7f7f7] border-t border-[#dcdcdc] h-[52px] flex items-stretch z-30 shrink-0 select-none">
+          {showAuditMenu && (
+            <div className="absolute bottom-[56px] left-[36%] right-[18%] z-40 rounded-lg bg-[#4c4c4c] text-white shadow-lg overflow-hidden">
+              <button
+                type="button"
+                onClick={() => {
+                  closeFlyoutMenus();
+                  onEnterAuditList('external');
+                }}
+                className="w-full px-3 py-3 text-[13px] border-b border-white/10 active:bg-white/10"
+              >
+                外部组织审核
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  closeFlyoutMenus();
+                  onEnterAuditList('v8_org');
+                }}
+                className="w-full px-3 py-3 text-[13px] active:bg-white/10"
+              >
+                V8机构审核
+              </button>
+            </div>
+          )}
+
+          {showProfileMenu && (
+            <div className="absolute bottom-[56px] right-1 left-[48%] z-40 rounded-lg bg-[#4c4c4c] text-white shadow-lg overflow-hidden">
+              <button
+                type="button"
+                onClick={() => {
+                  closeFlyoutMenus();
+                  onEnterProfile('v8_org');
+                }}
+                className="w-full px-3 py-3 text-[13px] border-b border-white/10 active:bg-white/10"
+              >
+                V8机构用户
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  closeFlyoutMenus();
+                  onEnterProfile('external');
+                }}
+                className="w-full px-3 py-3 text-[13px] active:bg-white/10"
+              >
+                外部组织用户
+              </button>
+            </div>
+          )}
+
           <button
             onClick={() => {
+              closeFlyoutMenus();
               setInputMode('chat');
             }}
             className="w-[42px] flex items-center justify-center text-slate-700 hover:bg-black/5 active:bg-black/10 transition-colors shrink-0"
@@ -421,60 +879,62 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
             </div>
           </button>
 
-          {/* Menu Button 1: 工作台 🔗 */}
           <button
-            id="menu-btn-workbench"
-            onClick={() => onEnterWorkbench()}
-            className="flex-1 flex items-center justify-center space-x-0.5 border-l border-[#e5e5e5] text-[#222222] text-[13.5px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-0.5 whitespace-nowrap overflow-hidden"
-            title="进入工作台首页"
+            id="menu-btn-quick-report"
+            onClick={() => {
+              if (!isActivated) {
+                setInputMode('chat');
+                pushAccountReply(
+                  '您的微信尚未绑定速豹账号，暂无法报送。\n请先完成激活绑定后再试。',
+                  { label: '前往验证激活', action: () => handleOpenActivation() },
+                  100
+                );
+                return;
+              }
+              startQuickReportMode('menu');
+            }}
+            className="flex-1 flex items-center justify-center border-l border-[#e5e5e5] text-[#222222] text-[12px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-0.5 whitespace-nowrap overflow-hidden"
+            title="快捷报送（对话转报送）"
           >
-            <span>工作台</span>
-            <svg className="w-3 h-3 text-[#9e9e9e] inline-block -mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-            </svg>
+            <span>快捷报送</span>
           </button>
 
-          {/* Menu Button 2: 快速上报 🔗 */}
           <button
-            id="menu-btn-fast-report"
-            onClick={() => onEnterReportList()}
-            className="flex-1 flex items-center justify-center space-x-0.5 border-l border-[#e5e5e5] text-[#222222] text-[13.5px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-0.5 whitespace-nowrap overflow-hidden"
-            title="进入上报列表"
+            id="menu-btn-manual-report"
+            onClick={() => {
+              closeFlyoutMenus();
+              onEnterReportList();
+            }}
+            className="flex-1 flex items-center justify-center border-l border-[#e5e5e5] text-[#222222] text-[12px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-0.5 whitespace-nowrap overflow-hidden"
+            title="手动报送（页面填报）"
           >
-            <span>快速上报</span>
-            <svg className="w-3 h-3 text-[#9e9e9e] inline-block -mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-            </svg>
+            <span>手动报送</span>
           </button>
 
-          {/* Menu Button 3: 快速审核 🔗 */}
           <button
-            id="menu-btn-fast-audit"
-            onClick={() => onEnterAuditList()}
-            className="flex-1 flex items-center justify-center space-x-0.5 border-l border-[#e5e5e5] text-[#222222] text-[13.5px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-0.5 whitespace-nowrap overflow-hidden"
-            title="进入审核列表"
+            id="menu-btn-audit"
+            onClick={() => {
+              setShowProfileMenu(false);
+              setShowAuditMenu((prev) => !prev);
+            }}
+            className="flex-1 flex items-center justify-center space-x-0.5 border-l border-[#e5e5e5] text-[#222222] text-[12px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-0.5 whitespace-nowrap overflow-hidden"
+            title="报送审核"
           >
-            <span>快速审核</span>
-            <svg className="w-3 h-3 text-[#9e9e9e] inline-block -mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-            </svg>
+            <span>报送审核</span>
+            <ChevronRight className="w-3 h-3 text-[#9e9e9e] -rotate-90 shrink-0" />
           </button>
 
-          {/* Menu Button 4: 个人中心 🔗 */}
           <button
             id="menu-btn-profile"
-            onClick={() => onEnterProfile()}
-            className="flex-1 flex items-center justify-center space-x-0.5 border-l border-[#e5e5e5] text-[#222222] text-[13.5px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-0.5 whitespace-nowrap overflow-hidden"
-            title="进入个人中心（我的列表页）"
+            onClick={() => {
+              setShowAuditMenu(false);
+              setShowProfileMenu((prev) => !prev);
+            }}
+            className="flex-1 flex items-center justify-center space-x-0.5 border-l border-[#e5e5e5] text-[#222222] text-[12px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-0.5 whitespace-nowrap overflow-hidden"
+            title="选择用户身份进入个人中心"
           >
             <span>个人中心</span>
-            <svg className="w-3 h-3 text-[#9e9e9e] inline-block -mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-            </svg>
+            <ChevronRight className="w-3 h-3 text-[#9e9e9e] -rotate-90 shrink-0" />
           </button>
         </div>
       ) : (
@@ -491,23 +951,35 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
             </div>
           </button>
 
-          {/* Mic Button */}
+          {/* Mic Button → 语音转写报送 */}
           <button
-            onClick={() => onToast('长按说话功能已就绪', 'info')}
+            onClick={() => runVoiceMultimodal()}
             className="p-1 text-slate-700 hover:text-black"
-            title="语音"
+            title="语音口述报送"
           >
             <Mic className="w-6 h-6 stroke-[1.8]" />
           </button>
 
-          {/* Text Input */}
+          {/* Text Input（支持粘贴多行线索） */}
           <form onSubmit={handleSendMessage} className="flex-1">
-            <input
-              type="text"
+            <textarea
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder="发消息..."
-              className="w-full bg-white border border-[#e0e0e0] rounded-md px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage();
+                }
+              }}
+              placeholder={
+                quickPhase === 'awaiting_body'
+                  ? '链接/文字，或点+传图、点麦说话...'
+                  : quickPhase === 'awaiting_org' || quickPhase === 'awaiting_confirm'
+                    ? '回复数字...'
+                    : '发消息...'
+              }
+              rows={quickPhase === 'awaiting_body' ? 2 : 1}
+              className="w-full bg-white border border-[#e0e0e0] rounded-md px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 resize-none"
             />
           </form>
 
@@ -552,7 +1024,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
             <span className="text-[11px] text-slate-600">吹哨速报</span>
           </button>
           <button
-            onClick={() => onToast('已模拟唤起手机相册上传凭证', 'info')}
+            onClick={() => runImageMultimodal('album')}
             className="flex flex-col items-center space-y-1"
           >
             <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-emerald-600 shadow-xs border border-slate-200">
@@ -561,7 +1033,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
             <span className="text-[11px] text-slate-600">照片</span>
           </button>
           <button
-            onClick={() => onToast('已模拟打开相机现场拍照', 'info')}
+            onClick={() => runImageMultimodal('camera')}
             className="flex flex-col items-center space-y-1"
           >
             <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-amber-600 shadow-xs border border-slate-200">
@@ -570,7 +1042,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
             <span className="text-[11px] text-slate-600">拍照拍摄</span>
           </button>
           <button
-            onClick={() => onToast('已获取当前网格位置：台中市西坝区阳光花园', 'success')}
+            onClick={() => runLocationMultimodal()}
             className="flex flex-col items-center space-y-1"
           >
             <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-red-600 shadow-xs border border-slate-200">
@@ -657,7 +1129,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
                 className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition-colors flex items-center justify-center space-x-1.5"
               >
                 <FileText className="w-4 h-4" />
-                <span>快速上报</span>
+                <span>页面上报</span>
               </button>
             </div>
           </div>
@@ -674,17 +1146,17 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
             </div>
 
             <h4 className="text-[16px] font-bold text-slate-900 mb-1 tracking-tight">
-              新关注用户账号激活
+              欢迎关注【点点速豹】
             </h4>
             <p className="text-[12px] text-slate-500 mb-4 px-1 leading-relaxed">
-              欢迎关注“点点速报”官方公众号！新关注微信用户须先完成身份激活，激活后方可正常使用平台所有功能。
+              请您完成账号激活与实名认证，验证通过后即可开通平台使用权限。
             </p>
 
             {/* Unlocked Capabilities Preview */}
             <div className="w-full bg-slate-50 rounded-xl p-3 text-left space-y-2 mb-4 text-[11.5px] border border-slate-100">
               <div className="flex items-center space-x-2 text-slate-700">
                 <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>开通突发事件“快速上报”直连通道</span>
+                <span>开通「快捷报送」对话转报送通道</span>
               </div>
               <div className="flex items-center space-x-2 text-slate-700">
                 <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
@@ -711,7 +1183,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
                 }}
                 className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-xs shadow-md shadow-blue-600/20 transition-all flex items-center justify-center space-x-1"
               >
-                <span>进入激活认证 H5</span>
+                <span>前往验证激活</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>

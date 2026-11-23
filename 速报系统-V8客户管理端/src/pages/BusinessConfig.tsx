@@ -4058,9 +4058,13 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     }
   };
 
-  // Handle Open Modal for Add / Edit
-  const openAddModal = () => {
-    if (activeModule === 'report_template') {
+  // Handle Open Modal for Add / Edit（可从模板「其他业务配置」指定模块直接打开新增弹框）
+  const openAddModal = (forcedModule?: string) => {
+    const moduleId = forcedModule || activeModule;
+    if (forcedModule && forcedModule !== activeModule) {
+      setActiveModule(forcedModule);
+    }
+    if (moduleId === 'report_template') {
       openAddTemplatePage();
       return;
     }
@@ -4071,7 +4075,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     setModalActiveTab('build');
     setPreviewValues({});
 
-    if (activeModule === 'data_dict' || activeModule === 'reject_reason') {
+    if (moduleId === 'data_dict' || moduleId === 'reject_reason') {
       const targetCat = dictSubCategoryFilter !== 'all' ? dictSubCategoryFilter : 'reject_reason';
       const targetMeta = getDictCategoryMeta(targetCat);
       const count = (dataStore.data_dict || []).filter(i => (i.dictCategory || 'reject_reason') === targetCat).length + 1;
@@ -4086,7 +4090,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
           ? '审核驳回时展示给审核员选择，并作为退回原因同步给上报人。'
           : targetMeta.description
       );
-    } else if (activeModule === 'audit_score') {
+    } else if (moduleId === 'audit_score') {
       setFormName('自定义百分制打分规则组');
       setFormDesc('按审核结果命中一个评分等级，设为启用后替代现有打分标准');
       setFormTotalScore(100);
@@ -4101,7 +4105,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         { id: 'sl_4', levelName: '四等', score: 70, description: '合格级标准' },
         { id: 'sl_5', levelName: '五等', score: 60, description: '基本级标准' }
       ]);
-    } else if (activeModule === 'audit_flow') {
+    } else if (moduleId === 'audit_flow') {
       const defaultMode: AuditFlowMode = isExternalAuditProvisioned
         ? 'step_by_step'
         : 'direct_headquarters';
@@ -4130,7 +4134,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       setFormAuditNodes(defaultFlowNodes);
       setSelectedAuditNodeId(defaultFlowNodes[0]?.id || null);
       rememberAuditFlowBaseline(addName, addDesc, '启用', defaultMode, 3, defaultFlowNodes);
-    } else if (activeModule === 'evaluation_rule') {
+    } else if (moduleId === 'evaluation_rule') {
       setFormName('人员考核配置');
       setFormDesc('用于配置人员月度目标上报量和数量、质量评分权重，考核页面按周期自动计算人员得分、等级和排名。');
       setFormEvalDimension('person');
@@ -4143,7 +4147,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       setFormEvalGrades(defaultEvaluationGrades);
       setFormScoreStatus('启用');
       setFormIndicators([]);
-    } else if (activeModule === 'value_added') {
+    } else if (moduleId === 'value_added') {
       setFormName('');
       setFormDictCode(`VA_00${((dataStore.value_added || []).length + 1)}`);
       setFormDesc('请填写增值扩展业务功能介绍与申请条件说明...');
@@ -4868,7 +4872,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
               ) : (activeModule === 'audit_score' || activeModule === 'audit_flow' || activeModule === 'data_dict') && (
                 <button
                   type="button"
-                  onClick={openAddModal}
+                  onClick={() => openAddModal()}
                   className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center space-x-1.5 cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -4940,7 +4944,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                   {activeModule !== 'evaluation_rule' && (
                     <button
                       type="button"
-                      onClick={openAddModal}
+                      onClick={() => openAddModal()}
                       className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center space-x-1.5 cursor-pointer whitespace-nowrap self-start sm:self-auto"
                     >
                       <Plus className="w-3.5 h-3.5" />
@@ -6250,7 +6254,13 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                   );
                                   return true;
                                 }}
-                                onNavigateToModule={(moduleId) => setActiveModule(moduleId)}
+                                onNavigateToModule={(moduleId) => {
+                                  if (moduleId === 'audit_score' || moduleId === 'audit_flow') {
+                                    openAddModal(moduleId);
+                                    return;
+                                  }
+                                  setActiveModule(moduleId);
+                                }}
                               />
                             </div>
                           )}

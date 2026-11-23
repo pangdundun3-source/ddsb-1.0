@@ -6,7 +6,7 @@ import {
   Check,
   Award,
   GitFork,
-  ExternalLink,
+  Plus,
   Clock,
   UserCheck,
   Smartphone,
@@ -705,15 +705,15 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
                   </div>
                 )}
 
-                {/* Quick jump link */}
+                {/* 快捷新增打分规则 */}
                 {onNavigateToModule && (
                   <button
                     type="button"
                     onClick={() => onNavigateToModule('audit_score')}
-                    className="w-full text-center py-1 text-[11px] text-[#1E5ABB] hover:underline inline-flex items-center justify-center gap-1 cursor-pointer"
+                    className="w-full text-center py-1.5 text-[11px] text-[#1E5ABB] hover:bg-blue-50 rounded-md border border-dashed border-blue-200 inline-flex items-center justify-center gap-1 cursor-pointer"
                   >
-                    <span>管理打分规则库</span>
-                    <ExternalLink className="w-2.5 h-2.5" />
+                    <Plus className="w-3 h-3" />
+                    <span>新增打分规则</span>
                   </button>
                 )}
               </div>
@@ -791,15 +791,15 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
                   </div>
                 )}
 
-                {/* Quick jump link */}
+                {/* 快捷新增审核流程 */}
                 {onNavigateToModule && (
                   <button
                     type="button"
                     onClick={() => onNavigateToModule('audit_flow')}
-                    className="w-full text-center py-1 text-[11px] text-[#1E5ABB] hover:underline inline-flex items-center justify-center gap-1 cursor-pointer"
+                    className="w-full text-center py-1.5 text-[11px] text-[#1E5ABB] hover:bg-blue-50 rounded-md border border-dashed border-blue-200 inline-flex items-center justify-center gap-1 cursor-pointer"
                   >
-                    <span>管理审核流程模型</span>
-                    <ExternalLink className="w-2.5 h-2.5" />
+                    <Plus className="w-3 h-3" />
+                    <span>新增审核流程</span>
                   </button>
                 )}
               </div>

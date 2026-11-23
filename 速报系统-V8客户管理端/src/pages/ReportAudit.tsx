@@ -29,6 +29,11 @@ import { DateRangeField } from '../components/DateRangeField';
 import { OrgFilterSelect } from '../components/OrgFilterSelect';
 import { INITIAL_ORG_NODES, matchOrganizationByFilter } from '../data/userOrgShared';
 import { getAuditArrivedAt, getRejectTime } from '../services/reportWorkflowService';
+import {
+  REJECT_TYPE_OPTIONS,
+  buildRejectDetail,
+  getRejectTemplate,
+} from '../utils/rejectReasonOptions';
 
 interface ReportAuditProps {
   auditPendingList: ReportItem[];
@@ -69,7 +74,7 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
   const [quickAuditItem, setQuickAuditItem] = useState<ReportItem | null>(null);
   const [quickAuditMode, setQuickAuditMode] = useState<'pass' | 'reject'>('pass');
   const [quickScore, setQuickScore] = useState(5);
-  const [quickRejectReason, setQuickRejectReason] = useState('信息不完整');
+  const [quickRejectReason, setQuickRejectReason] = useState('');
   const [quickRejectDetail, setQuickRejectDetail] = useState('');
 
   // Source list for auditing
@@ -201,6 +206,15 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
   const safePage = Math.min(currentPage, totalPages);
   const pagedReports = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
+  const applyQuickRejectType = (nextType: string) => {
+    if (nextType === quickRejectReason) {
+      setQuickRejectReason('');
+      setQuickRejectDetail('');
+      return;
+    }
+    setQuickRejectReason(nextType);
+  };
+
   const handleExecuteQuickAudit = () => {
     if (!quickAuditItem) return;
     if (quickAuditMode === 'pass') {
@@ -212,7 +226,9 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
         );
       }
     } else {
-      if (onRejectAudit) onRejectAudit(quickAuditItem.id, quickRejectReason, quickRejectDetail);
+      if (!quickRejectReason) return;
+      const detail = buildRejectDetail(quickRejectReason, quickRejectDetail);
+      if (onRejectAudit) onRejectAudit(quickAuditItem.id, quickRejectReason, detail);
     }
     setQuickAuditItem(null);
   };
@@ -629,29 +645,44 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
                 )}
               </div>
             ) : (
-              <div className="space-y-3 text-xs">
-                <div>
-                  <label className="block text-gray-600 font-medium mb-1">驳回原因</label>
-                  <select
-                    value={quickRejectReason}
-                    onChange={(e) => setQuickRejectReason(e.target.value)}
-                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg bg-white outline-none"
-                  >
-                    <option value="信息不完整">信息不完整</option>
-                    <option value="内容重复/同源">内容重复/同源</option>
-                    <option value="非本辖区职责">非本辖区职责</option>
-                    <option value="佐证材料缺失">佐证材料缺失</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-gray-600 font-medium mb-1">详细修改指引</label>
-                  <textarea
-                    rows={2}
-                    value={quickRejectDetail}
-                    onChange={(e) => setQuickRejectDetail(e.target.value)}
-                    placeholder="请输入修改意见..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none"
-                  />
+              <div className="space-y-2 text-xs">
+                <label className="block text-gray-600 font-medium">驳回原因</label>
+                <div className="rounded-lg border border-gray-300 bg-white overflow-hidden">
+                  {quickRejectReason ? (
+                    <div className="px-3 pt-2 pb-1.5 space-y-1.5">
+                      <div className="font-semibold text-rose-700 select-none">
+                        {getRejectTemplate(quickRejectReason)}
+                      </div>
+                      <textarea
+                        rows={2}
+                        value={quickRejectDetail}
+                        onChange={(e) => setQuickRejectDetail(e.target.value)}
+                        placeholder="请补充详细原因与整改要求…"
+                        className="w-full px-0 py-0 border-0 outline-none resize-none placeholder:text-slate-400"
+                      />
+                    </div>
+                  ) : (
+                    <div className="px-3 py-2.5 text-slate-400 select-none">请选择驳回原因</div>
+                  )}
+                  <div className="flex flex-wrap gap-1.5 px-2.5 py-2 border-t border-slate-100 bg-slate-50/80">
+                    {REJECT_TYPE_OPTIONS.map((item) => {
+                      const active = quickRejectReason === item.value;
+                      return (
+                        <button
+                          key={item.value}
+                          type="button"
+                          onClick={() => applyQuickRejectType(item.value)}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border cursor-pointer ${
+                            active
+                              ? 'bg-rose-600 text-white border-rose-600'
+                              : 'bg-white text-slate-600 border-slate-200 hover:border-rose-300'
+                          }`}
+                        >
+                          {item.value}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             )}
@@ -667,8 +698,13 @@ export const ReportAudit: React.FC<ReportAuditProps> = ({
               <button
                 type="button"
                 onClick={handleExecuteQuickAudit}
+                disabled={quickAuditMode === 'reject' && !quickRejectReason}
                 className={`px-4 py-2 text-white rounded-lg font-semibold text-xs shadow-sm flex items-center space-x-1 ${
-                  quickAuditMode === 'pass' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'
+                  quickAuditMode === 'pass'
+                    ? 'bg-emerald-600 hover:bg-emerald-700'
+                    : quickRejectReason
+                      ? 'bg-rose-600 hover:bg-rose-700'
+                      : 'bg-rose-300/80 cursor-not-allowed'
                 }`}
               >
                 {quickAuditMode === 'pass' ? <Check className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { UserProfile, UserRole, SpeedReport } from '../types';
 import { BackNavigationBar } from './BackNavigationBar';
 import {
@@ -19,6 +20,8 @@ import {
   FileText,
   Edit3,
   Smartphone,
+  Phone,
+  ChevronDown,
   X,
   Save,
 } from 'lucide-react';
@@ -38,6 +41,9 @@ interface ProfileViewProps {
   onToggleUserDetail?: (show: boolean) => void;
   showActivationDetail?: boolean;
   onToggleActivationDetail?: (show: boolean) => void;
+  /** V8 机构用户：不展示报送统计；卡片去组织节点、角色固定「机构审核员」且不折叠 */
+  hideReportStats?: boolean;
+  isV8OrgUser?: boolean;
 }
 
 type TimeFilter = '今日' | '近7日' | '近30日' | '近90日' | '自定义';
@@ -73,6 +79,7 @@ const maskBankCard = (value: string) => {
 export const ProfileView: React.FC<ProfileViewProps> = ({
   user,
   onChangeRole,
+  onChangeDepartment,
   onUpdateUser,
   onLogout,
   onResetDemoData,
@@ -84,6 +91,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onToggleUserDetail,
   showActivationDetail: externalShowActivationDetail,
   onToggleActivationDetail,
+  hideReportStats = false,
+  isV8OrgUser = false,
 }) => {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('近7日');
   const [customStartDate, setCustomStartDate] = useState<string>('2026-08-01');
@@ -91,6 +100,28 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [internalShowDetail, setInternalShowDetail] = useState<boolean>(false);
   const [internalShowActivationDetail, setInternalShowActivationDetail] = useState<boolean>(false);
   const [isActivationModalOpen, setIsActivationModalOpen] = useState<boolean>(false);
+  const [showOrgSwitcher, setShowOrgSwitcher] = useState(false);
+  const [showRoleExpand, setShowRoleExpand] = useState(false);
+
+  const orgOptions = Array.from(
+    new Set([user.department, ...(user.associatedDepts || [])].filter(Boolean))
+  );
+  const canSwitchOrg = Boolean(onChangeDepartment) && orgOptions.length > 1;
+  const orgNodeLabel = `${user.department}/${
+    user.subDepartment && user.subDepartment !== '西坝区网格03' ? user.subDepartment : '西坝区环保局'
+  }`;
+  /** 展示用身份标签 */
+  const roleTags = isV8OrgUser ? ['机构审核员'] : ['网格员', '审核员'];
+
+  const handleSelectOrg = (org: string) => {
+    if (!onChangeDepartment || org === user.department) {
+      setShowOrgSwitcher(false);
+      return;
+    }
+    onChangeDepartment(org);
+    setShowOrgSwitcher(false);
+    onToast(`已切换至「${org}」`);
+  };
 
   const [activationData, setActivationData] = useState({
     phone: user.phone || '13892108888',
@@ -486,6 +517,70 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     );
   };
 
+  const phoneScreenEl =
+    typeof document !== 'undefined' ? document.getElementById('wechat-phone-screen') : null;
+
+  const orgSwitcherSheet =
+    showOrgSwitcher && phoneScreenEl
+      ? createPortal(
+          <div
+            className="absolute inset-0 z-[80] bg-black/45 flex items-end justify-center"
+            onClick={() => setShowOrgSwitcher(false)}
+          >
+            <div
+              className="w-full rounded-t-2xl bg-white shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-4 pt-3 pb-2 text-center border-b border-slate-100">
+                <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-slate-200" />
+                <div className="text-[13px] font-bold text-slate-800">切换报送机构</div>
+              </div>
+              <div className="max-h-[260px] overflow-y-auto">
+                {orgOptions.map((org) => {
+                  const active = org === user.department;
+                  return (
+                    <button
+                      key={org}
+                      type="button"
+                      onClick={() => handleSelectOrg(org)}
+                      className={`w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left border-b border-slate-100 active:bg-slate-50 ${
+                        active ? 'bg-blue-50/70' : 'bg-white'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div
+                          className={`text-[14px] font-semibold truncate ${
+                            active ? 'text-blue-700' : 'text-slate-800'
+                          }`}
+                        >
+                          {org}
+                        </div>
+                        {active && <div className="text-[10px] text-blue-500 mt-0.5">当前使用</div>}
+                      </div>
+                      {active ? (
+                        <span className="shrink-0 text-[10px] font-bold text-blue-600 px-1.5 py-0.5 rounded-full bg-blue-100">
+                          当前
+                        </span>
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-slate-300 shrink-0" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowOrgSwitcher(false)}
+                className="w-full px-4 py-3.5 text-[15px] font-semibold text-slate-600 border-t border-slate-100 active:bg-slate-50"
+              >
+                取消
+              </button>
+            </div>
+          </div>,
+          phoneScreenEl
+        )
+      : null;
+
   if (isDetailActive) {
     const detailName = isProfileEditing ? profileEditForm.name || user.name : user.name;
     const ownedInstitution = `${user.department}-${
@@ -494,6 +589,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
     return (
       <div className="relative flex-1 p-3.5 space-y-3 overflow-y-auto bg-slate-50 min-h-full">
+        {orgSwitcherSheet}
         <BackNavigationBar onBack={() => setShowUserDetail(false)} />
 
         {/* User Badge Profile Header Card */}
@@ -509,12 +605,31 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   {renderRoleBadges()}
                 </div>
                 <div className="mt-2 text-[11px] text-sky-50/95">
-                  <p className="flex items-start gap-1 min-w-0">
+                  <div className="flex items-start gap-1 min-w-0">
                     <Building2 className="w-3.5 h-3.5 shrink-0 mt-0.5 text-sky-100" />
-                    <span className="min-w-0">
-                      组织节点 <span className="font-semibold text-white break-all">{ownedInstitution}</span>
-                    </span>
-                  </p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="min-w-0">
+                          组织节点{' '}
+                          <span className="font-semibold text-white break-all">{ownedInstitution}</span>
+                        </span>
+                        {canSwitchOrg && (
+                          <button
+                            type="button"
+                            onClick={() => setShowOrgSwitcher(true)}
+                            className="shrink-0 rounded-lg bg-white/15 px-2 py-0.5 text-[10px] font-bold text-white border border-white/25 hover:bg-white/25"
+                          >
+                            切换
+                          </button>
+                        )}
+                      </div>
+                      {canSwitchOrg && (
+                        <p className="mt-1 text-[10px] text-sky-100/80">
+                          可切换机构 {orgOptions.length} 个
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -820,49 +935,117 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   }
 
   return (
-    <div className="flex-1 p-3 space-y-3 overflow-y-auto">
-      {/* User Card Header */}
-      <div className="bg-gradient-to-r from-blue-600 via-sky-600 to-cyan-500 rounded-2xl p-4 text-white shadow-md shadow-blue-500/20 space-y-3">
-        <div
-          onClick={() => {
-            setShowUserDetail(true);
-            onToast('进入个人基础信息详情');
-          }}
-          className="flex items-center justify-between space-x-3 cursor-pointer group hover:opacity-95 transition-all p-1 -m-1 rounded-xl"
-          title="点击查看个人基础信息详情"
-        >
-          <div className="flex items-center space-x-3 min-w-0 flex-1">
-            <div className="w-12 h-12 rounded-full border-2 border-white/45 overflow-hidden shrink-0 bg-white/95 flex items-center justify-center text-lg font-black text-blue-600 shadow-inner group-hover:scale-105 transition-transform">
-              {user.name[0]}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center space-x-2">
-                <h2 className="text-base font-bold text-white truncate">{user.name}</h2>
-                {renderRoleBadges()}
-              </div>
-            </div>
-          </div>
+    <div className="relative flex-1 p-3 space-y-3 overflow-y-auto">
+      {orgSwitcherSheet}
 
-          <div className="text-sky-300 group-hover:text-white transition-colors shrink-0 p-1">
-            <ChevronRight className="w-5 h-5 text-sky-300/80 group-hover:text-white group-hover:translate-x-0.5 transition-all" />
+      {/* 个人信息卡片（参考布局，沿用蓝系主题） */}
+      <div className="rounded-2xl bg-gradient-to-br from-blue-600 via-sky-600 to-cyan-500 p-4 text-white shadow-md shadow-blue-500/20">
+        <div className="flex items-start gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setShowUserDetail(true);
+              onToast('进入个人基础信息详情');
+            }}
+            className="w-14 h-14 rounded-full border-2 border-white/50 overflow-hidden shrink-0 bg-white/95 flex items-center justify-center text-xl font-black text-blue-600 shadow-inner"
+            title="查看个人详情"
+          >
+            {user.avatarUrl ? (
+              <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
+            ) : (
+              user.name[0]
+            )}
+          </button>
+          <div className="min-w-0 flex-1 pt-0.5">
+            <button
+              type="button"
+              onClick={() => {
+                setShowUserDetail(true);
+                onToast('进入个人基础信息详情');
+              }}
+              className="text-left w-full"
+            >
+              <h2 className="text-[17px] font-extrabold text-white tracking-wide truncate">
+                {user.name}
+              </h2>
+            </button>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {roleTags.map((tag) => (
+                <span
+                  key={tag}
+                  className="px-2 py-0.5 rounded-full bg-white/20 text-white text-[10px] font-semibold border border-white/25"
+                >
+                  {tag}
+                </span>
+              ))}
+              {!isV8OrgUser && roleTags.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setShowRoleExpand((v) => !v)}
+                  className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-white/15 text-white/95 text-[10px] font-semibold border border-white/20"
+                >
+                  共 {roleTags.length} 项
+                  <ChevronDown
+                    className={`w-3 h-3 transition-transform ${showRoleExpand ? 'rotate-180' : ''}`}
+                  />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Quick Identity Summary Banner */}
-        <div className="pt-2.5 border-t border-white/10 text-xs">
-          <div className="bg-white/5 p-2.5 rounded-xl flex items-center space-x-2.5 min-w-0">
-            <Building2 className="w-4 h-4 text-sky-400 shrink-0" />
-            <div className="min-w-0 flex-1">
-              <div className="text-[10px] text-slate-300">组织节点</div>
-              <div
-                className="text-xs font-bold text-sky-100 truncate mt-0.5"
-                title={`${user.department}-${user.subDepartment || '西坝区环保局'}`}
-              >
-                {user.department}-
-                {user.subDepartment && user.subDepartment !== '西坝区网格03' ? user.subDepartment : '西坝区环保局'}
-              </div>
-            </div>
+        <div className="my-3 border-t border-dashed border-white/35" />
+
+        <div className="space-y-2 text-[12px]">
+          <div className="flex items-center gap-2 min-w-0">
+            <Phone className="w-3.5 h-3.5 text-sky-100 shrink-0" />
+            <span className="font-mono font-semibold text-white/95 tracking-wide">{user.phone}</span>
+            <button
+              type="button"
+              onClick={openPhoneVerifyModal}
+              className="ml-0.5 p-1 rounded-md text-sky-100 hover:bg-white/15 hover:text-white"
+              title="更换手机号"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+            </button>
           </div>
+          {!isV8OrgUser && (
+            <div className="flex items-center gap-2 min-w-0">
+              <Building2 className="w-3.5 h-3.5 text-sky-100 shrink-0" />
+              <span className="font-semibold text-white/95 truncate" title={orgNodeLabel}>
+                {orgNodeLabel}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 所属机构卡片 */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-1.5 px-0.5">
+          <span className="w-1 h-3.5 rounded-full bg-blue-600" />
+          <h3 className="text-[13px] font-bold text-slate-800">所属机构</h3>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs px-3.5 py-3 flex items-center gap-3">
+          <div className="w-11 h-11 rounded-full bg-blue-50 flex items-center justify-center shrink-0 border border-blue-100">
+            <Building2 className="w-5 h-5 text-blue-600" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[14px] font-bold text-slate-800 truncate">{user.department}</div>
+            <div className="text-[11px] text-slate-400 mt-0.5 truncate">当前所属机构</div>
+          </div>
+          {canSwitchOrg ? (
+            <button
+              type="button"
+              onClick={() => setShowOrgSwitcher(true)}
+              className="shrink-0 inline-flex items-center gap-0.5 text-[13px] font-semibold text-blue-600 active:opacity-70"
+            >
+              切换
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          ) : (
+            <span className="shrink-0 text-[11px] text-slate-400">单机构</span>
+          )}
         </div>
       </div>
 
@@ -948,81 +1131,83 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           )}
         </div>
 
-        <div className="bg-slate-50/90 border border-slate-200/90 rounded-xl p-3 space-y-2.5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-800">报送统计</span>
-          </div>
+        {!hideReportStats && (
+          <div className="bg-slate-50/90 border border-slate-200/90 rounded-xl p-3 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-800">报送统计</span>
+            </div>
 
-          <div className="flex items-center gap-3">
-            <div
-              className="relative w-28 h-28 rounded-full shrink-0 shadow-2xs"
-              style={{ background: reportDonutGradient }}
-            >
-              <div className="absolute inset-3 rounded-full bg-white border border-slate-100 shadow-inner flex flex-col items-center justify-center">
-                <span className="text-[10px] font-bold text-slate-400">累计上报</span>
-                <span className="text-2xl font-black font-mono text-slate-900 leading-none mt-1">
-                  {reporterSubmittedTotal}
-                </span>
-                <span className="text-[10px] font-bold text-slate-400 mt-0.5">件</span>
+            <div className="flex items-center gap-3">
+              <div
+                className="relative w-28 h-28 rounded-full shrink-0 shadow-2xs"
+                style={{ background: reportDonutGradient }}
+              >
+                <div className="absolute inset-3 rounded-full bg-white border border-slate-100 shadow-inner flex flex-col items-center justify-center">
+                  <span className="text-[10px] font-bold text-slate-400">累计上报</span>
+                  <span className="text-2xl font-black font-mono text-slate-900 leading-none mt-1">
+                    {reporterSubmittedTotal}
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-400 mt-0.5">件</span>
+                </div>
+              </div>
+
+              <div className="flex-1 grid grid-cols-1 gap-1.5 min-w-0">
+                {reportComposition.map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-lg bg-white border border-slate-100 px-2 py-1.5 flex items-center justify-between"
+                  >
+                    <div className="flex items-center space-x-1.5 min-w-0">
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <span className="text-[10px] font-bold text-slate-600 truncate">{item.label}</span>
+                    </div>
+                    <div className={`text-xs font-black font-mono shrink-0 ${item.textClass}`}>
+                      {item.value}
+                      <span className="ml-0.5 text-[9px] font-bold font-sans">件</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="flex-1 grid grid-cols-1 gap-1.5 min-w-0">
-              {reportComposition.map((item) => (
-                <div
-                  key={item.label}
-                  className="rounded-lg bg-white border border-slate-100 px-2 py-1.5 flex items-center justify-between"
-                >
-                  <div className="flex items-center space-x-1.5 min-w-0">
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ backgroundColor: item.color }}
-                    />
-                    <span className="text-[10px] font-bold text-slate-600 truncate">{item.label}</span>
-                  </div>
-                  <div className={`text-xs font-black font-mono shrink-0 ${item.textClass}`}>
-                    {item.value}
-                    <span className="ml-0.5 text-[9px] font-bold font-sans">件</span>
-                  </div>
-                </div>
-              ))}
+            <div className="rounded-xl bg-white border border-slate-100 p-2.5 grid grid-cols-2 gap-x-2 gap-y-2.5 shadow-2xs">
+              <div className="min-w-0 space-y-0.5">
+                <p className="text-[10px] font-medium text-slate-500 truncate">整体采纳率（%）</p>
+                <p className="text-sm font-black font-mono text-emerald-600 tabular-nums">
+                  {reporterOverallPassRate}%
+                </p>
+              </div>
+              <div className="min-w-0 space-y-0.5 border-l border-slate-100 pl-2">
+                <p className="text-[10px] font-medium text-slate-500 truncate">首审直通率（%）</p>
+                <p className="text-sm font-black font-mono text-blue-600 tabular-nums">
+                  {reporterFirstPassRate}%
+                </p>
+              </div>
+              <div className="min-w-0 space-y-0.5">
+                <p className="text-[10px] font-medium text-slate-500 truncate">综合得分</p>
+                <p className="text-sm font-black font-mono text-amber-600 tabular-nums truncate">
+                  {reporterComprehensiveScore > 0
+                    ? reporterComprehensiveScore.toLocaleString('zh-CN', {
+                        minimumFractionDigits: 1,
+                        maximumFractionDigits: 1,
+                      })
+                    : '--'}
+                  <span className="ml-0.5 text-[10px] font-normal text-slate-400">分</span>
+                </p>
+              </div>
+              <div className="min-w-0 space-y-0.5 border-l border-slate-100 pl-2">
+                <p className="text-[10px] font-medium text-slate-500 truncate">平均得分</p>
+                <p className="text-sm font-black font-mono text-purple-600 tabular-nums">
+                  {reporterAvgScore > 0 ? reporterAvgScore : '--'}
+                  <span className="ml-0.5 text-[10px] font-normal text-slate-400">分</span>
+                </p>
+              </div>
             </div>
           </div>
-
-          <div className="rounded-xl bg-white border border-slate-100 p-2.5 grid grid-cols-2 gap-x-2 gap-y-2.5 shadow-2xs">
-            <div className="min-w-0 space-y-0.5">
-              <p className="text-[10px] font-medium text-slate-500 truncate">整体采纳率（%）</p>
-              <p className="text-sm font-black font-mono text-emerald-600 tabular-nums">
-                {reporterOverallPassRate}%
-              </p>
-            </div>
-            <div className="min-w-0 space-y-0.5 border-l border-slate-100 pl-2">
-              <p className="text-[10px] font-medium text-slate-500 truncate">首审直通率（%）</p>
-              <p className="text-sm font-black font-mono text-blue-600 tabular-nums">
-                {reporterFirstPassRate}%
-              </p>
-            </div>
-            <div className="min-w-0 space-y-0.5">
-              <p className="text-[10px] font-medium text-slate-500 truncate">综合得分</p>
-              <p className="text-sm font-black font-mono text-amber-600 tabular-nums truncate">
-                {reporterComprehensiveScore > 0
-                  ? reporterComprehensiveScore.toLocaleString('zh-CN', {
-                      minimumFractionDigits: 1,
-                      maximumFractionDigits: 1,
-                    })
-                  : '--'}
-                <span className="ml-0.5 text-[10px] font-normal text-slate-400">分</span>
-              </p>
-            </div>
-            <div className="min-w-0 space-y-0.5 border-l border-slate-100 pl-2">
-              <p className="text-[10px] font-medium text-slate-500 truncate">平均得分</p>
-              <p className="text-sm font-black font-mono text-purple-600 tabular-nums">
-                {reporterAvgScore > 0 ? reporterAvgScore : '--'}
-                <span className="ml-0.5 text-[10px] font-normal text-slate-400">分</span>
-              </p>
-            </div>
-          </div>
-        </div>
+        )}
 
         <div className="bg-slate-50/90 border border-slate-200/90 rounded-xl p-3 space-y-2.5">
           <div className="flex items-center justify-between">
