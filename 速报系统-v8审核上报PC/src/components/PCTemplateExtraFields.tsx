@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  AlertCircle,
   Camera,
   Check,
   ChevronDown,
@@ -7,16 +8,30 @@ import {
   Link as LinkIcon,
   Loader2,
   RefreshCw,
+  Sparkles,
   Trash2,
   X,
 } from 'lucide-react';
 import { TemplateExtraField, TemplateFieldValue } from '../types';
+import { LINK_ANALYZING_TEXT, parseLinkMultimodal } from '../utils/linkMultimodalMock';
+
+export type LinkAiExtractFillPayload = {
+  linkFieldId: string;
+  title: string;
+  summary: string;
+  district?: string;
+  timeText?: string;
+  link: string;
+  sourceHost: string;
+};
 
 interface PCTemplateExtraFieldsProps {
   fields: TemplateExtraField[];
   values: Record<string, TemplateFieldValue>;
   errors: Record<string, boolean>;
   onChange: (fieldId: string, value: TemplateFieldValue) => void;
+  onToast?: (msg: string) => void;
+  onAiExtractFill?: (payload: LinkAiExtractFillPayload) => void;
 }
 
 type LinkShotState = {
@@ -81,11 +96,18 @@ const FieldError: React.FC<{ message: string }> = ({ message }) => (
   <p className="text-[11px] text-rose-500 mt-1">{message}</p>
 );
 
+type LinkAiExtractState = {
+  status: 'idle' | 'loading' | 'done' | 'error';
+  reason?: string;
+};
+
 export const PCTemplateExtraFields: React.FC<PCTemplateExtraFieldsProps> = ({
   fields,
   values,
   errors,
   onChange,
+  onToast,
+  onAiExtractFill,
 }) => {
   const visibleFields = fields.filter(
     (field) => field.type !== 'attachment' && field.type !== 'static_text'
@@ -93,6 +115,14 @@ export const PCTemplateExtraFields: React.FC<PCTemplateExtraFieldsProps> = ({
   const [openMultiSelectId, setOpenMultiSelectId] = useState<string | null>(null);
   const [linkShots, setLinkShots] = useState<Record<string, LinkShotState>>({});
   const [linkShotViewer, setLinkShotViewer] = useState<{ url: string; shotAt?: string } | null>(null);
+  const [linkAiExtracts, setLinkAiExtracts] = useState<Record<string, LinkAiExtractState>>({});
+  const linkAiTimersRef = useRef<Record<string, number>>({});
+
+  const clearLinkAiTimer = (fieldId: string) => {
+    const timer = linkAiTimersRef.current[fieldId];
+    if (timer != null) window.clearTimeout(timer);
+    delete linkAiTimersRef.current[fieldId];
+  };
 
   useEffect(() => {
     if (!openMultiSelectId) return;
@@ -105,6 +135,68 @@ export const PCTemplateExtraFields: React.FC<PCTemplateExtraFieldsProps> = ({
     document.addEventListener('pointerdown', closeOutside);
     return () => document.removeEventListener('pointerdown', closeOutside);
   }, [openMultiSelectId]);
+
+  useEffect(
+    () => () => {
+      Object.keys(linkAiTimersRef.current).forEach(clearLinkAiTimer);
+    },
+    []
+  );
+
+  const runLinkAiExtract = (fieldId: string, raw: string) => {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      setLinkAiExtracts((prev) => ({
+        ...prev,
+        [fieldId]: { status: 'error', reason: '请先输入链接再提取' },
+      }));
+      onToast?.('请先输入链接再提取');
+      return;
+    }
+    if (!isValidLink(trimmed)) {
+      setLinkAiExtracts((prev) => ({
+        ...prev,
+        [fieldId]: { status: 'error', reason: '网址格式不正确，请修改为以 http:// 或 https:// 开头' },
+      }));
+      onToast?.('请输入正确的链接后再提取');
+      return;
+    }
+
+    clearLinkAiTimer(fieldId);
+    setLinkAiExtracts((prev) => ({ ...prev, [fieldId]: { status: 'loading' } }));
+    onToast?.(LINK_ANALYZING_TEXT);
+
+    linkAiTimersRef.current[fieldId] = window.setTimeout(() => {
+      const result = parseLinkMultimodal(trimmed);
+      if (!result.ok) {
+        setLinkAiExtracts((prev) => ({
+          ...prev,
+          [fieldId]: { status: 'error', reason: result.reason.split('\n')[0] || '提取失败' },
+        }));
+        onToast?.(result.reason.split('\n')[0] || '链接提取失败');
+        return;
+      }
+
+      onChange(fieldId, result.link);
+      const dateValue = result.timeText?.slice(0, 10);
+      if (dateValue) {
+        fields.forEach((field) => {
+          if (field.type === 'date') onChange(field.id, dateValue);
+        });
+      }
+      onAiExtractFill?.({
+        linkFieldId: fieldId,
+        title: result.title,
+        summary: result.summary,
+        district: result.district,
+        timeText: result.timeText,
+        link: result.link,
+        sourceHost: result.sourceHost,
+      });
+      setLinkAiExtracts((prev) => ({ ...prev, [fieldId]: { status: 'done' } }));
+      onToast?.(`已从 ${result.sourceHost} 提取并回填`);
+    }, 900);
+  };
 
   if (visibleFields.length === 0) return null;
 
@@ -331,6 +423,13 @@ export const PCTemplateExtraFields: React.FC<PCTemplateExtraFieldsProps> = ({
                         placeholder={field.placeholder || 'https://...'}
                         onChange={(event) => {
                           onChange(field.id, event.target.value);
+                          clearLinkAiTimer(field.id);
+                          setLinkAiExtracts((prev) => {
+                            if (!prev[field.id]) return prev;
+                            const next = { ...prev };
+                            delete next[field.id];
+                            return next;
+                          });
                           setLinkShots((prev) => {
                             const next = { ...prev };
                             delete next[field.id];
@@ -350,6 +449,45 @@ export const PCTemplateExtraFields: React.FC<PCTemplateExtraFieldsProps> = ({
                         {linkShot?.status === 'loading' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
                         {linkShot?.status === 'loading' ? '截图中' : '截图'}
                       </button>
+                    )}
+                  </div>
+
+                  <div className="rounded-lg border border-violet-100 bg-violet-50/70 px-3 py-2.5 space-y-1.5">
+                    <div className="flex items-center gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1 text-[12px] font-bold text-violet-800">
+                          <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                          <span>AI 多模态提取</span>
+                        </div>
+                        <p className="text-[11px] text-violet-600/90 mt-0.5">
+                          根据链接自动提取标题、描述等信息并回填表单
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={linkAiExtracts[field.id]?.status === 'loading'}
+                        onClick={() => runLinkAiExtract(field.id, asString(value))}
+                        className="shrink-0 px-3 py-1.5 rounded-lg border border-violet-300 bg-white text-violet-700 text-xs font-bold flex items-center gap-1 hover:bg-violet-50 disabled:text-gray-400 disabled:border-gray-200"
+                      >
+                        {linkAiExtracts[field.id]?.status === 'loading' ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-3.5 h-3.5" />
+                        )}
+                        {linkAiExtracts[field.id]?.status === 'loading' ? '提取中' : '提取'}
+                      </button>
+                    </div>
+                    {linkAiExtracts[field.id]?.status === 'error' && (
+                      <p className="flex items-start gap-1 text-[11px] text-rose-600">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
+                        <span>{linkAiExtracts[field.id]?.reason}</span>
+                      </p>
+                    )}
+                    {linkAiExtracts[field.id]?.status === 'done' && (
+                      <p className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
+                        <Check className="w-3.5 h-3.5 shrink-0" />
+                        <span>已提取并回填标题、描述等字段</span>
+                      </p>
                     )}
                   </div>
 

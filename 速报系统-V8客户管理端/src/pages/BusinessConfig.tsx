@@ -67,6 +67,12 @@ import {
   isValueAddedCatalogApplied,
 } from '../shared/valueAddedCatalog';
 import { publishValueAddedClientStatus } from '../shared/valueAddedClientStatus';
+import {
+  LINK_MULTIMODAL_MODE_OPTIONS,
+  formatLinkMultimodalModesLabel,
+  isLinkMultimodalValueAdded,
+  normalizeLinkMultimodalModes,
+} from '../shared/linkMultimodalModes';
 import { INITIAL_ORG_NODES, INITIAL_PERSONNEL } from '../data/userOrgShared';
 
 export type FieldType =
@@ -242,6 +248,8 @@ interface ConfigModuleItem {
   isDefault?: boolean;
   status: '启用' | '停用';
   activatedStatus?: '已开通' | '未开通';
+  /** AI 链接多模态识别：应用端机构开通的提取能力 */
+  linkMultimodalModes?: Array<'basic' | 'deep'>;
   /** 创建时间；缺省时排序回退到 updateTime */
   createTime?: string;
   updateTime: string;
@@ -1136,6 +1144,19 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         updateTime: '2023-11-10 10:00:00',
         description: '针对外部联系人的注册激活、资料变更与组织节点调整进行审核把关，支持通过 / 驳回与审核留痕，保障外部协作人员身份真实可控',
         isDefault: true
+      },
+      {
+        id: 'va_7',
+        name: 'AI链接多模态识别',
+        dictCategoryName: '增值业务',
+        dictCode: 'VA_LINK_MULTIMODAL_AI',
+        status: '启用',
+        activatedStatus: '已开通',
+        updateTime: '2026-03-23 10:00:00',
+        description:
+          '报送模板支持粘贴原文链接后一键 AI 多模态提取：自动识别标题、摘要、属地与发布时间并回填表单，提升线索结构化录入效率',
+        linkMultimodalModes: ['basic', 'deep'],
+        isDefault: true
       }
     ]
   });
@@ -1153,7 +1174,9 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
           prevList.every(
             (item, idx) =>
               item.status === nextList[idx]?.status &&
-              item.activatedStatus === nextList[idx]?.activatedStatus
+              item.activatedStatus === nextList[idx]?.activatedStatus &&
+              JSON.stringify(normalizeLinkMultimodalModes(item.linkMultimodalModes)) ===
+                JSON.stringify(normalizeLinkMultimodalModes(nextList[idx]?.linkMultimodalModes))
           );
         if (unchanged) return prev;
         return { ...prev, value_added: nextList };
@@ -6583,52 +6606,98 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                         <div className="absolute -top-10 -right-10 w-28 h-28 bg-amber-500/5 rounded-full blur-xl group-hover:bg-amber-500/10 transition-all pointer-events-none" />
 
                         <div className="space-y-3">
-                          {/* Header: Product Name & Direct Top-Right Control */}
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-center space-x-3">
-                              <div className={`w-11 h-11 rounded-xl border flex items-center justify-center shrink-0 shadow-2xs ${
-                                isEnabled || !isActivated
-                                  ? 'bg-[#FFFDF5] border-[#FDE68A]'
-                                  : 'bg-gray-200 border-gray-300'
-                              }`}>
-                                <IconComp className={`w-5 h-5 ${isEnabled || !isActivated ? 'text-amber-600' : 'text-gray-400'}`} />
-                              </div>
-                              <div>
-                                <h3 className={`font-bold text-sm flex items-center space-x-2 ${
+                          {/* Header: 图标 + 标题行（含开关）/ 标题下能力标签 */}
+                          <div className="flex items-start gap-3">
+                            <div className={`w-11 h-11 rounded-xl border flex items-center justify-center shrink-0 shadow-2xs ${
+                              isEnabled || !isActivated
+                                ? 'bg-[#FFFDF5] border-[#FDE68A]'
+                                : 'bg-gray-200 border-gray-300'
+                            }`}>
+                              <IconComp className={`w-5 h-5 ${isEnabled || !isActivated ? 'text-amber-600' : 'text-gray-400'}`} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <h3 className={`font-bold text-sm min-w-0 truncate ${
                                   isEnabled || !isActivated ? 'text-gray-900 group-hover:text-[#1E5ABB]' : 'text-gray-500'
                                 }`}>
-                                  <span>{item.name}</span>
+                                  {item.name}
                                 </h3>
+                                {isActivated ? (
+                                  <button
+                                    onClick={() => handleToggleStatus(item.id)}
+                                    title={item.status === '启用' ? '点击停用该增值业务' : '点击启用该增值业务'}
+                                    className="cursor-pointer focus:outline-none flex items-center space-x-2 bg-white/90 hover:bg-white px-2.5 py-1 rounded-full border border-gray-200 shadow-2xs shrink-0 transition-all hover:scale-102"
+                                  >
+                                    <div
+                                      className={`w-7 h-3.5 flex items-center rounded-full p-0.5 transition-colors ${
+                                        item.status === '启用' ? 'bg-emerald-500 justify-end' : 'bg-gray-300 justify-start'
+                                      }`}
+                                    >
+                                      <div className="w-2.5 h-2.5 bg-white rounded-full shadow-2xs"></div>
+                                    </div>
+                                    <span className={`text-[11px] font-bold ${item.status === '启用' ? 'text-emerald-700' : 'text-gray-500'}`}>
+                                      {item.status === '启用' ? '已启用' : '已停用'}
+                                    </span>
+                                  </button>
+                                ) : (
+                                  <div
+                                    className="flex items-center space-x-1.5 bg-gray-100 px-2.5 py-1 rounded-full border border-gray-200 text-gray-500 text-[11px] font-medium cursor-not-allowed shrink-0"
+                                    title="未开通业务不可进行启禁操作"
+                                  >
+                                    <Lock className="w-3 h-3 text-gray-400" />
+                                    <span>未开通 (不可启禁)</span>
+                                  </div>
+                                )}
                               </div>
+                              {/* 紧贴标题下方同一内容区，不另起卡片行 */}
+                              {isLinkMultimodalValueAdded(item) && isActivated && (() => {
+                                const openedModes = normalizeLinkMultimodalModes(item.linkMultimodalModes);
+                                const hasExpandable = LINK_MULTIMODAL_MODE_OPTIONS.some(
+                                  (opt) => !openedModes.includes(opt.id)
+                                );
+                                return (
+                                  <div className="relative group/lm-tip mt-1 flex flex-nowrap items-center gap-1">
+                                    {LINK_MULTIMODAL_MODE_OPTIONS.map((opt) => {
+                                      const opened = openedModes.includes(opt.id);
+                                      const shortLabel =
+                                        opt.id === 'basic' ? '基础提取' : '图文视频深度提取';
+                                      return (
+                                        <span
+                                          key={opt.id}
+                                          className={`inline-flex items-center shrink-0 px-1.5 py-px rounded text-[10px] font-bold border whitespace-nowrap ${
+                                            opened
+                                              ? isEnabled
+                                                ? 'bg-violet-100 text-violet-700 border-violet-200'
+                                                : 'bg-gray-100 text-gray-500 border-gray-200'
+                                              : 'bg-white text-violet-400/90 border-dashed border-violet-300'
+                                          }`}
+                                          title={
+                                            opened
+                                              ? `已开通：${opt.label}`
+                                              : `未开通：${opt.label}（可扩展开通）`
+                                          }
+                                        >
+                                          {shortLabel}
+                                        </span>
+                                      );
+                                    })}
+                                    <span className="pointer-events-none absolute left-0 top-full z-20 mt-1 w-max max-w-[260px] rounded-md bg-gray-900 px-2.5 py-1.5 text-[10px] leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/lm-tip:opacity-100">
+                                      <span className="block">
+                                        已开通：{formatLinkMultimodalModesLabel(openedModes)}
+                                      </span>
+                                      {hasExpandable && (
+                                        <span className="block mt-0.5 text-amber-200/90">
+                                          未开通能力可联系应用管理端扩展开通
+                                        </span>
+                                      )}
+                                      <span className="block mt-0.5 text-white/60">
+                                        由应用管理端机构业务配置开通
+                                      </span>
+                                    </span>
+                                  </div>
+                                );
+                              })()}
                             </div>
-
-                            {/* Enable / Disable Toggle Switch in Top Right */}
-                            {isActivated ? (
-                              <button
-                                onClick={() => handleToggleStatus(item.id)}
-                                title={item.status === '启用' ? '点击停用该增值业务' : '点击启用该增值业务'}
-                                className="cursor-pointer focus:outline-none flex items-center space-x-2 bg-white/90 hover:bg-white px-2.5 py-1 rounded-full border border-gray-200 shadow-2xs shrink-0 transition-all hover:scale-102"
-                              >
-                                <div
-                                  className={`w-7 h-3.5 flex items-center rounded-full p-0.5 transition-colors ${
-                                    item.status === '启用' ? 'bg-emerald-500 justify-end' : 'bg-gray-300 justify-start'
-                                  }`}
-                                >
-                                  <div className="w-2.5 h-2.5 bg-white rounded-full shadow-2xs"></div>
-                                </div>
-                                <span className={`text-[11px] font-bold ${item.status === '启用' ? 'text-emerald-700' : 'text-gray-500'}`}>
-                                  {item.status === '启用' ? '已启用' : '已停用'}
-                                </span>
-                              </button>
-                            ) : (
-                              <div
-                                className="flex items-center space-x-1.5 bg-gray-100 px-2.5 py-1 rounded-full border border-gray-200 text-gray-500 text-[11px] font-medium cursor-not-allowed shrink-0"
-                                title="未开通业务不可进行启禁操作"
-                              >
-                                <Lock className="w-3 h-3 text-gray-400" />
-                                <span>未开通 (不可启禁)</span>
-                              </div>
-                            )}
                           </div>
 
                           {/* Product Function Introduction */}

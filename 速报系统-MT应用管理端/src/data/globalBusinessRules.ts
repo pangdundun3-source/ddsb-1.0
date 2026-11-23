@@ -70,6 +70,17 @@ export const defaultValueAddedServices: ValueAddedServiceItem[] = [
     icon: 'auto_awesome',
     isGlobal: true,
   },
+  {
+    id: 'vas-link-multimodal-ai',
+    name: 'AI链接多模态识别',
+    isPurchased: true,
+    isEnabled: true,
+    tag: '增值扩展功能',
+    description:
+      '报送模板支持粘贴原文链接后一键 AI 多模态提取：自动识别标题、摘要、属地与发布时间并回填表单，提升线索结构化录入效率',
+    icon: 'auto_awesome',
+    isGlobal: true,
+  },
 ];
 
 export const standardReportFields: TemplateFieldItem[] = [

@@ -44,7 +44,6 @@ import {
   buildSoftExtraValues,
   finalizeDraftWithOrg,
   formatConfirmPrompt,
-  formatDraftSavedPrompt,
   formatOrgPrompt,
   formatSuccessPrompt,
   isCancelKeyword,
@@ -80,7 +79,7 @@ interface OfficialAccountEntryViewProps {
   onEnterReportList: () => void;
   onEnterWorkbench: (role?: UserRole) => void;
   onEnterAuditList: (kind?: 'external' | 'v8_org') => void;
-  onEnterProfile: (kind?: 'external' | 'v8_org') => void;
+  onEnterProfile: () => void;
   onEnterLogin: () => void;
   onEnterActivationH5?: () => void;
   onToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
@@ -88,11 +87,17 @@ interface OfficialAccountEntryViewProps {
   user?: UserProfile;
   /** 快捷上报直接提交 */
   onQuickReportSubmit?: (payload: Partial<SpeedReport>) => string;
-  /** 快捷上报保存草稿 */
-  onQuickReportSaveDraft?: (payload: Partial<SpeedReport>) => string;
   /** 去完善：打开 H5 预填表单 */
   onQuickReportRefine?: (payload: Partial<SpeedReport>) => void;
 }
+
+/** 可序列化的消息卡片动作（跳转后会话可恢复） */
+type CardActionKind =
+  | 'activation'
+  | 'workbench'
+  | 'report_list'
+  | 'audit_external'
+  | 'profile';
 
 interface ChatMessage {
   id: string;
@@ -100,10 +105,58 @@ interface ChatMessage {
   text: string;
   time?: string;
   cardAction?: {
+    kind: CardActionKind;
     label: string;
-    action: () => void;
   };
 }
+
+const OA_CHAT_STORAGE_KEY = 'wechat_v8_oa_chat_messages';
+const OA_CHAT_MAX_MESSAGES = 200;
+
+const buildDefaultOaMessages = (): ChatMessage[] => [
+  {
+    id: 'msg_follow_welcome',
+    sender: 'account',
+    text: FOLLOW_WELCOME_TEXT,
+    cardAction: { kind: 'activation', label: '前往验证激活' },
+  },
+  {
+    id: 'msg_welcome',
+    sender: 'account',
+    text: '您好，点点速豹助手为您服务。\n发送【报送】或点击菜单「快捷报送」，按模板填写即可生成线索：\n\n报送标题：\n报送描述：\n涉事属地：\n相关链接：\n\n图片、视频、文件可作为当次附件上传。',
+  },
+];
+
+const loadOaMessages = (): ChatMessage[] => {
+  try {
+    const raw = localStorage.getItem(OA_CHAT_STORAGE_KEY);
+    if (!raw) return buildDefaultOaMessages();
+    const parsed = JSON.parse(raw) as ChatMessage[];
+    if (!Array.isArray(parsed) || parsed.length === 0) return buildDefaultOaMessages();
+    return parsed
+      .filter(
+        (m) =>
+          m &&
+          typeof m.id === 'string' &&
+          (m.sender === 'account' || m.sender === 'user') &&
+          typeof m.text === 'string'
+      )
+      .map((m) => ({
+        id: m.id,
+        sender: m.sender,
+        text: m.text,
+        time: m.time,
+        cardAction:
+          m.cardAction &&
+          typeof m.cardAction.kind === 'string' &&
+          typeof m.cardAction.label === 'string'
+            ? { kind: m.cardAction.kind, label: m.cardAction.label }
+            : undefined,
+      }));
+  } catch {
+    return buildDefaultOaMessages();
+  }
+};
 
 export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> = ({
   onEnterReport,
@@ -116,22 +169,31 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
   onToast,
   user,
   onQuickReportSubmit,
-  onQuickReportSaveDraft,
   onQuickReportRefine,
 }) => {
-  // Mode: custom menu vs text chat input
-  const [inputMode, setInputMode] = useState<'menu' | 'chat'>('menu');
+  // Mode: custom menu vs text chat input（有历史对话时回到聊天输入，便于接着聊）
+  const [inputMode, setInputMode] = useState<'menu' | 'chat'>(() => {
+    try {
+      const raw = localStorage.getItem(OA_CHAT_STORAGE_KEY);
+      if (!raw) return 'menu';
+      const parsed = JSON.parse(raw) as ChatMessage[];
+      return Array.isArray(parsed) && parsed.some((m) => m.sender === 'user') ? 'chat' : 'menu';
+    } catch {
+      return 'menu';
+    }
+  });
   const [inputText, setInputText] = useState<string>('');
   const [showServiceProfile, setShowServiceProfile] = useState<boolean>(false);
   const [showPlusDrawer, setShowPlusDrawer] = useState<boolean>(false);
   const [showActivationModal, setShowActivationModal] = useState<boolean>(false);
-  const [showAuditMenu, setShowAuditMenu] = useState(false);
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showWorkbenchMenu, setShowWorkbenchMenu] = useState(false);
+  /** 工作台弹层：根菜单（手动报送/报送审核）或审核身份二级菜单 */
+  const [workbenchPanel, setWorkbenchPanel] = useState<'root' | 'audit'>('root');
   const [serviceProfileTab, setServiceProfileTab] = useState<'all' | 'service'>('all');
 
   const closeFlyoutMenus = () => {
-    setShowAuditMenu(false);
-    setShowProfileMenu(false);
+    setShowWorkbenchMenu(false);
+    setWorkbenchPanel('root');
   };
   const [quickPhase, setQuickPhase] = useState<QuickReportPhase>('idle');
   const [quickDraft, setQuickDraft] = useState<QuickReportDraft | null>(null);
@@ -181,6 +243,28 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
   };
   openActivationRef.current = handleOpenActivation;
 
+  const runCardAction = (kind: CardActionKind) => {
+    switch (kind) {
+      case 'activation':
+        handleOpenActivation();
+        break;
+      case 'workbench':
+        onEnterWorkbench();
+        break;
+      case 'report_list':
+        onEnterReportList();
+        break;
+      case 'audit_external':
+        onEnterAuditList('external');
+        break;
+      case 'profile':
+        onEnterProfile();
+        break;
+      default:
+        break;
+    }
+  };
+
   const pushAccountReply = (
     text: string,
     cardAction?: ChatMessage['cardAction'],
@@ -210,7 +294,14 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
       });
       if (!ok) return;
       setIsFollowing(false);
-      onToast('已取消关注', 'info');
+      resetQuickFlow();
+      setMessages([]);
+      try {
+        localStorage.removeItem(OA_CHAT_STORAGE_KEY);
+      } catch {
+        /* ignore */
+      }
+      onToast('已取消关注，对话已清空', 'info');
       return;
     }
     setIsFollowing(true);
@@ -220,10 +311,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     onToast('已关注服务号', 'success');
     pushAccountReply(
       FOLLOW_WELCOME_TEXT,
-      {
-        label: '前往验证激活',
-        action: () => openActivationRef.current(),
-      },
+      { kind: 'activation', label: '前往验证激活' },
       450
     );
   };
@@ -245,20 +333,17 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     pushAccountReply(from === 'menu' ? GUIDE_AFTER_MENU : GUIDE_AFTER_KEYWORD, undefined, 200);
   };
 
-  /** 与页面「新建报送模板」表单字段对齐，供直接提交 / 保存草稿 / 去完善共用 */
-  const buildReportPayload = (
-    draft: QuickReportDraft,
-    status: 'pending_audit' | 'draft'
-  ): Partial<SpeedReport> => {
+  /** 与页面「新建报送模板」表单字段对齐，供直接提交 / 去完善预填 */
+  const buildReportPayload = (draft: QuickReportDraft): Partial<SpeedReport> => {
     const tpl = draft.matched!.template;
     const stamp = new Date().toISOString().replace('T', ' ').substring(0, 16);
-    const title = (draft.clue.title || '').trim() || (status === 'draft' ? '未命名草稿' : '未命名线索');
+    const title = (draft.clue.title || '').trim() || '未命名线索';
     const summary = (draft.clue.summary || draft.clue.title || '').trim();
     const district = draft.clue.district || '全市';
     const authorDept = draft.selectedOrg || user?.department || '';
     const type = tpl.defaultType;
     return {
-      id: `rep_${status === 'draft' ? 'draft_' : ''}${Date.now()}`,
+      id: `rep_${Date.now()}`,
       title,
       address: draft.clue.district || '',
       source: tpl.defaultSource,
@@ -266,7 +351,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
       type,
       summary,
       coreDemand: summary,
-      disposalAdvice: status === 'draft' ? '' : '待审核部门研判处置。',
+      disposalAdvice: '待审核部门研判处置。',
       matchedLink: draft.clue.link || '',
       templateId: tpl.id,
       templateFieldValues: buildSoftExtraValues(draft),
@@ -275,13 +360,9 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
       authorDept,
       gridNo: user?.gridCode || '',
       sentimentTrend: '',
-      status,
       updateTime: stamp,
       createTime: stamp,
-      tags:
-        status === 'draft'
-          ? ['草稿', '快捷上报', type, authorDept].filter(Boolean)
-          : [district, type, authorDept, '快捷上报'].filter(Boolean),
+      tags: [district, type, authorDept, '快捷上报'].filter(Boolean),
     };
   };
 
@@ -405,23 +486,22 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     addMediaAsAttachment('file', mock.attachmentHint || '情况说明.pdf', '[文件] 情况说明');
   };
 
-  // 默认即展示「关注后」欢迎激活推送 + 助手引导
-  const [messages, setMessages] = useState<ChatMessage[]>(() => [
-    {
-      id: 'msg_follow_welcome',
-      sender: 'account',
-      text: FOLLOW_WELCOME_TEXT,
-      cardAction: {
-        label: '前往验证激活',
-        action: () => openActivationRef.current(),
-      },
-    },
-    {
-      id: 'msg_welcome',
-      sender: 'account',
-      text: '您好，点点速豹助手为您服务。\n发送【报送】或点击菜单「快捷报送」，粘贴结构化文字即可生成线索；图片、视频、文件可作为当次附件上传。',
-    },
-  ]);
+  // 会话本地持久化：跳转工作台/列表后再回公众号，对话内容仍保留
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadOaMessages());
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    try {
+      const toSave = messages.slice(-OA_CHAT_MAX_MESSAGES);
+      localStorage.setItem(OA_CHAT_STORAGE_KEY, JSON.stringify(toSave));
+    } catch {
+      /* ignore quota */
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+  }, [messages]);
 
   // Handle send chat message
   const handleSendMessage = (e?: React.FormEvent) => {
@@ -443,7 +523,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     if (isCancelKeyword(userMsgText)) {
       if (quickPhase !== 'idle') {
         resetQuickFlow();
-        pushAccountReply('已取消快捷上报，草稿已清除。');
+        pushAccountReply('已取消快捷上报。');
       } else {
         pushAccountReply('当前没有进行中的快捷上报。');
       }
@@ -453,8 +533,8 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     if (isFormKeyword(userMsgText)) {
       resetQuickFlow();
       pushAccountReply('已为您打开手动报送入口：', {
+        kind: 'workbench',
         label: '进入首页',
-        action: () => onEnterWorkbench(),
       });
       return;
     }
@@ -470,20 +550,20 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     }
 
     if (quickPhase === 'awaiting_confirm' && quickDraft?.matched) {
-      if (userMsgText === '1') {
-        if (!quickDraft.canDirectSubmit) {
-          pushAccountReply('当前缺少必填项，无法直接提交。请回复【2】保存草稿，或【3】去完善。');
-          return;
-        }
+      const confirmSubmit =
+        userMsgText === '1' ||
+        userMsgText === '确认提交' ||
+        userMsgText.includes('确认提交');
+      if (confirmSubmit) {
         const auditOrg = quickDraft.selectedOrg || user?.department || '';
         const blockTip = getAuditBlockTip(
           getAuditAssignmentStatus(auditOrg, quickDraft.matched.template.id)
         );
         if (blockTip) {
-          pushAccountReply(`${blockTip}\n也可回复【2】保存为草稿，或【3】去完善。`);
+          pushAccountReply(`${blockTip}\n也可回复【0】取消。`);
           return;
         }
-        const payload = buildReportPayload(quickDraft, 'pending_audit');
+        const payload = buildReportPayload(quickDraft);
         const reportId = onQuickReportSubmit?.(payload) || payload.id || '';
         pushAccountReply(
           formatSuccessPrompt({
@@ -493,52 +573,19 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
             reportId,
           }),
           {
+            kind: 'report_list',
             label: '查看我的报送',
-            action: () => onEnterReportList(),
           }
         );
-        resetQuickFlow();
-        return;
-      }
-      if (userMsgText === '2') {
-        const payload = buildReportPayload(quickDraft, 'draft');
-        if (!payload.title?.trim() && !payload.summary?.trim()) {
-          pushAccountReply('请至少有标题或内容后再保存草稿。');
-          return;
-        }
-        const reportId = onQuickReportSaveDraft?.(payload) || payload.id || '';
-        pushAccountReply(
-          formatDraftSavedPrompt({
-            title: payload.title || '',
-            org: payload.authorDept || '',
-            templateName: quickDraft.matched.template.name,
-            reportId,
-          }),
-          {
-            label: '查看草稿箱',
-            action: () => onEnterReportList(),
-          }
-        );
-        resetQuickFlow();
-        return;
-      }
-      if (userMsgText === '3') {
-        const payload = buildReportPayload(quickDraft, 'draft');
-        onQuickReportRefine?.(payload);
-        pushAccountReply('已为您打开完善页面，可按新建报送模板继续编辑后提交或存草稿。');
         resetQuickFlow();
         return;
       }
       if (userMsgText === '0') {
         resetQuickFlow();
-        pushAccountReply('已取消快捷上报，草稿已清除。');
+        pushAccountReply('已取消快捷上报。');
         return;
       }
-      pushAccountReply(
-        quickDraft.canDirectSubmit
-          ? '请回复【1】直接提交、【2】保存为草稿、【3】去完善，或【0】取消。'
-          : '当前缺少必填项，请回复【2】保存为草稿、【3】去完善，或【0】取消。'
-      );
+      pushAccountReply('请回复【1】确认提交，或【0】取消。');
       return;
     }
 
@@ -560,13 +607,10 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
 
       if (userMsgText.includes('工作台') || userMsgText.includes('首页') || userMsgText.includes('瞭望')) {
         replyText = '您可以直接进入工作台首页：';
-        cardAction = { label: '进入 工作台首页', action: () => onEnterWorkbench() };
+        cardAction = { kind: 'workbench', label: '进入 工作台首页' };
       } else if (userMsgText.includes('审核') || userMsgText.includes('审查') || userMsgText.includes('批复')) {
         replyText = '请选择审核身份：可点击菜单「报送审核」。';
-        cardAction = {
-          label: '进入 外部组织审核',
-          action: () => onEnterAuditList('external'),
-        };
+        cardAction = { kind: 'audit_external', label: '进入 外部组织审核' };
       } else if (
         userMsgText.includes('个人') ||
         userMsgText.includes('中心') ||
@@ -574,10 +618,10 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
         userMsgText.includes('资料')
       ) {
         replyText = '已为您匹配个人中心入口：';
-        cardAction = { label: '进入 个人中心', action: () => onEnterProfile() };
+        cardAction = { kind: 'profile', label: '进入 个人中心' };
       } else if (userMsgText.includes('激活') || userMsgText.includes('开通') || userMsgText.includes('认证')) {
         replyText = '请完成账号激活与实名认证，验证通过后即可开通平台使用权限。';
-        cardAction = { label: '前往验证激活', action: () => handleOpenActivation() };
+        cardAction = { kind: 'activation', label: '前往验证激活' };
       }
 
       setMessages((prev) => [
@@ -699,7 +743,8 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
               {msg.cardAction && (
                 <div className="mt-2.5 pt-2 border-t border-slate-100">
                   <button
-                    onClick={msg.cardAction.action}
+                    type="button"
+                    onClick={() => runCardAction(msg.cardAction!.kind)}
                     className="w-full flex items-center justify-between px-3 py-1.5 bg-blue-50/80 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded-md transition-colors"
                   >
                     <span>{msg.cardAction.label}</span>
@@ -717,63 +762,14 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
             )}
           </div>
         ))}
+        <div ref={chatEndRef} className="h-px w-full shrink-0" aria-hidden />
 
       </div>
 
       {/* 4. WeChat Bottom Bar - Custom Menu or Chat Input Mode */}
       {inputMode === 'menu' ? (
-        /* 菜单：快捷报送｜手动报送｜报送审核｜个人中心 */
+        /* 菜单：快捷报送｜工作台（手动报送/报送审核）｜个人中心 */
         <div className="relative bg-[#f7f7f7] border-t border-[#dcdcdc] h-[52px] flex items-stretch z-30 shrink-0 select-none">
-          {showAuditMenu && (
-            <div className="absolute bottom-[56px] left-[36%] right-[18%] z-40 rounded-lg bg-[#4c4c4c] text-white shadow-lg overflow-hidden">
-              <button
-                type="button"
-                onClick={() => {
-                  closeFlyoutMenus();
-                  onEnterAuditList('external');
-                }}
-                className="w-full px-3 py-3 text-[13px] border-b border-white/10 active:bg-white/10"
-              >
-                外部组织审核
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  closeFlyoutMenus();
-                  onEnterAuditList('v8_org');
-                }}
-                className="w-full px-3 py-3 text-[13px] active:bg-white/10"
-              >
-                V8机构审核
-              </button>
-            </div>
-          )}
-
-          {showProfileMenu && (
-            <div className="absolute bottom-[56px] right-1 left-[48%] z-40 rounded-lg bg-[#4c4c4c] text-white shadow-lg overflow-hidden">
-              <button
-                type="button"
-                onClick={() => {
-                  closeFlyoutMenus();
-                  onEnterProfile('external');
-                }}
-                className="w-full px-3 py-3 text-[13px] border-b border-white/10 active:bg-white/10"
-              >
-                外部组织用户
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  closeFlyoutMenus();
-                  onEnterProfile('v8_org');
-                }}
-                className="w-full px-3 py-3 text-[13px] active:bg-white/10"
-              >
-                V8机构用户
-              </button>
-            </div>
-          )}
-
           <button
             onClick={() => {
               closeFlyoutMenus();
@@ -807,42 +803,95 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
             <span>快捷报送</span>
           </button>
 
-          <button
-            id="menu-btn-manual-report"
-            onClick={() => {
-              closeFlyoutMenus();
-              onEnterWorkbench();
-            }}
-            className="flex-1 flex items-center justify-center border-l border-[#e5e5e5] text-[#222222] text-[12px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-0.5 whitespace-nowrap overflow-hidden"
-            title="手动报送（进入首页）"
-          >
-            <span>手动报送</span>
-          </button>
+          <div className="relative flex-1 flex items-stretch border-l border-[#e5e5e5]">
+            {showWorkbenchMenu && (
+              <div className="absolute bottom-[56px] left-0 right-0 z-40 rounded-lg bg-[#4c4c4c] text-white shadow-lg overflow-hidden">
+                {workbenchPanel === 'root' ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeFlyoutMenus();
+                        onEnterWorkbench();
+                      }}
+                      className="w-full px-3 py-3 text-[13px] text-left flex items-center justify-between border-b border-white/10 active:bg-white/10"
+                    >
+                      <span>手动报送</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-white/60 shrink-0" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWorkbenchPanel('audit')}
+                      className="w-full px-3 py-3 text-[13px] text-left flex items-center justify-between active:bg-white/10"
+                    >
+                      <span>报送审核</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-white/60 shrink-0" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setWorkbenchPanel('root')}
+                      className="w-full px-3 py-2.5 text-[12px] text-white/70 border-b border-white/10 flex items-center gap-1 active:bg-white/10"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5 rotate-180 shrink-0" />
+                      返回工作台
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeFlyoutMenus();
+                        onEnterAuditList('external');
+                      }}
+                      className="w-full px-3 py-3 text-[13px] text-left flex items-center justify-between border-b border-white/10 active:bg-white/10"
+                    >
+                      <span>外部组织审核</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-white/60 shrink-0" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeFlyoutMenus();
+                        onEnterAuditList('v8_org');
+                      }}
+                      className="w-full px-3 py-3 text-[13px] text-left flex items-center justify-between active:bg-white/10"
+                    >
+                      <span>V8机构审核</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-white/60 shrink-0" />
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
 
-          <button
-            id="menu-btn-audit"
-            onClick={() => {
-              setShowProfileMenu(false);
-              setShowAuditMenu((prev) => !prev);
-            }}
-            className="flex-1 flex items-center justify-center space-x-0.5 border-l border-[#e5e5e5] text-[#222222] text-[12px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-0.5 whitespace-nowrap overflow-hidden"
-            title="报送审核"
-          >
-            <span>报送审核</span>
-            <ChevronRight className="w-3 h-3 text-[#9e9e9e] -rotate-90 shrink-0" />
-          </button>
+            <button
+              id="menu-btn-workbench"
+              onClick={() => {
+                setShowWorkbenchMenu((prev) => {
+                  const next = !prev;
+                  if (!next) setWorkbenchPanel('root');
+                  return next;
+                });
+              }}
+              className="w-full flex items-center justify-center space-x-0.5 text-[#222222] text-[12px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-0.5 whitespace-nowrap overflow-hidden"
+              title="工作台（手动报送 / 报送审核）"
+            >
+              <span>工作台</span>
+              <ChevronRight className="w-3 h-3 text-[#9e9e9e] -rotate-90 shrink-0" />
+            </button>
+          </div>
 
           <button
             id="menu-btn-profile"
             onClick={() => {
-              setShowAuditMenu(false);
-              setShowProfileMenu((prev) => !prev);
+              closeFlyoutMenus();
+              onEnterProfile();
             }}
-            className="flex-1 flex items-center justify-center space-x-0.5 border-l border-[#e5e5e5] text-[#222222] text-[12px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-0.5 whitespace-nowrap overflow-hidden"
-            title="选择用户身份进入个人中心"
+            className="flex-1 flex items-center justify-center border-l border-[#e5e5e5] text-[#222222] text-[12px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-0.5 whitespace-nowrap overflow-hidden"
+            title="进入个人中心"
           >
             <span>个人中心</span>
-            <ChevronRight className="w-3 h-3 text-[#9e9e9e] -rotate-90 shrink-0" />
           </button>
         </div>
       ) : (

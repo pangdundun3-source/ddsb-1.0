@@ -10,6 +10,8 @@ import {
   Globe2,
   RefreshCcw,
   RefreshCw,
+  RotateCcw,
+  Search,
   Send,
   ShieldCheck,
   Target,
@@ -21,7 +23,7 @@ import {
 import { EvaluationProfileModal, ProfileDetailData } from '../components/EvaluationProfileModal';
 import { PaginationBar } from '../components/PaginationBar';
 import { DateRangeField } from '../components/DateRangeField';
-import { OrgFilterSelect } from '../components/OrgFilterSelect';
+import { OrgTreeFilterPanel } from '../components/OrgTreeFilterPanel';
 import {
   INITIAL_ORG_NODES,
   matchOrganizationByFilter,
@@ -513,7 +515,9 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
   const [startDate, setStartDate] = useState(toSlashDate(PRESET_RANGES.d7.start));
   const [endDate, setEndDate] = useState(toSlashDate(PRESET_RANGES.d7.end));
   const [customFieldKey, setCustomFieldKey] = useState(0);
-  const [personOrgFilter, setPersonOrgFilter] = useState<string | null>(null);
+  /** 右侧组织树草稿；点「查询」后写入 appliedOrgFilter 生效 */
+  const [draftOrgFilter, setDraftOrgFilter] = useState<string | null>(null);
+  const [appliedOrgFilter, setAppliedOrgFilter] = useState<string | null>(null);
   const [personGroupFilter, setPersonGroupFilter] = useState<string[]>([]);
   const [personPage, setPersonPage] = useState(1);
   const [personPageSize, setPersonPageSize] = useState(10);
@@ -544,7 +548,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
 
   useEffect(() => {
     setPersonPage(1);
-  }, [perspective, personOrgFilter, personGroupFilter, reporterSort, auditorSort]);
+  }, [perspective, appliedOrgFilter, personGroupFilter, reporterSort, auditorSort]);
 
   useEffect(() => {
     if (tab === 'group') setTab('org');
@@ -568,17 +572,25 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
     window.setTimeout(() => setRefreshingStats(false), 450);
   };
 
+  const handleQuery = () => {
+    setAppliedOrgFilter(draftOrgFilter);
+    setStatsUpdatedAt(formatStatsClock());
+    showToast('查询完成，考核结果已更新');
+  };
+
   const resetFilters = () => {
     setRangePreset('d7');
     setPeriod('day');
     setStartDate(toSlashDate(PRESET_RANGES.d7.start));
     setEndDate(toSlashDate(PRESET_RANGES.d7.end));
-    setPersonOrgFilter(null);
+    setDraftOrgFilter(null);
+    setAppliedOrgFilter(null);
     setPersonGroupFilter([]);
     setReporterSort('adopted');
     setAuditorSort('audited');
     setOrgSort('total');
     setGroupSort('total');
+    setStatsUpdatedAt(formatStatsClock());
     showToast('筛选条件已重置');
   };
 
@@ -627,12 +639,17 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
     return next;
   };
 
-  const sortedOrgs = useMemo(() => sortOrgLikeRecords(orgRecords, orgSort), [orgSort]);
+  const sortedOrgs = useMemo(() => {
+    const filtered = orgRecords.filter((row) =>
+      matchOrganizationByFilter(row.name, appliedOrgFilter, INITIAL_ORG_NODES)
+    );
+    return sortOrgLikeRecords(filtered, orgSort);
+  }, [orgSort, appliedOrgFilter]);
 
   const sortedGroups = useMemo(() => sortOrgLikeRecords(groupRecords, groupSort), [groupSort]);
 
   const matchesPerson = (row: { org: string; group: string }) =>
-    matchOrganizationByFilter(row.org, personOrgFilter, INITIAL_ORG_NODES) &&
+    matchOrganizationByFilter(row.org, appliedOrgFilter, INITIAL_ORG_NODES) &&
     (personGroupFilter.length === 0 || personGroupFilter.includes(row.group));
 
   const rankedReporters = useMemo<Ranked<ReporterRow>[]>(() => {
@@ -802,8 +819,6 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
     // 群组考核入口隐藏，页面与数据保留便于后期再开
     { id: 'person', label: '人员考核', desc: '报送考核与审核考核', icon: <UserRound className="h-4 w-4" /> },
   ];
-
-  const activeTabMeta = evalTabs.find((item) => item.id === tab) ?? evalTabs[0];
 
   const handleExportData = () => {
     const stamp = formatExportDate();
@@ -1015,12 +1030,39 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
 
   const renderPageFilters = () => (
     <section className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.03)] sm:px-5">
+      {/* 标题区与 Tab 合并：奖杯 + 左右切换 + 统计更新 */}
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-xs">
             <Trophy className="h-5 w-5" />
           </span>
-          <h1 className="truncate text-base font-bold text-slate-900">{activeTabMeta.label}</h1>
+          <nav
+            className="inline-flex flex-wrap items-center gap-1 rounded-2xl border border-[#E4EDF7] bg-[#F0F5FA] p-1"
+            role="tablist"
+            aria-label="考核页面"
+          >
+            {evalTabs.map((item) => {
+              const active = tab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setTab(item.id)}
+                  className={`inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-xl px-3.5 text-xs transition select-none ${
+                    active
+                      ? 'bg-white font-semibold text-[#1B5BD6] shadow-xs'
+                      : 'font-medium text-slate-600 hover:text-slate-900'
+                  }`}
+                  title={item.desc}
+                >
+                  <span className={active ? 'text-[#1B5BD6]' : 'text-slate-400'}>{item.icon}</span>
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
         </div>
         <div className="inline-flex items-center gap-1.5 text-xs text-slate-400 tabular-nums">
           <span>统计更新</span>
@@ -1093,63 +1135,45 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
 
         </div>
 
-        <button
-          type="button"
-          onClick={resetFilters}
-          className="inline-flex min-h-8 cursor-pointer items-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 shadow-xs transition hover:text-slate-800"
-          title="重置筛选"
-        >
-          重置
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleQuery}
+            className="inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-[#1E5ABB] px-3.5 text-xs font-semibold text-white shadow-2xs transition hover:bg-[#134092]"
+            title="按当前条件查询"
+          >
+            <Search className="h-3.5 w-3.5" />
+            查询
+          </button>
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 shadow-xs transition hover:text-slate-800"
+            title="重置筛选"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            重置
+          </button>
+        </div>
       </div>
     </section>
   );
 
   return (
-    <div className="relative min-w-0 pb-10 text-slate-700">
+    <div className="relative min-w-0 space-y-4 pb-10 text-slate-700">
       {toast && (
         <div className="fixed right-5 top-5 z-50 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white shadow-xl">
           {toast}
         </div>
       )}
 
-      <div className="flex flex-col gap-4 md:flex-row md:items-start">
-      {/* 左侧整页 Tab：切换三个完整界面 */}
-      <aside className="w-full shrink-0 md:sticky md:top-5 md:w-44 md:self-start">
-        <div className="rounded-2xl border border-slate-200/90 bg-white p-2 shadow-2xs">
-          <nav className="flex gap-1 overflow-x-auto md:flex-col md:space-y-1 md:overflow-visible" role="tablist" aria-label="考核页面">
-            {evalTabs.map((item) => {
-              const active = tab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => setTab(item.id)}
-                  className={`relative flex min-w-[9.5rem] flex-shrink-0 cursor-pointer items-start gap-2.5 rounded-xl px-2.5 py-2.5 text-left transition-all md:w-full md:min-w-0 ${
-                    active ? 'bg-blue-50 text-[#1E5ABB]' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
-                >
-                  {active && (
-                    <span className="absolute bottom-2.5 left-0 top-2.5 hidden w-1 rounded-r-full bg-[#1E5ABB] md:block" />
-                  )}
-                  <span className={`mt-0.5 shrink-0 ${active ? 'text-[#1E5ABB]' : 'text-slate-400'}`}>{item.icon}</span>
-                  <span className="min-w-0">
-                    <span className={`block text-[13px] ${active ? 'font-bold' : 'font-medium'}`}>{item.label}</span>
-                    <span className="mt-0.5 block truncate text-[11px] text-slate-400">{item.desc}</span>
-                  </span>
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-      </aside>
+      {/* 筛选通栏：组织树与下方「考核指标」行对齐 */}
+      {renderPageFilters()}
 
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
       <div className="min-w-0 flex-1 space-y-4">
       {tab === 'org' ? (
         <>
-          {renderPageFilters()}
           {/* 组织节点考核指标 */}
           <section className={sectionClass}>
             <div className="flex min-w-0 flex-wrap items-center justify-between gap-2.5 border-b border-slate-100 pb-3">
@@ -1532,7 +1556,6 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
         </>
       ) : (
         <>
-          {renderPageFilters()}
           {/* 人员考核明细榜 */}
           <section className={sectionClass}>
             <div className="flex flex-col gap-3 border-b border-slate-100 pb-3 lg:flex-row lg:items-center lg:justify-between">
@@ -1573,13 +1596,6 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
                 </button>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <OrgFilterSelect
-                  value={personOrgFilter}
-                  onChange={setPersonOrgFilter}
-                  allLabel="全部组织节点"
-                  title="按组织树逐级下钻筛选（含下级）"
-                  triggerClassName="!min-h-8 !h-8 !rounded-xl !border-slate-200 !shadow-xs !text-xs !min-w-[168px] !max-w-[220px]"
-                />
                 <MultiFilterSelect
                   ariaLabel="按群组筛选"
                   placeholder="全部群组"
@@ -1761,6 +1777,13 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
         </>
       )}
       </div>
+
+      <OrgTreeFilterPanel
+        value={draftOrgFilter}
+        onChange={setDraftOrgFilter}
+        rootOrgName="台中市网信办"
+        className="xl:self-stretch"
+      />
       </div>
 
       <EvaluationProfileModal

@@ -12,9 +12,7 @@ import {
   INITIAL_REPORTS,
   INITIAL_NOTIFICATIONS,
   REPORT_TEMPLATES,
-  createDemoDraftReports,
 } from './data/mockData';
-import { purgeExpiredDrafts } from './utils/draftRetention';
 
 import { WeChatPhoneShell } from './components/WeChatPhoneShell';
 import { LoginView } from './components/LoginView';
@@ -72,21 +70,8 @@ export default function App() {
   });
 
   const [reports, setReports] = useState<SpeedReport[]>(() =>
-    purgeExpiredDrafts([...createDemoDraftReports(), ...INITIAL_REPORTS])
+    INITIAL_REPORTS.filter((r) => r.status !== 'draft')
   );
-
-  // 草稿箱默认仅保留 24 小时，超时自动清除
-  useEffect(() => {
-    const sweep = () => {
-      setReports((prev) => {
-        const next = purgeExpiredDrafts(prev);
-        return next.length === prev.length ? prev : next;
-      });
-    };
-    sweep();
-    const timer = window.setInterval(sweep, 60 * 1000);
-    return () => window.clearInterval(timer);
-  }, []);
 
   const [notifications, setNotifications] = useState<AppNotification[]>(() => {
     try {
@@ -209,32 +194,12 @@ export default function App() {
     }));
   };
 
-  const handleSaveReport = (reportPayload: Partial<SpeedReport>, isSubmit: boolean = true) => {
+  const handleSaveReport = (reportPayload: Partial<SpeedReport>) => {
     setIsCreatingNewReport(false);
     setPendingTemplateId(null);
     const isNew = !reports.some((r) => r.id === reportPayload.id);
     const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
-    const nextStatus = isSubmit ? 'pending_audit' : 'draft';
-
-    if (!isSubmit) {
-      const draftReport: SpeedReport = {
-        ...(reportPayload as SpeedReport),
-        status: 'draft',
-        updateTime: now,
-        createTime: reportPayload.createTime || now,
-        tags: reportPayload.tags?.length ? reportPayload.tags : ['草稿'],
-      };
-      if (isNew) {
-        setReports((prev) => [draftReport, ...prev]);
-      } else {
-        setReports((prev) =>
-          prev.map((r) => (r.id === reportPayload.id ? { ...r, ...draftReport } : r))
-        );
-      }
-      showToast('已保存到草稿箱\n草稿默认保留 24 小时');
-      setEditingReport(null);
-      return;
-    }
+    const nextStatus = 'pending_audit';
 
     let identificationTag = reportPayload.identificationTag;
     let identificationReason = reportPayload.identificationReason;
@@ -309,55 +274,6 @@ export default function App() {
       setSelectedReportEntry(null);
     }
     showToast('已删除该速报');
-  };
-
-  const handleRecallReport = (id: string) => {
-    const current = reports.find((report) => report.id === id);
-    if (!current) return;
-    if (current.status !== 'pending_audit') {
-      showToast('只有尚未进入审核流程的待审核速报才能撤回', 'error');
-      return;
-    }
-
-    const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
-    const draftTags = Array.from(
-      new Set(
-        ['草稿', current.type, current.authorDept, ...(current.tags || []).filter((t) => t === '快捷上报')].filter(
-          Boolean
-        )
-      )
-    );
-
-    // 撤回至草稿箱：状态改 draft，清除预判断标识，审核侧待办通知移除
-    setReports((prev) =>
-      prev.map((report) =>
-        report.id === id
-          ? {
-              ...report,
-              status: 'draft' as const,
-              updateTime: now,
-              tags: draftTags,
-              identificationTag: undefined,
-              identificationReason: undefined,
-              identificationTime: undefined,
-              rejectReason: undefined,
-              auditRemarks: undefined,
-              score: undefined,
-            }
-          : report
-      )
-    );
-    setNotifications((prev) =>
-      prev.filter((notification) => !(notification.relatedReportId === id && notification.type === '待办通知'))
-    );
-    if (selectedReport?.id === id) {
-      setSelectedReport(null);
-      setSelectedReportEntry(null);
-    }
-    setEditingReport(null);
-    setIsCreatingNewReport(false);
-    setCurrentTab('report');
-    showToast('已撤回至草稿箱\n草稿默认保留 24 小时');
   };
 
   const handleApproveReport = (id: string, score?: number) => {
@@ -615,7 +531,7 @@ export default function App() {
   };
 
   const handleResetDemoData = () => {
-    setReports(purgeExpiredDrafts([...createDemoDraftReports(), ...INITIAL_REPORTS]));
+    setReports(INITIAL_REPORTS.filter((r) => r.status !== 'draft'));
     setNotifications(INITIAL_NOTIFICATIONS);
     setUser(INITIAL_USER);
     showToast('已重置恢复初始演示数据');
@@ -883,7 +799,7 @@ export default function App() {
               setIsOfficialAccount(false);
               setIsLoggedIn(true);
               setCurrentTab('report');
-              showToast('已进入手动报送');
+              showToast('已进入我的报送');
             }}
             onEnterWorkbench={(targetRole) => {
               setPortalUserKind('external');
@@ -916,19 +832,12 @@ export default function App() {
                 showToast('已进入外部组织审核');
               }
             }}
-            onEnterProfile={(kind = 'external') => {
+            onEnterProfile={() => {
               resetModuleViewState();
-              setPortalUserKind(kind);
               setIsLoggedIn(true);
               setIsOfficialAccount(false);
-              if (kind === 'v8_org') {
-                setUser((prev) => ({ ...prev, role: '审核员' }));
-                setCurrentTab('profile');
-                showToast('已进入 V8 机构用户（审核 / 我的）');
-              } else {
-                setCurrentTab('profile');
-                showToast('已进入外部组织用户个人中心');
-              }
+              setCurrentTab('profile');
+              showToast('已进入个人中心');
             }}
             onEnterLogin={() => {
               setPortalUserKind('external');
@@ -940,19 +849,11 @@ export default function App() {
               setIsActivationH5View(true);
             }}
             onQuickReportSubmit={(payload) => {
-              // 与页面新建报送「提交审核」同一套 handleSaveReport（含预判断打标）
               const id = payload.id || `rep_${Date.now()}`;
-              handleSaveReport({ ...payload, id, status: 'pending_audit' }, true);
-              return id;
-            }}
-            onQuickReportSaveDraft={(payload) => {
-              // 与页面新建报送「保存草稿」同一套草稿箱逻辑（默认保留 24 小时）
-              const id = payload.id || `rep_draft_${Date.now()}`;
-              handleSaveReport({ ...payload, id, status: 'draft' }, false);
+              handleSaveReport({ ...payload, id, status: 'pending_audit' });
               return id;
             }}
             onQuickReportRefine={(payload) => {
-              // 打开与新建模板相同的上报表单，预填线索后可继续存草稿/提交
               setPortalUserKind('external');
               resetModuleViewState();
               setIsLoggedIn(true);
@@ -961,14 +862,13 @@ export default function App() {
               setPendingTemplateId(payload.templateId || null);
               setEditingReport({
                 ...(payload as SpeedReport),
-                id: payload.id || `rep_draft_${Date.now()}`,
-                status: 'draft',
+                id: payload.id || `rep_${Date.now()}`,
                 tags: payload.tags?.length
-                  ? payload.tags
-                  : ['草稿', '快捷上报', payload.type, payload.authorDept].filter(Boolean) as string[],
+                  ? payload.tags.filter((t) => t !== '草稿')
+                  : (['快捷上报', payload.type, payload.authorDept].filter(Boolean) as string[]),
               });
               setIsCreatingNewReport(false);
-              showToast('已带入线索，可按报送模板完善后提交或存草稿');
+              showToast('已带入线索，请完善后提交');
             }}
             onToast={showToast}
           />
@@ -987,28 +887,31 @@ export default function App() {
           />
         ) : (
           <>
-            {currentTab === 'home' && (() => {
-              const activeNotifs = notifications.filter((n) => !dismissedNotificationIds.includes(n.id));
-              const latestNotif = activeNotifs[0];
-              return (
-                <DashboardView
-                  user={user}
-                  onNewReport={handleOpenNewReport}
-                  latestNotification={latestNotif}
-                  notifications={notifications}
-                  reports={reports}
-                  onNavigateToMessages={() => {
-                    setCurrentTab('message');
-                    setViewMode('main');
-                  }}
-                  onSelectNotification={handleSelectNotification}
-                  onDismissNotification={(id) => {
-                    setDismissedNotificationIds((prev) => [...prev, id]);
-                    showToast('已关闭该通知提醒');
-                  }}
-                />
-              );
-            })()}
+            {currentTab === 'home' &&
+              (() => {
+                  const activeNotifs = notifications.filter(
+                    (n) => !dismissedNotificationIds.includes(n.id)
+                  );
+                  const latestNotif = activeNotifs[0];
+                  return (
+                    <DashboardView
+                      user={user}
+                      onNewReport={handleOpenNewReport}
+                      latestNotification={latestNotif}
+                      notifications={notifications}
+                      reports={reports}
+                      onNavigateToMessages={() => {
+                        setCurrentTab('message');
+                        setViewMode('main');
+                      }}
+                      onSelectNotification={handleSelectNotification}
+                      onDismissNotification={(id) => {
+                        setDismissedNotificationIds((prev) => [...prev, id]);
+                        showToast('已关闭该通知提醒');
+                      }}
+                    />
+                  );
+                })()}
 
             {currentTab === 'message' && (
               <NotificationView
@@ -1025,7 +928,6 @@ export default function App() {
                   user={user}
                   onSaveReport={handleSaveReport}
                   onDeleteReport={handleDeleteReport}
-                  onRecallReport={handleRecallReport}
                   onSelectReport={(r) => {
                     setSelectedReportEntry(null);
                     setSelectedReport(r);
@@ -1077,6 +979,18 @@ export default function App() {
                 onToggleActivationDetail={setIsActivationDetail}
                 hideReportStats={isV8OrgUser}
                 isV8OrgUser={isV8OrgUser}
+                onChangePortalUserKind={(kind) => {
+                  setPortalUserKind(kind);
+                  if (kind === 'v8_org') {
+                    setUser((prev) => ({ ...prev, role: '审核员' }));
+                    if (currentTab !== 'audit' && currentTab !== 'profile') {
+                      setCurrentTab('profile');
+                    }
+                    showToast('已切换为内部机构（仅审核 / 我的）');
+                  } else {
+                    showToast('已切换为外部组织（全功能）');
+                  }
+                }}
               />
             )}
           </>
@@ -1103,7 +1017,6 @@ export default function App() {
               onReject={handleRejectReport}
               onTransfer={handleTransferReport}
               onDeleteReport={handleDeleteReport}
-              onRecallReport={handleRecallReport}
               onBatchApprove={handleBatchApproveSameLocation}
               onBatchReject={handleBatchReject}
               onEditDraft={(report) => {

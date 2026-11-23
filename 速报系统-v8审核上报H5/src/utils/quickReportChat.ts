@@ -112,10 +112,19 @@ const ENTRY_KEYWORDS = ['快捷报送', '快捷上报', '报送', '线索', '转
 const CANCEL_KEYWORDS = ['取消', '0'];
 const FORM_KEYWORDS = ['表单', '页面上报'];
 
+/** 快捷报送推荐填写模板（引导文案与识别失败提示共用） */
+export const STRUCTURED_CLUE_TEMPLATE = ['报送标题：', '报送描述：', '涉事属地：', '相关链接：'].join(
+  '\n'
+);
+
 const RUMOR_WORDS = ['谣言', '不实', '辟谣', '虚假', '造谣'];
 const APPEAL_WORDS = ['诉求', '投诉', '民生', '反映', '办理'];
 const RISK_WORDS = ['隐患', '专项', '协查', '风险线索', '联合核查'];
 const INCIDENT_WORDS = ['火灾', '爆炸', '事故', '伤亡', '警情', '突发事件', '浓烟', '救援', '消防车'];
+
+/** 下一字段标签：用于截取可跨行的「报送描述」 */
+const NEXT_FIELD_LOOKAHEAD =
+  '(?=\\n\\s*(?:报送标题|报送描述|涉事属地|相关链接|信息标题|信息发布时间|报送人|属地|链接)[:：]|$)';
 
 export const isEntryKeyword = (text: string) =>
   ENTRY_KEYWORDS.some((word) => text === word || text.startsWith(word));
@@ -126,11 +135,26 @@ export const isCancelKeyword = (text: string) =>
 export const isFormKeyword = (text: string) =>
   FORM_KEYWORDS.some((word) => text.trim() === word);
 
-/** 结构化线索特征：标签命中 ≥ 3 才被动识别 */
+/** 结构化线索特征：标签命中 ≥ 2 或标题+链接即可被动识别 */
 export const looksLikeStructuredClue = (text: string) => {
-  const tags = ['报送人', '涉事属地', '属地', '信息发布时间', '发布时间', '信息标题', '标题', '链接'];
+  const tags = [
+    '报送标题',
+    '报送描述',
+    '涉事属地',
+    '相关链接',
+    '报送人',
+    '属地',
+    '信息发布时间',
+    '发布时间',
+    '信息标题',
+    '标题',
+    '链接',
+  ];
   const hit = tags.filter((tag) => text.includes(tag)).length;
-  return hit >= 3 || (Boolean(extractLabeled(text, ['信息标题', '标题'])) && /https?:\/\//i.test(text));
+  return (
+    hit >= 2 ||
+    (Boolean(extractLabeled(text, ['报送标题', '信息标题', '标题'])) && /https?:\/\//i.test(text))
+  );
 };
 
 const extractLabeled = (text: string, labels: string[]) => {
@@ -142,29 +166,38 @@ const extractLabeled = (text: string, labels: string[]) => {
   return undefined;
 };
 
+/** 可跨行取值（到下一标签或文末） */
+const extractLabeledBlock = (text: string, labels: string[]) => {
+  for (const label of labels) {
+    const re = new RegExp(`${label}[:：]?\\s*([\\s\\S]*?)${NEXT_FIELD_LOOKAHEAD}`, 'i');
+    const match = text.match(re);
+    const value = match?.[1]?.trim();
+    if (value) return value;
+  }
+  return undefined;
+};
+
 const extractLink = (text: string) => {
-  const labeled = extractLabeled(text, ['链接']);
+  const labeled = extractLabeled(text, ['相关链接', '链接']);
   if (labeled && /https?:\/\//i.test(labeled)) {
     const url = labeled.match(/https?:\/\/\S+/i);
     return url?.[0];
   }
+  if (labeled && labeled.trim()) return labeled.trim();
   const bare = text.match(/https?:\/\/\S+/i);
   return bare?.[0];
 };
 
 export const parseClueText = (raw: string): ParsedClue => {
-  const title = extractLabeled(raw, ['信息标题', '标题']);
+  const title = extractLabeled(raw, ['报送标题', '信息标题', '标题']);
+  const description = extractLabeledBlock(raw, ['报送描述', '内容描述', '描述']);
   const district = extractLabeled(raw, ['涉事属地', '属地']);
   const timeText = extractLabeled(raw, ['信息发布时间', '发布时间', '时间']);
   const link = extractLink(raw);
   const reporterLine = raw.match(/报送人[：:]?\s*([^\n]+)/);
   const reporterHint = reporterLine?.[1]?.trim();
 
-  let summary = title;
-  if (title && raw.includes(title)) {
-    // 标题行后的长描述已在标题里时，用标题作摘要初稿
-    summary = title;
-  }
+  const summary = description || title;
 
   return {
     reporterHint,
@@ -296,7 +329,7 @@ export const matchTemplateByClue = (
  */
 export const getMissingCoreLabels = (clue: ParsedClue, matched: MatchedTemplate) => {
   const missing: string[] = [];
-  if (!clue.title?.trim()) missing.push('信息标题');
+  if (!clue.title?.trim()) missing.push('报送标题');
 
   const requiredLink = matched.template.extraFields.find((f) => f.required && f.type === 'link');
   if (requiredLink && !clue.link) missing.push(requiredLink.label);
@@ -377,13 +410,11 @@ export const buildQuickReportDraft = (
   if (!clue.title?.trim()) {
     if (!looksLikeStructuredClue(raw)) {
       return {
-        error:
-          '已进入快捷上报，但未能稳定识别标题/属地等关键信息。\n请按下列格式发送结构化文字；也可回复【表单】改为页面填写：\n\n涉事属地：\n信息发布时间：\n信息标题：\n链接：',
+        error: `已进入快捷上报，但未能稳定识别标题/属地等关键信息。\n请按下列格式发送结构化文字；也可回复【表单】改为页面填写：\n\n${STRUCTURED_CLUE_TEMPLATE}`,
       };
     }
     return {
-      error:
-        '未能识别「信息标题」。请补充标题后重发，或回复【表单】在页面中填写。',
+      error: '未能识别「报送标题」。请补充标题后重发，或回复【表单】在页面中填写。',
     };
   }
 
@@ -417,18 +448,17 @@ export const formatOrgPrompt = (draft: QuickReportDraft) => {
   const lines = [
     '已识别线索，请先确认报送机构：',
     '',
-    `标题：${draft.clue.title}`,
+    `报送标题：${draft.clue.title}`,
   ];
   if (draft.clue.sourceLabel) {
     lines.push(`来源：${draft.clue.sourceLabel}`);
   }
   if (draft.clue.summary && draft.clue.summary !== draft.clue.title) {
-    lines.push(`摘要：${draft.clue.summary}`);
+    lines.push(`报送描述：${draft.clue.summary}`);
   }
   lines.push(
-    `属地：${draft.clue.district || '未识别'}｜时间：${draft.clue.timeText || '未识别'}｜链接：${
-      draft.clue.link ? '已识别' : '未识别'
-    }`,
+    `涉事属地：${draft.clue.district || '未识别'}`,
+    `相关链接：${draft.clue.link || '未识别'}`,
     '',
     '请选择报送机构（选定后将自动匹配模板）：',
     ...draft.orgOptions.map((org, index) => `${index + 1} ${org}`),
@@ -454,10 +484,13 @@ export const formatConfirmPrompt = (draft: QuickReportDraft) => {
     lines.push(`匹配说明：${matched.reason}`);
   }
   const mediaAtts = mediaAttachmentsOnly(draft.attachments);
+  lines.push(`报送标题：${draft.clue.title}`);
+  if (draft.clue.summary && draft.clue.summary !== draft.clue.title) {
+    lines.push(`报送描述：${draft.clue.summary}`);
+  }
   lines.push(
-    `标题：${draft.clue.title}`,
-    `属地：${draft.clue.district || '未识别'}｜时间：${draft.clue.timeText || '未识别'}`,
-    `链接：${draft.clue.link || '未识别'}`,
+    `涉事属地：${draft.clue.district || '未识别'}`,
+    `相关链接：${draft.clue.link || '未识别'}`,
     '',
     mediaAtts.length
       ? `当次附件：\n${formatAttachmentLines(mediaAtts).join('\n')}\n可点「+」继续补充图片、视频或文件。`
@@ -473,17 +506,11 @@ export const formatConfirmPrompt = (draft: QuickReportDraft) => {
       '',
       `缺少：${draft.missingLabels.slice(0, 6).join('、')}${draft.missingLabels.length > 6 ? '…' : ''}`
     );
-    lines.push(
-      '',
-      '可先保存草稿，或去页面完善后再提交。',
-      '2 保存为草稿',
-      '3 去完善',
-      '0 取消'
-    );
+    lines.push('', '当前缺少必填项，确认提交将按已有内容上报。');
   } else {
-    lines.push('', '说明：模板细项将按初值提交；也可先存草稿或去完善后再报。');
-    lines.push('', '1 直接提交', '2 保存为草稿', '3 去完善', '0 取消');
+    lines.push('', '说明：模板细项将按初值提交。');
   }
+  lines.push('', '1 确认提交', '0 取消');
   return lines.join('\n');
 };
 
@@ -501,25 +528,27 @@ export const formatSuccessPrompt = (params: {
     '可在「我的报送」查看进度。',
   ].join('\n');
 
-export const formatDraftSavedPrompt = (params: {
-  title: string;
-  org: string;
-  templateName: string;
-  reportId: string;
-}) =>
-  [
-    '已保存为草稿。',
-    `模板：${params.templateName}｜机构：${params.org}`,
-    `标题：${params.title}`,
-    `单号：${params.reportId}`,
-    '可在「我的报送 → 草稿箱」继续编辑；草稿默认保留 24 小时。',
-  ].join('\n');
+export const GUIDE_AFTER_MENU = `【快捷报送】
+请按下列模板发送结构化文字（可复制后填写）：
 
-export const GUIDE_AFTER_MENU =
-  '【快捷报送】\n请发送结构化文字线索（含属地、时间、标题等字段）。\n可点「+」补充图片、视频、文件等附件，随本条报送一并提交。\n\n流程：文字抽取 → 确认提交（可直接提交或保存草稿）。\n完整表单请走菜单「手动报送」。\n回复【取消】退出。';
+${STRUCTURED_CLUE_TEMPLATE}
 
-export const GUIDE_AFTER_KEYWORD =
-  '已进入快捷报送。\n请先发送结构化文字生成线索；可点「+」补充图片、视频、文件等附件。\n回复【取消】退出；回复【表单】改为页面填写。';
+可点「+」补充图片、视频、文件等附件，随本条报送一并提交。
+流程：文字抽取 → 确认提交。
+完整表单请走菜单「手动报送」。
+回复【取消】退出。`;
 
-export const LIGHT_TIP =
-  '如需快速报送：点击菜单「快捷报送」，或发送【报送】后粘贴结构化文字。\n图片、视频、文件请在生成线索后作为当次附件上传。\n完整填写请使用「手动报送」。';
+export const GUIDE_AFTER_KEYWORD = `已进入快捷报送。
+请按下列模板发送结构化文字（可复制后填写）：
+
+${STRUCTURED_CLUE_TEMPLATE}
+
+可点「+」补充图片、视频、文件等附件。
+回复【取消】退出；回复【表单】改为页面填写。`;
+
+export const LIGHT_TIP = `如需快速报送：点击菜单「快捷报送」，或发送【报送】后按模板粘贴：
+
+${STRUCTURED_CLUE_TEMPLATE}
+
+图片、视频、文件请在生成线索后作为当次附件上传。
+完整填写请使用「手动报送」。`;

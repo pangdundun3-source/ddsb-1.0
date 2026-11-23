@@ -77,7 +77,7 @@ export const parseLinkMultimodal = (rawOrUrl: string): LinkMultimodalResult => {
       ok: false,
       link,
       reason:
-        '无法访问原文（模拟失败）。\n请改发结构化线索正文，或回复【表单】在页面中填写。\n\n涉事属地：\n信息发布时间：\n信息标题：\n链接：',
+        '无法访问原文（模拟失败）。\n请改发结构化线索正文，或回复【表单】在页面中填写。\n\n报送标题：\n报送描述：\n涉事属地：\n相关链接：',
     };
   }
 
@@ -104,6 +104,19 @@ export const parseLinkMultimodal = (rawOrUrl: string): LinkMultimodalResult => {
       summary: '抖音视频画面显示路口积水较深，过往车辆缓行，评论呼吁尽快排水处置。',
       timeText,
       district: '台中市',
+    };
+  }
+
+  if (host.includes('kuaishou.com') || host.includes('chenzhongtech.com')) {
+    return {
+      ok: true,
+      link,
+      sourceHost: host,
+      title: '绥化市一处厂房发生火灾，现场火势较大浓烟滚滚，多辆消防车已赶到现场，人员伤亡情况不明。',
+      summary:
+        '快手视频显示绥化市某厂房起火，现场浓烟较大，多辆消防车到场处置，人员伤亡情况尚不明，建议属地核实。',
+      timeText,
+      district: '绥化市',
     };
   }
 

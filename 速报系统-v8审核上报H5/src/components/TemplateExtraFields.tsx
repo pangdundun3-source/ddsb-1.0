@@ -12,11 +12,23 @@ import {
   Loader2,
   Paperclip,
   RefreshCw,
+  Sparkles,
   Trash2,
   Upload,
   X,
 } from 'lucide-react';
 import { TemplateExtraField, TemplateFieldValue } from '../types';
+import { LINK_ANALYZING_TEXT, parseLinkMultimodal } from '../utils/linkMultimodalMock';
+
+export type LinkAiExtractFillPayload = {
+  linkFieldId: string;
+  title: string;
+  summary: string;
+  district?: string;
+  timeText?: string;
+  link: string;
+  sourceHost: string;
+};
 
 interface TemplateExtraFieldsProps {
   fields: TemplateExtraField[];
@@ -26,6 +38,8 @@ interface TemplateExtraFieldsProps {
   /** 任一链接字段截图任务进行中时通知父级，用于提交拦截 */
   onScreenshotPendingChange?: (pending: boolean) => void;
   onToast?: (msg: string) => void;
+  /** AI 多模态提取成功后回填主表单（标题/描述等） */
+  onAiExtractFill?: (payload: LinkAiExtractFillPayload) => void;
 }
 
 const LINK_SHOT_TIMEOUT_MS = 20_000;
@@ -325,6 +339,11 @@ const ErrorText: React.FC<{ message: string }> = ({ message }) => (
 
 export const getTemplateFieldDomId = (fieldId: string) => `template-field-${fieldId}`;
 
+type LinkAiExtractState = {
+  status: 'idle' | 'loading' | 'done' | 'error';
+  reason?: string;
+};
+
 export const TemplateExtraFields: React.FC<TemplateExtraFieldsProps> = ({
   fields,
   values,
@@ -332,12 +351,76 @@ export const TemplateExtraFields: React.FC<TemplateExtraFieldsProps> = ({
   onChange,
   onScreenshotPendingChange,
   onToast,
+  onAiExtractFill,
 }) => {
   const [linkShots, setLinkShots] = useState<Record<string, LinkShotState>>({});
   const [linkShotViewer, setLinkShotViewer] = useState<{ url: string; shotAt?: string } | null>(null);
+  const [linkAiExtracts, setLinkAiExtracts] = useState<Record<string, LinkAiExtractState>>({});
   const [attachmentWarnings, setAttachmentWarnings] = useState<Record<string, string>>({});
   const [openMultiSelectId, setOpenMultiSelectId] = useState<string | null>(null);
   const linkShotTimersRef = React.useRef<Record<string, { mock?: number; timeout?: number }>>({});
+  const linkAiTimersRef = React.useRef<Record<string, number>>({});
+
+  const clearLinkAiTimer = (fieldId: string) => {
+    const timer = linkAiTimersRef.current[fieldId];
+    if (timer != null) window.clearTimeout(timer);
+    delete linkAiTimersRef.current[fieldId];
+  };
+
+  const runLinkAiExtract = (fieldId: string, raw: string) => {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      setLinkAiExtracts((prev) => ({
+        ...prev,
+        [fieldId]: { status: 'error', reason: '请先输入链接再提取' },
+      }));
+      onToast?.('请先输入链接再提取');
+      return;
+    }
+    if (!isValidTemplateLink(trimmed)) {
+      setLinkAiExtracts((prev) => ({
+        ...prev,
+        [fieldId]: { status: 'error', reason: '网址格式不正确，请修改为以 http:// 或 https:// 开头' },
+      }));
+      onToast?.('请输入正确的链接后再提取');
+      return;
+    }
+
+    clearLinkAiTimer(fieldId);
+    setLinkAiExtracts((prev) => ({ ...prev, [fieldId]: { status: 'loading' } }));
+    onToast?.(LINK_ANALYZING_TEXT);
+
+    linkAiTimersRef.current[fieldId] = window.setTimeout(() => {
+      const result = parseLinkMultimodal(trimmed);
+      if (!result.ok) {
+        setLinkAiExtracts((prev) => ({
+          ...prev,
+          [fieldId]: { status: 'error', reason: result.reason.split('\n')[0] || '提取失败' },
+        }));
+        onToast?.(result.reason.split('\n')[0] || '链接提取失败');
+        return;
+      }
+
+      onChange(fieldId, result.link);
+      const dateValue = result.timeText?.slice(0, 10);
+      if (dateValue) {
+        fields.forEach((field) => {
+          if (field.type === 'date') onChange(field.id, dateValue);
+        });
+      }
+      onAiExtractFill?.({
+        linkFieldId: fieldId,
+        title: result.title,
+        summary: result.summary,
+        district: result.district,
+        timeText: result.timeText,
+        link: result.link,
+        sourceHost: result.sourceHost,
+      });
+      setLinkAiExtracts((prev) => ({ ...prev, [fieldId]: { status: 'done' } }));
+      onToast?.(`已从 ${result.sourceHost} 提取并回填`);
+    }, 900);
+  };
 
   const clearFieldShotTimers = (fieldId: string) => {
     const timers = linkShotTimersRef.current[fieldId];
@@ -355,6 +438,7 @@ export const TemplateExtraFields: React.FC<TemplateExtraFieldsProps> = ({
   useEffect(
     () => () => {
       Object.keys(linkShotTimersRef.current).forEach(clearFieldShotTimers);
+      Object.keys(linkAiTimersRef.current).forEach(clearLinkAiTimer);
     },
     []
   );
@@ -672,6 +756,13 @@ export const TemplateExtraFields: React.FC<TemplateExtraFieldsProps> = ({
                       onChange={(event) => {
                         onChange(field.id, event.target.value);
                         clearFieldShotTimers(field.id);
+                        clearLinkAiTimer(field.id);
+                        setLinkAiExtracts((prev) => {
+                          if (!prev[field.id]) return prev;
+                          const next = { ...prev };
+                          delete next[field.id];
+                          return next;
+                        });
                         setLinkShots((prev) => {
                           if (!prev[field.id]) return prev;
                           const next = { ...prev };
@@ -696,6 +787,48 @@ export const TemplateExtraFields: React.FC<TemplateExtraFieldsProps> = ({
                       )}
                       <span>{linkShot?.status === 'loading' ? '截图中' : '截图'}</span>
                     </button>
+                  )}
+                </div>
+
+                {/* AI 多模态提取：位于链接行下方，提取后回填主表单 */}
+                <div className="rounded-xl border border-violet-100 bg-violet-50/70 px-2.5 py-2 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1 text-[11px] font-bold text-violet-800">
+                        <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                        <span>AI 多模态提取</span>
+                      </div>
+                      <p className="text-[10px] text-violet-600/90 mt-0.5 leading-snug">
+                        根据链接自动提取标题、描述等信息并回填表单
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={linkAiExtracts[field.id]?.status === 'loading'}
+                      onClick={() => runLinkAiExtract(field.id, asString(value))}
+                      className="shrink-0 px-2.5 py-1.5 rounded-lg border border-violet-300 bg-white text-violet-700 text-[11px] font-bold flex items-center gap-1 hover:bg-violet-50 disabled:text-slate-400 disabled:border-slate-200 disabled:bg-slate-50"
+                    >
+                      {linkAiExtracts[field.id]?.status === 'loading' ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-3.5 h-3.5" />
+                      )}
+                      <span>
+                        {linkAiExtracts[field.id]?.status === 'loading' ? '提取中' : '提取'}
+                      </span>
+                    </button>
+                  </div>
+                  {linkAiExtracts[field.id]?.status === 'error' && (
+                    <p className="flex items-start gap-1 text-[11px] text-rose-600">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
+                      <span className="min-w-0">{linkAiExtracts[field.id]?.reason}</span>
+                    </p>
+                  )}
+                  {linkAiExtracts[field.id]?.status === 'done' && (
+                    <p className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
+                      <Check className="w-3.5 h-3.5 shrink-0" />
+                      <span>已提取并回填标题、描述等字段</span>
+                    </p>
                   )}
                 </div>
 

@@ -15,12 +15,10 @@ import {
   approveReport,
   createAuditRecord,
   createOperationLog,
-  createDraftReport,
   createSubmittedReport,
   getNowText,
   rejectReport,
   resubmitReport,
-  saveReportAsDraft,
   transferReport
 } from '../services/reportWorkflowService';
 import {
@@ -59,6 +57,7 @@ const VALID_PAGES: PageId[] = [
   'audit-detail',
   'audit-records',
   'audit-record-detail',
+  'stats-management',
   'negative-info',
   'negative-detail',
   'personal-info',
@@ -137,7 +136,7 @@ export const useAppViewModel = () => {
     return hashRoute?.page === 'external-contacts' ? hashRoute.module || 'account' : 'account';
   });
   const [reportSummaryInitialTab, setReportSummaryInitialTab] = useState<
-    '待审核' | '审核中' | '已驳回' | '草稿箱'
+    '待审核' | '审核中' | '已驳回'
   >('待审核');
 
   // Sync hash changes (e.g. browser back/forward, manual address bar edit) with app state
@@ -188,10 +187,9 @@ export const useAppViewModel = () => {
     return () => window.removeEventListener('hashchange', syncFromHash);
   }, []);
 
-  const [reports, setReports] = useState<ReportItem[]>([
-    ...initialAuditPending,
-    ...initialReports
-  ]);
+  const [reports, setReports] = useState<ReportItem[]>(() =>
+    [...initialAuditPending, ...initialReports].filter((report) => report.auditStatus !== '草稿')
+  );
   const reportTemplates = initialTemplates;
   const [auditRecords, setAuditRecords] = useState<AuditRecordItem[]>(initialAuditRecords);
   const [orgs, setOrgs] = useState<OrgItem[]>(initialOrgs);
@@ -359,79 +357,6 @@ export const useAppViewModel = () => {
   const handleDeleteReport = (id: number) => {
     setReports((previous) => previous.filter((report) => report.id !== id));
     showToast('已成功删除该记录');
-  };
-
-  const handleWithdrawReport = (id: number) => {
-    const target = reports.find((report) => report.id === id);
-    if (!target) return;
-    if (target.auditStatus !== '待审核') {
-      showToast('只有待审核的速报可以撤回至草稿箱', 'error');
-      return;
-    }
-    const now = getNowText();
-    const updated = appendTimeline(
-      {
-        ...target,
-        auditStatus: '草稿',
-        score: '--',
-        originLabel: undefined,
-        originReason: undefined,
-        originSimilarReports: undefined,
-        rejectReason: undefined,
-        rejectDetail: undefined
-      },
-      [
-        {
-          title: '撤回报送',
-          operator: `${target.author}·${target.organization}`,
-          time: now,
-          status: 'current',
-          note: '已撤回至草稿箱，可编辑后重新提交。'
-        }
-      ]
-    );
-    setReports((previous) => previous.map((report) => (report.id === id ? updated : report)));
-    if (selectedReport?.id === id) setSelectedReport(updated);
-    if (selectedAudit?.id === id) setSelectedAudit(updated);
-    showToast('已撤回至草稿箱');
-  };
-
-  const handleSaveDraftReport = (formData: NewReportFormData, editing?: ReportItem | null) => {
-    const now = getNowText();
-    if (editing) {
-      const draft = saveReportAsDraft(
-        {
-          ...editing,
-          title: formData.title || editing.title,
-          source: formData.source || editing.source,
-          region: formData.region || editing.region,
-          occurAddress: formData.occurAddress || editing.occurAddress,
-          infoType: formData.infoType || editing.infoType,
-          author: formData.author || editing.author,
-          organization: formData.organization || editing.organization,
-          templateId: formData.templateId || editing.templateId,
-          templateName: formData.templateName || editing.templateName,
-          templateFieldValues: formData.templateFieldValues || editing.templateFieldValues,
-          attachments: formData.attachments || editing.attachments,
-          detailContent: {
-            ...editing.detailContent,
-            summary: formData.summary || editing.detailContent?.summary || '暂无详细摘要描述。',
-            coreDemands: formData.demands || formData.summary || editing.detailContent?.coreDemands || '',
-            recommendations: formData.recommendations
-              ? formData.recommendations.split('\n').filter((line) => line.trim())
-              : editing.detailContent?.recommendations || []
-          }
-        },
-        now
-      );
-      setReports((previous) => previous.map((report) => (report.id === draft.id ? draft : report)));
-      if (selectedReport?.id === draft.id) setSelectedReport(draft);
-      showToast('已保存至草稿箱');
-      return;
-    }
-    const created = createDraftReport(formData, Date.now(), now);
-    setReports((previous) => [created, ...previous]);
-    showToast('已保存至草稿箱');
   };
 
   const handleResubmitReport = (updatedReport: ReportItem) => {
@@ -737,9 +662,7 @@ export const useAppViewModel = () => {
     handleNavigate,
     handleSwitchOrg,
     handleCreateReport,
-    handleSaveDraftReport,
     handleDeleteReport,
-    handleWithdrawReport,
     handleResubmitReport,
     handleApproveAudit,
     handleRejectAudit,

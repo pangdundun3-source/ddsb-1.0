@@ -18,6 +18,10 @@ export interface OrgFilterSelectProps {
   title?: string;
   className?: string;
   triggerClassName?: string;
+  /** 弹层对齐：筛选栏靠右时用 right，避免组织树向右展开被裁切 */
+  dropdownAlign?: 'left' | 'right';
+  /** 打开且未选中时，默认展开首个有下级的根节点，露出右侧子级列 */
+  defaultExpandFirst?: boolean;
 }
 
 /**
@@ -31,7 +35,9 @@ export const OrgFilterSelect: React.FC<OrgFilterSelectProps> = ({
   allLabel = '全部组织节点',
   title = '组织节点',
   className = '',
-  triggerClassName = ''
+  triggerClassName = '',
+  dropdownAlign = 'left',
+  defaultExpandFirst = false,
 }) => {
   const [open, setOpen] = useState(false);
   const [drillPath, setDrillPath] = useState<string[]>([]);
@@ -47,10 +53,14 @@ export const OrgFilterSelect: React.FC<OrgFilterSelectProps> = ({
         current = current.parentId ? getOrgById(orgNodes, current.parentId) : undefined;
       }
       setDrillPath(path);
+    } else if (defaultExpandFirst) {
+      const roots = getOrgChildrenOf(orgNodes, null);
+      const firstWithChildren = roots.find((node) => getOrgChildrenOf(orgNodes, node.id).length > 0);
+      setDrillPath(firstWithChildren ? [firstWithChildren.id] : []);
     } else {
       setDrillPath([]);
     }
-  }, [open, value, orgNodes]);
+  }, [open, value, orgNodes, defaultExpandFirst]);
 
   useEffect(() => {
     const onDocClick = (event: MouseEvent) => {
@@ -101,7 +111,11 @@ export const OrgFilterSelect: React.FC<OrgFilterSelectProps> = ({
         <ChevronDown className={`w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="absolute z-40 mt-1 left-0 min-w-full max-w-[min(720px,calc(100vw-96px))] bg-white border border-gray-200 rounded-lg overflow-hidden shadow-xl">
+        <div
+          className={`absolute z-40 mt-1 min-w-full max-w-[min(720px,calc(100vw-96px))] bg-white border border-gray-200 rounded-lg overflow-hidden shadow-xl ${
+            dropdownAlign === 'right' ? 'right-0' : 'left-0'
+          }`}
+        >
           <div className="px-2 py-1.5 border-b border-gray-100">
             <button
               type="button"
@@ -114,11 +128,11 @@ export const OrgFilterSelect: React.FC<OrgFilterSelectProps> = ({
               <span>{allLabel}</span>
             </button>
           </div>
-          <div className="flex max-h-56 overflow-x-auto overflow-y-hidden">
+          <div className="flex max-h-72 overflow-x-auto overflow-y-hidden">
             {columns.map((column) => (
               <div
                 key={column.level}
-                className="w-44 shrink-0 border-r last:border-r-0 border-gray-200 overflow-y-auto max-h-56"
+                className="w-44 shrink-0 border-r last:border-r-0 border-gray-200 overflow-y-auto max-h-72"
               >
                 {column.options.map((org) => {
                   const hasChildren = getOrgChildrenOf(orgNodes, org.id).length > 0;

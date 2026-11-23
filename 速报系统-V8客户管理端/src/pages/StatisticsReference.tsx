@@ -5,6 +5,8 @@ import {
   Download,
   FileText,
   RefreshCw,
+  RotateCcw,
+  Search,
   TrendingUp,
 } from 'lucide-react';
 import {
@@ -23,7 +25,7 @@ import {
 import { jsPDF } from 'jspdf';
 import { PageId } from '../types';
 import { DateRangeField } from '../components/DateRangeField';
-import { OrgFilterSelect } from '../components/OrgFilterSelect';
+import { OrgTreeFilterPanel } from '../components/OrgTreeFilterPanel';
 import { getOrgById, INITIAL_ORG_NODES } from '../data/userOrgShared';
 
 interface StatisticsReferenceProps {
@@ -1120,13 +1122,25 @@ const DonutPanel: React.FC<{
   </section>
 );
 
+type StatsFilterDraft = {
+  rangePreset: RangePreset;
+  period: Period;
+  startDate: string;
+  endDate: string;
+  selectedOrg: string | null;
+};
+
+const INITIAL_STATS_FILTER: StatsFilterDraft = {
+  rangePreset: 'd7',
+  period: 'day',
+  startDate: PRESET_RANGES.d7.start,
+  endDate: PRESET_RANGES.d7.end,
+  selectedOrg: null,
+};
+
 export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavigate: _onNavigate }) => {
-  const [rangePreset, setRangePreset] = useState<RangePreset>('d7');
-  /** 趋势图粒度：预设固定按日；自定义跟弹窗所选 按日/周/月/季/年 */
-  const [period, setPeriod] = useState<Period>('day');
-  const [startDate, setStartDate] = useState(PRESET_RANGES.d7.start);
-  const [endDate, setEndDate] = useState(PRESET_RANGES.d7.end);
-  const [selectedOrg, setSelectedOrg] = useState<string | null>(null);
+  const [draft, setDraft] = useState<StatsFilterDraft>(INITIAL_STATS_FILTER);
+  const [applied, setApplied] = useState<StatsFilterDraft>(INITIAL_STATS_FILTER);
   const [toast, setToast] = useState<string | null>(null);
   const [statsUpdatedAt, setStatsUpdatedAt] = useState(() => formatStatsClock());
   const [refreshingStats, setRefreshingStats] = useState(false);
@@ -1143,6 +1157,8 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
     processRate: true,
     avgTime: true,
   });
+
+  const { rangePreset, period, startDate, endDate, selectedOrg } = applied;
 
   const scopeFactor = useMemo(() => (selectedOrg ? 0.28 : 1), [selectedOrg]);
 
@@ -1198,35 +1214,42 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
   const handleRefreshStats = () => {
     if (refreshingStats) return;
     setRefreshingStats(true);
-    if (rangePreset !== 'custom') {
-      setPeriod('day');
-      setStartDate(PRESET_RANGES[rangePreset].start);
-      setEndDate(PRESET_RANGES[rangePreset].end);
-    }
+    setApplied({ ...draft });
     setStatsUpdatedAt(formatStatsClock());
     showToast('统计数据已刷新');
     window.setTimeout(() => setRefreshingStats(false), 450);
   };
 
   const handleRangePresetChange = (next: RangePreset) => {
-    setRangePreset(next);
     if (next === 'custom') {
-      setPeriod('day');
-      setStartDate(PRESET_RANGES.d7.start);
-      setEndDate(PRESET_RANGES.d7.end);
+      setDraft((prev) => ({
+        ...prev,
+        rangePreset: 'custom',
+        period: 'day',
+        startDate: PRESET_RANGES.d7.start,
+        endDate: PRESET_RANGES.d7.end,
+      }));
       setCustomFieldKey((key) => key + 1);
       return;
     }
-    setPeriod('day');
-    setStartDate(PRESET_RANGES[next].start);
-    setEndDate(PRESET_RANGES[next].end);
+    setDraft((prev) => ({
+      ...prev,
+      rangePreset: next,
+      period: 'day',
+      startDate: PRESET_RANGES[next].start,
+      endDate: PRESET_RANGES[next].end,
+    }));
   };
 
   const handleCustomModeChange = (mode: 'range' | 'week' | 'month' | 'quarter' | 'year') => {
     const nextPeriod = panelModeToPeriod(mode);
-    setPeriod(nextPeriod);
-    setStartDate(PERIOD_DEFAULTS[nextPeriod].start);
-    setEndDate(PERIOD_DEFAULTS[nextPeriod].end);
+    setDraft((prev) => ({
+      ...prev,
+      rangePreset: 'custom',
+      period: nextPeriod,
+      startDate: PERIOD_DEFAULTS[nextPeriod].start,
+      endDate: PERIOD_DEFAULTS[nextPeriod].end,
+    }));
   };
 
   const customModeDefaultRanges = {
@@ -1237,12 +1260,18 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
     year: PERIOD_DEFAULTS.year,
   };
 
+  const handleQuery = () => {
+    setApplied({ ...draft });
+    setStatsUpdatedAt(formatStatsClock());
+    showToast('查询完成，统计结果已更新');
+  };
+
   const resetFilters = () => {
-    setRangePreset('d7');
-    setPeriod('day');
-    setStartDate(PRESET_RANGES.d7.start);
-    setEndDate(PRESET_RANGES.d7.end);
-    setSelectedOrg(null);
+    setDraft(INITIAL_STATS_FILTER);
+    setApplied(INITIAL_STATS_FILTER);
+    setCustomFieldKey((key) => key + 1);
+    setStatsUpdatedAt(formatStatsClock());
+    showToast('已重置筛选条件');
   };
 
   const toggleLine = (key: keyof typeof reportLines) => {
@@ -1603,7 +1632,7 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
                   type="button"
                   onClick={() => handleRangePresetChange(key)}
                   className={`min-h-7 cursor-pointer rounded-xl px-3 py-1 text-xs transition select-none ${
-                    rangePreset === key
+                    draft.rangePreset === key
                       ? 'bg-white font-semibold text-[#1B5BD6] shadow-xs'
                       : 'font-normal text-slate-700 hover:text-slate-900'
                   }`}
@@ -1613,49 +1642,60 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
               ))}
             </div>
 
-            {rangePreset === 'custom' ? (
+            {draft.rangePreset === 'custom' ? (
               <DateRangeField
                 key={customFieldKey}
-                startValue={startDate}
-                endValue={endDate}
+                startValue={draft.startDate}
+                endValue={draft.endDate}
                 unitRangeSelect
                 maxDate={STATS_MAX_DATE}
-                maxUnitSpan={PERIOD_MAX_POINTS[period]}
-                onStartChange={setStartDate}
-                onEndChange={setEndDate}
+                maxUnitSpan={PERIOD_MAX_POINTS[draft.period]}
+                onStartChange={(value) =>
+                  setDraft((prev) => ({ ...prev, startDate: value, rangePreset: 'custom' }))
+                }
+                onEndChange={(value) =>
+                  setDraft((prev) => ({ ...prev, endDate: value, rangePreset: 'custom' }))
+                }
                 onModeChange={handleCustomModeChange}
                 modeDefaultRanges={customModeDefaultRanges}
-                activeMode={period === 'day' ? 'range' : period}
+                activeMode={draft.period === 'day' ? 'range' : draft.period}
                 rangeModeLabel="按日"
                 title="自定义统计周期"
                 className="min-w-[320px]"
               />
             ) : (
               <span className="inline-flex min-h-8 items-center rounded-xl border border-slate-200 bg-white px-3 font-mono text-xs text-slate-600 tabular-nums">
-                {startDate.replaceAll('-', '/')} ~ {endDate.replaceAll('-', '/')}
+                {draft.startDate.replaceAll('-', '/')} ~ {draft.endDate.replaceAll('-', '/')}
               </span>
             )}
 
-            <OrgFilterSelect
-              value={selectedOrg}
-              onChange={setSelectedOrg}
-              allLabel="全部组织节点"
-              title="按组织树穿透筛选"
-            />
           </div>
 
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="inline-flex min-h-8 cursor-pointer items-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 shadow-xs transition hover:text-slate-800"
-            title="重置筛选"
-          >
-            重置
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleQuery}
+              className="inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-[#1E5ABB] px-3.5 text-xs font-semibold text-white shadow-2xs transition hover:bg-[#134092]"
+              title="按当前条件查询"
+            >
+              <Search className="h-3.5 w-3.5" />
+              查询
+            </button>
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 shadow-xs transition hover:text-slate-800"
+              title="重置筛选"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              重置
+            </button>
+          </div>
         </div>
       </section>
 
-      <div ref={chartsExportRef} className="space-y-4">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+      <div ref={chartsExportRef} className="min-w-0 flex-1 space-y-4">
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] sm:p-5">
           <PanelTitle
             icon={<TrendingUp className="h-3.5 w-3.5" />}
@@ -1767,6 +1807,14 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
             ]}
           />
         </div>
+      </div>
+
+      <OrgTreeFilterPanel
+        value={draft.selectedOrg}
+        onChange={(orgId) => setDraft((prev) => ({ ...prev, selectedOrg: orgId }))}
+        rootOrgName="台中市网信办"
+        className="xl:self-stretch"
+      />
       </div>
     </div>
   );

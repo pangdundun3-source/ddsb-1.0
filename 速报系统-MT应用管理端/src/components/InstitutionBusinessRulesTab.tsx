@@ -83,6 +83,16 @@ export const defaultValueAddedServices: ValueAddedServiceItem[] = [
     description: '针对外部联系人的注册激活、资料变更与组织节点调整进行审核把关，支持通过 / 驳回与审核留痕，保障外部协作人员身份真实可控',
     icon: 'auto_awesome',
   },
+  {
+    id: 'vas-link-multimodal-ai',
+    name: 'AI链接多模态识别',
+    isPurchased: true,
+    isEnabled: true,
+    tag: '增值扩展功能',
+    description:
+      '报送模板支持粘贴原文链接后一键 AI 多模态提取：自动识别标题、摘要、属地与发布时间并回填表单，提升线索结构化录入效率',
+    icon: 'auto_awesome',
+  },
 ];
 
 export const standardReportFields: TemplateFieldItem[] = [
@@ -1028,8 +1038,8 @@ const RULE_NAV_ITEMS: NavItem[] = [
     key: 'value_added',
     label: '增值业务',
     icon: 'auto_awesome',
-    description: '批量审核、指令流转、系统公告与首发重复识别增值扩展',
-    badge: '4项',
+    description: '批量审核、指令流转、系统公告、首发重复识别与 AI 链接多模态识别等增值扩展',
+    badge: '6项',
   },
   {
     key: 'dictionary',

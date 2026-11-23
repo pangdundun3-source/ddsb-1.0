@@ -89,8 +89,6 @@ interface NewReportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (newReport: NewReportFormData) => void;
-  /** 保存草稿（不送审） */
-  onSaveDraft?: (newReport: NewReportFormData, editing?: ReportItem | null) => void;
   initialTemplate?: ReportTemplateInput | null;
   editingReport?: ReportItem | null;
   onUpdate?: (report: ReportItem) => void;
@@ -100,7 +98,6 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
   isOpen,
   onClose,
   onSubmit,
-  onSaveDraft,
   initialTemplate,
   editingReport,
   onUpdate
@@ -317,7 +314,7 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
         : {})
     };
     return {
-      title: title.trim() || '未命名草稿',
+      title: title.trim() || '未命名速报',
       source,
       region,
       occurAddress,
@@ -332,21 +329,6 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
       templateName: selectedTemplate.name,
       templateFieldValues
     };
-  };
-
-  const handleSaveDraft = () => {
-    if (!onSaveDraft) return;
-    if (!title.trim() && !summary.trim()) {
-      triggerToast('请至少填写标题或内容描述后再保存草稿');
-      return;
-    }
-    onSaveDraft(buildFormData(), editingReport);
-    setTitle('');
-    setSummary('');
-    setDemands('');
-    setRecommendations('');
-    setOccurAddress('');
-    onClose();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -506,7 +488,7 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
                 {isEditMode
                   ? editingReport && (editingReport.auditStatus === '被驳回' || editingReport.auditStatus === '已驳回')
                     ? '修改补充并重新提交'
-                    : '编辑草稿速报'
+                    : '编辑速报'
                   : '新建速报'}
               </h2>
               {isEditMode && (
@@ -539,7 +521,27 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
         )}
 
         {/* Modal Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5">
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5 bg-gradient-to-b from-violet-50/40 via-white to-white">
+          {/* 顶部多模态能力标识：链接字段靠下时，进页即可感知 */}
+          {selectedTemplate.extraFields.some((field) => field.type === 'link') && (
+            <div className="rounded-xl border border-violet-200 bg-gradient-to-r from-violet-50 via-fuchsia-50 to-indigo-50 px-4 py-3 flex items-center gap-3 shadow-2xs">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-extrabold text-slate-900">多模态智能上报</span>
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 border border-violet-200">
+                    AI
+                  </span>
+                </div>
+                <p className="text-[12px] text-slate-500 mt-0.5">
+                  本模板支持链接多模态提取：粘贴链接后可一键回填标题与描述
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* SECTION 1: 模板选择器 (Template Selection Header Bar) */}
           {!isEditMode && (
           <div className="bg-gradient-to-br from-slate-50 to-blue-50/50 p-4 rounded-xl border border-blue-100/80 shadow-2xs" id="template-selection-card">
@@ -556,6 +558,7 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               {selectableTemplates.map((tpl) => {
                 const isSelected = selectedTemplateId === tpl.id;
+                const hasAiLink = tpl.extraFields.some((field) => field.type === 'link');
                 return (
                   <button
                     key={tpl.id}
@@ -563,20 +566,44 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
                     onClick={() => applyTemplate(tpl)}
                     className={`p-2.5 rounded-lg border text-left transition-all relative cursor-pointer group ${
                       isSelected
-                        ? 'bg-white border-[#1E5ABB] shadow-md ring-2 ring-blue-100'
-                        : 'bg-white/80 hover:bg-white border-gray-200/80 hover:border-blue-200 shadow-2xs'
+                        ? hasAiLink
+                          ? 'bg-white border-violet-500 shadow-md ring-2 ring-violet-100'
+                          : 'bg-white border-[#1E5ABB] shadow-md ring-2 ring-blue-100'
+                        : hasAiLink
+                          ? 'bg-violet-50/70 hover:bg-white border-violet-200/90 hover:border-violet-300 shadow-2xs'
+                          : 'bg-white/80 hover:bg-white border-gray-200/80 hover:border-blue-200 shadow-2xs'
                     }`}
                   >
                     {isSelected && (
-                      <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-[#1E5ABB] text-white rounded-full flex items-center justify-center shadow-xs">
+                      <span
+                        className={`absolute top-1.5 right-1.5 w-4 h-4 text-white rounded-full flex items-center justify-center shadow-xs ${
+                          hasAiLink ? 'bg-violet-600' : 'bg-[#1E5ABB]'
+                        }`}
+                      >
                         <Check className="w-2.5 h-2.5 stroke-[3]" />
                       </span>
                     )}
-                    <div className="flex items-center space-x-1.5">
-                      {renderTemplateIcon(tpl.iconName)}
-                      <span className={`text-[11px] font-bold truncate ${isSelected ? 'text-[#1E5ABB]' : 'text-gray-700'}`}>
-                        {tpl.name}
-                      </span>
+                    <div className={`flex items-start gap-1.5 min-w-0 ${isSelected ? 'pr-5' : ''}`}>
+                      <span className="shrink-0 mt-0.5">{renderTemplateIcon(tpl.iconName)}</span>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <span
+                          className={`block text-[11px] font-bold leading-snug break-words ${
+                            isSelected
+                              ? hasAiLink
+                                ? 'text-violet-700'
+                                : 'text-[#1E5ABB]'
+                              : 'text-gray-700'
+                          }`}
+                        >
+                          {tpl.name}
+                        </span>
+                        {hasAiLink && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-violet-600 text-white">
+                            <Sparkles className="w-2.5 h-2.5" />
+                            AI
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </button>
                 );
@@ -657,6 +684,20 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
                 setExtraFieldValues((previous) => ({ ...previous, [fieldId]: value }));
                 if (extraFieldErrors[fieldId]) {
                   setExtraFieldErrors((previous) => ({ ...previous, [fieldId]: false }));
+                }
+              }}
+              onToast={triggerToast}
+              onAiExtractFill={(payload) => {
+                setTitle(payload.title);
+                setSummary(payload.summary);
+                setDemands(payload.summary);
+                if (payload.district) {
+                  setRegion(payload.district);
+                  setOccurAddress(payload.district);
+                }
+                setCoreFieldErrors({ title: false, summary: false });
+                if (extraFieldErrors[payload.linkFieldId]) {
+                  setExtraFieldErrors((previous) => ({ ...previous, [payload.linkFieldId]: false }));
                 }
               }}
             />
@@ -804,21 +845,12 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
             >
               取消
             </button>
-            {onSaveDraft && (
-              <button
-                type="button"
-                onClick={handleSaveDraft}
-                className="px-4 py-2 border border-[#1E5ABB]/40 bg-white hover:bg-blue-50 text-[#1E5ABB] rounded-lg font-semibold text-xs cursor-pointer transition-colors"
-              >
-                保存草稿
-              </button>
-            )}
             <button
               type="submit"
               form="new-report-form"
               className="px-6 py-2 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg font-bold text-xs shadow-md transition-all cursor-pointer active:scale-98 flex items-center space-x-1.5"
             >
-              <span>{isEditMode && editingReport?.auditStatus === '草稿' ? '提交审核' : isEditMode ? '重新提交' : '提交审核'}</span>
+              <span>{isEditMode ? '重新提交' : '提交审核'}</span>
             </button>
           </div>
         </div>

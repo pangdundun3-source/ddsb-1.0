@@ -448,46 +448,6 @@ export const INITIAL_REPORTS: ReportItem[] = [
     originReason: '系统定标：某地产项目延期交房维权线索已在前期登记，定标为重复。'
   },
   {
-    id: 21,
-    title: '关于老旧小区加装电梯政策宣传的舆情素材整理（草稿）',
-    source: '网格巡查',
-    region: '西屯区',
-    infoType: '民生诉求',
-    author: '张三',
-    organization: '台中市网信办',
-    submitTime: '2023-10-24 09:20',
-    auditStatus: '草稿',
-    detailContent: {
-      summary: '近期多个老旧小区业主群讨论加装电梯政策，暂未形成统一诉求口径，待补充具体小区案例与居民反馈截图后再送审。',
-      coreDemands: '待进一步收集居民关于加装电梯流程、费用分摊与采光影响的具体意见。',
-      publicOpinionTrend: '相关讨论热度温和上升，暂未出现集中负面舆情。',
-      recommendations: [
-        '1. 走访重点小区收集具体案例素材。',
-        '2. 整理政策问答口径后补充佐证材料再提交送审。'
-      ]
-    }
-  },
-  {
-    id: 22,
-    title: '秋季文旅消费惠民活动传播效果评估（草稿）',
-    source: '内部系统',
-    region: '全市',
-    infoType: '舆情动态',
-    author: '张三',
-    organization: '台中市网信办',
-    submitTime: '2023-10-23 17:40',
-    auditStatus: '草稿',
-    detailContent: {
-      summary: '活动开展一周以来各平台阅读量稳步上升，正面评价占比较高，待补充各渠道传播数据报表后再提交送审。',
-      coreDemands: '建议追加惠民活动第二批宣传排期，并汇总市民参与反馈。',
-      publicOpinionTrend: '整体态势正面可控，暂未发现明显负面话题。',
-      recommendations: [
-        '1. 汇总抖音、微博、微信等渠道传播数据。',
-        '2. 补充现场活动照片后重新提交送审。'
-      ]
-    }
-  },
-  {
     id: 25,
     title: '西屯区老旧小区加装电梯政策反馈汇总',
     source: '网格巡查',

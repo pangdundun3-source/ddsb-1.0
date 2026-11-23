@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { UserProfile, UserRole, SpeedReport } from '../types';
+import { UserProfile, UserRole, SpeedReport, PortalUserKind } from '../types';
 import { BackNavigationBar } from './BackNavigationBar';
 import {
   User,
@@ -44,6 +44,8 @@ interface ProfileViewProps {
   /** V8 机构用户：不展示报送统计；卡片去组织节点、角色固定「机构审核员」且不折叠 */
   hideReportStats?: boolean;
   isV8OrgUser?: boolean;
+  /** 切换用户视角：外部组织（全功能）/ V8 机构（仅审核+我的） */
+  onChangePortalUserKind?: (kind: PortalUserKind) => void;
 }
 
 type TimeFilter = '今日' | '近7日' | '近30日' | '近90日' | '自定义';
@@ -93,6 +95,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onToggleActivationDetail,
   hideReportStats = false,
   isV8OrgUser = false,
+  onChangePortalUserKind,
 }) => {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('近7日');
   const [customStartDate, setCustomStartDate] = useState<string>('2026-08-01');
@@ -101,6 +104,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [internalShowActivationDetail, setInternalShowActivationDetail] = useState<boolean>(false);
   const [isActivationModalOpen, setIsActivationModalOpen] = useState<boolean>(false);
   const [showOrgSwitcher, setShowOrgSwitcher] = useState(false);
+  const [showPortalKindMenu, setShowPortalKindMenu] = useState(false);
   const [showRoleExpand, setShowRoleExpand] = useState(false);
 
   const orgOptions = Array.from(
@@ -121,6 +125,20 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     onChangeDepartment(org);
     setShowOrgSwitcher(false);
     onToast(`已切换至「${org}」`);
+  };
+
+  const portalKindOptions: { kind: PortalUserKind; label: string }[] = [
+    { kind: 'external', label: '外部组织' },
+    { kind: 'v8_org', label: '内部机构' },
+  ];
+  const currentPortalKind: PortalUserKind = isV8OrgUser ? 'v8_org' : 'external';
+  const currentPortalKindLabel =
+    portalKindOptions.find((item) => item.kind === currentPortalKind)?.label || '外部组织';
+
+  const handleSelectPortalKind = (kind: PortalUserKind) => {
+    setShowPortalKindMenu(false);
+    if (!onChangePortalUserKind || kind === currentPortalKind) return;
+    onChangePortalUserKind(kind);
   };
 
   const [activationData, setActivationData] = useState({
@@ -957,18 +975,62 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             )}
           </button>
           <div className="min-w-0 flex-1 pt-0.5">
-            <button
-              type="button"
-              onClick={() => {
-                setShowUserDetail(true);
-                onToast('进入个人基础信息详情');
-              }}
-              className="text-left w-full"
-            >
-              <h2 className="text-[17px] font-extrabold text-white tracking-wide truncate">
-                {user.name}
-              </h2>
-            </button>
+            <div className="flex items-center gap-2 min-w-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUserDetail(true);
+                  onToast('进入个人基础信息详情');
+                }}
+                className="text-left min-w-0 shrink"
+              >
+                <h2 className="text-[17px] font-extrabold text-white tracking-wide truncate">
+                  {user.name}
+                </h2>
+              </button>
+              {onChangePortalUserKind && (
+                <div className="relative shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowPortalKindMenu((v) => !v)}
+                    className="inline-flex items-center gap-0.5 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-bold text-white border border-white/25 active:bg-white/25"
+                    title="切换用户视角"
+                  >
+                    <span>{currentPortalKindLabel}</span>
+                    <ChevronDown
+                      className={`w-3 h-3 transition-transform ${showPortalKindMenu ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+                  {showPortalKindMenu && (
+                    <>
+                      <button
+                        type="button"
+                        aria-label="关闭视角选择"
+                        className="fixed inset-0 z-[70]"
+                        onClick={() => setShowPortalKindMenu(false)}
+                      />
+                      <div className="absolute left-0 top-[calc(100%+6px)] z-[80] min-w-[7.5rem] rounded-xl bg-white shadow-lg border border-slate-100 overflow-hidden">
+                        {portalKindOptions.map((item) => {
+                          const active = item.kind === currentPortalKind;
+                          return (
+                            <button
+                              key={item.kind}
+                              type="button"
+                              onClick={() => handleSelectPortalKind(item.kind)}
+                              className={`w-full px-3 py-2.5 text-left text-[12px] font-semibold border-b border-slate-100 last:border-b-0 active:bg-slate-50 ${
+                                active ? 'bg-blue-50 text-blue-700' : 'text-slate-700'
+                              }`}
+                            >
+                              {item.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {roleTags.map((tag) => (
                 <span

@@ -25,6 +25,11 @@ const CATALOG_ALIASES: Array<{ ids: string[]; dictCodes: string[]; names: string
     dictCodes: ['VA_REPORT_DUPLICATE_IDENTIFICATION', 'VA_FIRST_DUPLICATE_IDENTIFY'],
     names: ['报送首发重复识别'],
   },
+  {
+    ids: ['va_7', 'vas-link-multimodal-ai'],
+    dictCodes: ['VA_LINK_MULTIMODAL_AI'],
+    names: ['AI链接多模态识别'],
+  },
 ];
 
 const emptyStore = (): CatalogStore => ({ items: [], updatedAt: '' });

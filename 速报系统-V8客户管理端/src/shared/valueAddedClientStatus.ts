@@ -144,6 +144,12 @@ export const isExternalAuditEnabled = () =>
     nameIncludes: '外部审核',
   });
 
+export const isLinkMultimodalAiEnabled = () =>
+  isValueAddedServiceEnabled({
+    dictCode: 'VA_LINK_MULTIMODAL_AI',
+    nameIncludes: 'AI链接多模态识别',
+  });
+
 /** 增值业务不可用时的原因：应用端未开通 / 机构侧停用 */
 export const getValueAddedBlockReason = (opts: {
   dictCode?: string;

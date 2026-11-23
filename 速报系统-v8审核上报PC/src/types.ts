@@ -10,6 +10,7 @@ export type PageId =
   | 'audit-detail'
   | 'audit-records'
   | 'audit-record-detail'
+  | 'stats-management'
   | 'negative-info'
   | 'negative-detail'
   | 'personal-info'

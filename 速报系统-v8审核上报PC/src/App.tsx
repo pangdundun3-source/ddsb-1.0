@@ -21,6 +21,7 @@ import { NegativeInfoLibrary } from './pages/NegativeInfoLibrary';
 import { NegativeDetail } from './pages/NegativeDetail';
 import { Statistics } from './pages/Statistics';
 import { AuditStatistics } from './pages/AuditStatistics';
+import { StatsManagement } from './pages/StatsManagement';
 import { PersonalInfo } from './pages/PersonalInfo';
 import { ExternalContacts } from './pages/ExternalContacts';
 import { OrgManagement } from './pages/OrgManagement';
@@ -69,9 +70,7 @@ export default function App() {
     handleSwitchOrg,
     handleNavigate,
     handleCreateReport,
-    handleSaveDraftReport,
     handleDeleteReport,
-    handleWithdrawReport,
     handleResubmitReport,
     handleApproveAudit,
     handleRejectAudit,
@@ -218,7 +217,6 @@ export default function App() {
               setReportDetailSourcePage('report-summary');
             }}
             onDeleteReport={handleDeleteReport}
-            onWithdrawReport={handleWithdrawReport}
             onOpenEditReport={openEditReportModal}
             onOpenNewReport={handleOpenNewReport}
             onNavigate={handleNavigate}
@@ -238,7 +236,6 @@ export default function App() {
               setReportDetailSourcePage('report-records');
             }}
             onDeleteReport={handleDeleteReport}
-            onWithdrawReport={handleWithdrawReport}
             onOpenEditReport={openEditReportModal}
             onOpenNewReport={handleOpenNewReport}
             onNavigate={handleNavigate}
@@ -250,7 +247,6 @@ export default function App() {
             report={selectedReport}
             sourcePage={reportDetailSourcePage}
             onNavigate={handleNavigate}
-            onWithdrawReport={handleWithdrawReport}
             onOpenEditReport={openEditReportModal}
             onDeleteReport={handleDeleteReport}
           />
@@ -304,6 +300,13 @@ export default function App() {
 
         {activePage === 'report-statistics' && <Statistics key="submit" scope="submit" />}
         {activePage === 'audit-statistics' && <AuditStatistics scope="audit" />}
+        {activePage === 'stats-management' && (
+          <StatsManagement
+            reports={reports}
+            auditRecords={auditRecords}
+            currentOrgName={currentOrg.name}
+          />
+        )}
 
         {activePage === 'external-contacts' && (
           <ExternalContacts
@@ -343,7 +346,6 @@ export default function App() {
         initialTemplate={newReportTemplate}
         editingReport={editingReport}
         onSubmit={handleCreateReport}
-        onSaveDraft={handleSaveDraftReport}
         onUpdate={handleResubmitReport}
       />
 

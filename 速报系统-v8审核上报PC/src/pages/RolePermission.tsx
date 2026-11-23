@@ -117,6 +117,30 @@ const permissionGroups: PermissionGroup[] = [
     ],
   },
   {
+    id: 'stats_management',
+    label: '统计管理',
+    children: [
+      {
+        id: 'stats_org_overview',
+        label: '本机构统计总览',
+        actions: [
+          { key: 'view', label: '查看本机构报送与审核统计' },
+          { key: 'export', label: '导出机构报表' },
+        ],
+      },
+      {
+        id: 'stats_reporters',
+        label: '上报员效能',
+        actions: [{ key: 'view', label: '查看上报员统计' }],
+      },
+      {
+        id: 'stats_auditors',
+        label: '审核员效能',
+        actions: [{ key: 'view', label: '查看审核员统计' }],
+      },
+    ],
+  },
+  {
     id: 'org',
     label: '组织管理',
     children: [

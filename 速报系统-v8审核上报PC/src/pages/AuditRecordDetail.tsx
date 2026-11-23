@@ -14,7 +14,6 @@ import {
   ArrowLeft,
   Copy,
   Check,
-  Undo2,
   FileEdit,
   Trash2,
   AlertCircle,
@@ -37,7 +36,6 @@ export interface AuditRecordDetailProps {
   allReports?: ReportItem[];
   sourcePage?: PageId;
   onNavigate: (page: PageId) => void;
-  onWithdrawReport?: (id: number) => void;
   onResubmitReport?: (report: ReportItem) => void;
   onDeleteReport?: (id: number) => void;
   isDrawer?: boolean;
@@ -49,7 +47,6 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
   allReports = [],
   sourcePage = 'audit-records',
   onNavigate,
-  onWithdrawReport,
   onResubmitReport,
   onDeleteReport,
   isDrawer = false,
@@ -121,7 +118,6 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
 
   const [copied, setCopied] = useState(false);
   const [urlCopied, setUrlCopied] = useState(false);
-  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
@@ -194,7 +190,6 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
     );
   }
 
-  const isDraft = report.auditStatus === '草稿';
   const isPending = report.auditStatus === '待审核';
   const isRejected = report.auditStatus === '被驳回' || report.auditStatus === '已驳回';
   const isAdopted = report.auditStatus === '已采纳' || report.auditStatus === '已通过';
@@ -834,24 +829,13 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
         {/* Dynamic Action Buttons according to Status & Entry Source */}
         <div className="flex items-center space-x-2">
           {/* If from Report Management and Draft or Rejected: Edit / Resubmit */}
-          {sourcePage !== 'audit-records' && (isDraft || isRejected) && (
+          {sourcePage !== 'audit-records' && isRejected && (
             <button
               onClick={() => setIsEditModalOpen(true)}
               className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white rounded-lg text-xs font-semibold shadow-2xs flex items-center space-x-1 cursor-pointer"
             >
               <FileEdit className="w-3.5 h-3.5" />
-              <span>{isRejected ? '修改补充并重新提交' : '编辑草稿'}</span>
-            </button>
-          )}
-
-          {/* If from Report Management and Pending: Withdraw (Hidden in Audit Records) */}
-          {sourcePage !== 'audit-records' && isPending && onWithdrawReport && (
-            <button
-              onClick={() => setIsWithdrawModalOpen(true)}
-              className="px-3.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-xs font-semibold flex items-center space-x-1 cursor-pointer"
-            >
-              <Undo2 className="w-3.5 h-3.5" />
-              <span>撤回报送</span>
+              <span>修改补充并重新提交</span>
             </button>
           )}
 
@@ -866,7 +850,7 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
           </button>
 
           {/* If from Report Management and Draft or Rejected: Delete */}
-          {sourcePage !== 'audit-records' && (isDraft || isRejected) && onDeleteReport && (
+          {sourcePage !== 'audit-records' && isRejected && onDeleteReport && (
             <button
               onClick={() => setIsDeleteModalOpen(true)}
               className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-lg text-xs font-medium cursor-pointer"
@@ -908,40 +892,6 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
           />
         </div>
       </div>
-
-      {/* Withdraw Modal */}
-      {isWithdrawModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-gray-200">
-            <div className="flex items-center space-x-3 text-amber-600">
-              <AlertCircle className="w-6 h-6 shrink-0" />
-              <h3 className="text-base font-bold text-gray-900">确认撤回报送？</h3>
-            </div>
-            <p className="text-xs text-gray-600 leading-relaxed">
-              撤回后该速报将转为<strong>草稿</strong>状态，审核人员将暂停审核。您可以继续完善内容后再重新送审。
-            </p>
-            <div className="flex justify-end space-x-3 pt-2">
-              <button
-                onClick={() => setIsWithdrawModalOpen(false)}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold"
-              >
-                取消
-              </button>
-              <button
-                onClick={() => {
-                  if (onWithdrawReport) {
-                    onWithdrawReport(report.id);
-                  }
-                  setIsWithdrawModalOpen(false);
-                }}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold shadow-sm"
-              >
-                确认撤回
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Delete Modal */}
       {isDeleteModalOpen && (
@@ -986,7 +936,7 @@ export const AuditRecordDetail: React.FC<AuditRecordDetailProps> = ({
               <div className="flex items-center space-x-2">
                 <FileEdit className="w-5 h-5 text-[#1E5ABB]" />
                 <h3 className="text-base font-bold text-gray-900">
-                  {isRejected ? '修改补充并重新提交' : '编辑草稿速报'}
+                  修改补充并重新提交
                 </h3>
               </div>
               <button

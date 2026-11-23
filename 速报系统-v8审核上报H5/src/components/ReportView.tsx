@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SpeedReport, ReportTemplate, UserProfile, ReportStatus, ReportType, ReportSource, IdentificationTag, TemplateFieldValue } from '../types';
 import { REPORT_TEMPLATES, DISTRICT_OPTIONS, TYPE_OPTIONS, SOURCE_OPTIONS } from '../data/mockData';
-import { Plus, Save, Send, ChevronRight, X, Sparkles, Filter, Link, FileText, Trash2, CheckCircle2, Clock, AlertCircle, PencilLine, Search, Camera, Loader2, RefreshCw, Undo2 } from 'lucide-react';
+import { Plus, Send, ChevronRight, X, Sparkles, Filter, Link, FileText, Trash2, CheckCircle2, Clock, AlertCircle, PencilLine, Search, Camera, Loader2, RefreshCw } from 'lucide-react';
 import { BackNavigationBar } from './BackNavigationBar';
 import { IdentificationBadge } from './IdentificationBadge';
 import { RecallConfirmDialog } from './RecallConfirmDialog';
 import { getAuditAssignmentStatus, getAuditBlockTip } from '../utils/submitGuard';
 import { isTemplateBlockedByExternalAudit } from '../shared/valueAddedAccess';
 import { calculatePreJudgment } from '../utils/identification';
-import { isDraftExpired } from '../utils/draftRetention';
 import {
   TemplateExtraFields,
   createInitialTemplateFieldValues,
@@ -19,15 +18,15 @@ import {
 interface ReportViewProps {
   reports: SpeedReport[];
   user: UserProfile;
-  onSaveReport: (report: Partial<SpeedReport>, isSubmit: boolean) => void;
+  onSaveReport: (report: Partial<SpeedReport>) => void;
   onDeleteReport: (id: string) => void;
-  onRecallReport?: (id: string) => void;
   onSelectReport: (report: SpeedReport) => void;
   onToast: (msg: string) => void;
   onEditReport?: (report: SpeedReport) => void;
   initialEditReport?: SpeedReport | null;
   isCreatingNew?: boolean;
   initialTemplateId?: string | null;
+  initialFilter?: string | null;
   showAllStatuses?: boolean;
   onFormModeChange?: (isFormMode: boolean) => void;
   onCloseForm?: () => void;
@@ -43,20 +42,19 @@ export const ReportView: React.FC<ReportViewProps> = ({
   user,
   onSaveReport,
   onDeleteReport,
-  onRecallReport,
   onSelectReport,
   onToast,
   onEditReport,
   initialEditReport,
   isCreatingNew,
   initialTemplateId,
+  initialFilter,
   showAllStatuses = false,
   onFormModeChange,
   onCloseForm,
 }) => {
-  const [activeFilter, setActiveFilter] = useState<string>('pending');
+  const [activeFilter, setActiveFilter] = useState<string>(initialFilter || 'pending');
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
-  const [recallTargetId, setRecallTargetId] = useState<string | null>(null);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [isCreating, setIsCreating] = useState<boolean>(!!initialEditReport || !!isCreatingNew);
   const [selectedTemplate, setSelectedTemplate] = useState<ReportTemplate>(REPORT_TEMPLATES[0]);
@@ -237,8 +235,8 @@ export const ReportView: React.FC<ReportViewProps> = ({
     ? [
         { key: 'pending', label: '待审核' },
         { key: 'auditing', label: '审核中' },
+        { key: 'approved', label: '已采纳' },
         { key: 'rejected', label: '被驳回' },
-        { key: 'draft', label: '草稿箱' },
       ]
     : [{ key: 'pending', label: '待审核' }];
   const reportSourceOptions = SOURCE_OPTIONS.filter((source) => source !== '部门转办');
@@ -260,8 +258,12 @@ export const ReportView: React.FC<ReportViewProps> = ({
   }, [isCreating, onFormModeChange]);
 
   useEffect(() => {
+    if (initialFilter) {
+      setActiveFilter(initialFilter);
+      return;
+    }
     setActiveFilter('pending');
-  }, [showAllStatuses]);
+  }, [showAllStatuses, initialFilter]);
 
   useEffect(() => {
     if (initialEditReport) {
@@ -341,20 +343,20 @@ export const ReportView: React.FC<ReportViewProps> = ({
     setIsCreating(true);
   }
 
-  const buildFormPayload = (status: 'pending_audit' | 'draft'): Partial<SpeedReport> => {
+  const buildFormPayload = (): Partial<SpeedReport> => {
     const templateLink = selectedTemplate.extraFields.find((field) => field.type === 'link');
     const templateLinkValue = templateLink ? extraFieldValues[templateLink.id] : '';
     const stamp = new Date().toISOString().replace('T', ' ').substring(0, 16);
     return {
-      id: editingId || `rep_${status === 'draft' ? 'draft_' : ''}${Date.now()}`,
-      title: formTitle.trim() || '未命名草稿',
+      id: editingId || `rep_${Date.now()}`,
+      title: formTitle.trim(),
       address: formAddress,
       source: formSource || selectedTemplate.defaultSource,
       district: formDistrict || '全市',
       type: formType || selectedTemplate.defaultType,
       summary: formSummary,
       coreDemand: formCoreDemand || formSummary,
-      disposalAdvice: formDisposalAdvice || (status === 'draft' ? '' : '待审核部门研判处置。'),
+      disposalAdvice: formDisposalAdvice || '待审核部门研判处置。',
       matchedLink: formMatchedLink || (typeof templateLinkValue === 'string' ? templateLinkValue : ''),
       templateId: selectedTemplate.id,
       templateFieldValues: { ...extraFieldValues },
@@ -363,31 +365,11 @@ export const ReportView: React.FC<ReportViewProps> = ({
       author: user.name,
       authorDept: user.department,
       gridNo: user.gridCode,
-      status,
+      status: 'pending_audit',
       updateTime: stamp,
       createTime: editingReport?.createTime || stamp,
-      tags:
-        status === 'draft'
-          ? ['草稿', selectedTemplate.defaultType, user.department].filter(Boolean)
-          : [formDistrict, formType, user.department],
+      tags: [formDistrict, formType, user.department],
     };
-  };
-
-  const handleSaveDraft = () => {
-    if (linkShot?.status === 'loading' || templateShotPending) {
-      onToast('截图任务进行中，请稍后保存');
-      return;
-    }
-    if (!formTitle.trim() && !formSummary.trim()) {
-      onToast('请至少填写标题或内容描述后再保存草稿');
-      return;
-    }
-    const payload = buildFormPayload('draft');
-    onSaveReport(payload, false);
-    setLinkShot(null);
-    setLinkShotViewer(null);
-    setIsCreating(false);
-    onCloseForm?.();
   };
 
   const handleSubmitForm = () => {
@@ -445,7 +427,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
       return;
     }
 
-    const payload = buildFormPayload('pending_audit');
+    const payload = buildFormPayload();
 
     // 1. 上报环节：用户点击提交后，系统自动比对不良信息库与待审件/审核中数据，立刻打上预判断标识
     const { tag, reason } = calculatePreJudgment(payload, reports);
@@ -453,7 +435,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
     payload.identificationReason = reason;
     payload.identificationTime = payload.updateTime;
 
-    onSaveReport(payload, true);
+    onSaveReport(payload);
     setLinkShot(null);
     setLinkShotViewer(null);
     setIsCreating(false);
@@ -520,7 +502,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
   );
 
   const reportListItems = reports.filter(
-    (r) => !isTransferRelatedReport(r) && !isDraftExpired(r)
+    (r) => !isTransferRelatedReport(r) && r.status !== 'draft'
   );
 
   const getFilterTabCount = (key: string) => {
@@ -531,8 +513,8 @@ export const ReportView: React.FC<ReportViewProps> = ({
         return reportListItems.filter((r) => r.status === 'pending_audit').length;
       case 'auditing':
         return reportListItems.filter((r) => r.status === 'auditing').length;
-      case 'draft':
-        return reportListItems.filter((r) => r.status === 'draft').length;
+      case 'approved':
+        return reportListItems.filter((r) => r.status === 'approved').length;
       case 'rejected':
         return reportListItems.filter((r) => r.status === 'rejected').length;
       default:
@@ -543,11 +525,11 @@ export const ReportView: React.FC<ReportViewProps> = ({
   // Filtering reports
   const filteredReports = reports.filter((r) => {
     if (isTransferRelatedReport(r)) return false;
-    if (isDraftExpired(r)) return false;
+    if (r.status === 'draft') return false;
 
     if (activeFilter === 'pending' && r.status !== 'pending_audit') return false;
     if (activeFilter === 'auditing' && r.status !== 'auditing') return false;
-    if (activeFilter === 'draft' && r.status !== 'draft') return false;
+    if (activeFilter === 'approved' && r.status !== 'approved') return false;
     if (activeFilter === 'rejected' && r.status !== 'rejected') return false;
 
     const normalizedKeyword = searchKeyword.trim().toLowerCase();
@@ -581,7 +563,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
   };
 
   const canDeleteReport = (report: SpeedReport) =>
-    report.status === 'draft' || report.status === 'pending_audit' || report.status === 'rejected';
+    report.status === 'pending_audit' || report.status === 'rejected';
 
   const handleReturnToPrevious = () => {
     setIsCreating(false);
@@ -590,17 +572,11 @@ export const ReportView: React.FC<ReportViewProps> = ({
 
   const editingReport = editingId ? reports.find((r) => r.id === editingId) ?? initialEditReport ?? null : null;
   const isResubmit = editingReport?.status === 'rejected';
-  const isDraftEdit = editingReport?.status === 'draft';
   const editingRejectReason = editingReport?.rejectReason?.replace(/^驳回原因[:：]\s*/, '') || '信息不完整，请补充相关材料后重新提交。';
 
   const handleReportCardClick = (event: React.MouseEvent<HTMLDivElement>, report: SpeedReport) => {
     const target = event.target as HTMLElement;
     if (target.closest('button, a, input, select, textarea')) return;
-    // 草稿进入上报表单继续编辑，不进详情页
-    if (report.status === 'draft' && onEditReport) {
-      onEditReport(report);
-      return;
-    }
     onSelectReport(report);
   };
 
@@ -611,18 +587,28 @@ export const ReportView: React.FC<ReportViewProps> = ({
       {isCreating ? (
         <div className="absolute inset-0 z-20 bg-slate-100 grid grid-rows-[minmax(0,1fr)_auto] overflow-hidden">
           {/* Form Content Body (Scrollable) */}
-          <div className="min-h-0 overflow-y-auto p-3.5 space-y-3.5 pb-4">
+          <div className="min-h-0 overflow-y-auto p-3.5 space-y-3.5 pb-4 bg-gradient-to-b from-violet-50/80 via-slate-50 to-slate-100">
             <BackNavigationBar onBack={handleReturnToPrevious} />
 
-            {isDraftEdit && (
-              <div className="px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 shadow-2xs">
-                <p className="font-bold flex items-center space-x-1.5">
-                  <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                  <span>继续编辑草稿</span>
-                </p>
-                <p className="mt-1 text-[11px] text-slate-500 leading-relaxed">
-                  完善后可提交审核；草稿默认仅保留 24 小时。
-                </p>
+            {/* 顶部多模态能力标识：链接字段靠下时，进页即可感知 */}
+            {selectedTemplate.extraFields.some((field) => field.type === 'link') && (
+              <div className="rounded-xl border border-violet-200/90 bg-gradient-to-r from-violet-600 via-fuchsia-600 to-indigo-600 p-[1px] shadow-sm shadow-violet-500/20">
+                <div className="rounded-[11px] bg-white/95 px-3 py-2.5 flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                    <Sparkles className="w-4.5 h-4.5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[13px] font-extrabold text-slate-900">多模态智能上报</span>
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 border border-violet-200">
+                        AI
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                      粘贴链接后可一键提取标题、描述并回填表单
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -637,7 +623,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
             )}
 
             {/* Form Fields Card */}
-            <div className="bg-white rounded-xl p-3.5 border border-slate-200/90 shadow-2xs space-y-3 text-xs">
+            <div className="bg-white rounded-xl p-3.5 border border-violet-100/80 shadow-2xs space-y-3 text-xs ring-1 ring-violet-50">
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">
                   标题名称 <span className="text-red-500">*</span>
@@ -955,12 +941,33 @@ export const ReportView: React.FC<ReportViewProps> = ({
                 }}
                 onScreenshotPendingChange={setTemplateShotPending}
                 onToast={onToast}
+                onAiExtractFill={(payload) => {
+                  setFormTitle(payload.title);
+                  setFormSummary(payload.summary);
+                  setFormCoreDemand(payload.summary);
+                  setFormMatchedLink(payload.link);
+                  if (payload.district) {
+                    setFormDistrict(payload.district);
+                    setFormAddress(payload.district);
+                  }
+                  setFieldErrors((prev) => ({
+                    ...prev,
+                    title: false,
+                    summary: false,
+                    coreDemand: false,
+                    matchedLink: false,
+                    district: false,
+                  }));
+                  if (extraFieldErrors[payload.linkFieldId]) {
+                    setExtraFieldErrors((prev) => ({ ...prev, [payload.linkFieldId]: false }));
+                  }
+                }}
               />
             </div>
           </div>
 
-          {/* Fixed Bottom Action Bar: 取消 / 保存草稿 / 提交 */}
-          <div className="bg-white border-t border-slate-200 px-3 pt-3 pb-[max(0.25rem,env(safe-area-inset-bottom))] shadow-lg grid grid-cols-3 gap-2 z-50">
+          {/* Fixed Bottom Action Bar: 取消 / 提交 */}
+          <div className="bg-white border-t border-slate-200 px-3 pt-3 pb-[max(0.25rem,env(safe-area-inset-bottom))] shadow-lg grid grid-cols-2 gap-2 z-50">
             <button
               type="button"
               onClick={handleReturnToPrevious}
@@ -968,15 +975,6 @@ export const ReportView: React.FC<ReportViewProps> = ({
             >
               <X className="w-3.5 h-3.5" />
               <span>取消</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleSaveDraft}
-              className="py-2.5 px-1.5 bg-white hover:bg-slate-50 active:scale-95 text-blue-700 font-semibold text-xs rounded-xl flex items-center justify-center space-x-1 border border-blue-200 transition-all cursor-pointer"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>保存草稿</span>
             </button>
 
             <button
@@ -1187,23 +1185,6 @@ export const ReportView: React.FC<ReportViewProps> = ({
                           <span>删除</span>
                         </button>
                       )}
-                      {report.status === 'pending_audit' && onRecallReport && (
-                        <button
-                          type="button"
-                          onTouchStart={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setRecallTargetId(report.id);
-                          }}
-                          className="-my-1 -mx-1 px-1.5 py-1 text-amber-600 hover:text-amber-800 font-medium flex items-center gap-0.5 rounded-md hover:bg-amber-50 active:scale-95 transition-all cursor-pointer"
-                          aria-label="撤回至草稿箱"
-                          title="撤回至草稿箱"
-                        >
-                          <Undo2 className="w-3.5 h-3.5" />
-                          <span>撤回</span>
-                        </button>
-                      )}
                       {report.status === 'rejected' && onEditReport && (
                         <button
                           type="button"
@@ -1219,26 +1200,16 @@ export const ReportView: React.FC<ReportViewProps> = ({
                           <span>编辑</span>
                         </button>
                       )}
-                      {report.status === 'draft' ? (
-                        <span className="text-blue-600 font-medium flex items-center">
-                          继续编辑 <ChevronRight className="w-3 h-3 ml-0.5" />
-                        </span>
-                      ) : (
-                        <span className="text-blue-600 font-medium flex items-center">
-                          详情 <ChevronRight className="w-3 h-3 ml-0.5" />
-                        </span>
-                      )}
+                      <span className="text-blue-600 font-medium flex items-center">
+                        详情 <ChevronRight className="w-3 h-3 ml-0.5" />
+                      </span>
                     </div>
                   </div>
 
                 </div>
               ))
             )}
-            <p className="text-center text-[10px] text-slate-400 py-2">
-              {activeFilter === 'draft'
-                ? '草稿箱数据默认仅保留 24 小时，超时将自动清除'
-                : '默认显示近三个月的数据'}
-            </p>
+            <p className="text-center text-[10px] text-slate-400 py-2">默认显示近三个月的数据</p>
           </div>
         </>
       )}
@@ -1254,21 +1225,6 @@ export const ReportView: React.FC<ReportViewProps> = ({
           onConfirm={() => {
             onDeleteReport(deleteTargetId);
             setDeleteTargetId(null);
-          }}
-        />
-      )}
-
-      {recallTargetId && onRecallReport && (
-        <RecallConfirmDialog
-          title="确认撤回这条待审核速报？"
-          message="撤回后将转入草稿箱，审核侧暂停处理。可在草稿箱继续编辑后重新提交；草稿默认保留 24 小时。"
-          cancelLabel="取消"
-          confirmLabel="确认撤回"
-          onCancel={() => setRecallTargetId(null)}
-          onConfirm={() => {
-            onRecallReport(recallTargetId);
-            setRecallTargetId(null);
-            setActiveFilter('draft');
           }}
         />
       )}

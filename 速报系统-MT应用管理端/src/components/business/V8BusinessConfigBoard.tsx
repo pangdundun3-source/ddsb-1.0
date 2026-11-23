@@ -17,6 +17,13 @@ import {
   VALUE_ADDED_CATALOG_EVENT,
   VALUE_ADDED_CATALOG_STORAGE_KEY,
 } from '../../shared/valueAddedCatalog';
+import {
+  LINK_MULTIMODAL_MODE_OPTIONS,
+  LinkMultimodalMode,
+  formatLinkMultimodalModesLabel,
+  isLinkMultimodalValueAdded,
+  normalizeLinkMultimodalModes,
+} from '../../shared/linkMultimodalModes';
 import { ControlNoticeTip } from './ControlNoticeTip';
 import {
   Search,
@@ -198,6 +205,8 @@ interface ConfigModuleItem {
   isDefault?: boolean;
   status: '启用' | '停用';
   activatedStatus?: '已开通' | '未开通';
+  /** AI 链接多模态识别：机构开通的提取能力（基础 / 深度，可多选） */
+  linkMultimodalModes?: Array<'basic' | 'deep'>;
   /** 创建时间；缺省时排序回退到 updateTime */
   createTime?: string;
   updateTime: string;
@@ -444,6 +453,18 @@ function loadPersistedDataStore(
           existingList[targetIndex] = {
             ...existingList[targetIndex],
             description: defaultItem.description,
+          };
+        }
+      } else if (isLinkMultimodalValueAdded(defaultItem)) {
+        const targetIndex = existingList.findIndex(
+          (i) => isLinkMultimodalValueAdded(i) && !i.linkMultimodalModes?.length
+        );
+        if (targetIndex !== -1) {
+          existingList[targetIndex] = {
+            ...existingList[targetIndex],
+            linkMultimodalModes: normalizeLinkMultimodalModes(
+              defaultItem.linkMultimodalModes || ['basic', 'deep']
+            ),
           };
         }
       }
@@ -935,6 +956,19 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
         activatedStatus: '已开通',
         updateTime: '2023-11-10 10:00:00',
         description: '针对外部联系人的注册激活、资料变更与组织节点调整进行审核把关，支持通过 / 驳回与审核留痕，保障外部协作人员身份真实可控',
+        isDefault: true
+      },
+      {
+        id: 'va_7',
+        name: 'AI链接多模态识别',
+        dictCategoryName: '增值业务',
+        dictCode: 'VA_LINK_MULTIMODAL_AI',
+        status: '启用',
+        activatedStatus: '已开通',
+        updateTime: '2026-03-23 10:00:00',
+        description:
+          '报送模板支持粘贴原文链接后一键 AI 多模态提取：自动识别标题、摘要、属地与发布时间并回填表单，提升线索结构化录入效率',
+        linkMultimodalModes: ['basic', 'deep'],
         isDefault: true
       }
     ]
@@ -2225,6 +2259,13 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
   // Preview Modal State
   const [previewItem, setPreviewItem] = useState<ConfigModuleItem | null>(null);
   const [editingValueAdded, setEditingValueAdded] = useState<{ id: string; globalOnly: boolean; name: string; description: string } | null>(null);
+  /** 机构侧：AI 链接多模态识别开通/编辑能力弹窗 */
+  const [linkMultimodalConfig, setLinkMultimodalConfig] = useState<{
+    itemId: string;
+    itemName: string;
+    modes: LinkMultimodalMode[];
+    intent: 'activate' | 'edit';
+  } | null>(null);
 
   // 全局编辑增值业务名称/描述：写入全局母版，并同步到所有已保存过独立配置的机构 + 客户管理端目录
   const handleSaveValueAddedEdit = () => {
@@ -3033,6 +3074,10 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                   ...item,
                   status: newStatus,
                   activatedStatus: newStatus === '启用' ? '已开通' : '未开通',
+                  linkMultimodalModes:
+                    newStatus === '启用' && isLinkMultimodalValueAdded(item)
+                      ? normalizeLinkMultimodalModes(item.linkMultimodalModes)
+                      : item.linkMultimodalModes,
                   updateTime: nowStr
                 }
               : item
@@ -3047,12 +3092,63 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
             ? {
                 ...item,
                 status: newStatus,
+                linkMultimodalModes:
+                  newStatus === '启用' && isLinkMultimodalValueAdded(item)
+                    ? normalizeLinkMultimodalModes(item.linkMultimodalModes)
+                    : item.linkMultimodalModes,
                 updateTime: nowStr
               }
             : item
         )
       };
     });
+  };
+
+  const openLinkMultimodalConfig = (
+    item: ConfigModuleItem,
+    intent: 'activate' | 'edit'
+  ) => {
+    setLinkMultimodalConfig({
+      itemId: item.id,
+      itemName: item.name,
+      modes: normalizeLinkMultimodalModes(item.linkMultimodalModes),
+      intent,
+    });
+  };
+
+  const handleSaveLinkMultimodalConfig = async () => {
+    if (!linkMultimodalConfig) return;
+    const modes = normalizeLinkMultimodalModes(linkMultimodalConfig.modes);
+    if (modes.length === 0) {
+      await alertDialog('至少开通一种提取能力：基础链接内容提取 或 图文视频深度提取。');
+      return;
+    }
+    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const shouldActivate = linkMultimodalConfig.intent === 'activate';
+    commitDataStore((prev) => ({
+      ...prev,
+      value_added: (prev.value_added || []).map((item) =>
+        item.id === linkMultimodalConfig.itemId
+          ? {
+              ...item,
+              linkMultimodalModes: modes,
+              ...(shouldActivate
+                ? {
+                    status: '启用' as const,
+                    activatedStatus: '已开通' as const,
+                  }
+                : {}),
+              updateTime: nowStr,
+            }
+          : item
+      ),
+    }));
+    setLinkMultimodalConfig(null);
+    showConfigToast(
+      shouldActivate
+        ? `已开通「${linkMultimodalConfig.itemName}」：${formatLinkMultimodalModesLabel(modes)}`
+        : `已更新提取能力：${formatLinkMultimodalModesLabel(modes)}`
+    );
   };
 
   // Handle Delete（审核流程 / 打分规则与停用校验一致：有关联报送模板时需确认并解绑停用）
@@ -4992,6 +5088,110 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                         </div>
                       </div>
                     )}
+                    {linkMultimodalConfig && (
+                      <div
+                        className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6"
+                        onClick={() => setLinkMultimodalConfig(null)}
+                      >
+                        <div
+                          className="w-full max-w-[480px] bg-white rounded-xl shadow-2xl overflow-hidden"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                            <div>
+                              <div className="text-sm font-bold text-gray-900">
+                                {linkMultimodalConfig.intent === 'activate'
+                                  ? '开通 AI 链接多模态识别'
+                                  : '编辑提取能力'}
+                              </div>
+                              <div className="text-[11px] text-gray-400 mt-0.5">
+                                {linkMultimodalConfig.intent === 'activate'
+                                  ? `为「${linkMultimodalConfig.itemName}」选择本机构开通的提取能力`
+                                  : `调整「${linkMultimodalConfig.itemName}」已开通的提取能力`}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setLinkMultimodalConfig(null)}
+                              className="w-7 h-7 rounded flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 cursor-pointer"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <div className="p-5 space-y-3">
+                            <p className="text-[11px] text-gray-500 leading-relaxed">
+                              可单独开通基础提取、图文视频深度提取，或两项同时开通；至少选择一种。
+                            </p>
+                            <div className="space-y-2">
+                              {LINK_MULTIMODAL_MODE_OPTIONS.map((opt) => {
+                                const checked = linkMultimodalConfig.modes.includes(opt.id);
+                                return (
+                                  <div
+                                    key={opt.id}
+                                    className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
+                                      checked
+                                        ? 'bg-violet-50 border-violet-300 shadow-2xs'
+                                        : 'bg-white border-gray-200'
+                                    }`}
+                                  >
+                                    <div className="min-w-0 flex-1">
+                                      <div className="text-[13px] font-bold text-gray-800">
+                                        {opt.label}
+                                      </div>
+                                      <div className="text-[11px] text-gray-500 mt-0.5 leading-snug">
+                                        {opt.desc}
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      role="switch"
+                                      aria-checked={checked}
+                                      aria-label={opt.label}
+                                      onClick={() => {
+                                        const next = checked
+                                          ? linkMultimodalConfig.modes.filter((m) => m !== opt.id)
+                                          : Array.from(
+                                              new Set([...linkMultimodalConfig.modes, opt.id])
+                                            );
+                                        setLinkMultimodalConfig({
+                                          ...linkMultimodalConfig,
+                                          modes: next as LinkMultimodalMode[],
+                                        });
+                                      }}
+                                      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none cursor-pointer ${
+                                        checked ? 'bg-[#1890ff]' : 'bg-gray-200 hover:bg-gray-300'
+                                      }`}
+                                    >
+                                      <span
+                                        className={`pointer-events-none absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-xs transition-all duration-200 ${
+                                          checked ? 'right-0.5' : 'left-0.5'
+                                        }`}
+                                      />
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                          <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setLinkMultimodalConfig(null)}
+                              className="h-8 px-4 border border-gray-200 rounded text-xs text-gray-600 hover:bg-gray-50 cursor-pointer"
+                            >
+                              取消
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleSaveLinkMultimodalConfig()}
+                              className="h-8 px-4 bg-[#1890ff] hover:bg-blue-600 rounded text-xs font-bold text-white cursor-pointer"
+                            >
+                              {linkMultimodalConfig.intent === 'activate' ? '确认开通' : '保存'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     {filteredList.map(item => {
                       const isActivated = valueAddedAllOperable
                         ? item.status === '启用'
@@ -5045,12 +5245,45 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                     <Edit3 className="w-3.5 h-3.5" />
                                   </button>
                                 )}
+                                {/* 机构侧：已开通后，开关旁配置入口 + 悬浮能力提示 */}
+                                {!isGlobalScope &&
+                                  isLinkMultimodalValueAdded(item) &&
+                                  isActivated && (
+                                  <div className="relative group/lm-cfg">
+                                    <button
+                                      type="button"
+                                      onClick={() => openLinkMultimodalConfig(item, 'edit')}
+                                      className="w-6 h-6 flex items-center justify-center rounded-md text-violet-500 hover:text-violet-700 hover:bg-violet-50 cursor-pointer transition-colors"
+                                      aria-label="配置提取能力"
+                                    >
+                                      <Settings2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <div className="pointer-events-none absolute right-0 top-full z-20 mt-1.5 w-max max-w-[220px] rounded-md bg-gray-900 px-2.5 py-1.5 text-[10px] leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/lm-cfg:opacity-100">
+                                      <div className="font-semibold mb-0.5">已开通提取能力</div>
+                                      <div className="text-white/90">
+                                        {formatLinkMultimodalModesLabel(item.linkMultimodalModes)}
+                                      </div>
+                                      <div className="mt-0.5 text-white/60">点击配置可修改</div>
+                                    </div>
+                                  </div>
+                                )}
                                 {isGlobalScope ? null : valueAddedAllOperable || isActivated ? (
                                   <button
                                     type="button"
                                     role="switch"
                                     aria-checked={item.status === '启用'}
-                                    onClick={() => handleToggleStatus(item.id)}
+                                    onClick={() => {
+                                      // 开通 AI 多模态：先弹窗配置提取能力，再落开通态
+                                      if (
+                                        !isGlobalScope &&
+                                        isLinkMultimodalValueAdded(item) &&
+                                        item.status !== '启用'
+                                      ) {
+                                        openLinkMultimodalConfig(item, 'activate');
+                                        return;
+                                      }
+                                      void handleToggleStatus(item.id);
+                                    }}
                                     className={`relative inline-flex h-6 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none cursor-pointer select-none text-[11px] font-medium ${
                                       item.status === '启用'
                                         ? 'bg-[#1890ff] text-white pl-2.5 pr-6.5'

@@ -44,14 +44,8 @@ import {
   UserCheck,
   CheckSquare
 } from 'lucide-react';
-import { ReportItem, AuditRecordItem, OrgItem, DraftReport, NewReportFormData } from '../types';
+import { ReportItem, AuditRecordItem, OrgItem, NewReportFormData } from '../types';
 import { isTemplateBlockedByExternalAudit } from '../shared/valueAddedAccess';
-import {
-  H5_REPORT_DRAFT_STORAGE_KEY,
-  loadDrafts,
-  removeDraft,
-  upsertDraft
-} from '../services/reportDraftStorage';
 
 interface H5MobilePortalProps {
   isOpen: boolean;
@@ -168,10 +162,6 @@ export const H5MobilePortal: React.FC<H5MobilePortalProps> = ({
       triggerH5Toast('已退出合并审核');
       return;
     }
-    if (showH5DraftModal) {
-      setShowH5DraftModal(false);
-      return;
-    }
     if (showProfileModal) {
       setShowProfileModal(false);
       return;
@@ -215,8 +205,8 @@ export const H5MobilePortal: React.FC<H5MobilePortalProps> = ({
     triggerH5Toast('已处于微信公众号内嵌H5首页');
   };
 
-  // Sub-tabs for "报送管理": 'template' (模板上报) | 'draft' (报送草稿) | 'record' (报送记录) | 'form' (填报表单)
-  const [reportSubTab, setReportSubTab] = useState<'template' | 'form' | 'draft' | 'record'>('record');
+  // Sub-tabs for "报送管理": 'template' (模板上报) | 'record' (报送记录) | 'form' (填报表单)
+  const [reportSubTab, setReportSubTab] = useState<'template' | 'form' | 'record'>('record');
 
   // Sub-tabs for "审核处理": 'pending' (待审核列表) | 'batch' (批量审核/同地址标记) | 'history' (审核记录)
   const [auditSubTab, setAuditSubTab] = useState<'pending' | 'batch' | 'history'>('pending');
@@ -343,13 +333,6 @@ export const H5MobilePortal: React.FC<H5MobilePortalProps> = ({
   const [newDemands, setNewDemands] = useState('');
   const [isPolishing, setIsPolishing] = useState(false);
 
-  // Draft States
-  const [h5Drafts, setH5Drafts] = useState<DraftReport[]>(() => {
-    return loadDrafts(H5_REPORT_DRAFT_STORAGE_KEY);
-  });
-  const [showH5DraftModal, setShowH5DraftModal] = useState(false);
-  const [activeH5DraftId, setActiveH5DraftId] = useState<string | null>(null);
-
   // Single Audit Modal State
   const [auditTarget, setAuditTarget] = useState<ReportItem | null>(null);
   const [auditScore, setAuditScore] = useState<number>(90);
@@ -372,57 +355,6 @@ export const H5MobilePortal: React.FC<H5MobilePortalProps> = ({
     });
     return groups;
   }, [reports]);
-
-  // Save Draft
-  const handleSaveH5Draft = () => {
-    if (!newTitle.trim() && !newSummary.trim() && !newDemands.trim()) {
-      triggerH5Toast('请至少填写标题或摘要内容再保存草稿');
-      return;
-    }
-
-    const draftId = activeH5DraftId || `h5-draft-${Date.now()}`;
-    const newDraft: DraftReport = {
-      id: draftId,
-      title: newTitle.trim() || '未命名草稿',
-      source: newSource,
-      region: newRegion,
-      infoType: newInfoType,
-      author: userProfile.name,
-      organization: userProfile.orgName,
-      summary: newSummary,
-      demands: newDemands,
-      recommendations: '',
-      saveTime: new Date().toISOString().replace('T', ' ').substring(0, 16)
-    };
-
-    const updated = upsertDraft(newDraft, H5_REPORT_DRAFT_STORAGE_KEY);
-    setH5Drafts(updated);
-    setActiveH5DraftId(draftId);
-    triggerH5Toast('草稿已成功暂存至草稿箱！');
-  };
-
-  // Load Draft
-  const handleLoadH5Draft = (draft: DraftReport) => {
-    setNewTitle(draft.title === '未命名草稿' ? '' : draft.title);
-    setNewSource(draft.source || '微信公众号');
-    setNewRegion(draft.region || '西屯区');
-    setNewInfoType(draft.infoType || '民生诉求');
-    setNewSummary(draft.summary || '');
-    setNewDemands(draft.demands || '');
-    setActiveH5DraftId(draft.id);
-    setShowH5DraftModal(false);
-    setReportSubTab('form');
-    triggerH5Toast(`已重载草稿: ${draft.title}`);
-  };
-
-  // Delete Draft
-  const handleDeleteH5Draft = (draftId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const updated = removeDraft(draftId, H5_REPORT_DRAFT_STORAGE_KEY);
-    setH5Drafts(updated);
-    if (activeH5DraftId === draftId) setActiveH5DraftId(null);
-    triggerH5Toast('草稿已删除');
-  };
 
   // AI Polish
   const handleAiPolish = () => {
@@ -477,14 +409,9 @@ export const H5MobilePortal: React.FC<H5MobilePortalProps> = ({
     });
 
     triggerH5Toast('🎉 移动速报提交成功！已进入审核队列');
-    if (activeH5DraftId) {
-      const updated = removeDraft(activeH5DraftId, H5_REPORT_DRAFT_STORAGE_KEY);
-      setH5Drafts(updated);
-    }
     setNewTitle('');
     setNewSummary('');
     setNewDemands('');
-    setActiveH5DraftId(null);
     setReportSubTab('record');
   };
 
@@ -695,7 +622,6 @@ export const H5MobilePortal: React.FC<H5MobilePortalProps> = ({
                   {[
                     { id: 'record', label: '报送记录' },
                     { id: 'template', label: '模板上报' },
-                    { id: 'draft', label: `报送草稿 (${h5Drafts.length})` },
                     { id: 'form', label: '新建填报' }
                   ].map((sub) => (
                     <button
@@ -760,74 +686,7 @@ export const H5MobilePortal: React.FC<H5MobilePortalProps> = ({
                   </div>
                 )}
 
-                {/* Sub-View 2: 报送草稿 (Draft Box) */}
-                {reportSubTab === 'draft' && (
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center px-1">
-                      <span className="font-bold text-xs text-slate-800 flex items-center space-x-1">
-                        <Clock className="w-3.5 h-3.5 text-amber-600" />
-                        <span>草稿箱暂存列表 ({h5Drafts.length})</span>
-                      </span>
-                      <button
-                        onClick={() => {
-                          setReportSubTab('form');
-                          setActiveH5DraftId(null);
-                        }}
-                        className="text-[10px] text-blue-600 font-bold hover:underline"
-                      >
-                        + 新建空白草稿
-                      </button>
-                    </div>
-
-                    {h5Drafts.length === 0 ? (
-                      <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 space-y-2">
-                        <Save className="w-8 h-8 text-slate-300 mx-auto" />
-                        <p className="font-bold text-xs text-slate-600">草稿箱为空</p>
-                        <p className="text-[10px] text-slate-400">填报未完成速报时点击“存为草稿”，随时在此恢复编辑</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {h5Drafts.map((d) => (
-                          <div
-                            key={d.id}
-                            className={`p-3 bg-white rounded-2xl border transition-all space-y-2 ${
-                              activeH5DraftId === d.id ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-slate-200'
-                            }`}
-                          >
-                            <div className="flex justify-between items-start">
-                              <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded">
-                                草稿
-                              </span>
-                              <span className="text-[10px] text-slate-400">{d.saveTime}</span>
-                            </div>
-
-                            <h4 className="font-bold text-xs text-slate-900 truncate">{d.title}</h4>
-                            <p className="text-[10px] text-slate-500 truncate">{d.summary || '无摘要内容'}</p>
-
-                            <div className="flex justify-end space-x-2 pt-1 border-t border-slate-100">
-                              <button
-                                onClick={(e) => handleDeleteH5Draft(d.id, e)}
-                                className="px-2.5 py-1 text-rose-600 hover:bg-rose-50 font-bold rounded-lg text-[10px] flex items-center space-x-1"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                                <span>删除</span>
-                              </button>
-                              <button
-                                onClick={() => handleLoadH5Draft(d)}
-                                className="px-3 py-1 bg-[#1E5ABB] text-white font-bold rounded-lg text-[10px] flex items-center space-x-1"
-                              >
-                                <Edit className="w-3 h-3" />
-                                <span>继续编辑</span>
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Sub-View 3: 报送记录 (Report Records) */}
+                {/* Sub-View 2: 报送记录 (Report Records) */}
                 {reportSubTab === 'record' && (
                   <div className="space-y-3">
                     {/* Search & Filter */}
@@ -919,19 +778,11 @@ export const H5MobilePortal: React.FC<H5MobilePortalProps> = ({
                   </div>
                 )}
 
-                {/* Sub-View 4: 新建填报 (New Form) */}
+                {/* Sub-View 3: 新建填报 (New Form) */}
                 {reportSubTab === 'form' && (
                   <form onSubmit={handleSubmitMobileReport} className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
                     <div className="flex justify-between items-center pb-2 border-b">
                       <h4 className="font-bold text-xs text-slate-800">舆情极速填报表单</h4>
-                      <button
-                        type="button"
-                        onClick={handleSaveH5Draft}
-                        className="text-[10px] bg-amber-100 text-amber-900 px-2 py-1 rounded-lg font-bold flex items-center space-x-1"
-                      >
-                        <Save className="w-3 h-3 text-amber-700" />
-                        <span>存草稿</span>
-                      </button>
                     </div>
 
                     <div>
@@ -1031,18 +882,10 @@ export const H5MobilePortal: React.FC<H5MobilePortalProps> = ({
                       ></textarea>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2 pt-2">
-                      <button
-                        type="button"
-                        onClick={handleSaveH5Draft}
-                        className="col-span-1 py-3 bg-amber-100 text-amber-900 border border-amber-300 rounded-xl font-bold text-xs cursor-pointer flex items-center justify-center space-x-1"
-                      >
-                        <Save className="w-3.5 h-3.5 text-amber-800" />
-                        <span>存草稿</span>
-                      </button>
+                    <div className="pt-2">
                       <button
                         type="submit"
-                        className="col-span-2 py-3 bg-[#1E5ABB] hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md cursor-pointer flex items-center justify-center space-x-1.5"
+                        className="w-full py-3 bg-[#1E5ABB] hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md cursor-pointer flex items-center justify-center space-x-1.5"
                       >
                         <Send className="w-3.5 h-3.5" />
                         <span>提交审核</span>
@@ -1471,8 +1314,8 @@ export const H5MobilePortal: React.FC<H5MobilePortalProps> = ({
                           <p className="font-black text-sm text-rose-600">2</p>
                         </div>
                         <div className="bg-amber-50/80 p-1.5 rounded-lg">
-                          <p className="text-slate-400">草稿箱</p>
-                          <p className="font-black text-sm text-amber-600">{h5Drafts.length}</p>
+                          <p className="text-slate-400">待审核</p>
+                          <p className="font-black text-sm text-amber-600">{pendingCount}</p>
                         </div>
                       </div>
                     </div>
@@ -1522,7 +1365,7 @@ export const H5MobilePortal: React.FC<H5MobilePortalProps> = ({
                       </span>
                     </div>
                     <div className="p-2 bg-slate-50 rounded-xl flex items-center justify-between">
-                      <span className="font-medium">2. 极速上报与草稿暂存</span>
+                      <span className="font-medium">2. 极速上报与移动填报</span>
                       <span className="text-[10px] text-slate-500 font-bold bg-white px-2 py-0.5 rounded border">
                         完全支持
                       </span>

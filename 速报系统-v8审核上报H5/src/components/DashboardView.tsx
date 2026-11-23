@@ -1,5 +1,13 @@
 import React from 'react';
-import { ChevronRight, FileText, Sparkles, Megaphone, Clock, CheckCircle2, X } from 'lucide-react';
+import {
+  ChevronRight,
+  FileText,
+  Sparkles,
+  Megaphone,
+  Clock,
+  CheckCircle2,
+  X,
+} from 'lucide-react';
 import { REPORT_TEMPLATES } from '../data/mockData';
 import { isTemplateBlockedByExternalAudit } from '../shared/valueAddedAccess';
 import { UserProfile, AppNotification, SpeedReport } from '../types';
@@ -79,8 +87,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-cyan-100 shrink-0" />
-              <h2 className="text-sm font-black tracking-tight truncate">选择上报模板</h2>
+              <h2 className="text-sm font-black tracking-tight truncate">工作台首页</h2>
             </div>
+            <p className="text-[10px] text-cyan-50/90 mt-1">选择模板快速发起网格上报</p>
           </div>
           <div className="shrink-0 rounded-full bg-white/18 border border-white/20 px-2.5 py-1">
             <span className="text-[10px] font-bold text-white/90">{displayRole}</span>
@@ -149,32 +158,54 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         );
       })()}
 
+      <div className="flex items-center justify-between px-0.5 pt-1">
+        <h3 className="text-[11px] font-bold text-slate-500 tracking-wide">选择模板上报</h3>
+      </div>
+
       <div className="grid grid-cols-1 gap-2.5">
         {REPORT_TEMPLATES.filter(
           (tpl) => !isTemplateBlockedByExternalAudit(tpl.requiresExternalAudit)
         ).map((tpl, index) => {
           const tone = cardToneClasses[index % cardToneClasses.length];
+          const hasAiLink = tpl.extraFields.some((field) => field.type === 'link');
           return (
             <div
               key={tpl.id}
               onClick={() => onNewReport(tpl.id)}
-              className={`rounded-2xl border bg-gradient-to-r p-3.5 shadow-2xs hover:shadow-xs hover:border-blue-400 transition-all cursor-pointer flex items-center justify-between group active:scale-[0.99] ${tone}`}
+              className={`rounded-2xl border bg-gradient-to-r p-3.5 shadow-2xs hover:shadow-xs hover:border-blue-400 transition-all cursor-pointer flex items-center gap-2 group active:scale-[0.99] ${tone} ${
+                hasAiLink ? 'border-violet-200/80' : ''
+              }`}
             >
-              <div className="flex items-center space-x-3 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-white shadow-2xs border border-slate-200/60 flex items-center justify-center text-blue-600 shrink-0 group-hover:scale-105 transition-transform">
-                  <FileText className="w-4.5 h-4.5" />
+              <div className="flex items-center space-x-3 min-w-0 flex-1">
+                <div
+                  className={`w-9 h-9 rounded-xl bg-white shadow-2xs border flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${
+                    hasAiLink
+                      ? 'border-violet-200 text-violet-600'
+                      : 'border-slate-200/60 text-blue-600'
+                  }`}
+                >
+                  {hasAiLink ? <Sparkles className="w-4.5 h-4.5" /> : <FileText className="w-4.5 h-4.5" />}
                 </div>
-                <div className="min-w-0">
-                  <h3 className="text-xs font-bold text-slate-900 truncate">
-                    {tpl.name}
-                  </h3>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <h3 className="text-xs font-bold text-slate-900 truncate min-w-0">
+                      {tpl.name}
+                    </h3>
+                    {hasAiLink && (
+                      <span className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-violet-600 text-white">
+                        <Sparkles className="w-2.5 h-2.5" />
+                        AI
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                    {hasAiLink ? '支持链接多模态提取 · ' : ''}
                     {tpl.titlePlaceholder}
                   </p>
                 </div>
               </div>
 
-              <div className="w-7 h-7 rounded-full bg-white/80 border border-slate-200 flex items-center justify-center text-slate-400 group-hover:text-blue-600 group-hover:border-blue-300 group-hover:translate-x-0.5 transition-all shrink-0 ml-2">
+              <div className="w-7 h-7 rounded-full bg-white/80 border border-slate-200 flex items-center justify-center text-slate-400 group-hover:text-blue-600 group-hover:border-blue-300 group-hover:translate-x-0.5 transition-all shrink-0">
                 <ChevronRight className="w-4 h-4" />
               </div>
             </div>
