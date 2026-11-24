@@ -235,8 +235,8 @@ export const ReportView: React.FC<ReportViewProps> = ({
     ? [
         { key: 'pending', label: '待审核' },
         { key: 'auditing', label: '审核中' },
-        { key: 'approved', label: '已采纳' },
         { key: 'rejected', label: '被驳回' },
+        { key: 'approved', label: '已采纳' },
       ]
     : [{ key: 'pending', label: '待审核' }];
   const reportSourceOptions = SOURCE_OPTIONS.filter((source) => source !== '部门转办');
