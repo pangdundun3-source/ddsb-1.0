@@ -17,6 +17,11 @@ const InstitutionManagement = lazy(() =>
     default: m.InstitutionManagement,
   }))
 );
+const ApplicationManagement = lazy(() =>
+  import('./components/ApplicationManagement').then((m) => ({
+    default: m.ApplicationManagement,
+  }))
+);
 const GlobalConfig = lazy(() =>
   import('./components/GlobalConfig').then((m) => ({ default: m.GlobalConfig }))
 );
@@ -198,6 +203,10 @@ export default function App() {
                     }}
                     onProvisionInstitution={handleProvisionInstitution}
                   />
+                )}
+
+                {activeTab === 'apps' && (
+                  <ApplicationManagement onShowToast={showToast} />
                 )}
 
                 {activeTab === 'config' && <GlobalConfig onShowToast={showToast} />}

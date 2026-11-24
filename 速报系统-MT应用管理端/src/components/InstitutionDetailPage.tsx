@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { Institution, AuditLog } from '../types';
 import { ChangeAuthorizationModal } from './ChangeAuthorizationModal';
-import { BusinessRuleNavKey, InstitutionBusinessRulesTab } from './InstitutionBusinessRulesTab';
-import { OtherBusinessConfigTab } from './OtherBusinessConfigTab';
 import { InstitutionUserManagement } from './InstitutionUserManagement';
 import { InstitutionRoleManagement } from './InstitutionRoleManagement';
 import { InstitutionOrgStructure } from './InstitutionOrgStructure';
@@ -370,29 +368,10 @@ export const InstitutionDetailPage: React.FC<InstitutionDetailPageProps> = ({
         <InstitutionRoleManagement institutionName={institution?.name || ''} showToast={showToast} />
       )}
 
-      {/* Tab 3: 其他业务配置 (Other Business Rules & Configurations) - Left Sub-Nav Layout */}
       {detailTab === 'external_users' && (
         <ExternalUserSystemConfig
           institutionId={institution?.id}
           institutionName={institution?.name || ''}
-          showToast={showToast}
-        />
-      )}
-
-      {detailTab !== 'basic' &&
-        detailTab !== 'org_roles' &&
-        detailTab !== 'org_structure' &&
-        detailTab !== 'external_users' && (
-        <InstitutionBusinessRulesTab
-          key={institution?.id || 'rules'}
-          institution={institution}
-          isCreateMode={isCreateMode}
-          isGlobalScope={false}
-          hideSubNav={false}
-          onSaveRules={(newRules) => {
-            onSave({ businessRules: newRules });
-            showToast('机构专属业务规则已成功保存并实时生效！');
-          }}
           showToast={showToast}
         />
       )}

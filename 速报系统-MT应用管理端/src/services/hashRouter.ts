@@ -8,6 +8,7 @@ export type AppRouteType =
   | 'institutions_create'
   | 'institutions_detail'
   | 'institutions_edit'
+  | 'apps'
   | 'config'
   | 'org_config'
   | 'monitoring'
@@ -188,6 +189,18 @@ export const hashRouter = {
       };
     }
 
+    if (hash === 'apps' || hash === 'app-management') {
+      return {
+        routeType: 'apps',
+        activeTab: 'apps',
+        isAuthenticated: true,
+        activeView: 'operation',
+        selectedInstitutionId: null,
+        isCreatingInstitution: false,
+        isEditingInstitution: false,
+      };
+    }
+
     if (hash === 'config') {
       return {
         routeType: 'config',
@@ -276,6 +289,10 @@ export const hashRouter = {
           : `#/institutions/detail/${state.selectedInstitutionId}`;
       }
       return '#/institutions';
+    }
+
+    if (state.activeTab === 'apps') {
+      return '#/apps';
     }
 
     if (state.activeTab === 'config') {

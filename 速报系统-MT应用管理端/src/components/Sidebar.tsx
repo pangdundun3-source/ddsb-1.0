@@ -34,6 +34,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems: NavItem[] = [
     { id: 'home', label: '首页', icon: 'home' },
     { id: 'institutions', label: '机构管理', icon: 'corporate_fare' },
+    { id: 'apps', label: '应用管理', icon: 'apps' },
     {
       id: 'system',
       label: '系统管理',

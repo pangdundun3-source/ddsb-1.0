@@ -10,7 +10,7 @@ const STORAGE_KEYS = {
   otherConfigSubTab: 'admin_other_config_sub_tab',
 } as const;
 
-const activeTabs: ActiveTab[] = ['home', 'institutions', 'config', 'org_config', 'system'];
+const activeTabs: ActiveTab[] = ['home', 'institutions', 'apps', 'config', 'org_config', 'system'];
 const systemSubTabs: SystemSubModule[] = ['accounts', 'logs'];
 
 const read = (key: string) => {
@@ -93,27 +93,16 @@ export const adminShellStorage = {
 
   readInstitutionDetailTab: (): DetailTab => {
     const saved = read(STORAGE_KEYS.institutionDetailTab);
-    const validTabs: DetailTab[] = [
+    const visibleTabs: DetailTab[] = [
       'org_structure',
       'basic',
       'org_roles',
       'external_users',
-      'business_rules',
-      'templates',
-      'scoring',
-      'dictionary',
-      'workflow',
-      'value_added',
-      'qr_code',
-      'other',
     ];
-    if (saved && validTabs.includes(saved as DetailTab)) {
-      if (['templates', 'scoring', 'dictionary', 'workflow', 'value_added', 'qr_code', 'other'].includes(saved)) {
-        return 'business_rules';
-      }
+    if (saved && visibleTabs.includes(saved as DetailTab)) {
       return saved as DetailTab;
     }
-    return 'business_rules';
+    return 'basic';
   },
 
   saveInstitutionDetailTab: (tab: DetailTab) =>

@@ -1,4 +1,11 @@
-export type ActiveTab = 'home' | 'institutions' | 'config' | 'org_config' | 'monitoring' | 'system';
+export type ActiveTab =
+  | 'home'
+  | 'institutions'
+  | 'apps'
+  | 'config'
+  | 'org_config'
+  | 'monitoring'
+  | 'system';
 
 export interface ExpiringInstitution {
   id: number;
