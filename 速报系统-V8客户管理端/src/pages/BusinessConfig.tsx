@@ -1225,6 +1225,8 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 
   // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
+  /** 从模板「其他业务配置」快捷新增时，弹窗模块与当前左侧模块解耦，避免跳转 */
+  const [modalModuleOverride, setModalModuleOverride] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<ConfigModuleItem | null>(null);
   const [formName, setFormName] = useState('');
   const [formTemplateType, setFormTemplateType] = useState<'报送' | '激活'>('报送');
@@ -2847,6 +2849,13 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 
   // Get active module title
   const currentModuleLabel = moduleList.find(m => m.id === activeModule)?.label || '配置项';
+  const configModalModule = modalModuleOverride || activeModule;
+  const configModalLabel =
+    moduleList.find((m) => m.id === configModalModule)?.label || currentModuleLabel;
+
+  React.useEffect(() => {
+    if (!isModalOpen) setModalModuleOverride(null);
+  }, [isModalOpen]);
 
   // Current list for active module
   const currentList = dataStore[activeModule] || (activeModule === 'data_dict' ? (dataStore.data_dict || []) : []);
@@ -3980,7 +3989,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
   };
 
   const requestCloseConfigModal = async () => {
-    if (activeModule === 'audit_flow' && isAuditFlowDirty()) {
+    if (configModalModule === 'audit_flow' && isAuditFlowDirty()) {
       const confirmed = await confirmDialog(
         editingItem
           ? '已修改的内容尚未保存，退出后将不会保留。确认退出吗？'
@@ -3990,6 +3999,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       if (!confirmed) return;
     }
     flowModeDraftsRef.current = {};
+    setModalModuleOverride(null);
     setIsModalOpen(false);
   };
 
@@ -4081,11 +4091,13 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     }
   };
 
-  // Handle Open Modal for Add / Edit（可从模板「其他业务配置」指定模块直接打开新增弹框）
+  // Handle Open Modal for Add / Edit（可从模板「其他业务配置」指定模块直接打开新增弹框，不跳转模块）
   const openAddModal = (forcedModule?: string) => {
     const moduleId = forcedModule || activeModule;
     if (forcedModule && forcedModule !== activeModule) {
-      setActiveModule(forcedModule);
+      setModalModuleOverride(forcedModule);
+    } else {
+      setModalModuleOverride(null);
     }
     if (moduleId === 'report_template') {
       openAddTemplatePage();
@@ -4308,6 +4320,8 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     if (!formName.trim()) return;
 
     const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    // 模板页快捷新增时以弹窗覆盖模块为准，避免依赖左侧已跳转的 activeModule
+    const activeModule = configModalModule;
 
     if (activeModule === 'value_added') {
       const vaItem: ConfigModuleItem = {
@@ -7868,18 +7882,18 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       {/* Add / Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className={`relative bg-white rounded-lg shadow-xl w-full ${activeModule === 'audit_flow' ? 'max-w-6xl' : activeModule === 'report_template' ? 'max-w-6xl' : activeModule === 'audit_score' || activeModule === 'evaluation_rule' ? 'max-w-3xl' : 'max-w-md'} overflow-hidden animate-in fade-in zoom-in-95 max-h-[92vh] flex flex-col`}>
+          <div className={`relative bg-white rounded-lg shadow-xl w-full ${configModalModule === 'audit_flow' ? 'max-w-6xl' : configModalModule === 'report_template' ? 'max-w-6xl' : configModalModule === 'audit_score' || configModalModule === 'evaluation_rule' ? 'max-w-3xl' : 'max-w-md'} overflow-hidden animate-in fade-in zoom-in-95 max-h-[92vh] flex flex-col`}>
             {/* Header */}
             <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center shrink-0">
               <div className="flex items-center space-x-3">
                 <h3 className="text-sm font-bold text-gray-800">
                   {editingItem
-                    ? activeModule === 'audit_flow'
+                    ? configModalModule === 'audit_flow'
                       ? '编辑审核流程层级设计'
-                      : `编辑${currentModuleLabel}`
-                    : activeModule === 'audit_flow'
+                      : `编辑${configModalLabel}`
+                    : configModalModule === 'audit_flow'
                       ? '新增审核流程层级设计'
-                      : `新增${currentModuleLabel}`}
+                      : `新增${configModalLabel}`}
                 </h3>
               </div>
               <button
@@ -7893,7 +7907,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
             {/* Modal Body */}
             <form onSubmit={handleSaveModal} className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
               {/* Basic Fields */}
-              {activeModule === 'audit_score' ? (
+              {configModalModule === 'audit_score' ? (
                 <div className="space-y-2.5">
                   <div className="grid grid-cols-1 sm:grid-cols-[1fr_1.4fr] gap-3">
                     <div>
@@ -7956,7 +7970,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                     {renderFormStatusSegment('启用状态 *')}
                   </div>
                 </div>
-              ) : activeModule === 'audit_flow' ? (
+              ) : configModalModule === 'audit_flow' ? (
                 <div className="space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
@@ -8148,7 +8162,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                     )}
                   </div>
                 </div>
-              ) : activeModule === 'data_dict' ? (
+              ) : configModalModule === 'data_dict' ? (
                 <div className="space-y-3">
                   {(() => {
                     const currentDictMeta = getDictCategoryMeta(formDictCategory);
@@ -8223,7 +8237,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                     );
                   })()}
                 </div>
-              ) : activeModule === 'value_added' ? (
+              ) : configModalModule === 'value_added' ? (
                 <div className="space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
@@ -8262,9 +8276,9 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                     />
                   </div>
                 </div>
-              ) : activeModule === 'evaluation_rule' ? null : (
+              ) : configModalModule === 'evaluation_rule' ? null : (
                 <div className={`grid grid-cols-1 sm:grid-cols-4 gap-3 ${
-                  activeModule === 'report_template' && modalActiveTab === 'preview' ? 'hidden' : ''
+                  configModalModule === 'report_template' && modalActiveTab === 'preview' ? 'hidden' : ''
                 }`}>
                   <div className="sm:col-span-1">
                     <label className="block text-gray-700 font-medium mb-1">模板/配置名称 *</label>
@@ -8273,12 +8287,12 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                       required
                       value={formName}
                       onChange={e => setFormName(e.target.value)}
-                      placeholder={`请输入${currentModuleLabel}名称...`}
+                      placeholder={`请输入${configModalLabel}名称...`}
                       className="w-full px-3 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
                     />
                   </div>
 
-                  {activeModule === 'report_template' && (
+                  {configModalModule === 'report_template' && (
                     <div>
                       <label className="block text-gray-700 font-medium mb-1">模板类型 *</label>
                       <select
@@ -8292,9 +8306,9 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                     </div>
                   )}
 
-                  {activeModule === 'report_template' && renderFormStatusSegment('启用状态 *')}
+                  {configModalModule === 'report_template' && renderFormStatusSegment('启用状态 *')}
 
-                  <div className={activeModule === 'report_template' ? 'sm:col-span-1' : 'sm:col-span-2'}>
+                  <div className={configModalModule === 'report_template' ? 'sm:col-span-1' : 'sm:col-span-2'}>
                     <label className="block text-gray-700 font-medium mb-1">说明描述</label>
                     <input
                       type="text"
@@ -8308,7 +8322,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
               )}
 
               {/* Audit Score Rule Group Builder */}
-              {activeModule === 'audit_score' && (() => {
+              {configModalModule === 'audit_score' && (() => {
                 const invalidScoreCount = formScoreLevels.filter(lvl => lvl.score < 0 || lvl.score > formTotalScore).length;
                 const isDescending = formScoreLevels.every((lvl, idx) => idx === 0 || formScoreLevels[idx - 1].score >= lvl.score);
                 return (
@@ -8447,7 +8461,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
               })()}
 
               {/* Audit Flow Builder — 与 MT 应用管理端布局一致 */}
-              {activeModule === 'audit_flow' && (() => {
+              {configModalModule === 'audit_flow' && (() => {
                 const selectedIndex = Math.max(
                   0,
                   formAuditNodes.findIndex(node => node.id === selectedAuditNodeId)
@@ -9090,7 +9104,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
               })()}
 
               {/* Evaluation Rule Builder */}
-              {activeModule === 'evaluation_rule' && (
+              {configModalModule === 'evaluation_rule' && (
                 <div className="space-y-4 pt-3 border-t border-gray-200">
                   <div className="bg-blue-50/60 p-3.5 rounded-lg border border-blue-200/80 space-y-2">
                     <div className="font-bold text-[#1E5ABB] flex items-center gap-1.5 text-xs">
@@ -9337,7 +9351,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
               )}
 
               {/* Custom Field Elements Configuration for report_template */}
-              {activeModule === 'report_template' && (
+              {configModalModule === 'report_template' && (
                 <div className="pt-2 border-t border-gray-200">
                     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_390px] gap-4">
                       <div className="space-y-3 min-w-0">
