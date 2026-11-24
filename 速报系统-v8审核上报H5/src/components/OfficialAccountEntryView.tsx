@@ -187,13 +187,10 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
   const [showPlusDrawer, setShowPlusDrawer] = useState<boolean>(false);
   const [showActivationModal, setShowActivationModal] = useState<boolean>(false);
   const [showWorkbenchMenu, setShowWorkbenchMenu] = useState(false);
-  /** 工作台弹层：根菜单（手动报送/报送审核）或审核身份二级菜单 */
-  const [workbenchPanel, setWorkbenchPanel] = useState<'root' | 'audit'>('root');
   const [serviceProfileTab, setServiceProfileTab] = useState<'all' | 'service'>('all');
 
   const closeFlyoutMenus = () => {
     setShowWorkbenchMenu(false);
-    setWorkbenchPanel('root');
   };
   const [quickPhase, setQuickPhase] = useState<QuickReportPhase>('idle');
   const [quickDraft, setQuickDraft] = useState<QuickReportDraft | null>(null);
@@ -806,74 +803,36 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
           <div className="relative flex-1 flex items-stretch border-l border-[#e5e5e5]">
             {showWorkbenchMenu && (
               <div className="absolute bottom-[56px] left-0 right-0 z-40 rounded-lg bg-[#4c4c4c] text-white shadow-lg overflow-hidden">
-                {workbenchPanel === 'root' ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        closeFlyoutMenus();
-                        onEnterWorkbench();
-                      }}
-                      className="w-full px-3 py-3 text-[13px] text-left flex items-center justify-between border-b border-white/10 active:bg-white/10"
-                    >
-                      <span>手动报送</span>
-                      <ChevronRight className="w-3.5 h-3.5 text-white/60 shrink-0" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setWorkbenchPanel('audit')}
-                      className="w-full px-3 py-3 text-[13px] text-left flex items-center justify-between active:bg-white/10"
-                    >
-                      <span>报送审核</span>
-                      <ChevronRight className="w-3.5 h-3.5 text-white/60 shrink-0" />
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setWorkbenchPanel('root')}
-                      className="w-full px-3 py-2.5 text-[12px] text-white/70 border-b border-white/10 flex items-center gap-1 active:bg-white/10"
-                    >
-                      <ChevronRight className="w-3.5 h-3.5 rotate-180 shrink-0" />
-                      返回工作台
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        closeFlyoutMenus();
-                        onEnterAuditList('external');
-                      }}
-                      className="w-full px-3 py-3 text-[13px] text-left flex items-center justify-between border-b border-white/10 active:bg-white/10"
-                    >
-                      <span>外部组织审核</span>
-                      <ChevronRight className="w-3.5 h-3.5 text-white/60 shrink-0" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        closeFlyoutMenus();
-                        onEnterAuditList('v8_org');
-                      }}
-                      className="w-full px-3 py-3 text-[13px] text-left flex items-center justify-between active:bg-white/10"
-                    >
-                      <span>V8机构审核</span>
-                      <ChevronRight className="w-3.5 h-3.5 text-white/60 shrink-0" />
-                    </button>
-                  </>
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeFlyoutMenus();
+                    // 手动报送 → 首页，默认外部组织视角
+                    onEnterWorkbench();
+                  }}
+                  className="w-full px-3 py-3 text-[13px] text-left flex items-center justify-between border-b border-white/10 active:bg-white/10"
+                >
+                  <span>手动报送</span>
+                  <ChevronRight className="w-3.5 h-3.5 text-white/60 shrink-0" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeFlyoutMenus();
+                    // 报送审核 → 审核列表，默认外部组织
+                    onEnterAuditList('external');
+                  }}
+                  className="w-full px-3 py-3 text-[13px] text-left flex items-center justify-between active:bg-white/10"
+                >
+                  <span>报送审核</span>
+                  <ChevronRight className="w-3.5 h-3.5 text-white/60 shrink-0" />
+                </button>
               </div>
             )}
 
             <button
               id="menu-btn-workbench"
-              onClick={() => {
-                setShowWorkbenchMenu((prev) => {
-                  const next = !prev;
-                  if (!next) setWorkbenchPanel('root');
-                  return next;
-                });
-              }}
+              onClick={() => setShowWorkbenchMenu((prev) => !prev)}
               className="w-full flex items-center justify-center space-x-0.5 text-[#222222] text-[12px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-0.5 whitespace-nowrap overflow-hidden"
               title="工作台（手动报送 / 报送审核）"
             >
