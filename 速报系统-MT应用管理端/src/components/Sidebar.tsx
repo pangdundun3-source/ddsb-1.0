@@ -42,6 +42,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       subItems: [
         { id: 'config', tab: 'config', label: '全局业务配置', icon: 'groups' },
         { id: 'org_config', tab: 'org_config', label: '机构业务配置', icon: 'domain' },
+        {
+          id: 'org_migration',
+          tab: 'org_migration',
+          label: '机构数据迁移',
+          icon: 'swap_horiz',
+        },
       ],
     },
   ];

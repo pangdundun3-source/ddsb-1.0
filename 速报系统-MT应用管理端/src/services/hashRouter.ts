@@ -11,6 +11,7 @@ export type AppRouteType =
   | 'apps'
   | 'config'
   | 'org_config'
+  | 'org_migration'
   | 'monitoring'
   | 'system_accounts'
   | 'system_logs';
@@ -227,6 +228,18 @@ export const hashRouter = {
       };
     }
 
+    if (hash === 'org-migration' || hash === 'institution-migration') {
+      return {
+        routeType: 'org_migration',
+        activeTab: 'org_migration',
+        isAuthenticated: true,
+        activeView: 'operation',
+        selectedInstitutionId: null,
+        isCreatingInstitution: false,
+        isEditingInstitution: false,
+      };
+    }
+
     if (hash === 'system/logs') {
       return {
         routeType: 'system_logs',
@@ -318,6 +331,10 @@ export const hashRouter = {
             ? hashRouter.getConfigModule()
             : null;
       return keep ? `#/org-config?module=${keep}` : '#/org-config';
+    }
+
+    if (state.activeTab === 'org_migration') {
+      return '#/org-migration';
     }
 
     if (state.activeTab === 'monitoring') {

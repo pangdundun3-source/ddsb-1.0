@@ -70,6 +70,8 @@ export interface AuditFlowItem {
   auditNodes?: AuditNodeItem[];
   relatedTemplateId?: string;
   relatedTemplateName?: string;
+  /** 与 MT / BusinessConfig 审核模式对齐；模式一/二为 VIP */
+  auditFlowMode?: 'step_by_step' | 'max_n_steps' | 'direct_headquarters' | string;
 }
 
 interface TemplateOtherConfigPanelProps {
@@ -793,7 +795,17 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
 
                 {activeFlow ? (
                   <div className="p-3 bg-purple-50/30 rounded-lg border border-purple-100 space-y-3">
-                    <div className="text-[10px] text-gray-400 font-medium">审批节点链路</div>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[10px] text-gray-400 font-medium">审批节点链路</div>
+                      {(activeFlow.auditFlowMode === 'step_by_step' ||
+                        activeFlow.auditFlowMode === 'max_n_steps' ||
+                        (!activeFlow.auditFlowMode &&
+                          (activeFlow.name.includes('逐级') || activeFlow.name.includes('最多')))) && (
+                        <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded font-bold bg-amber-50 text-amber-700 border border-amber-200 leading-none">
+                          VIP
+                        </span>
+                      )}
+                    </div>
 
                     <div className="space-y-1.5">
                       {activeFlow.auditNodes?.map((node, idx) => (

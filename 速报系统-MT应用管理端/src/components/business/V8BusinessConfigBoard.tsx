@@ -3,6 +3,7 @@ import { alertDialog, confirmDialog } from '../common/ConfirmDialog';
 import { createPortal } from 'react-dom';
 import {
   TemplateConfigBoard,
+  disableBoardTemplatesByAuditFlowIds,
   findLinkedBoardTemplates,
   unbindAndDisableBoardTemplates,
   type ScoringRuleOptionItem,
@@ -17,7 +18,21 @@ import {
   VALUE_ADDED_CATALOG_EVENT,
   VALUE_ADDED_CATALOG_STORAGE_KEY,
 } from '../../shared/valueAddedCatalog';
-import { alignAiValueAddedList } from '../../shared/valueAddedAiAlign';
+import {
+  alignAiValueAddedList,
+  getLinkExtractProvisionMeta,
+  isAiMultimodalDeepSlot,
+  isAiOcrSlot,
+  isAiTextExtractSlot,
+  isLinkExtractPackageEnabled,
+  isValueAddedOpen,
+  LINK_EXTRACT_PACKAGE_ANCHOR,
+  LINK_EXTRACT_PACKAGES,
+  resolveLinkExtractCapability,
+  syncLinkExtractCapabilitiesFromPackages,
+  toggleLinkExtractPackage,
+  type LinkExtractPackageId,
+} from '../../shared/valueAddedAiAlign';
 import {
   DEFAULT_LINK_FIELD_FEATURES,
   type LinkFieldFeature
@@ -209,7 +224,8 @@ interface ConfigModuleItem {
   isDefault?: boolean;
   status: '启用' | '停用';
   activatedStatus?: '已开通' | '未开通';
-  /** AI 链接多模态识别：机构开通的提取能力（基础 / 深度，可多选） */
+  /** 链接提取套餐卡片独立开关（与能力开通态分离；能力态由已开套餐并集同步） */
+  linkPackageEnabled?: boolean;
   /** 创建时间；缺省时排序回退到 updateTime */
   createTime?: string;
   updateTime: string;
@@ -512,6 +528,29 @@ function loadPersistedDataStore(
         status: activated ? item.status : '停用',
       };
     });
+  }
+  // 机构套餐模式：补齐套餐开关，并按并集回写能力开通态（避免只开 OCR 却灰掉全部档位）
+  if (forceValueAddedActivated && Array.isArray(merged.value_added)) {
+    const hasPkgFlags = merged.value_added.some(
+      (item) =>
+        resolveLinkExtractCapability(item) && typeof item.linkPackageEnabled === 'boolean'
+    );
+    let list = merged.value_added;
+    if (!hasPkgFlags) {
+      list = list.map((item) => {
+        const cap = resolveLinkExtractCapability(item);
+        if (!cap) return item;
+        const pkgId = (Object.keys(LINK_EXTRACT_PACKAGE_ANCHOR) as LinkExtractPackageId[]).find(
+          (id) => LINK_EXTRACT_PACKAGE_ANCHOR[id] === cap
+        );
+        if (!pkgId) return item;
+        return {
+          ...item,
+          linkPackageEnabled: item.activatedStatus === '已开通',
+        };
+      });
+    }
+    merged.value_added = syncLinkExtractCapabilitiesFromPackages(list);
   }
   return merged;
 }
@@ -962,7 +1001,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
         activatedStatus: '已开通',
         updateTime: '2026-11-25 10:00:00',
         description:
-          '从粘贴正文或附件文本中抽取标题、摘要、属地、时间等并回填模板字段，提升结构化录入效率',
+          '从链接正文中抽取相关字段，并自动回填至报送表单，提升结构化录入效率。',
         isDefault: true
       },
       {
@@ -970,10 +1009,11 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
         name: 'OCR识别',
         dictCategoryName: '增值业务',
         dictCode: 'VA_OCR_RECOGNIZE',
-        status: '启用',
-        activatedStatus: '已开通',
+        status: '停用',
+        activatedStatus: '未开通',
         updateTime: '2026-11-25 10:00:00',
-        description: '对图片/截图做文字识别，生成可编辑文本并辅助填入报送字段',
+        description:
+          '在文本提取基础上，叠加图片 OCR 识别，将视觉素材转成可编辑文本并辅助回填报送表单；',
         isDefault: true
       },
       {
@@ -981,10 +1021,11 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
         name: 'AI多模态深度解析',
         dictCategoryName: '增值业务',
         dictCode: 'VA_AI_MULTIMODAL_DEEP',
-        status: '启用',
-        activatedStatus: '已开通',
+        status: '停用',
+        activatedStatus: '未开通',
         updateTime: '2026-11-25 10:00:00',
-        description: '对链接、图文、视频等多模态素材做深度结构化解析并回填关键字段',
+        description:
+          '在文本提取与 OCR 之上，叠加多模态深度解析，对图文、视频等复杂素材做深度结构化解析并回填关键字段。适用于需解析外链、富媒体与视频的深度报送场景。',
         isDefault: true
       }
     ]
@@ -1949,15 +1990,60 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
     return 'adaptive';
   };
 
+  const isExternalAuditValueAddedItem = (item?: ConfigModuleItem | null) =>
+    !!item &&
+    ((item.name || '').includes('外部审核') || item.dictCode === 'VA_EXTERNAL_CONTACT_AUDIT');
+
   /** 应用端「开通」态：未开通仍拦截模式一/二与模板关联；已开通后机构停用只控 PC/H5 入口，配置不锁 */
   const isExternalAuditProvisioned = (dataStore.value_added || []).some(
-    (item) =>
-      ((item.name || '').includes('外部审核') || item.dictCode === 'VA_EXTERNAL_CONTACT_AUDIT') &&
-      item.activatedStatus === '已开通'
+    (item) => isExternalAuditValueAddedItem(item) && item.activatedStatus === '已开通'
   );
   const isExternalAuditModeLocked = !isGlobalScope && !isExternalAuditProvisioned;
   const isExternalDependentAuditFlowMode = (mode: 'adaptive' | 'max_n' | 'direct') =>
     mode === 'adaptive' || mode === 'max_n';
+
+  /** 外部审核改为未开通：同步停用 VIP 流程（模式一/二）及关联报送模板，保留绑定关系 */
+  const cascadeDisableVipFlowsAndTemplates = (
+    prev: Record<string, ConfigModuleItem[]>,
+    nowStr: string
+  ): Record<string, ConfigModuleItem[]> => {
+    const vipFlows = (prev.audit_flow || []).filter((flow) =>
+      isExternalDependentAuditFlowMode(resolveMtAuditFlowMode(flow))
+    );
+    const vipFlowIds = new Set(vipFlows.map((flow) => flow.id));
+    if (vipFlowIds.size === 0) return prev;
+
+    const nextFlows = (prev.audit_flow || []).map((flow) =>
+      vipFlowIds.has(flow.id) && flow.status === '启用'
+        ? { ...flow, status: '停用' as const, updateTime: nowStr }
+        : flow
+    );
+
+    const nextTemplates = (prev.report_template || []).map((tpl) => {
+      if ((tpl.templateType || '报送') !== '报送' || tpl.status !== '启用') return tpl;
+      const boundById = !!tpl.relatedFlowId && vipFlowIds.has(tpl.relatedFlowId);
+      const boundByFlowApply = vipFlows.some((flow) => {
+        const applyAll =
+          flow.templateApplyMode === 'all_report_templates' ||
+          flow.relatedTemplateId === 'all_report_templates';
+        return applyAll || flow.relatedTemplateId === tpl.id;
+      });
+      if (!boundById && !boundByFlowApply) return tpl;
+      return { ...tpl, status: '停用' as const, updateTime: nowStr };
+    });
+
+    disableBoardTemplatesByAuditFlowIds({
+      institutionId: getTemplateBoardInstitutionId(),
+      flowIds: Array.from(vipFlowIds),
+      nowStr
+    });
+
+    return {
+      ...prev,
+      audit_flow: nextFlows,
+      report_template: nextTemplates
+    };
+  };
   const isAuditFlowSaveLocked =
     (modalModuleOverride || activeModule) === 'audit_flow' &&
     isExternalAuditModeLocked &&
@@ -2560,6 +2646,43 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
   };
   const sortedFilteredList = [...filteredList].sort(compareEnabledThenCreateTimeDesc);
 
+  /**
+   * 机构开通态：链接提取三项改由套餐卡片开通，列表只展示其他增值业务。
+   * 全局配置：仍展示能力项卡片（可编辑名称/描述），顺序为底座 → OCR → 多模态。
+   */
+  const valueAddedDisplayList = (() => {
+    if (activeModule !== 'value_added') return filteredList;
+    const others: typeof filteredList = [];
+    let textItem: (typeof filteredList)[number] | null = null;
+    let ocrItem: (typeof filteredList)[number] | null = null;
+    let deepItem: (typeof filteredList)[number] | null = null;
+    for (const item of filteredList) {
+      if (isAiTextExtractSlot(item)) textItem = item;
+      else if (isAiOcrSlot(item)) ocrItem = item;
+      else if (isAiMultimodalDeepSlot(item)) deepItem = item;
+      else others.push(item);
+    }
+    if (!isGlobalScope && valueAddedAllOperable) {
+      return others;
+    }
+    return [...others, ...[textItem, ocrItem, deepItem].filter(Boolean)] as typeof filteredList;
+  })();
+
+  const applyLinkExtractPackageToggle = (packageId: LinkExtractPackageId) => {
+    if (isGlobalScope || !valueAddedAllOperable) return;
+    commitDataStore((prev) => ({
+      ...prev,
+      value_added: toggleLinkExtractPackage(prev.value_added || [], packageId),
+    }));
+    const pkg = LINK_EXTRACT_PACKAGES.find((p) => p.id === packageId);
+    const willEnable = !isLinkExtractPackageEnabled(packageId, dataStore.value_added || []);
+    showConfigToast(
+      willEnable
+        ? `已开通「${pkg?.title.replace(/套餐/g, '') || packageId}」，链接字段可选：${pkg?.selectableTiers || ''}`
+        : `已关闭「${pkg?.title.replace(/套餐/g, '') || packageId}」`
+    );
+  };
+
   const statsMetrics = (dataStore.stats_metric || []).filter(item => {
     if (metricCategoryFilter !== 'all' && item.metricCategory !== metricCategoryFilter) return false;
     if (!metricNameQuery) return true;
@@ -2986,16 +3109,13 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
     const targetItem = list.find((item) => item.id === id);
     if (!targetItem) return;
 
-    // 系统默认审核流程 / 打分规则不支持启停（避免机构侧级联解绑污染继承关系）
-    if (
-      (activeModule === 'audit_flow' || activeModule === 'audit_score') &&
-      targetItem.isDefault
-    ) {
-      await alertDialog(
-        activeModule === 'audit_flow'
-          ? '系统默认审核流程不支持启停。如需调整，请新建自定义审核流程。'
-          : '系统默认打分规则不支持启停。如需调整，请新建自定义打分规则。'
-      );
+    // 打分规则系统默认项仍不支持启停；审核流程仅全局侧锁定，机构侧允许启停本机构副本
+    if (targetItem.isDefault && activeModule === 'audit_score') {
+      await alertDialog('系统默认打分规则不支持启停。如需调整，请新建自定义打分规则。');
+      return;
+    }
+    if (targetItem.isDefault && activeModule === 'audit_flow' && isGlobalScope) {
+      await alertDialog('系统默认审核流程不支持启停。如需调整，请新建自定义审核流程。');
       return;
     }
 
@@ -3009,16 +3129,15 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
     const newStatus = targetItem.status === '启用' ? '停用' : '启用';
     const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
 
-    // 机构侧停用「外部审核」只影响 PC/H5 入口，不级联改流程/模板启停
-    // 应用端未开通时：禁止重新启用模式一/二审核流程
+    // 应用端未开通时：禁止重新启用模式一/二（VIP）审核流程
     if (
       !isGlobalScope &&
       activeModule === 'audit_flow' &&
       newStatus === '启用'
     ) {
       const mode = resolveMtAuditFlowMode(targetItem);
-      if (!isExternalAuditProvisioned && (mode === 'adaptive' || mode === 'max_n')) {
-        await alertDialog('未开通外部审核功能，该流程所依赖的外部审核暂不可用，暂时无法启用。');
+      if (!isExternalAuditProvisioned && isExternalDependentAuditFlowMode(mode)) {
+        await alertDialog('未开通外部审核功能，该 VIP 流程所依赖的外部审核暂不可用，暂时无法启用。请先开通外部审核后再启用。');
         return;
       }
     }
@@ -3087,12 +3206,20 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       return;
     }
 
+    // 全开放启禁模式下停用=未开通，需级联停用 VIP 流程与关联模板
+    const shouldCascadeExternalAuditOffline =
+      !isGlobalScope &&
+      activeModule === 'value_added' &&
+      valueAddedAllOperable &&
+      isExternalAuditValueAddedItem(targetItem) &&
+      newStatus === '停用';
+
     commitDataStore((prev) => {
       const moduleList = prev[activeModule] || [];
 
       // 全开放启禁模式增值业务：启禁开关与开通状态联动（启用=已开通 / 停用=未开通）
       if (activeModule === 'value_added' && valueAddedAllOperable) {
-        return {
+        let next: Record<string, ConfigModuleItem[]> = {
           ...prev,
           value_added: moduleList.map((item) =>
             item.id === id
@@ -3105,6 +3232,10 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
               : item
           )
         };
+        if (shouldCascadeExternalAuditOffline) {
+          next = cascadeDisableVipFlowsAndTemplates(next, nowStr);
+        }
+        return next;
       }
 
       return {
@@ -3120,6 +3251,12 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
         )
       };
     });
+
+    if (shouldCascadeExternalAuditOffline) {
+      showConfigToast(
+        '外部审核已改为未开通，已同步停用 VIP 审核流程及关联报送模板；开通后方可再次启用'
+      );
+    }
   };
 
   // Handle Delete（审核流程 / 打分规则与停用校验一致：有关联报送模板时需确认并解绑停用）
@@ -3197,9 +3334,10 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
   };
 
   // Handle Open Modal for Add / Edit（可从模板「其他业务配置」指定模块直接打开新增弹框，不跳转模块）
+  // 注意：不能写成 onClick={openAddModal}，否则 React 会把 MouseEvent 当成 forcedModule
   const openAddModal = (forcedModule?: string) => {
-    const moduleId = forcedModule || activeModule;
-    if (forcedModule && forcedModule !== activeModule) {
+    const moduleId = typeof forcedModule === 'string' ? forcedModule : activeModule;
+    if (typeof forcedModule === 'string' && forcedModule !== activeModule) {
       setModalModuleOverride(forcedModule);
     } else {
       setModalModuleOverride(null);
@@ -3988,8 +4126,8 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                       title={isGlobalScope ? '全平台增值业务管控说明' : '增值业务运营管控说明'}
                       content={
                         isGlobalScope
-                          ? '此处启用的增值业务向全平台所有机构开放，机构端可按需开通或关闭；此处禁用的增值业务，机构端不再显示。名称与描述修改后同步至全平台。'
-                          : '本模块面向平台运营人员统一管控。在全局配置中开启增值业务后，机构在添加或编辑时运营人员才能进行管理与开通；如果在此处未开通该增值业务，机构端将不会出现对应业务功能。'
+                          ? '此处启用的增值业务向全平台所有机构开放，机构端可按需开通或关闭；此处禁用的增值业务，机构端不再显示。名称与描述修改后同步至全平台。链接提取三项能力可分别向机构开放。'
+                          : '链接提取三档套餐可独立开通；开通后按并集生效：基础档→①文本提取；增强档→①②文本+OCR；多模态档→①②③。字段配置里的提取档位随开通组合自动放开/灰显。'
                       }
                     />
                   )}
@@ -4054,7 +4192,8 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                   {/* + 新增 button */}
                   {activeModule !== 'value_added' && activeModule !== 'stats_metric' && activeModule !== 'evaluation_rule' && activeModule !== 'login_method' && activeModule !== 'data_dict' && (
                     <button
-                      onClick={openAddModal}
+                      type="button"
+                      onClick={() => openAddModal()}
                       className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center space-x-1 cursor-pointer whitespace-nowrap"
                     >
                       <Plus className="w-3.5 h-3.5" />
@@ -4064,7 +4203,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                   {activeModule === 'data_dict' && (
                     <button
                       type="button"
-                      onClick={openAddModal}
+                      onClick={() => openAddModal()}
                       className="px-3.5 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center gap-1 cursor-pointer whitespace-nowrap"
                     >
                       <Plus className="w-3.5 h-3.5" />
@@ -4780,18 +4919,32 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                   type="button"
                                   role="switch"
                                   aria-checked={isEnabled}
-                                  disabled={Boolean(item.isDefault)}
+                                  disabled={
+                                    (isGlobalScope && Boolean(item.isDefault)) ||
+                                    (!isEnabled &&
+                                      isExternalAuditModeLocked &&
+                                      isExternalDependentAuditFlowMode(resolveMtAuditFlowMode(item)))
+                                  }
                                   onClick={() => handleToggleStatus(item.id)}
                                   className={`relative inline-flex h-6 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none select-none text-[11px] font-medium ${
-                                    item.isDefault ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                                    (isGlobalScope && item.isDefault) ||
+                                    (!isEnabled &&
+                                      isExternalAuditModeLocked &&
+                                      isExternalDependentAuditFlowMode(resolveMtAuditFlowMode(item)))
+                                      ? 'opacity-60 cursor-not-allowed'
+                                      : 'cursor-pointer'
                                   } ${
                                     isEnabled
                                       ? 'bg-[#1890ff] text-white pl-2.5 pr-6.5'
                                       : 'bg-gray-200 text-gray-500 pl-6.5 pr-2.5 hover:bg-gray-300'
                                   }`}
                                   title={
-                                    item.isDefault
+                                    isGlobalScope && item.isDefault
                                       ? '系统默认审核流程不支持启停'
+                                      : !isEnabled &&
+                                          isExternalAuditModeLocked &&
+                                          isExternalDependentAuditFlowMode(resolveMtAuditFlowMode(item))
+                                        ? '未开通外部审核，VIP 流程暂不可启用'
                                       : isEnabled
                                         ? '当前已生效，点击停用'
                                         : '点击启用此审核流程'
@@ -4814,6 +4967,15 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                               <span className={`inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded border shrink-0 ${modeBadge.className}`}>
                                 {modeBadge.label}
                               </span>
+                              {!isGlobalScope &&
+                                (item.flowMode === 'adaptive' ||
+                                  item.flowMode === 'max_n' ||
+                                  (!item.flowMode &&
+                                    (item.name.includes('逐级') || item.name.includes('最多')))) && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold rounded border shrink-0 bg-amber-50 text-amber-700 border-amber-200 leading-none">
+                                  VIP
+                                </span>
+                              )}
                               <span className="text-[11px] text-gray-400 font-mono tracking-tight ml-auto shrink-0">
                                 {item.updateTime || '2023-10-05 10:00:00'}
                               </span>
@@ -4983,12 +5145,89 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
               </div>
             ) : activeModule === 'value_added' ? (
               <div className="space-y-4">
-                {filteredList.length === 0 ? (
+                {valueAddedDisplayList.length === 0 &&
+                !(!isGlobalScope && valueAddedAllOperable) ? (
                   <div className="py-12 text-center text-gray-400 text-xs bg-white rounded-xl border border-gray-100 shadow-2xs">
                     暂无相关增值业务模块数据
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {!isGlobalScope &&
+                      valueAddedAllOperable &&
+                      LINK_EXTRACT_PACKAGES.map((pkg) => {
+                        const isActivated = isLinkExtractPackageEnabled(
+                          pkg.id,
+                          dataStore.value_added || []
+                        );
+                        const isEnabled = isActivated;
+                        const desc = pkg.description;
+
+                        return (
+                          <div
+                            key={pkg.id}
+                            className={`bg-white rounded-xl border transition-all duration-200 p-4 flex flex-col justify-between group shadow-2xs relative overflow-hidden ${
+                              isActivated
+                                ? isEnabled
+                                  ? 'border-blue-200/90 ring-1 ring-blue-500/10'
+                                  : 'border-gray-200'
+                                : 'border-gray-200 bg-gray-50/70 opacity-90'
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-center justify-between gap-2.5 pb-3 border-b border-gray-100/90">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <h3
+                                    className={`font-bold text-sm truncate ${
+                                      isActivated ? 'text-gray-900' : 'text-gray-600'
+                                    }`}
+                                  >
+                                    {pkg.title.replace(/套餐/g, '')}
+                                  </h3>
+                                  <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-50 text-slate-600 border border-slate-200">
+                                    {pkg.badge.split('·')[0]}
+                                  </span>
+                                </div>
+                                <div
+                                  className="shrink-0 flex items-center gap-1.5"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={isActivated}
+                                    onClick={() => applyLinkExtractPackageToggle(pkg.id)}
+                                    className={`relative inline-flex h-6 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none cursor-pointer select-none text-[11px] font-medium ${
+                                      isActivated
+                                        ? 'bg-[#1890ff] text-white pl-2.5 pr-6.5'
+                                        : 'bg-gray-200 text-gray-500 pl-6.5 pr-2.5 hover:bg-gray-300'
+                                    }`}
+                                    title={
+                                      isActivated
+                                        ? `关闭后将收回本套餐能力（${pkg.selectableTiers}）`
+                                        : `开通后链接字段可选 ${pkg.selectableTiers}`
+                                    }
+                                  >
+                                    <span
+                                      className={`pointer-events-none absolute top-0.5 bottom-0.5 w-5 h-5 rounded-full bg-white shadow-xs transition-all duration-200 ease-in-out ${
+                                        isActivated ? 'right-0.5' : 'left-0.5'
+                                      }`}
+                                    />
+                                    <span className="leading-none whitespace-nowrap">
+                                      {isActivated ? '已开通' : '未开通'}
+                                    </span>
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="mt-2.5 rounded-lg bg-gray-50/80 p-3 text-xs text-gray-600 leading-relaxed border border-gray-100 min-h-[66px] flex flex-col justify-center">
+                                <p className="line-clamp-2 text-xs text-gray-600" title={desc}>
+                                  {desc}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     {editingValueAdded && (
                       <div
                         className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6"
@@ -5063,11 +5302,19 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                         </div>
                       </div>
                     )}
-                    {filteredList.map(item => {
+                    {valueAddedDisplayList.map(item => {
                       const isActivated = valueAddedAllOperable
                         ? item.status === '启用'
                         : item.activatedStatus === '已开通';
                       const isEnabled = isActivated && item.status === '启用';
+                      const linkProvisionMeta = getLinkExtractProvisionMeta(item);
+                      const textBaseOpen = (dataStore.value_added || []).some(
+                        (va) => isAiTextExtractSlot(va) && isValueAddedOpen(va)
+                      );
+                      const addonBlockedByBase =
+                        Boolean(linkProvisionMeta?.provisionRole === 'addon') &&
+                        !textBaseOpen &&
+                        !isActivated;
 
                       return (
                         <div
@@ -5089,6 +5336,16 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                 }`}>
                                   {item.name}
                                 </h3>
+                                {linkProvisionMeta?.provisionRole === 'base' && (
+                                  <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    底座
+                                  </span>
+                                )}
+                                {linkProvisionMeta?.provisionRole === 'addon' && (
+                                  <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-50 text-violet-700 border border-violet-200">
+                                    加购
+                                  </span>
+                                )}
                               </div>
 
                               {/* Switch or Lock Badge（全局配置不展示启禁状态） */}
@@ -5179,6 +5436,18 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                 <div className="mt-1.5 text-[10px] text-amber-800 font-medium flex items-center gap-1 bg-amber-50/90 px-2 py-0.5 rounded border border-amber-200/80">
                                   <Info className="w-3 h-3 text-amber-600 shrink-0" />
                                   <span>如需开通请联系对应商务/销售人员</span>
+                                </div>
+                              )}
+                              {addonBlockedByBase && valueAddedAllOperable && (
+                                <div className="mt-1.5 text-[10px] text-amber-800 font-medium flex items-center gap-1 bg-amber-50/90 px-2 py-0.5 rounded border border-amber-200/80">
+                                  <Info className="w-3 h-3 text-amber-600 shrink-0" />
+                                  <span>需先开通底座「AI文本提取」后再加购</span>
+                                </div>
+                              )}
+                              {linkProvisionMeta?.provisionRole === 'base' && isActivated && (
+                                <div className="mt-1.5 text-[10px] text-emerald-700 font-medium flex items-center gap-1 bg-emerald-50/90 px-2 py-0.5 rounded border border-emerald-200/80">
+                                  <Info className="w-3 h-3 text-emerald-600 shrink-0" />
+                                  <span>机构标配底座，字段提取档位的基础能力</span>
                                 </div>
                               )}
                             </div>
@@ -6662,16 +6931,21 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                             : 'border border-gray-200 hover:border-gray-300 bg-white'
                         }`}
                       >
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className={`text-xs font-bold ${isExternalAuditModeLocked ? 'text-gray-500' : 'text-gray-900'}`}>
-                            模式一: 逐级审核
+                        <div className="flex items-center justify-between mb-1.5 gap-2">
+                          <span className={`inline-flex items-center gap-1.5 text-xs font-bold min-w-0 ${isExternalAuditModeLocked ? 'text-gray-500' : 'text-gray-900'}`}>
+                            <span className="truncate">模式一: 逐级审核</span>
+                            {!isGlobalScope && (
+                              <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded font-bold bg-amber-50 text-amber-700 border border-amber-200 leading-none">
+                                VIP
+                              </span>
+                            )}
                           </span>
                           {isExternalAuditModeLocked ? (
-                            <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                            <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-gray-100 text-gray-500 border border-gray-200 shrink-0">
                               暂不可用
                             </span>
                           ) : (
-                            <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-emerald-50 text-emerald-600 border border-emerald-200">
+                            <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
                               推荐
                             </span>
                           )}
@@ -6702,16 +6976,21 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                             : 'border border-gray-200 hover:border-gray-300 bg-white'
                         }`}
                       >
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className={`text-xs font-bold ${isExternalAuditModeLocked ? 'text-gray-500' : 'text-gray-900'}`}>
-                            模式二: 最多N级审核
+                        <div className="flex items-center justify-between mb-1.5 gap-2">
+                          <span className={`inline-flex items-center gap-1.5 text-xs font-bold min-w-0 ${isExternalAuditModeLocked ? 'text-gray-500' : 'text-gray-900'}`}>
+                            <span className="truncate">模式二: 最多N级审核</span>
+                            {!isGlobalScope && (
+                              <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded font-bold bg-amber-50 text-amber-700 border border-amber-200 leading-none">
+                                VIP
+                              </span>
+                            )}
                           </span>
                           {isExternalAuditModeLocked ? (
-                            <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                            <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-gray-100 text-gray-500 border border-gray-200 shrink-0">
                               暂不可用
                             </span>
                           ) : (
-                            <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-amber-50 text-amber-600 border border-amber-200">
+                            <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-amber-50 text-amber-600 border border-amber-200 shrink-0">
                               上限截断
                             </span>
                           )}
@@ -8052,7 +8331,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                           placeholder="给提报人员看的填写提示，例如：请简要说明事件经过"
                                           className="w-full px-2.5 py-1.5 text-[11px] bg-gray-50/60 border border-gray-200 rounded text-gray-600 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
                                         />
-                                        {field.type === 'link' && (
+                                        {field.type === 'link' && !isGlobalScope && (
                                           <LinkExtractCapabilityPicker
                                             compact
                                             linkFeatures={field.linkFeatures}

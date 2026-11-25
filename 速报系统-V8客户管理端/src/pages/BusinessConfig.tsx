@@ -71,7 +71,14 @@ import {
   isValueAddedCatalogApplied,
 } from '../shared/valueAddedCatalog';
 import { publishValueAddedClientStatus } from '../shared/valueAddedClientStatus';
-import { alignAiValueAddedList } from '../shared/valueAddedAiAlign';
+import {
+  LINK_EXTRACT_PACKAGES,
+  alignAiValueAddedList,
+  findLinkExtractAnchorItem,
+  isLinkExtractCapabilityItem,
+  isLinkExtractPackageActivatedForDisplay,
+  type LinkExtractPackageId,
+} from '../shared/valueAddedAiAlign';
 import {
   DEFAULT_LINK_FIELD_FEATURES,
   type LinkFieldFeature,
@@ -111,7 +118,7 @@ export interface TemplateField {
   required: boolean;
   placeholder?: string;
   options?: string[];
-  /** 链接字段「提取」能力档位：文本 / 文本+OCR / 全量深度解析（截图固定开启） */
+  /** 链接字段「提取」能力档位：文本 / 文本+OCR / 多模态深度解析（截图固定开启） */
   linkFeatures?: LinkFieldFeature[];
   /** 固定字段锁定：不可删除/排序/改类型 */
   locked?: boolean;
@@ -257,6 +264,8 @@ interface ConfigModuleItem {
   isDefault?: boolean;
   status: '启用' | '停用';
   activatedStatus?: '已开通' | '未开通';
+  /** 链接提取套餐独立开通标记（由应用端同步） */
+  linkPackageEnabled?: boolean;
   /** 创建时间；缺省时排序回退到 updateTime */
   createTime?: string;
   updateTime: string;
@@ -473,8 +482,33 @@ const isAutoWideOnPc = (_field: TemplateField) => true;
 
 /** 与 MT 共用存储键：机构端可消费平台下发的固定字段规则 */
 const FIXED_FIELD_RULE_STORAGE_KEY = 'mt_global_fixed_report_field_rule';
+/** 与 MT 全局模板配置板同源，供「使用标准模板」下拉选用 */
+const GLOBAL_TEMPLATE_STORAGE_KEY = 'v8_template_board_data_global';
 const institutionFixedFieldRuleKey = (institutionId: string | number) =>
   `mt_inst_fixed_field_rule_${institutionId}`;
+
+type GlobalTemplatePickItem = {
+  id: string;
+  name: string;
+  templateType?: '报送' | '激活';
+  status?: string;
+  fields?: TemplateField[];
+};
+
+const readGlobalEnabledTemplates = (templateType: '报送' | '激活'): GlobalTemplatePickItem[] => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(GLOBAL_TEMPLATE_STORAGE_KEY) || 'null');
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.filter(
+        (t: GlobalTemplatePickItem) =>
+          t?.status === '启用' && (t.templateType || '报送') === templateType && Array.isArray(t.fields)
+      );
+    }
+  } catch {
+    // ignore malformed store
+  }
+  return [];
+};
 
 type StoredRuleField = Omit<TemplateField, 'maxLength'> & { maxLength?: number | null };
 
@@ -790,7 +824,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         id: '1',
         name: '标准图文报送模板',
         templateType: '报送',
-        isDefault: true,
+        isDefault: false,
         status: '启用',
         updateTime: '2023-10-24 10:00:00',
         description: '适用于日常标准文字、图片及证明材料的合规上报',
@@ -800,7 +834,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         id: '2',
         name: '登录验证激活模板',
         templateType: '激活',
-        isDefault: true,
+        isDefault: false,
         status: '启用',
         updateTime: '2023-10-25 11:20:00',
         description: '新用户与网格人员入驻时的手机号与身份证实名核验与角色分配',
@@ -1163,9 +1197,10 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         dictCode: 'VA_AI_TEXT_EXTRACT',
         status: '启用',
         activatedStatus: '已开通',
+        linkPackageEnabled: true,
         updateTime: '2026-11-25 10:00:00',
         description:
-          '从粘贴正文或附件文本中抽取标题、摘要、属地、时间等并回填模板字段，提升结构化录入效率',
+          '从链接正文中抽取相关字段，并自动回填至报送表单，提升结构化录入效率。',
         isDefault: true
       },
       {
@@ -1173,10 +1208,12 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         name: 'OCR识别',
         dictCategoryName: '增值业务',
         dictCode: 'VA_OCR_RECOGNIZE',
-        status: '启用',
-        activatedStatus: '已开通',
+        status: '停用',
+        activatedStatus: '未开通',
+        linkPackageEnabled: false,
         updateTime: '2026-11-25 10:00:00',
-        description: '对图片/截图做文字识别，生成可编辑文本并辅助填入报送字段',
+        description:
+          '在文本提取基础上，叠加图片 OCR 识别，将视觉素材转成可编辑文本并辅助回填报送表单；',
         isDefault: true
       },
       {
@@ -1184,10 +1221,12 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         name: 'AI多模态深度解析',
         dictCategoryName: '增值业务',
         dictCode: 'VA_AI_MULTIMODAL_DEEP',
-        status: '启用',
-        activatedStatus: '已开通',
+        status: '停用',
+        activatedStatus: '未开通',
+        linkPackageEnabled: false,
         updateTime: '2026-11-25 10:00:00',
-        description: '对链接、图文、视频等多模态素材做深度结构化解析并回填关键字段',
+        description:
+          '在文本提取与 OCR 之上，叠加多模态深度解析，对图文、视频等复杂素材做深度结构化解析并回填关键字段。适用于需解析外链、富媒体与视频的深度报送场景。',
         isDefault: true
       }
     ]
@@ -1195,6 +1234,12 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 
   // 与应用端联动：开通态 + 全局增值名称/描述（同域 storage + 跨端口 cookie）
   React.useEffect(() => {
+    const isExternalVa = (item?: ConfigModuleItem | null) =>
+      !!item &&
+      ((item.name || '').includes('外部审核') || item.dictCode === 'VA_EXTERNAL_CONTACT_AUDIT');
+    const isVipFlowMode = (mode?: AuditFlowMode | string) =>
+      mode === 'step_by_step' || mode === 'max_n_steps';
+
     const syncFromMt = () => {
       const orgName = readCurrentOrgName();
       setDataStore((prev) => {
@@ -1208,10 +1253,55 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
           prevList.every(
             (item, idx) =>
               item.status === nextList[idx]?.status &&
-              item.activatedStatus === nextList[idx]?.activatedStatus
+              item.activatedStatus === nextList[idx]?.activatedStatus &&
+              item.linkPackageEnabled === nextList[idx]?.linkPackageEnabled
           );
-        if (unchanged) return prev;
-        return { ...prev, value_added: nextList };
+
+        const wasExternalProvisioned = prevList.some(
+          (item) => isExternalVa(item) && item.activatedStatus === '已开通'
+        );
+        const nowExternalProvisioned = nextList.some(
+          (item) => isExternalVa(item) && item.activatedStatus === '已开通'
+        );
+
+        if (unchanged && !(wasExternalProvisioned && !nowExternalProvisioned)) return prev;
+
+        let next: Record<string, ConfigModuleItem[]> = { ...prev, value_added: nextList };
+        if (wasExternalProvisioned && !nowExternalProvisioned) {
+          const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+          const vipFlows = (next.audit_flow || []).filter((flow) => {
+            const mode =
+              flow.auditFlowMode ||
+              (flow.name.includes('最多')
+                ? 'max_n_steps'
+                : flow.name.includes('直达') || flow.name.includes('总机构')
+                  ? 'direct_headquarters'
+                  : 'step_by_step');
+            return isVipFlowMode(mode);
+          });
+          const vipFlowIds = new Set(vipFlows.map((f) => f.id));
+          next = {
+            ...next,
+            audit_flow: (next.audit_flow || []).map((flow) =>
+              vipFlowIds.has(flow.id) && flow.status === '启用'
+                ? { ...flow, status: '停用' as const, updateTime: nowStr }
+                : flow
+            ),
+            report_template: (next.report_template || []).map((tpl) => {
+              if ((tpl.templateType || '报送') !== '报送' || tpl.status !== '启用') return tpl;
+              const boundById = !!tpl.relatedFlowId && vipFlowIds.has(tpl.relatedFlowId);
+              const boundByFlowApply = vipFlows.some((flow) => {
+                const applyAll =
+                  flow.templateApplyMode === 'all_report_templates' ||
+                  flow.relatedTemplateId === 'all_report_templates';
+                return applyAll || flow.relatedTemplateId === tpl.id;
+              });
+              if (!boundById && !boundByFlowApply) return tpl;
+              return { ...tpl, status: '停用' as const, updateTime: nowStr };
+            })
+          };
+        }
+        return next;
       });
     };
     syncFromMt();
@@ -2880,6 +2970,24 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     setFieldAddNotice('已使用标准模板');
   };
 
+  const enabledGlobalTemplatesForDesigner = readGlobalEnabledTemplates(formTemplateType);
+
+  const applyGlobalTemplateFields = (source: GlobalTemplatePickItem) => {
+    const stamp = Date.now();
+    const copied = (source.fields || []).map((field, index) => {
+      const next = {
+        ...field,
+        options: field.options ? [...field.options] : undefined,
+        id: isLockedField(field) ? field.id : `fld_${stamp}_${index}`
+      };
+      return next;
+    });
+    setFormFields(
+      formTemplateType === '激活' ? copied : applyFixedFieldRule(copied)
+    );
+    setFieldAddNotice(`已应用全局模板「${source.name}」的字段`);
+  };
+
   // Get active module title
   const currentModuleLabel = moduleList.find(m => m.id === activeModule)?.label || '配置项';
   const configModalModule = modalModuleOverride || activeModule;
@@ -2943,6 +3051,23 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       : activeModule === 'value_added'
         ? [...filteredList].sort((a, b) => valueAddedSortRank(a) - valueAddedSortRank(b))
         : filteredList;
+
+  /** 链接提取三项改由套餐卡片展示，列表只展示其他增值业务 */
+  const valueAddedDisplayList =
+    activeModule === 'value_added'
+      ? sortedConfigList.filter((item) => !isLinkExtractCapabilityItem(item))
+      : sortedConfigList;
+
+  const handleToggleLinkExtractPackageStatus = (packageId: LinkExtractPackageId) => {
+    const list = dataStore.value_added || [];
+    if (!isLinkExtractPackageActivatedForDisplay(packageId, list)) {
+      alert('该增值业务属于“未开通”状态，无法进行启禁操作。如需开通请联系对应的销售人员！');
+      return;
+    }
+    const anchor = findLinkExtractAnchorItem(list, packageId);
+    if (!anchor) return;
+    void handleToggleStatus(anchor.id);
+  };
 
   const statsMetrics = (dataStore.stats_metric || []).filter(item => {
     if (metricCategoryFilter !== 'all' && item.metricCategory !== metricCategoryFilter) return false;
@@ -3286,27 +3411,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
           )}
         </div>
 
-        {!isPc && (
-          <div className="px-3.5 py-3 border-t border-gray-200/80 bg-white grid grid-cols-2 gap-2.5">
-            <button type="button" className="py-2.5 text-xs border border-gray-300 rounded-lg text-gray-600 bg-white font-bold cursor-default">
-              取消
-            </button>
-            <button type="button" className="py-2.5 text-xs rounded-lg bg-[#1E5ABB] text-white font-bold cursor-default">
-              提交审核
-            </button>
-          </div>
-        )}
-
-        {isPc && (
-          <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
-            <button type="button" className="px-4 py-1.5 text-xs border border-gray-300 rounded text-gray-600 bg-white cursor-default">
-              取消
-            </button>
-            <button type="button" className="px-4 py-1.5 text-xs rounded bg-[#1E5ABB] text-white font-bold cursor-default">
-              提交审核
-            </button>
-          </div>
-        )}
       </div>
     );
 
@@ -3506,13 +3610,9 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     const targetItem = list.find((item) => item.id === id);
     if (!targetItem) return;
 
-    // 系统默认审核流程 / 打分规则不支持启停
-    if ((activeModule === 'audit_flow' || activeModule === 'audit_score') && targetItem.isDefault) {
-      await alertDialog(
-        activeModule === 'audit_flow'
-          ? '系统默认审核流程不支持启停。如需调整，请新建自定义审核流程。'
-          : '系统默认打分规则不支持启停。如需调整，请新建自定义打分规则。'
-      );
+    // 打分规则系统默认项不支持启停；审核流程系统默认项允许启停（与 MT 机构侧一致）
+    if (targetItem.isDefault && activeModule === 'audit_score') {
+      await alertDialog('系统默认打分规则不支持启停。如需调整，请新建自定义打分规则。');
       return;
     }
 
@@ -3525,12 +3625,13 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     const newStatus = targetItem.status === '启用' ? '停用' : '启用';
     const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
 
-    // 机构侧停用「外部审核」只影响 PC/H5 入口，不级联改流程/模板启停
-    // 应用端未开通时：禁止重新启用模式一/二审核流程
+    // 应用端未开通时：禁止重新启用模式一/二（VIP）审核流程
     if (activeModule === 'audit_flow' && newStatus === '启用') {
       const mode = resolveAuditFlowMode(targetItem);
-      if (!isExternalAuditProvisioned && (mode === 'step_by_step' || mode === 'max_n_steps')) {
-        await alertDialog('未开通外部审核功能，该流程所依赖的外部审核暂不可用，暂时无法启用。');
+      if (!isExternalAuditProvisioned && isExternalDependentAuditFlowMode(mode)) {
+        await alertDialog(
+          '未开通外部审核功能，该 VIP 流程所依赖的外部审核暂不可用，暂时无法启用。请先开通外部审核后再启用。'
+        );
         return;
       }
     }
@@ -3650,7 +3751,8 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
 
   // Handle Delete（审核流程 / 打分规则与停用校验一致：有关联报送模板时需确认并解绑停用）
   const handleDelete = async (item: ConfigModuleItem) => {
-    if (item.isDefault) {
+    // 模板均为机构自有，可删除；其它模块系统默认项仍不可删
+    if (item.isDefault && activeModule !== 'report_template') {
       await alertDialog('系统默认配置项受平台全局管控，机构端不可删除！');
       return;
     }
@@ -3737,10 +3839,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
   };
 
   const openEditTemplatePage = (item: ConfigModuleItem) => {
-    if (item.isDefault) {
-      alert('系统默认模板受平台全局统一管控，机构端不支持编辑。如需个性化，请复制为新模板或新建自定义模板。');
-      return;
-    }
     setEditingItem(item);
     setFormName(item.name);
     setFormTemplateType(item.templateType || '报送');
@@ -3764,7 +3862,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     setFormScoreStatus(item.status);
     setPreviewValues({});
     setFormFields(item.fields && item.fields.length > 0 ? item.fields : []);
-    setTemplateDetailMode(item.isDefault ? 'view' : 'edit');
+    setTemplateDetailMode('edit');
     setIsTemplateDetailPageOpen(true);
   };
 
@@ -3845,7 +3943,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       isTemplateNameTaken(
         formName.trim(),
         formTemplateType,
-        editingItem && !editingItem.isDefault ? editingItem.id : undefined
+        editingItem ? editingItem.id : undefined
       )
     ) {
       alert(`模板名称「${formName.trim()}」已存在，请更换名称`);
@@ -3858,7 +3956,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         ? normalizeFixedFieldConstraints(formFields)
         : formFields;
 
-    if (editingItem && !editingItem.isDefault) {
+    if (editingItem) {
       setDataStore(prev => ({
         ...prev,
         report_template: (prev.report_template || []).map(item =>
@@ -3867,6 +3965,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                 ...item,
                 name: formName.trim(),
                 templateType: formTemplateType,
+                isDefault: false,
                 status: formScoreStatus,
                 description: formDesc.trim(),
                 updateTime: nowStr,
@@ -4032,11 +4131,13 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     setIsModalOpen(false);
   };
 
+  const isExternalAuditValueAddedItem = (item?: ConfigModuleItem | null) =>
+    !!item &&
+    ((item.name || '').includes('外部审核') || item.dictCode === 'VA_EXTERNAL_CONTACT_AUDIT');
+
   /** 应用端未开通：仍拦截模式一/二与模板关联；已开通后机构停用只控 PC/H5 入口，配置不锁 */
   const isExternalAuditProvisioned = (dataStore.value_added || []).some(
-    (item) =>
-      ((item.name || '').includes('外部审核') || item.dictCode === 'VA_EXTERNAL_CONTACT_AUDIT') &&
-      item.activatedStatus === '已开通'
+    (item) => isExternalAuditValueAddedItem(item) && item.activatedStatus === '已开通'
   );
   const isExternalAuditModeLocked = !isExternalAuditProvisioned;
   const isExternalDependentAuditFlowMode = (mode: AuditFlowMode) =>
@@ -4045,6 +4146,43 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     activeModule === 'audit_flow' &&
     isExternalAuditModeLocked &&
     isExternalDependentAuditFlowMode(formAuditFlowMode);
+
+  /** 外部审核改为未开通：同步停用 VIP 流程及关联报送模板（保留绑定） */
+  const cascadeDisableVipFlowsAndTemplates = (
+    prev: Record<string, ConfigModuleItem[]>,
+    nowStr: string
+  ): Record<string, ConfigModuleItem[]> => {
+    const vipFlows = (prev.audit_flow || []).filter((flow) =>
+      isExternalDependentAuditFlowMode(resolveAuditFlowMode(flow))
+    );
+    const vipFlowIds = new Set(vipFlows.map((flow) => flow.id));
+    if (vipFlowIds.size === 0) return prev;
+
+    const nextFlows = (prev.audit_flow || []).map((flow) =>
+      vipFlowIds.has(flow.id) && flow.status === '启用'
+        ? { ...flow, status: '停用' as const, updateTime: nowStr }
+        : flow
+    );
+
+    const nextTemplates = (prev.report_template || []).map((tpl) => {
+      if ((tpl.templateType || '报送') !== '报送' || tpl.status !== '启用') return tpl;
+      const boundById = !!tpl.relatedFlowId && vipFlowIds.has(tpl.relatedFlowId);
+      const boundByFlowApply = vipFlows.some((flow) => {
+        const applyAll =
+          flow.templateApplyMode === 'all_report_templates' ||
+          flow.relatedTemplateId === 'all_report_templates';
+        return applyAll || flow.relatedTemplateId === tpl.id;
+      });
+      if (!boundById && !boundByFlowApply) return tpl;
+      return { ...tpl, status: '停用' as const, updateTime: nowStr };
+    });
+
+    return {
+      ...prev,
+      audit_flow: nextFlows,
+      report_template: nextTemplates
+    };
+  };
 
   const handleSwitchAuditFlowMode = (mode: AuditFlowMode, keepCurrentNameAndDesc = false) => {
     if (mode === formAuditFlowMode) return;
@@ -4121,9 +4259,10 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
   };
 
   // Handle Open Modal for Add / Edit（可从模板「其他业务配置」指定模块直接打开新增弹框，不跳转模块）
+  // 注意：不能写成 onClick={openAddModal}，否则 React 会把 MouseEvent 当成 forcedModule
   const openAddModal = (forcedModule?: string) => {
-    const moduleId = forcedModule || activeModule;
-    if (forcedModule && forcedModule !== activeModule) {
+    const moduleId = typeof forcedModule === 'string' ? forcedModule : activeModule;
+    if (typeof forcedModule === 'string' && forcedModule !== activeModule) {
       setModalModuleOverride(forcedModule);
     } else {
       setModalModuleOverride(null);
@@ -5463,7 +5602,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                       <span className="w-px h-3.5 bg-gray-200 shrink-0" />
                       <span className="text-[15px] font-bold text-gray-900 truncate">
                         {editingItem?.id
-                          ? (formName || (editingItem.isDefault ? '查看模板' : '编辑模板'))
+                          ? (formName || '编辑模板')
                           : '新增模板'}
                       </span>
                       <span className="shrink-0 px-2 py-0.5 rounded bg-blue-50 text-[#1890ff] text-[11px] font-medium">
@@ -5482,39 +5621,16 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                       >
                         取消
                       </button>
-                      {editingItem?.isDefault ? (
-                        <button
-                          type="button"
-                          onClick={handleCloneDefaultTemplate}
-                          className="flex items-center gap-1.5 px-4 py-1.5 bg-[#1890ff] hover:bg-blue-600 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors cursor-pointer"
-                        >
-                          <Sparkles className="w-3.5 h-3.5" />
-                          <span>基于此模板新建</span>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleSaveTemplateDetailPage()}
-                          className="flex items-center gap-1.5 px-4 py-1.5 bg-[#1890ff] hover:bg-blue-600 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors cursor-pointer"
-                        >
-                          <Save className="w-3.5 h-3.5" />
-                          <span>保存模板配置</span>
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleSaveTemplateDetailPage()}
+                        className="flex items-center gap-1.5 px-4 py-1.5 bg-[#1890ff] hover:bg-blue-600 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        <span>保存模板配置</span>
+                      </button>
                     </div>
                   </div>
-
-                  {editingItem?.isDefault && (
-                    <div className="bg-amber-50/80 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 flex items-start gap-2">
-                      <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                      <div className="flex-1 min-w-0">
-                        <span className="font-bold">系统内置默认模板</span>
-                        <span className="text-amber-700 ml-1">
-                          系统默认模板为基础统一规范，不支持直接修改和删除。如需自定义字段，可点击右上角「基于此模板新建」创建专属版本。
-                        </span>
-                      </div>
-                    </div>
-                  )}
 
                   {/* Section 1: 基本属性设置 */}
                   <div className="space-y-4">
@@ -5530,11 +5646,10 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                         <input
                           type="text"
                           required
-                          disabled={editingItem?.isDefault}
                           value={formName}
                           onChange={e => setFormName(e.target.value)}
                           placeholder={formTemplateType === '激活' ? '例如：重点应急目标快速激活' : '例如：重大突发事件应急处置报送'}
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-[#1890ff] focus:ring-1 focus:ring-blue-100 bg-white disabled:bg-gray-50 disabled:text-gray-600"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-[#1890ff] focus:ring-1 focus:ring-blue-100 bg-white"
                         />
                       </div>
                       <div>
@@ -5543,11 +5658,10 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                         </label>
                         <input
                           type="text"
-                          disabled={editingItem?.isDefault}
                           value={formDesc}
                           onChange={e => setFormDesc(e.target.value)}
                           placeholder="请输入适用业务场景与填报说明..."
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-[#1890ff] focus:ring-1 focus:ring-blue-100 bg-white disabled:bg-gray-50 disabled:text-gray-600"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-[#1890ff] focus:ring-1 focus:ring-blue-100 bg-white"
                         />
                       </div>
                     </div>
@@ -5582,18 +5696,41 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                             <span>已配置字段</span>
                             <span className="text-[11px] font-medium text-gray-400">{formFields.length}</span>
                           </div>
-                          {editingItem?.isDefault ? (
-                            <span className="text-[11px] text-gray-400">系统默认字段（只读展示）</span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={handleLoadStandardPreset}
-                              className="flex items-center gap-1.5 text-xs text-[#1E5ABB] hover:bg-blue-50 font-medium px-2 py-1 rounded-md transition-colors cursor-pointer"
+                          <div className="relative min-w-[168px]">
+                            <select
+                              value=""
+                              disabled={enabledGlobalTemplatesForDesigner.length === 0}
+                              onChange={(e) => {
+                                const id = e.target.value;
+                                if (!id) return;
+                                const standard = enabledGlobalTemplatesForDesigner.find((t) => t.id === id);
+                                if (!standard) return;
+                                applyGlobalTemplateFields(standard);
+                              }}
+                              title={
+                                enabledGlobalTemplatesForDesigner.length === 0
+                                  ? '全局配置暂无同类型启用模板'
+                                  : '从全局启用模板中选择并应用字段'
+                              }
+                              className={`w-full appearance-none pl-2 pr-7 py-1 rounded-md border text-xs font-medium transition-colors ${
+                                enabledGlobalTemplatesForDesigner.length === 0
+                                  ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+                                  : 'border-blue-200 bg-white text-[#1E5ABB] hover:border-[#1E5ABB] cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-100'
+                              }`}
                             >
-                              <Wand2 className="w-3.5 h-3.5" />
-                              <span>使用标准模板</span>
-                            </button>
-                          )}
+                              <option value="">
+                                {enabledGlobalTemplatesForDesigner.length === 0
+                                  ? '暂无全局启用模板'
+                                  : '使用标准模板'}
+                              </option>
+                              {enabledGlobalTemplatesForDesigner.map((t) => (
+                                <option key={t.id} value={t.id}>
+                                  {t.name}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown className="w-3.5 h-3.5 text-gray-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          </div>
                         </div>
 
                         {formFields.length === 0 ? (
@@ -5607,7 +5744,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               const meta = getFieldTypeMeta(field.type);
                               const IconComp = meta.icon;
                               const fieldLocked = isLockedField(field);
-                              const isReadOnly = Boolean(editingItem?.isDefault);
+                              const isReadOnly = false;
                               const canReorder = !isReadOnly && !fieldLocked;
                               const typeLocked = isReadOnly || fieldLocked;
                               const requiredLocked = isReadOnly || isRequiredLockedField(field);
@@ -6049,20 +6186,8 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                       </button>
                                     </div>
 
-                                    {/* Row 2: Badge (系统默认/自定义) + Update Time */}
+                                    {/* Row 2: Update Time */}
                                     <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-                                      {item.isDefault ? (
-                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 font-bold rounded border border-gray-200 shrink-0 whitespace-nowrap">
-                                          <Lock className="w-2.5 h-2.5 text-gray-400" />
-                                          系统默认
-                                        </span>
-                                      ) : (
-                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] bg-emerald-50 text-emerald-700 font-bold rounded border border-emerald-200 shrink-0 whitespace-nowrap">
-                                          <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
-                                          自定义
-                                        </span>
-                                      )}
-
                                       {item.updateTime && (
                                         <span className="text-[10px] text-gray-400 font-mono">
                                           {item.updateTime}
@@ -6091,27 +6216,18 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                       )}
 
                                       <div className="flex items-center gap-2 text-gray-500">
-                                        {!item.isDefault ? (
-                                          <button
-                                            type="button"
-                                            onClick={e => {
-                                              e.stopPropagation();
-                                              openEditTemplatePage(item);
-                                            }}
-                                            className="hover:text-[#1E5ABB] flex items-center gap-0.5 text-[11px] cursor-pointer"
-                                            title="编辑模板"
-                                          >
-                                            <Edit3 className="w-3.5 h-3.5" />
-                                            <span>编辑</span>
-                                          </button>
-                                        ) : (
-                                          <span
-                                            className="p-0.5 text-gray-300 select-none inline-flex items-center"
-                                            title="系统默认"
-                                          >
-                                            <Lock className="w-3.5 h-3.5" />
-                                          </span>
-                                        )}
+                                        <button
+                                          type="button"
+                                          onClick={e => {
+                                            e.stopPropagation();
+                                            openEditTemplatePage(item);
+                                          }}
+                                          className="hover:text-[#1E5ABB] flex items-center gap-0.5 text-[11px] cursor-pointer"
+                                          title="编辑模板"
+                                        >
+                                          <Edit3 className="w-3.5 h-3.5" />
+                                          <span>编辑</span>
+                                        </button>
                                         <div className="relative">
                                           <button
                                             type="button"
@@ -6140,19 +6256,17 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                                 <Copy className="w-3 h-3" />
                                                 复制为新模板
                                               </button>
-                                              {!item.isDefault && (
-                                                <button
-                                                  type="button"
-                                                  onClick={() => {
-                                                    setTemplateMoreMenuId(null);
-                                                    handleDelete(item);
-                                                  }}
-                                                  className="w-full flex items-center gap-1.5 px-3 py-1.5 text-rose-600 hover:bg-rose-50 cursor-pointer"
-                                                >
-                                                  <Trash2 className="w-3 h-3" />
-                                                  删除
-                                                </button>
-                                              )}
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setTemplateMoreMenuId(null);
+                                                  handleDelete(item);
+                                                }}
+                                                className="w-full flex items-center gap-1.5 px-3 py-1.5 text-rose-600 hover:bg-rose-50 cursor-pointer"
+                                              >
+                                                <Trash2 className="w-3 h-3" />
+                                                删除
+                                              </button>
                                             </div>
                                           )}
                                         </div>
@@ -6201,27 +6315,20 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                   }`}>
                                     {activeSelectedTemplate.status}
                                   </span>
-                                  {activeSelectedTemplate.isDefault && (
-                                    <span className="px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 border border-gray-200 font-bold rounded shrink-0">
-                                      系统默认
-                                    </span>
-                                  )}
                                 </div>
 
-                                {/* Action Buttons: Edit into Detail Page（系统默认仅预览，不展示编辑入口） */}
-                                {!activeSelectedTemplate.isDefault && (
-                                  <div className="flex items-center gap-2 shrink-0">
-                                    <button
-                                      type="button"
-                                      onClick={() => openEditTemplatePage(activeSelectedTemplate)}
-                                      className="px-3 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center gap-1 cursor-pointer transition-colors shrink-0 whitespace-nowrap"
-                                    >
-                                      <Edit3 className="w-3.5 h-3.5 shrink-0" />
-                                      <span>编辑</span>
-                                      <ArrowRight className="w-3.5 h-3.5 shrink-0" />
-                                    </button>
-                                  </div>
-                                )}
+                                {/* Action Buttons: Edit into Detail Page */}
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditTemplatePage(activeSelectedTemplate)}
+                                    className="px-3 py-1.5 bg-[#1E5ABB] hover:bg-[#134092] text-white text-xs font-bold rounded shadow-2xs flex items-center gap-1 cursor-pointer transition-colors shrink-0 whitespace-nowrap"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5 shrink-0" />
+                                    <span>编辑</span>
+                                    <ArrowRight className="w-3.5 h-3.5 shrink-0" />
+                                  </button>
+                                </div>
                               </div>
 
                               {/* Simulation Stage Canvas matching Add/Edit Detail Page Style */}
@@ -6503,21 +6610,31 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               <div className="shrink-0">
                                 <button
                                   type="button"
-                                  disabled={Boolean(item.isDefault)}
+                                  disabled={
+                                    !isEnabled &&
+                                    isExternalAuditModeLocked &&
+                                    isExternalDependentAuditFlowMode(resolveAuditFlowMode(item))
+                                  }
                                   onClick={e => {
                                     e.stopPropagation();
                                     handleToggleStatus(item.id);
                                   }}
                                   className={`flex items-center gap-1.5 py-1 rounded-full transition-colors shadow-2xs ${
-                                    item.isDefault ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                                    !isEnabled &&
+                                    isExternalAuditModeLocked &&
+                                    isExternalDependentAuditFlowMode(resolveAuditFlowMode(item))
+                                      ? 'opacity-60 cursor-not-allowed'
+                                      : 'cursor-pointer'
                                   } ${
                                     isEnabled
                                       ? 'pl-2.5 pr-1 bg-[#1E5ABB] text-white'
                                       : 'pl-1 pr-2.5 bg-gray-200 text-gray-500'
                                   }`}
                                   title={
-                                    item.isDefault
-                                      ? '系统默认审核流程不支持启停'
+                                    !isEnabled &&
+                                    isExternalAuditModeLocked &&
+                                    isExternalDependentAuditFlowMode(resolveAuditFlowMode(item))
+                                      ? '未开通外部审核，VIP 流程暂不可启用'
                                       : isEnabled
                                         ? '点击停用'
                                         : '点击启用'
@@ -6552,6 +6669,14 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                 ) : (
                                   <span className="px-2 py-0.5 text-xs font-medium rounded border border-blue-300 text-[#1E5ABB] bg-blue-50/50 shrink-0 whitespace-nowrap">
                                     逐级审核
+                                  </span>
+                                )}
+                                {(item.auditFlowMode === 'step_by_step' ||
+                                  item.auditFlowMode === 'max_n_steps' ||
+                                  (!item.auditFlowMode &&
+                                    (item.name.includes('逐级') || item.name.includes('最多')))) && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold rounded border shrink-0 bg-amber-50 text-amber-700 border-amber-200 leading-none">
+                                    VIP
                                   </span>
                                 )}
                                 <span className="px-2 py-0.5 text-xs text-gray-600 bg-gray-100/80 rounded border border-gray-200 shrink-0 whitespace-nowrap">
@@ -6617,15 +6742,146 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
               </div>
             ) : activeModule === 'value_added' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {sortedConfigList.length === 0 ? (
+                {valueAddedDisplayList.length === 0 && LINK_EXTRACT_PACKAGES.length === 0 ? (
                   <div className="col-span-full py-12 text-center text-gray-400 text-xs bg-white rounded-lg border border-gray-100">
                     暂无相关增值业务模块数据
                   </div>
                 ) : (
-                  sortedConfigList.map(item => {
+                  <>
+                    {LINK_EXTRACT_PACKAGES.map((pkg) => {
+                      const list = dataStore.value_added || [];
+                      const isActivated = isLinkExtractPackageActivatedForDisplay(pkg.id, list);
+                      const anchor = findLinkExtractAnchorItem(list, pkg.id);
+                      const isEnabled = isActivated && anchor?.status === '启用';
+                      const desc = pkg.description;
+
+                      // 与其它增值卡片一致：未开通不置灰；已停用才深度置灰
+                      let cardClass = '';
+                      if (isEnabled) {
+                        cardClass = 'bg-white border-gray-200/80 hover:shadow-md hover:border-amber-300';
+                      } else if (!isActivated) {
+                        cardClass = 'bg-white border-gray-200/90 hover:shadow-sm hover:border-amber-200/60';
+                      } else {
+                        cardClass = 'bg-slate-100/90 border-slate-300/80 opacity-95 grayscale-[75%]';
+                      }
+
+                      return (
+                        <div
+                          key={pkg.id}
+                          className={`border rounded-xl p-5 transition-all flex flex-col justify-between space-y-3 relative overflow-hidden group ${cardClass}`}
+                        >
+                          <div className="absolute -top-10 -right-10 w-28 h-28 bg-amber-500/5 rounded-full blur-xl group-hover:bg-amber-500/10 transition-all pointer-events-none" />
+                          <div className="space-y-3">
+                            <div className="flex items-start gap-3">
+                              <div
+                                className={`w-11 h-11 rounded-xl border flex items-center justify-center shrink-0 shadow-2xs ${
+                                  isEnabled || !isActivated
+                                    ? 'bg-[#FFFDF5] border-[#FDE68A]'
+                                    : 'bg-gray-200 border-gray-300'
+                                }`}
+                              >
+                                <Sparkles
+                                  className={`w-5 h-5 ${
+                                    isEnabled || !isActivated ? 'text-amber-600' : 'text-gray-400'
+                                  }`}
+                                />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-start justify-between gap-2">
+                                  <h3
+                                    className={`font-bold text-sm truncate min-w-0 ${
+                                      isEnabled || !isActivated
+                                        ? 'text-gray-900 group-hover:text-[#1E5ABB]'
+                                        : 'text-gray-500'
+                                    }`}
+                                  >
+                                    {pkg.title.replace(/套餐/g, '')}
+                                  </h3>
+                                  {isActivated ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleLinkExtractPackageStatus(pkg.id)}
+                                      title={
+                                        isEnabled
+                                          ? `点击停用「${pkg.title.replace(/套餐/g, '')}」`
+                                          : `点击启用「${pkg.title.replace(/套餐/g, '')}」`
+                                      }
+                                      className="cursor-pointer focus:outline-none flex items-center space-x-2 bg-white/90 hover:bg-white px-2.5 py-1 rounded-full border border-gray-200 shadow-2xs shrink-0 transition-all hover:scale-102"
+                                    >
+                                      <div
+                                        className={`w-7 h-3.5 flex items-center rounded-full p-0.5 transition-colors ${
+                                          isEnabled
+                                            ? 'bg-emerald-500 justify-end'
+                                            : 'bg-gray-300 justify-start'
+                                        }`}
+                                      >
+                                        <div className="w-2.5 h-2.5 bg-white rounded-full shadow-2xs" />
+                                      </div>
+                                      <span
+                                        className={`text-[11px] font-bold ${
+                                          isEnabled ? 'text-emerald-700' : 'text-gray-500'
+                                        }`}
+                                      >
+                                        {isEnabled ? '已启用' : '已停用'}
+                                      </span>
+                                    </button>
+                                  ) : (
+                                    <div
+                                      className="flex items-center space-x-1.5 bg-gray-100 px-2.5 py-1 rounded-full border border-gray-200 text-gray-500 text-[11px] font-medium cursor-not-allowed shrink-0"
+                                      title="未开通业务不可进行启禁操作"
+                                    >
+                                      <Lock className="w-3 h-3 text-gray-400" />
+                                      <span>未开通</span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="mt-1.5">
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-50 text-slate-600 border border-slate-200">
+                                    {pkg.badge.split('·')[0]}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5 pt-1">
+                              <div className="text-[11px] font-bold text-gray-700 flex items-center space-x-1">
+                                <FileText
+                                  className={`w-3.5 h-3.5 ${
+                                    isEnabled || !isActivated ? 'text-amber-600' : 'text-gray-400'
+                                  }`}
+                                />
+                                <span>产品功能介绍</span>
+                              </div>
+                              <div
+                                className={`p-3 rounded-lg border ${
+                                  isEnabled || !isActivated
+                                    ? 'bg-slate-50/80 border-slate-200/60'
+                                    : 'bg-gray-200/50 border-gray-200'
+                                }`}
+                              >
+                                <p
+                                  className={`text-xs leading-relaxed font-sans line-clamp-2 ${
+                                    isEnabled || !isActivated ? 'text-gray-700' : 'text-gray-500'
+                                  }`}
+                                  title={desc}
+                                >
+                                  {desc}
+                                </p>
+                              </div>
+                              {!isActivated && (
+                                <div className="mt-2 text-[11px] text-amber-800 font-medium flex items-center space-x-1.5 bg-amber-50/90 px-3 py-1.5 rounded-md border border-amber-200/80">
+                                  <Info className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                  <span>如需开通请联系对应的销售人员</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {valueAddedDisplayList.map((item) => {
                     const isActivated = item.activatedStatus === '已开通';
                     const isEnabled = isActivated && item.status === '启用';
-                    const isDisabled = isActivated && item.status === '停用';
 
                     const IconComp = item.name.includes('首发') || item.name.includes('重复') || item.dictCode === 'VA_FIRST_DUPLICATE_IDENTIFY'
                       ? Layers
@@ -6697,7 +6953,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                     title="未开通业务不可进行启禁操作"
                                   >
                                     <Lock className="w-3 h-3 text-gray-400" />
-                                    <span>未开通 (不可启禁)</span>
+                                    <span>未开通</span>
                                   </div>
                                 )}
                               </div>
@@ -6710,11 +6966,22 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               <FileText className={`w-3.5 h-3.5 ${isEnabled || !isActivated ? 'text-amber-600' : 'text-gray-400'}`} />
                               <span>产品功能介绍</span>
                             </div>
-                            <p className={`text-xs leading-relaxed p-3 rounded-lg border font-sans ${
-                              isEnabled || !isActivated ? 'bg-slate-50/80 text-gray-700 border-slate-200/60' : 'bg-gray-200/50 text-gray-500 border-gray-200'
-                            }`}>
-                              {item.description || '暂无产品功能介绍说明'}
-                            </p>
+                            <div
+                              className={`p-3 rounded-lg border ${
+                                isEnabled || !isActivated
+                                  ? 'bg-slate-50/80 border-slate-200/60'
+                                  : 'bg-gray-200/50 border-gray-200'
+                              }`}
+                            >
+                              <p
+                                className={`text-xs leading-relaxed font-sans line-clamp-2 ${
+                                  isEnabled || !isActivated ? 'text-gray-700' : 'text-gray-500'
+                                }`}
+                                title={item.description || '暂无产品功能介绍说明'}
+                              >
+                                {item.description || '暂无产品功能介绍说明'}
+                              </p>
+                            </div>
 
                             {/* Contact Sales Notice - Only shown for non-activated products */}
                             {!isActivated && (
@@ -6727,7 +6994,8 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                         </div>
                       </div>
                     );
-                  })
+                  })}
+                  </>
                 )}
               </div>
             ) : (
@@ -6992,10 +7260,10 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               </button>
 
                               {/* Edit Button */}
-                              {item.isDefault ? (
+                              {item.isDefault && activeModule !== 'report_template' ? (
                                 <button
                                   disabled
-                                  title="系统默认模板不支持修改"
+                                  title="系统默认项不支持修改"
                                   className="text-gray-300 cursor-not-allowed opacity-50"
                                 >
                                   <Edit3 className="w-3.5 h-3.5" />
@@ -7003,7 +7271,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               ) : (
                                 <button
                                   onClick={() => openEditModal(item)}
-                                  title="编辑修改模板"
+                                  title="编辑"
                                   className="text-[#1E5ABB] hover:text-blue-600 cursor-pointer"
                                 >
                                   <Edit3 className="w-3.5 h-3.5" />
@@ -7011,10 +7279,10 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               )}
 
                               {/* Delete Button */}
-                              {item.isDefault ? (
+                              {item.isDefault && activeModule !== 'report_template' ? (
                                 <button
                                   disabled
-                                  title="系统默认模板不支持删除"
+                                  title="系统默认项不支持删除"
                                   className="text-gray-300 cursor-not-allowed opacity-50"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -7022,7 +7290,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               ) : (
                                 <button
                                   onClick={() => handleDelete(item)}
-                                  title="删除模板"
+                                  title="删除"
                                   className="text-gray-400 hover:text-red-600 cursor-pointer"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -8018,16 +8286,19 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                             : 'border border-gray-200 hover:border-gray-300 bg-white'
                         }`}
                       >
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className={`text-xs font-bold ${isExternalAuditModeLocked ? 'text-gray-500' : 'text-gray-900'}`}>
-                            模式一: 逐级审核
+                        <div className="flex items-center justify-between mb-1.5 gap-2">
+                          <span className={`inline-flex items-center gap-1.5 text-xs font-bold min-w-0 ${isExternalAuditModeLocked ? 'text-gray-500' : 'text-gray-900'}`}>
+                            <span className="truncate">模式一: 逐级审核</span>
+                            <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded font-bold bg-amber-50 text-amber-700 border border-amber-200 leading-none">
+                              VIP
+                            </span>
                           </span>
                           {isExternalAuditModeLocked ? (
-                            <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                            <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-gray-100 text-gray-500 border border-gray-200 shrink-0">
                               暂不可用
                             </span>
                           ) : (
-                            <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-emerald-50 text-emerald-600 border border-emerald-200">
+                            <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
                               推荐
                             </span>
                           )}
@@ -8058,16 +8329,19 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                             : 'border border-gray-200 hover:border-gray-300 bg-white'
                         }`}
                       >
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className={`text-xs font-bold ${isExternalAuditModeLocked ? 'text-gray-500' : 'text-gray-900'}`}>
-                            模式二: 最多N级审核
+                        <div className="flex items-center justify-between mb-1.5 gap-2">
+                          <span className={`inline-flex items-center gap-1.5 text-xs font-bold min-w-0 ${isExternalAuditModeLocked ? 'text-gray-500' : 'text-gray-900'}`}>
+                            <span className="truncate">模式二: 最多N级审核</span>
+                            <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded font-bold bg-amber-50 text-amber-700 border border-amber-200 leading-none">
+                              VIP
+                            </span>
                           </span>
                           {isExternalAuditModeLocked ? (
-                            <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                            <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-gray-100 text-gray-500 border border-gray-200 shrink-0">
                               暂不可用
                             </span>
                           ) : (
-                            <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-amber-50 text-amber-600 border border-amber-200">
+                            <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-amber-50 text-amber-600 border border-amber-200 shrink-0">
                               上限截断
                             </span>
                           )}
@@ -9353,16 +9627,38 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                             </div>
                           )}
 
-                          <div className="px-3 py-2 bg-gray-50/80 border-b border-gray-100 flex items-center justify-between">
+                          <div className="px-3 py-2 bg-gray-50/80 border-b border-gray-100 flex items-center justify-between gap-2">
                             <span className="font-bold text-gray-800 text-xs">字段配置 ({formFields.length} 项)</span>
-                            <button
-                              type="button"
-                              onClick={handleLoadStandardPreset}
-                              className="px-2.5 py-1 text-xs font-bold text-[#1E5ABB] hover:text-white bg-blue-50 hover:bg-[#1E5ABB] border border-blue-200 hover:border-[#1E5ABB] rounded transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
-                            >
-                              <Sparkles className="w-3.5 h-3.5" />
-                              <span>使用标准模板</span>
-                            </button>
+                            <div className="relative min-w-[160px]">
+                              <select
+                                value=""
+                                disabled={enabledGlobalTemplatesForDesigner.length === 0}
+                                onChange={(e) => {
+                                  const id = e.target.value;
+                                  if (!id) return;
+                                  const standard = enabledGlobalTemplatesForDesigner.find((t) => t.id === id);
+                                  if (!standard) return;
+                                  applyGlobalTemplateFields(standard);
+                                }}
+                                className={`w-full appearance-none pl-2 pr-7 py-1 rounded border text-xs font-bold transition-colors ${
+                                  enabledGlobalTemplatesForDesigner.length === 0
+                                    ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+                                    : 'border-blue-200 bg-blue-50 text-[#1E5ABB] cursor-pointer'
+                                }`}
+                              >
+                                <option value="">
+                                  {enabledGlobalTemplatesForDesigner.length === 0
+                                    ? '暂无全局启用模板'
+                                    : '使用标准模板'}
+                                </option>
+                                {enabledGlobalTemplatesForDesigner.map((t) => (
+                                  <option key={t.id} value={t.id}>
+                                    {t.name}
+                                  </option>
+                                ))}
+                              </select>
+                              <ChevronDown className="w-3.5 h-3.5 text-gray-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            </div>
                           </div>
 
                           {formFields.length === 0 ? (

@@ -540,20 +540,19 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     extras: QuickAttachment[],
     options?: { notice?: string; reschedule?: boolean }
   ) => {
-    setQuickDraft((prev) => {
-      if (!prev) return prev;
-      const next: QuickReportDraft = {
-        ...prev,
-        attachments: mergeAttachments(prev.attachments, extras),
-      };
-      window.setTimeout(() => {
-        if (options?.notice) pushAccountReply(options.notice, undefined, 120);
-        if (options?.reschedule && quickPhaseRef.current === 'awaiting_auto_submit') {
-          scheduleAutoSubmit();
-        }
-      }, 0);
-      return next;
-    });
+    // 副作用必须在 updater 外：StrictMode 会双调 updater，否则会重复回复
+    const prev = quickDraftRef.current;
+    if (!prev) return;
+    const next: QuickReportDraft = {
+      ...prev,
+      attachments: mergeAttachments(prev.attachments, extras),
+    };
+    quickDraftRef.current = next;
+    setQuickDraft(next);
+    if (options?.notice) pushAccountReply(options.notice, undefined, 120);
+    if (options?.reschedule && quickPhaseRef.current === 'awaiting_auto_submit') {
+      scheduleAutoSubmit();
+    }
   };
 
   /** 规定时间内补充的文字：归档为上一条附件，不新开模板 */
@@ -766,7 +765,8 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     }
 
     if (isEntryKeyword(userMsgText)) {
-      startQuickReportMode('keyword');
+      // 与菜单「快捷报送」一致：先选单/多机构演示，再下发同一套填写模板
+      openQuickDemoPicker();
       return;
     }
 
@@ -1355,18 +1355,15 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
           <div className="bg-[#f2f2f2] rounded-t-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-200">
             <div className="px-4 pt-3 pb-2 text-center">
               <p className="text-[13px] font-bold text-slate-800">快捷报送 · 演示入口</p>
-              <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                给开发 / 领导切换视角：单机构跳过选机构，多机构走确认机构流程
-              </p>
             </div>
             <div className="mx-3 mb-2 rounded-xl bg-white overflow-hidden divide-y divide-slate-100">
               <button
                 type="button"
                 onClick={() => startQuickReportMode('menu', 'single')}
-                className="w-full px-4 py-3.5 text-left active:bg-slate-50 flex items-start gap-3"
+                className="w-full px-4 py-3.5 text-left active:bg-slate-50 flex items-center gap-3"
               >
                 <span
-                  className={`mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                  className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
                     quickOrgDemoMode === 'single'
                       ? 'border-[#07c160] bg-[#07c160]'
                       : 'border-slate-300'
@@ -1376,20 +1373,15 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
                     <span className="w-1.5 h-1.5 rounded-full bg-white" />
                   )}
                 </span>
-                <span className="min-w-0">
-                  <span className="block text-[15px] font-medium text-slate-900">单机构演示</span>
-                  <span className="block text-[11px] text-slate-500 mt-0.5">
-                    仅本账号主机构（{user?.department || '主机构'}），识别后直接等待自动提交
-                  </span>
-                </span>
+                <span className="text-[15px] font-medium text-slate-900">单机构演示</span>
               </button>
               <button
                 type="button"
                 onClick={() => startQuickReportMode('menu', 'multi')}
-                className="w-full px-4 py-3.5 text-left active:bg-slate-50 flex items-start gap-3"
+                className="w-full px-4 py-3.5 text-left active:bg-slate-50 flex items-center gap-3"
               >
                 <span
-                  className={`mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                  className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
                     quickOrgDemoMode === 'multi'
                       ? 'border-[#07c160] bg-[#07c160]'
                       : 'border-slate-300'
@@ -1399,12 +1391,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
                     <span className="w-1.5 h-1.5 rounded-full bg-white" />
                   )}
                 </span>
-                <span className="min-w-0">
-                  <span className="block text-[15px] font-medium text-slate-900">多机构演示</span>
-                  <span className="block text-[11px] text-slate-500 mt-0.5">
-                    主机构 + 关联机构，识别后先选报送机构再自动提交
-                  </span>
-                </span>
+                <span className="text-[15px] font-medium text-slate-900">多机构演示</span>
               </button>
             </div>
             <button

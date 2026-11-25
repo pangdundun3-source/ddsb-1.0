@@ -10,7 +10,7 @@ export interface OrgTreeFilterPanelProps {
   /** 面板展示的机构根名称 */
   rootOrgName?: string;
   className?: string;
-  /** sidebar：右侧竖栏；embedded：嵌在筛选区下方通栏 */
+  /** sidebar：左侧竖栏；embedded：嵌在筛选区下方通栏 */
   variant?: 'sidebar' | 'embedded';
 }
 

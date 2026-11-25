@@ -4,6 +4,7 @@ export type ActiveTab =
   | 'apps'
   | 'config'
   | 'org_config'
+  | 'org_migration'
   | 'monitoring'
   | 'system';
 

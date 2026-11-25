@@ -1,11 +1,11 @@
-/** 链接字段「提取」档位配置（截图固定开启；三档互斥，按增值开通态灰显） */
+﻿/** 链接字段「提取」档位配置（截图固定开启；三档互斥，按增值开通态灰显） */
 
 export type LinkFieldFeature =
   | 'ai_text_extract'
   | 'ocr'
   | 'ai_multimodal_deep';
 
-/** 互斥档位：文本提取 / 文本+OCR / 全量深度解析 */
+/** 互斥档位：文本提取 / 文本+OCR / 多模态深度解析 */
 export type LinkExtractTier = 'text' | 'text_ocr' | 'full';
 
 export const LINK_FIELD_FEATURE_OPTIONS: Array<{
@@ -67,7 +67,7 @@ export const LINK_EXTRACT_TIER_OPTIONS: Array<{
   },
   {
     id: 'full',
-    label: '全量深度解析',
+    label: '多模态深度解析',
     requires: ['ai_text_extract', 'ocr', 'ai_multimodal_deep']
   }
 ];
@@ -179,25 +179,19 @@ export const getLinkExtractTierDisabledHint = (
   const hasDeep = isLinkFeatureProvisioned('ai_multimodal_deep', valueAddedItems);
 
   if (!hasText) {
-    return '需要开通【AI文本提取】增值服务才可使用';
+    return '请先开通「AI文本提取」套餐（可选档位①）';
   }
   if (tier === 'text_ocr') {
-    return '需要开通【OCR识别】增值服务才可使用';
+    return '请开通「文本 + OCR 识别」套餐（可选档位①②）';
   }
   if (tier === 'full') {
-    const missing: string[] = [];
-    if (!hasOcr) missing.push('【OCR识别】');
-    if (!hasDeep) missing.push('【AI多模态深度解析】');
-    if (missing.length === 1 && !hasDeep) {
-      return '缺少多模态深度解析包';
+    if (!hasOcr && !hasDeep) {
+      return '请开通「多模态深度解析」套餐（可选档位①②③）';
     }
-    if (missing.length === 2) {
-      return '需要同时开通【OCR识别】、【AI多模态深度解析】增值服务才可使用';
-    }
-    if (!hasOcr) return '需要开通【OCR识别】增值服务才可使用';
-    return '需要开通【AI多模态深度解析】增值服务才可使用';
+    if (!hasOcr) return '还需开通含 OCR 的增强档/多模态档套餐';
+    if (!hasDeep) return '请开通「多模态深度解析」套餐（可选档位①②③）';
   }
-  return '当前增值能力不足，暂不可用';
+  return '当前开通套餐不足，该档位暂不可用';
 };
 
 export const linkExtractTierLabel = (tier: LinkExtractTier | null) =>

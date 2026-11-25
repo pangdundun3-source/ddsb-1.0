@@ -515,7 +515,7 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
   const [startDate, setStartDate] = useState(toSlashDate(PRESET_RANGES.d7.start));
   const [endDate, setEndDate] = useState(toSlashDate(PRESET_RANGES.d7.end));
   const [customFieldKey, setCustomFieldKey] = useState(0);
-  /** 右侧组织树草稿；点「查询」后写入 appliedOrgFilter 生效 */
+  /** 左侧组织树草稿；点「查询」后写入 appliedOrgFilter 生效 */
   const [draftOrgFilter, setDraftOrgFilter] = useState<string | null>(null);
   const [appliedOrgFilter, setAppliedOrgFilter] = useState<string | null>(null);
   const [personGroupFilter, setPersonGroupFilter] = useState<string[]>([]);
@@ -1167,10 +1167,16 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
         </div>
       )}
 
-      {/* 筛选通栏：组织树与下方「考核指标」行对齐 */}
+      {/* 筛选通栏；下方左侧组织树 + 右侧考核内容 */}
       {renderPageFilters()}
 
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+      <OrgTreeFilterPanel
+        value={draftOrgFilter}
+        onChange={setDraftOrgFilter}
+        rootOrgName="台中市网信办"
+        className="xl:self-stretch"
+      />
       <div className="min-w-0 flex-1 space-y-4">
       {tab === 'org' ? (
         <>
@@ -1777,13 +1783,6 @@ export const EvaluationReference: React.FC<EvaluationReferenceProps> = () => {
         </>
       )}
       </div>
-
-      <OrgTreeFilterPanel
-        value={draftOrgFilter}
-        onChange={setDraftOrgFilter}
-        rootOrgName="台中市网信办"
-        className="xl:self-stretch"
-      />
       </div>
 
       <EvaluationProfileModal

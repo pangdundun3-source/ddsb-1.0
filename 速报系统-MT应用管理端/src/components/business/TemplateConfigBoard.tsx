@@ -13,7 +13,6 @@ import {
   Zap,
   Plus,
   Lock,
-  Sparkles,
   Edit3,
   Trash2,
   Copy,
@@ -135,7 +134,7 @@ export interface BusinessTemplateItem {
   name: string;
   templateType: TemplateType;
   isDefault: boolean;
-  /** 平台全局设为标准模板后，全局与机构新增模板时可直接调用 */
+  /** 历史标准模板标记（兼容旧数据；「设为标准模板」入口已下线） */
   isPreset?: boolean;
   status: '启用' | '停用';
   /** 创建时间；缺省时排序回退到 updateTime */
@@ -480,7 +479,7 @@ const readGlobalTemplateStore = (): BusinessTemplateItem[] => {
 
 export const countGlobalReportTemplates = () => readGlobalTemplateStore().filter(t => t.templateType === '报送').length;
 
-/** 全局规则保存后同步全局系统默认模板，以及各机构沿用的系统默认模板；机构自定义模板不受影响 */
+/** 全局规则保存后仅同步全局业务配置中的报送模板；机构侧模板均为本机构自有，不再被全局规则覆盖 */
 export const applyFixedFieldRuleToGlobalTemplates = (): number => {
   const rule = readFixedFieldRule();
   let count = 0;
@@ -490,23 +489,12 @@ export const applyFixedFieldRuleToGlobalTemplates = (): number => {
     return { ...t, fields: rebaseOnFixedFieldRule(t.fields || [], rule) };
   });
   localStorage.setItem(GLOBAL_TEMPLATE_STORAGE_KEY, JSON.stringify(next));
-
-  Object.keys(localStorage)
-    .filter(key => key.startsWith('v8_template_board_data_') && key !== GLOBAL_TEMPLATE_STORAGE_KEY)
-    .forEach(key => {
-      try {
-        const parsed = JSON.parse(localStorage.getItem(key) || 'null');
-        if (!Array.isArray(parsed)) return;
-        const synced = normalizeTemplateFields(parsed).map(t =>
-          t.templateType === '报送' && t.isDefault ? { ...t, fields: rebaseOnFixedFieldRule(t.fields || [], rule) } : t
-        );
-        localStorage.setItem(key, JSON.stringify(synced));
-      } catch {
-        // ignore malformed stores
-      }
-    });
   return count;
 };
+
+/** 机构侧不存在系统默认模板：自全局拷贝或历史数据一律视为机构自有 */
+const asInstitutionOwnedTemplates = (list: BusinessTemplateItem[]): BusinessTemplateItem[] =>
+  list.map((t) => ({ ...t, isDefault: false, isPreset: false }));
 
 // System standard preset fields for 报送模板
 export const standardReportFields: TemplateFieldItem[] = [
@@ -678,6 +666,34 @@ export const unbindAndDisableBoardTemplates = (options: {
   return { count: linked.length, names: linked.map((item) => item.name) };
 };
 
+/** 外部审核未开通时：按审核流程 id 停用关联报送模板（保留绑定，便于开通后恢复） */
+export const disableBoardTemplatesByAuditFlowIds = (options: {
+  institutionId?: string | number | null;
+  flowIds: string[];
+  nowStr: string;
+}): { count: number; names: string[] } => {
+  const flowIdSet = new Set((options.flowIds || []).filter(Boolean));
+  if (flowIdSet.size === 0) return { count: 0, names: [] };
+  const storageKey = getTemplateBoardStorageKey(options.institutionId);
+  const templates = readBoardTemplates(storageKey);
+  const linked: BusinessTemplateItem[] = [];
+  const next = templates.map((item) => {
+    if ((item.templateType || '报送') !== '报送') return item;
+    if (!item.auditFlowId || !flowIdSet.has(item.auditFlowId)) return item;
+    if (item.status !== '启用') return item;
+    linked.push(item);
+    return { ...item, status: '停用' as const, updateTime: options.nowStr };
+  });
+  if (linked.length === 0) return { count: 0, names: [] };
+  localStorage.setItem(storageKey, JSON.stringify(next));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent(TEMPLATE_BOARD_UPDATED_EVENT, { detail: { storageKey } })
+    );
+  }
+  return { count: linked.length, names: linked.map((item) => item.name) };
+};
+
 /** 预览将受停用影响的模板（不解绑，仅查询） */
 export const findLinkedBoardTemplates = (options: {
   institutionId?: string | number | null;
@@ -783,16 +799,34 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
 
   // State: Templates data store
   const [templates, setTemplates] = useState<BusinessTemplateItem[]>(() => {
+    let list: BusinessTemplateItem[] = [];
     try {
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return normalizeTemplateFields(parsed);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          list = normalizeTemplateFields(parsed);
+        }
       }
     } catch (e) {
       console.error(e);
     }
-    return isGlobalScope || storageKey === GLOBAL_TEMPLATE_STORAGE_KEY ? initialDefaultTemplates : readGlobalTemplates();
+    if (list.length === 0) {
+      list =
+        isGlobalScope || storageKey === GLOBAL_TEMPLATE_STORAGE_KEY
+          ? initialDefaultTemplates
+          : asInstitutionOwnedTemplates(readGlobalTemplates());
+    } else if (!isGlobalScope) {
+      list = asInstitutionOwnedTemplates(list);
+    }
+    if (!isGlobalScope) {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(list));
+      } catch {
+        // ignore quota / private mode
+      }
+    }
+    return list;
   });
 
   // Save to local storage
@@ -802,11 +836,15 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   };
 
   useEffect(() => {
+    const normalizeSynced = (parsed: BusinessTemplateItem[]) => {
+      const next = normalizeTemplateFields(parsed);
+      return isGlobalScope ? next : asInstitutionOwnedTemplates(next);
+    };
     const syncFromOtherWindow = (event: StorageEvent) => {
       if (event.key !== storageKey || !event.newValue) return;
       try {
         const parsed = JSON.parse(event.newValue);
-        if (Array.isArray(parsed)) setTemplates(normalizeTemplateFields(parsed));
+        if (Array.isArray(parsed)) setTemplates(normalizeSynced(parsed));
       } catch {
         // ignore malformed payloads
       }
@@ -818,7 +856,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
         const saved = localStorage.getItem(storageKey);
         if (!saved) return;
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) setTemplates(normalizeTemplateFields(parsed));
+        if (Array.isArray(parsed)) setTemplates(normalizeSynced(parsed));
       } catch {
         // ignore malformed payloads
       }
@@ -829,7 +867,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
       window.removeEventListener('storage', syncFromOtherWindow);
       window.removeEventListener(TEMPLATE_BOARD_UPDATED_EVENT, syncFromSameWindow as EventListener);
     };
-  }, [storageKey]);
+  }, [storageKey, isGlobalScope]);
 
   // Desktop 3-column widths (mouse-draggable)
   const [leftColWidth, setLeftColWidth] = useState(() => readStoredColumnWidths().left);
@@ -1202,10 +1240,6 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     setSelectedTemplateId(id);
   };
 
-  const [presetTipClosed, setPresetTipClosed] = useState(false);
-  const showPresetTip =
-    isGlobalScope && !presetTipClosed && !currentCategoryTemplates.some(t => t.isPreset && t.status === '启用');
-
   // 主从联动：筛空清空选中；有结果但当前不在可见列表则选第一项
   useEffect(() => {
     if (templateListEmpty) {
@@ -1223,7 +1257,8 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     const target = templates.find(t => t.id === id);
     if (!target) return;
     const nextStatus: '启用' | '停用' = target.status === '启用' ? '停用' : '启用';
-    if (nextStatus === '启用' && target.templateType === '报送') {
+    // 全局业务配置不展示「其他业务配置」，启用时不校验打分/流程关联
+    if (nextStatus === '启用' && target.templateType === '报送' && !isGlobalScope) {
       const effectiveScoreRuleId =
         pendingOtherConfig?.templateId === target.id && pendingOtherConfig.scoreRuleId !== undefined
           ? pendingOtherConfig.scoreRuleId
@@ -1250,21 +1285,17 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
         return;
       }
     }
-    const dropPreset = isGlobalScope && target.isPreset && nextStatus === '停用';
-    if (
-      dropPreset &&
-      !(await confirmDialog(
-        `「${target.name}」是当前的标准模板，停用后将同时取消标准模板，各机构新增模板时将无法再调用。确认停用吗？`,
-        { okText: '确认停用' }
-      ))
-    ) {
-      return;
-    }
     const updated = templates.map(t =>
-      t.id === id ? { ...t, status: nextStatus, ...(dropPreset ? { isPreset: false } : {}) } : t
+      t.id === id
+        ? {
+            ...t,
+            status: nextStatus,
+            ...(nextStatus === '停用' && t.isPreset ? { isPreset: false } : {}),
+          }
+        : t
     );
     saveTemplates(updated);
-    showToast(dropPreset ? `「${target.name}」已停用，并取消标准模板` : `模板已${nextStatus}`);
+    showToast(`模板已${nextStatus}`);
   };
 
   const isTemplateNameTaken = (name: string, type: BusinessTemplateItem['templateType'], excludeId?: string) =>
@@ -1301,15 +1332,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   const handleDeleteTemplate = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     const target = templates.find(t => t.id === id);
-    if (!isGlobalScope && target?.isDefault) {
-      alertDialog('系统默认模板受平台全局统一管控，机构端不支持删除！');
-      return;
-    }
-    const deleteMessage =
-      isGlobalScope && target?.isPreset
-        ? `「${target.name}」是当前的标准模板，删除后各机构新增模板时将无法再调用。确认删除吗？`
-        : `确认删除模板「${target?.name}」吗？`;
-    if (await confirmDialog(deleteMessage, { title: '删除模板', okText: '确认删除', danger: true })) {
+    if (await confirmDialog(`确认删除模板「${target?.name}」吗？`, { title: '删除模板', okText: '确认删除', danger: true })) {
       const updated = templates.filter(t => t.id !== id);
       saveTemplates(updated);
       showToast('模板已删除');
@@ -1336,10 +1359,6 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
 
   // Open Designer
   const handleOpenDesigner = (mode: 'add' | 'edit' | 'copy', tpl?: BusinessTemplateItem) => {
-    if (!isGlobalScope && mode === 'edit' && tpl?.isDefault) {
-      alertDialog('系统默认模板受平台全局统一管控，机构端不支持编辑。如需个性化，请复制为新模板或新建自定义模板。');
-      return;
-    }
     if (mode === 'add') {
       // 新增：名称/说明为空；报送仅带固定字段骨架，不预填业务示例字段
       const emptyFields =
@@ -1399,50 +1418,10 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     setDesignerItem(null);
   };
 
-  // 标准模板：平台全局设置，全局与机构新增模板时可调用
-  const handleTogglePreset = async (id: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    const target = templates.find(t => t.id === id);
-    if (!target) return;
-    const nextPreset = !target.isPreset;
-    if (nextPreset && target.status !== '启用') {
-      showToast('停用的模板不能设为标准模板，请先启用');
-      return;
-    }
-    if (
-      !nextPreset &&
-      !(await confirmDialog(
-        `确认取消「${target.name}」的标准模板吗？取消后，各机构新增模板时将无法「使用标准模板」，直至重新设置标准模板。`,
-        { okText: '确认取消', cancelText: '暂不取消' }
-      ))
-    ) {
-      return;
-    }
-    const replaced = nextPreset
-      ? templates.find(t => t.id !== id && t.isPreset && t.templateType === target.templateType)
-      : undefined;
-    saveTemplates(
-      templates.map(t => {
-        if (t.id === id) return { ...t, isPreset: nextPreset };
-        if (nextPreset && t.templateType === target.templateType && t.isPreset) return { ...t, isPreset: false };
-        return t;
-      })
-    );
-    showToast(
-      nextPreset
-        ? `「${target.name}」已设为标准模板${replaced ? `，原标准模板「${replaced.name}」已取消` : ''}`
-        : `「${target.name}」已取消标准模板，当前暂无标准模板`
-    );
-  };
-
   const presetSource = isGlobalScope ? templates : readGlobalTemplates();
 
   // Save in Designer
   const handleSaveDesigner = () => {
-    if (!isGlobalScope && designerItem?.mode === 'edit' && designerItem.template.isDefault) {
-      alertDialog('系统默认模板受平台全局统一管控，机构端不支持编辑。如需个性化，请复制为新模板或新建自定义模板。');
-      return;
-    }
     if (!designerName.trim()) {
       setDesignerNameError(true);
       setDesignerFieldNameErrorId(null);
@@ -1516,7 +1495,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
       saveTemplates(updated);
       setSelectedTemplateId(newItem.id);
       showToast(
-        newItem.templateType === '报送'
+        newItem.templateType === '报送' && !isGlobalScope
           ? `新增模板「${newItem.name}」已保存，当前为停用。请关联打分规则和审核流程后再启用`
           : `新增模板「${newItem.name}」已成功保存，当前为停用状态`
       );
@@ -2374,27 +2353,6 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
             )}
           </div>
 
-          {!isPc && (
-            <div className="px-3.5 py-3 border-t border-slate-200/80 bg-white grid grid-cols-2 gap-2.5">
-              <button type="button" className="py-2.5 text-xs border border-gray-300 rounded-lg text-gray-600 bg-white font-bold cursor-default">
-                取消
-              </button>
-              <button type="button" className="py-2.5 text-xs rounded-lg bg-[#1E5ABB] text-white font-bold cursor-default">
-                提交审核
-              </button>
-            </div>
-          )}
-
-          {isPc && (
-            <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
-              <button type="button" className="px-4 py-1.5 text-xs border border-gray-300 rounded text-gray-600 bg-white cursor-default">
-                取消
-              </button>
-              <button type="button" className="px-4 py-1.5 text-xs rounded bg-[#1E5ABB] text-white font-bold cursor-default">
-                提交审核
-              </button>
-            </div>
-          )}
         </div>
 
         {linkShotViewer && (
@@ -2473,6 +2431,17 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   // =========================================================================
   if (designerItem) {
     const isActivation = designerItem.template.templateType === '激活';
+    const enabledGlobalTemplates = presetSource.filter(
+      (t) => t.status === '启用' && t.templateType === designerItem.template.templateType
+    );
+    const applyTemplateFields = (source: BusinessTemplateItem, toastText: string) => {
+      const stamp = Date.now();
+      const copied = source.fields.map((f, index) =>
+        isLockedField(f) ? { ...f } : { ...f, id: `fld_${stamp}_${index}` }
+      );
+      setDesignerFields(isActivation ? copied : applyFixedFieldRule(copied, institutionId));
+      showToast(toastText);
+    };
 
     return (
       <div className="bg-white space-y-7">
@@ -2592,31 +2561,64 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                   <span>已配置字段</span>
                   <span className="text-[11px] font-medium text-gray-400">{designerFields.length}</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const standard = presetSource.find(
-                      t => t.isPreset && t.status === '启用' && t.templateType === designerItem.template.templateType
-                    );
-                    if (standard) {
-                      const stamp = Date.now();
-                      const copied = standard.fields.map((f, index) =>
-                        isLockedField(f) ? { ...f } : { ...f, id: `fld_${stamp}_${index}` }
+                {!isGlobalScope ? (
+                  <div className="relative min-w-[168px]">
+                    <select
+                      value=""
+                      disabled={enabledGlobalTemplates.length === 0}
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        if (!id) return;
+                        const standard = enabledGlobalTemplates.find((t) => t.id === id);
+                        if (!standard) return;
+                        applyTemplateFields(standard, `已应用全局模板「${standard.name}」的字段`);
+                      }}
+                      title={
+                        enabledGlobalTemplates.length === 0
+                          ? '全局配置暂无同类型启用模板'
+                          : '从全局启用模板中选择并应用字段'
+                      }
+                      className={`w-full appearance-none pl-2 pr-7 py-1 rounded-md border text-xs font-medium transition-colors ${
+                        enabledGlobalTemplates.length === 0
+                          ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+                          : 'border-blue-200 bg-white text-[#1E5ABB] hover:border-[#1E5ABB] cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-100'
+                      }`}
+                    >
+                      <option value="">
+                        {enabledGlobalTemplates.length === 0
+                          ? '暂无全局启用模板'
+                          : '使用标准模板'}
+                      </option>
+                      {enabledGlobalTemplates.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-3.5 h-3.5 text-gray-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const standard = enabledGlobalTemplates.find((t) => t.isPreset);
+                      if (standard) {
+                        applyTemplateFields(standard, `已调用标准模板「${standard.name}」的字段`);
+                        return;
+                      }
+                      setDesignerFields(
+                        isActivation
+                          ? [...standardActivationFields]
+                          : applyFixedFieldRule(standardReportFields, institutionId)
                       );
-                      setDesignerFields(isActivation ? copied : applyFixedFieldRule(copied, institutionId));
-                      showToast(`已调用标准模板「${standard.name}」的字段`);
-                      return;
-                    }
-                    setDesignerFields(
-                      isActivation ? [...standardActivationFields] : applyFixedFieldRule(standardReportFields, institutionId)
-                    );
-                    showToast('平台暂未设置标准模板，已使用系统默认字段');
-                  }}
-                  className="flex items-center gap-1.5 text-xs text-[#1E5ABB] hover:bg-blue-50 font-medium px-2 py-1 rounded-md transition-colors cursor-pointer"
-                >
-                  <Wand2 className="w-3.5 h-3.5" />
-                  <span>使用标准模板</span>
-                </button>
+                      showToast('平台暂未设置标准模板，已使用系统默认字段');
+                    }}
+                    className="flex items-center gap-1.5 text-xs text-[#1E5ABB] hover:bg-blue-50 font-medium px-2 py-1 rounded-md transition-colors cursor-pointer"
+                  >
+                    <Wand2 className="w-3.5 h-3.5" />
+                    <span>使用标准模板</span>
+                  </button>
+                )}
               </div>
 
               {/* Field Rows */}
@@ -2799,7 +2801,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                     </div>
                     )}
 
-                    {field.type === 'link' && (
+                    {field.type === 'link' && !isGlobalScope && (
                       <LinkExtractCapabilityPicker
                         linkFeatures={field.linkFeatures}
                         valueAddedItems={valueAddedItems}
@@ -3042,8 +3044,8 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
             <h3 className="text-sm font-bold text-gray-800">模板配置</h3>
             {isGlobalScope && (
               <ControlNoticeTip
-                title="全平台系统默认模板管控说明"
-                content={`此处新建的${topTab}模板为全平台所有机构初始化的系统默认模板。机构端仅支持启用、停用，不支持编辑和删除；如需个性化，机构可另建自定义模板。`}
+                title="全平台模板配置说明"
+                content={`此处配置的${topTab}模板用于各机构初始化，并可供机构在新增模板时通过「使用标准模板」选用。机构侧模板均为本机构自有，可自行编辑、启停与删除。`}
               />
             )}
           </div>
@@ -3063,7 +3065,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
       )}
 
       {/* ================================================================= */}
-      {/* UNIFIED 3-COLUMN WORKBENCH CONTAINER (Figma / Axure Prototype)    */}
+      {/* 工作台：全局仅模板目录+预览；机构端另含「其他业务配置」三栏 */}
       {/* ================================================================= */}
       <div
         ref={workbenchRef}
@@ -3074,7 +3076,11 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
         <style>{`
           @media (min-width: 1024px) {
             .tpl-board-col-left { width: ${leftColWidth}px !important; max-width: ${leftColWidth}px !important; }
-            .tpl-board-col-right { width: ${rightColWidth}px !important; max-width: ${rightColWidth}px !important; }
+            ${
+              isGlobalScope
+                ? ''
+                : `.tpl-board-col-right { width: ${rightColWidth}px !important; max-width: ${rightColWidth}px !important; }`
+            }
           }
         `}</style>
 
@@ -3134,22 +3140,6 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
 
           {/* Template Cards List */}
           <div className="p-2.5 space-y-2.5 flex-1 overflow-y-auto bg-white">
-            {showPresetTip && (
-              <div className="flex items-start gap-1.5 px-2.5 py-2 rounded-lg bg-amber-50 border border-amber-200 text-[11px] leading-[18px] text-amber-700">
-                <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                <span className="flex-1 min-w-0">
-                  尚未设置标准模板，请在模板预览区点击「设为标准模板」。
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setPresetTipClosed(true)}
-                  title="关闭提示"
-                  className="w-4 h-4 mt-px shrink-0 rounded flex items-center justify-center text-amber-500 hover:text-amber-700 hover:bg-amber-100 cursor-pointer"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            )}
             {templateListEmpty && (
               <div className="py-10 text-center text-[11px] text-gray-400 border border-dashed border-gray-200 rounded-xl">
                 {hasTemplateKeyword ? '未找到匹配模板' : `暂无${topTab}模板`}
@@ -3158,7 +3148,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
             {visibleTemplates.map(tpl => {
               const isSelected = activeTemplate?.id === tpl.id;
               const isEnabled = tpl.status === '启用';
-              const canDelete = isGlobalScope || !tpl.isDefault;
+              const canDelete = true;
 
               return (
                 <div
@@ -3198,27 +3188,8 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                     </button>
                   </div>
 
-                  {/* Row 2: Tag (系统默认/自定义) & Update Time */}
+                  {/* Row 2: Update Time */}
                   <div className="flex items-center gap-2 flex-wrap">
-                    {!isGlobalScope && (
-                      tpl.isDefault ? (
-                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-gray-100 text-gray-600 text-[10px] font-bold rounded border border-gray-200 shrink-0 whitespace-nowrap">
-                          <Lock className="w-2.5 h-2.5 text-gray-400" />
-                          系统默认
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded border border-emerald-200 shrink-0 whitespace-nowrap">
-                          <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
-                          自定义
-                        </span>
-                      )
-                    )}
-                    {isGlobalScope && tpl.isPreset && (
-                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[10px] font-bold rounded border border-amber-200 shrink-0 whitespace-nowrap">
-                        <Award className="w-2.5 h-2.5 text-amber-500" />
-                        标准模板
-                      </span>
-                    )}
                     <span className="text-[10px] text-gray-400 font-mono">
                       {tpl.updateTime}
                     </span>
@@ -3245,29 +3216,18 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                     )}
 
                     <div className="flex items-center gap-2 text-gray-500">
-                      {(isGlobalScope || !tpl.isDefault) && (
-                        <button
-                          type="button"
-                          onClick={e => {
-                            e.stopPropagation();
-                            handleOpenDesigner('edit', tpl);
-                          }}
-                          className="hover:text-[#1890ff] flex items-center gap-0.5 text-[11px] cursor-pointer"
-                          title="编辑模板"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                          <span>编辑</span>
-                        </button>
-                      )}
-                      {!isGlobalScope && tpl.isDefault && (
-                        <span
-                          className="p-0.5 text-gray-300 select-none inline-flex items-center"
-                          title="系统默认"
-                        >
-                          <Lock className="w-3.5 h-3.5" />
-                        </span>
-                      )}
-
+                      <button
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation();
+                          handleOpenDesigner('edit', tpl);
+                        }}
+                        className="hover:text-[#1890ff] flex items-center gap-0.5 text-[11px] cursor-pointer"
+                        title="编辑模板"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>编辑</span>
+                      </button>
                       <div className="relative">
                         <button
                           type="button"
@@ -3296,19 +3256,6 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                               <Copy className="w-3 h-3" />
                               复制为新模板
                             </button>
-                            {isGlobalScope && (
-                              <button
-                                type="button"
-                                onClick={e => {
-                                  setMoreMenuId(null);
-                                  handleTogglePreset(tpl.id, e);
-                                }}
-                                className="w-full flex items-center gap-1.5 px-3 py-1.5 text-gray-700 hover:bg-amber-50 hover:text-amber-700 cursor-pointer"
-                              >
-                                <Award className="w-3 h-3" />
-                                {tpl.isPreset ? '取消标准模板' : '设为标准模板'}
-                              </button>
-                            )}
                             {canDelete && (
                               <button
                                 type="button"
@@ -3374,35 +3321,9 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
               >
                 {activeTemplate.status}
               </span>
-              {!isGlobalScope && activeTemplate.isDefault && (
-                <span className="px-1.5 py-0.2 bg-gray-100 text-gray-600 text-[10px] font-bold rounded border border-gray-200 shrink-0">
-                  系统默认
-                </span>
-              )}
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-            {isGlobalScope && (
-              <button
-                type="button"
-                onClick={() => handleTogglePreset(activeTemplate.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
-                  activeTemplate.isPreset
-                    ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100'
-                    : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300 hover:text-amber-700'
-                }`}
-                title={
-                  activeTemplate.isPreset
-                    ? '取消后，新增模板时不再提供复用'
-                    : `每类模板只能有一个标准模板，设置后将替换当前的${topTab}标准模板`
-                }
-              >
-                <Award className="w-3.5 h-3.5" />
-                <span>{activeTemplate.isPreset ? '已设为标准模板' : '设为标准模板'}</span>
-              </button>
-            )}
-
-            {(isGlobalScope || !activeTemplate.isDefault) && (
               <button
                 type="button"
                 onClick={() => handleOpenDesigner('edit', activeTemplate)}
@@ -3412,7 +3333,6 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                 <Edit3 className="w-3.5 h-3.5" />
                 <span>编辑</span>
               </button>
-            )}
             </div>
           </div>
 
@@ -3447,6 +3367,9 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
           )}
         </div>
 
+        {/* 全局业务配置不展示「其他业务配置」及模板打分/流程关联 */}
+        {!isGlobalScope && (
+          <>
         {/* Resize handle: center | right */}
         <div
           role="separator"
@@ -3717,8 +3640,18 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                       {selectedFlow ? (
                       <div className="border border-[#f0e6ff] rounded-xl p-3 bg-[#fbf9fe] space-y-2">
                         {/* Header */}
-                        <div className="text-xs font-medium text-gray-400">
-                          审批节点链路
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-xs font-medium text-gray-400">
+                            审批节点链路
+                          </div>
+                          {!isGlobalScope &&
+                            (selectedFlow.flowMode === 'adaptive' ||
+                              selectedFlow.flowMode === 'max_n' ||
+                              isExternalDependentFlowId(selectedFlow.id)) && (
+                            <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded font-bold bg-amber-50 text-amber-700 border border-amber-200 leading-none">
+                              VIP
+                            </span>
+                          )}
                         </div>
 
                         {/* Nodes List */}
@@ -3947,6 +3880,8 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
             </>
           )}
         </div>
+          </>
+        )}
       </div>
     </div>
   );

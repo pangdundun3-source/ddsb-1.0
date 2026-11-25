@@ -1,11 +1,18 @@
 /** 链接字段「提取」档位配置（截图固定开启；三档互斥，按增值开通态灰显） */
 
+import {
+  LINK_EXTRACT_PACKAGES,
+  findLinkExtractAnchorItem,
+  isLinkExtractPackageEnabled,
+  resolveLinkExtractCapability,
+} from './valueAddedAiAlign';
+
 export type LinkFieldFeature =
   | 'ai_text_extract'
   | 'ocr'
   | 'ai_multimodal_deep';
 
-/** 互斥档位：文本提取 / 文本+OCR / 全量深度解析 */
+/** 互斥档位：文本提取 / 文本+OCR / 多模态深度解析 */
 export type LinkExtractTier = 'text' | 'text_ocr' | 'full';
 
 export const LINK_FIELD_FEATURE_OPTIONS: Array<{
@@ -67,7 +74,7 @@ export const LINK_EXTRACT_TIER_OPTIONS: Array<{
   },
   {
     id: 'full',
-    label: '全量深度解析',
+    label: '多模态深度解析',
     requires: ['ai_text_extract', 'ocr', 'ai_multimodal_deep']
   }
 ];
@@ -102,6 +109,7 @@ export type ValueAddedProvisionLike = {
   name?: string;
   status?: string;
   activatedStatus?: string;
+  linkPackageEnabled?: boolean;
 };
 
 const matchVasItem = (
@@ -117,11 +125,35 @@ const matchVasItem = (
   });
 };
 
+const hasExplicitLinkPackageFlags = (items: ValueAddedProvisionLike[]) =>
+  items.some(
+    (item) =>
+      resolveLinkExtractCapability(item) && typeof item.linkPackageEnabled === 'boolean'
+  );
+
+/** 已开通且未停用的套餐能力并集 */
+const getCapabilitiesFromOpenPackages = (
+  items: ValueAddedProvisionLike[]
+): Set<LinkFieldFeature> => {
+  const caps = new Set<LinkFieldFeature>();
+  for (const pkg of LINK_EXTRACT_PACKAGES) {
+    if (!isLinkExtractPackageEnabled(pkg.id, items)) continue;
+    const anchor = findLinkExtractAnchorItem(items, pkg.id);
+    if (anchor?.activatedStatus === '已开通' && anchor.status === '停用') continue;
+    pkg.capabilities.forEach((cap) => caps.add(cap));
+  }
+  return caps;
+};
+
 export const isLinkFeatureProvisioned = (
   feature: LinkFieldFeature,
   valueAddedItems?: ValueAddedProvisionLike[] | null
 ): boolean => {
   if (!valueAddedItems || valueAddedItems.length === 0) return false;
+  // 套餐并集优先：例如只开了 OCR 锚点/增强档，也视为文本+OCR 可用
+  if (getCapabilitiesFromOpenPackages(valueAddedItems).has(feature)) return true;
+  // 兼容未走套餐开关的单项开通（全局配置等）
+  if (hasExplicitLinkPackageFlags(valueAddedItems)) return false;
   const item = matchVasItem(feature, valueAddedItems);
   if (!item) return false;
   return item.activatedStatus === '已开通';
@@ -179,25 +211,19 @@ export const getLinkExtractTierDisabledHint = (
   const hasDeep = isLinkFeatureProvisioned('ai_multimodal_deep', valueAddedItems);
 
   if (!hasText) {
-    return '需要开通【AI文本提取】增值服务才可使用';
+    return '请先开通「AI文本提取」套餐（可选档位①）';
   }
   if (tier === 'text_ocr') {
-    return '需要开通【OCR识别】增值服务才可使用';
+    return '请开通「文本 + OCR 识别」套餐（可选档位①②）';
   }
   if (tier === 'full') {
-    const missing: string[] = [];
-    if (!hasOcr) missing.push('【OCR识别】');
-    if (!hasDeep) missing.push('【AI多模态深度解析】');
-    if (missing.length === 1 && !hasDeep) {
-      return '缺少多模态深度解析包';
+    if (!hasOcr && !hasDeep) {
+      return '请开通「多模态深度解析」套餐（可选档位①②③）';
     }
-    if (missing.length === 2) {
-      return '需要同时开通【OCR识别】、【AI多模态深度解析】增值服务才可使用';
-    }
-    if (!hasOcr) return '需要开通【OCR识别】增值服务才可使用';
-    return '需要开通【AI多模态深度解析】增值服务才可使用';
+    if (!hasOcr) return '还需开通含 OCR 的增强档/多模态档套餐';
+    if (!hasDeep) return '请开通「多模态深度解析」套餐（可选档位①②③）';
   }
-  return '当前增值能力不足，暂不可用';
+  return '当前开通套餐不足，该档位暂不可用';
 };
 
 export const linkExtractTierLabel = (tier: LinkExtractTier | null) =>

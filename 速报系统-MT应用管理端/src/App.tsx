@@ -40,6 +40,11 @@ const SystemManagement = lazy(() =>
     default: m.SystemManagement,
   }))
 );
+const InstitutionDataMigration = lazy(() =>
+  import('./components/system/InstitutionDataMigration').then((m) => ({
+    default: m.InstitutionDataMigration,
+  }))
+);
 const InstitutionDetailPage = lazy(() =>
   import('./components/InstitutionDetailPage').then((m) => ({
     default: m.InstitutionDetailPage,
@@ -217,6 +222,10 @@ export default function App() {
                     onSave={handleSaveInstitution}
                     onShowToast={showToast}
                   />
+                )}
+
+                {activeTab === 'org_migration' && (
+                  <InstitutionDataMigration onShowToast={showToast} />
                 )}
 
                 {activeTab === 'monitoring' && <OperationsMonitoring />}

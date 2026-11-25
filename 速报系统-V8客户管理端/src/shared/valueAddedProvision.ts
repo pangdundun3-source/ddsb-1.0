@@ -2,6 +2,14 @@
  * 同域用 localStorage；本地多端口 suite 用 cookie（localhost 跨端口共享）
  */
 
+import {
+  LINK_EXTRACT_PACKAGE_ANCHOR,
+  LINK_EXTRACT_PACKAGES,
+  resolveLinkExtractCapability,
+  syncLinkExtractCapabilitiesFromPackages,
+  type LinkExtractPackageId,
+} from './valueAddedAiAlign';
+
 export const VALUE_ADDED_PROVISION_STORAGE_KEY = 'ddsb_value_added_provision';
 export const VALUE_ADDED_PROVISION_COOKIE_KEY = 'ddsb_va_prov';
 export const VALUE_ADDED_PROVISION_EVENT = 'ddsb-value-added-provision-updated';
@@ -12,6 +20,7 @@ export type ValueAddedProvisionItem = {
   dictCode?: string;
   status?: string;
   activatedStatus?: string;
+  linkPackageEnabled?: boolean;
 };
 
 type OrgProvisionMap = Record<string, boolean>;
@@ -105,6 +114,7 @@ export const applyValueAddedProvision = <
     dictCode?: string;
     status: '启用' | '停用';
     activatedStatus?: '已开通' | '未开通';
+    linkPackageEnabled?: boolean;
   }
 >(
   list: T[],
@@ -115,23 +125,40 @@ export const applyValueAddedProvision = <
     return list;
   }
 
-  return list.map((item) => {
+  const withFlags = list.map((item) => {
     const activated = lookupValueAddedActivated(map, item);
-    if (activated === undefined) return item;
-    if (!activated) {
-      return {
+    let next: T = item;
+    if (activated === false) {
+      next = {
         ...item,
         activatedStatus: '未开通' as const,
         status: '停用' as const,
+        linkPackageEnabled: false,
       };
-    }
-    if (item.activatedStatus !== '已开通') {
-      return {
+    } else if (activated === true && item.activatedStatus !== '已开通') {
+      next = {
         ...item,
         activatedStatus: '已开通' as const,
         status: '启用' as const,
       };
     }
-    return item;
+
+    const cap = resolveLinkExtractCapability(item);
+    if (cap) {
+      const pkgId = (Object.keys(LINK_EXTRACT_PACKAGE_ANCHOR) as LinkExtractPackageId[]).find(
+        (id) => LINK_EXTRACT_PACKAGE_ANCHOR[id] === cap
+      );
+      if (pkgId && `pkg:${pkgId}` in map) {
+        next = { ...next, linkPackageEnabled: Boolean(map[`pkg:${pkgId}`]) };
+      }
+    }
+    return next;
+  });
+
+  // 有套餐开关时按并集回写能力开通态，保证链接「提取能力」可选
+  const hasPkgFlags = LINK_EXTRACT_PACKAGES.some((pkg) => `pkg:${pkg.id}` in map);
+  if (!hasPkgFlags) return withFlags;
+  return syncLinkExtractCapabilitiesFromPackages(withFlags, undefined, {
+    preserveEnableStatus: true,
   });
 };

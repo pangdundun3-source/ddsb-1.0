@@ -1695,6 +1695,12 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
       </section>
 
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+      <OrgTreeFilterPanel
+        value={draft.selectedOrg}
+        onChange={(orgId) => setDraft((prev) => ({ ...prev, selectedOrg: orgId }))}
+        rootOrgName="台中市网信办"
+        className="xl:self-stretch"
+      />
       <div ref={chartsExportRef} className="min-w-0 flex-1 space-y-4">
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] sm:p-5">
           <PanelTitle
@@ -1808,13 +1814,6 @@ export const StatisticsReference: React.FC<StatisticsReferenceProps> = ({ onNavi
           />
         </div>
       </div>
-
-      <OrgTreeFilterPanel
-        value={draft.selectedOrg}
-        onChange={(orgId) => setDraft((prev) => ({ ...prev, selectedOrg: orgId }))}
-        rootOrgName="台中市网信办"
-        className="xl:self-stretch"
-      />
       </div>
     </div>
   );

@@ -2,6 +2,11 @@
  * 同域用 localStorage；本地多端口 suite 用 cookie（localhost 跨端口共享）
  */
 
+import {
+  LINK_EXTRACT_PACKAGES,
+  isLinkExtractPackageEnabled,
+} from './valueAddedAiAlign';
+
 export const VALUE_ADDED_PROVISION_STORAGE_KEY = 'ddsb_value_added_provision';
 export const VALUE_ADDED_PROVISION_COOKIE_KEY = 'ddsb_va_prov';
 export const VALUE_ADDED_PROVISION_EVENT = 'ddsb-value-added-provision-updated';
@@ -12,6 +17,7 @@ export type ValueAddedProvisionItem = {
   dictCode?: string;
   status?: string;
   activatedStatus?: string;
+  linkPackageEnabled?: boolean;
 };
 
 type OrgProvisionMap = Record<string, boolean>;
@@ -100,6 +106,10 @@ const toProvisionMap = (items: ValueAddedProvisionItem[]): OrgProvisionMap => {
       (item.activatedStatus !== '未开通' && item.status === '启用');
     if (item.dictCode) map[item.dictCode] = activated;
     if (item.name) map[`name:${item.name}`] = activated;
+  });
+  // 套餐独立开关同步给客户管理端展示（pkg:basic / pkg:enhanced / pkg:full）
+  LINK_EXTRACT_PACKAGES.forEach((pkg) => {
+    map[`pkg:${pkg.id}`] = isLinkExtractPackageEnabled(pkg.id, items);
   });
   return map;
 };
