@@ -481,7 +481,7 @@ export const REPORT_TEMPLATES: ReportTemplate[] = [
   {
     id: '突发事件速报模板',
     name: '突发事件速报模板',
-    requiresExternalAudit: true,
+    requiresExternalAudit: false,
     defaultType: '突发事件',
     defaultSource: '群众举报',
     titlePlaceholder: '例如：关于某社区突发停水事件的舆情上报',
@@ -567,7 +567,7 @@ export const REPORT_TEMPLATES: ReportTemplate[] = [
   {
     id: '民生诉求核查模板',
     name: '民生诉求核查模板',
-    requiresExternalAudit: true,
+    requiresExternalAudit: false,
     defaultType: '民生诉求',
     defaultSource: '网格巡查',
     titlePlaceholder: '例如：公办幼儿园托育服务收费民意调查',
@@ -628,7 +628,7 @@ export const REPORT_TEMPLATES: ReportTemplate[] = [
   {
     id: '网络谣言线索模板',
     name: '网络谣言线索模板',
-    requiresExternalAudit: true,
+    requiresExternalAudit: false,
     defaultType: '网络谣言',
     defaultSource: '社交媒体',
     titlePlaceholder: '例如：网络谣言：某地因建设工厂取消公园规划',

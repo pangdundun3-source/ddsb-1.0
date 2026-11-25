@@ -2,6 +2,11 @@ import { REPORT_TEMPLATES } from '../data/mockData';
 import { isTemplateBlockedByExternalAudit } from '../shared/valueAddedAccess';
 import { ReportTemplate, TemplateType } from '../types';
 import {
+  LinkMultimodalSuccess,
+  extractHttpUrl,
+  hasHttpLink,
+} from './linkMultimodalMock';
+import {
   ClueSourceKind,
   MultimodalClueSuccess,
   sourceKindToTag,
@@ -9,6 +14,7 @@ import {
 
 export { sourceKindToTag } from './multimodalClueMock';
 export type { ClueSourceKind } from './multimodalClueMock';
+export { hasHttpLink, extractHttpUrl } from './linkMultimodalMock';
 
 export type QuickReportPhase =
   | 'idle'
@@ -167,6 +173,52 @@ export const looksLikeStructuredClue = (text: string) => {
   );
 };
 
+/** 可直接进入快捷报送：结构化正文，或含 http(s) 原文链接（含抖音分享口令） */
+export const looksLikeQuickClue = (text: string) =>
+  looksLikeStructuredClue(text) || hasHttpLink(text);
+
+/**
+ * 从非模板自由文本推断标题（抖音「复制打开」口令、括号作品名、去链后正文）
+ */
+export const extractFreeformTitle = (raw: string): string | undefined => {
+  const bracket = raw.match(/【([^】]{2,48})】\s*([^\n]{0,120})/);
+  if (bracket) {
+    const after = bracket[2]
+      .replace(/https?:\/\/\S+/gi, '')
+      .replace(/[a-zA-Z0-9._\-]+\/[^\s]*/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/[.…]+$/g, '');
+    if (after.length >= 4) return after.slice(0, 72);
+    if (bracket[1].trim().length >= 2) return bracket[1].trim().slice(0, 72);
+  }
+  const cleaned = raw
+    .replace(/https?:\/\/\S+/gi, ' ')
+    .replace(/\d+(\.\d+)?\s*复制打开抖音[，,]?[^\n]{0,40}看看/gi, ' ')
+    .replace(/[a-zA-Z]{1,4}@[a-zA-Z0-9.]+/g, ' ')
+    .replace(/[A-Za-z0-9]{2,}\/[\:：][^\s]*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (cleaned.length >= 4) return cleaned.slice(0, 72);
+  return undefined;
+};
+
+/** 文案字段优先，空缺用链接多模态结果补全 */
+export const mergeClueWithLinkResult = (
+  base: ParsedClue,
+  linkResult: LinkMultimodalSuccess
+): ParsedClue => ({
+  ...base,
+  link: base.link || linkResult.link,
+  title: base.title || linkResult.title,
+  summary: base.summary || linkResult.summary || linkResult.title,
+  timeText: base.timeText || linkResult.timeText,
+  district: base.district || linkResult.district,
+  sourceKind: 'link',
+  sourceLabel: `链接·${linkResult.sourceHost}`,
+  raw: base.raw || linkResult.link,
+});
+
 const extractLabeled = (text: string, labels: string[]) => {
   for (const label of labels) {
     const re = new RegExp(`${label}[:：]?\\s*([^\\n]+)`, 'i');
@@ -253,13 +305,18 @@ export const clueFromMultimodalSuccess = (
   raw: mm.transcript || rawFallback || mm.title,
 });
 
-/** 仅从结构化文字抽取字段；不解析链接内容 */
-export const buildClueFromUserText = (raw: string): ParsedClue | { error: string } => {
+/** 从用户文字抽取字段；无标签时尝试自由文本标题，并带出裸链 */
+export const buildClueFromUserText = (raw: string): ParsedClue => {
   const textClue = parseClueText(raw);
+  const freeTitle = textClue.title || extractFreeformTitle(raw);
+  const link = textClue.link || extractHttpUrl(raw);
   return {
     ...textClue,
-    sourceKind: textClue.sourceKind || 'text',
-    sourceLabel: textClue.sourceLabel || '文字线索',
+    title: freeTitle,
+    summary: textClue.summary || freeTitle,
+    link,
+    sourceKind: textClue.sourceKind || (link ? 'link' : 'text'),
+    sourceLabel: textClue.sourceLabel || (link ? '链接线索' : '文字线索'),
   };
 };
 
@@ -409,18 +466,18 @@ export const buildQuickReportDraft = (
   clueOverride?: ParsedClue
 ): QuickReportDraft | { error: string } => {
   let clue: ParsedClue;
-  if (clueOverride) {
-    clue = clueOverride;
-  } else {
-    const built = buildClueFromUserText(raw);
-    if ('error' in built) return built;
-    clue = built;
-  }
+  clue = clueOverride || buildClueFromUserText(raw);
 
   if (!clue.title?.trim()) {
+    if (hasHttpLink(raw)) {
+      return {
+        error:
+          '已检测到链接，但未能生成标题。请稍候重试，或补一行「报送标题：」后重发；也可回复【表单】页面填写。',
+      };
+    }
     if (!looksLikeStructuredClue(raw)) {
       return {
-        error: `已进入快捷上报，但未能稳定识别标题/属地等关键信息。\n请按下列格式发送结构化文字；也可回复【表单】改为页面填写：\n\n${STRUCTURED_CLUE_TEMPLATE}`,
+        error: `已进入快捷上报，但未能稳定识别标题/属地等关键信息。\n可直接发送原文链接（如抖音分享口令），或按下列格式发送：\n\n${STRUCTURED_CLUE_TEMPLATE}\n\n也可回复【表单】改为页面填写。`,
       };
     }
     return {
@@ -533,19 +590,21 @@ const QUICK_SESSION_TIP = `✅ ${Math.round(QUICK_REPORT_SESSION_MS / 1000)} 秒
 回复【取消】退出快捷报送。`;
 
 export const GUIDE_AFTER_MENU = `【快捷报送】
-请按下列模板发送（可复制后填写）：
+可直接发送原文链接（如抖音/微信分享口令），系统将自动解析标题；
+也可按下列模板填写：
 
 ${STRUCTURED_CLUE_TEMPLATE}
 
 ${QUICK_SESSION_TIP}`;
 
 export const GUIDE_AFTER_KEYWORD = `已进入快捷报送。
-请按下列模板发送（可复制后填写）：
+可直接发送原文链接（如抖音分享口令），或按下列模板填写：
 
 ${STRUCTURED_CLUE_TEMPLATE}
 
 ${QUICK_SESSION_TIP}`;
 
-export const LIGHT_TIP = `如需快速报送：点菜单「快捷报送」或发【报送】，按模板填写：
+export const LIGHT_TIP = `如需快速报送：点菜单「快捷报送」、发【报送】，或直接粘贴原文链接/分享口令。
+按模板填写亦可：
 
 ${STRUCTURED_CLUE_TEMPLATE}`;

@@ -3,6 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (function () {
+        try {
+          document.cookie.split(';').forEach(function (c) {
+            var n = c.trim().split('=')[0];
+            if (n && n.indexOf('ddsb_gtpl') === 0) {
+              document.cookie = n + '=; path=/; max-age=0; SameSite=Lax';
+            }
+          });
+        } catch (e) {}
+      })();
+    </script>
     <title>速报系统统一入口门户</title>
     <meta name="description" content="速报系统多端业务协同入口选择门户，包含V8客户管理端、V8审核上报H5、V8审核上报PC及MT应用管理端" />
     <meta property="og:title" content="速报系统统一入口门户" />

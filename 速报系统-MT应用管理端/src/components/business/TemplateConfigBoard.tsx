@@ -9,6 +9,10 @@ import {
   normalizeLinkFieldFeatures
 } from '../../shared/linkFieldFeatures';
 import {
+  publishGlobalTemplateCatalog,
+  readGlobalTemplateCatalog
+} from '../../shared/globalTemplateCatalog';
+import {
   FileText,
   Zap,
   Plus,
@@ -489,6 +493,7 @@ export const applyFixedFieldRuleToGlobalTemplates = (): number => {
     return { ...t, fields: rebaseOnFixedFieldRule(t.fields || [], rule) };
   });
   localStorage.setItem(GLOBAL_TEMPLATE_STORAGE_KEY, JSON.stringify(next));
+  publishGlobalTemplateCatalog(next);
   return count;
 };
 
@@ -725,6 +730,10 @@ const readGlobalTemplates = (): BusinessTemplateItem[] => {
   } catch {
     // ignore storage failures
   }
+  const fromCatalog = readGlobalTemplateCatalog();
+  if (fromCatalog.length > 0) {
+    return normalizeTemplateFields(fromCatalog as BusinessTemplateItem[]);
+  }
   return initialDefaultTemplates;
 };
 
@@ -833,7 +842,17 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   const saveTemplates = (newTemplates: BusinessTemplateItem[]) => {
     setTemplates(newTemplates);
     localStorage.setItem(storageKey, JSON.stringify(newTemplates));
+    if (isGlobalScope || storageKey === GLOBAL_TEMPLATE_STORAGE_KEY) {
+      publishGlobalTemplateCatalog(newTemplates);
+    }
   };
+
+  // 全局模板变更时发布到门户中转 / cookie，供客户管理端「使用全局标准模板」读取
+  useEffect(() => {
+    if (!(isGlobalScope || storageKey === GLOBAL_TEMPLATE_STORAGE_KEY)) return;
+    if (templates.length === 0) return;
+    publishGlobalTemplateCatalog(templates);
+  }, [isGlobalScope, storageKey, templates]);
 
   useEffect(() => {
     const normalizeSynced = (parsed: BusinessTemplateItem[]) => {
@@ -2587,7 +2606,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                       <option value="">
                         {enabledGlobalTemplates.length === 0
                           ? '暂无全局启用模板'
-                          : '使用标准模板'}
+                          : '使用全局标准模板'}
                       </option>
                       {enabledGlobalTemplates.map((t) => (
                         <option key={t.id} value={t.id}>
@@ -2616,7 +2635,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                     className="flex items-center gap-1.5 text-xs text-[#1E5ABB] hover:bg-blue-50 font-medium px-2 py-1 rounded-md transition-colors cursor-pointer"
                   >
                     <Wand2 className="w-3.5 h-3.5" />
-                    <span>使用标准模板</span>
+                    <span>使用全局标准模板</span>
                   </button>
                 )}
               </div>
@@ -3045,7 +3064,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
             {isGlobalScope && (
               <ControlNoticeTip
                 title="全平台模板配置说明"
-                content={`此处配置的${topTab}模板用于各机构初始化，并可供机构在新增模板时通过「使用标准模板」选用。机构侧模板均为本机构自有，可自行编辑、启停与删除。`}
+                content={`此处配置的${topTab}模板用于各机构初始化，并可供机构在新增模板时通过「使用全局标准模板」选用。机构侧模板均为本机构自有，可自行编辑、启停与删除。`}
               />
             )}
           </div>

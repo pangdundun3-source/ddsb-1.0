@@ -87,6 +87,12 @@ import {
   normalizeLinkFieldFeatures,
   resolveLinkExtractTier
 } from '../shared/linkFieldFeatures';
+import {
+  GLOBAL_TEMPLATE_CATALOG_EVENT,
+  readEnabledGlobalTemplates,
+  refreshGlobalTemplateCatalogFromApi,
+  type GlobalTemplateCatalogItem
+} from '../shared/globalTemplateCatalog';
 import { INITIAL_ORG_NODES, INITIAL_PERSONNEL } from '../data/userOrgShared';
 
 export type FieldType =
@@ -118,7 +124,7 @@ export interface TemplateField {
   required: boolean;
   placeholder?: string;
   options?: string[];
-  /** 链接字段「提取」能力档位：文本 / 文本+OCR / 多模态深度解析（截图固定开启） */
+  /** 链接字段「提取」能力档位：文本 / 图文OCR识别 / 多模态深度解析（截图固定开启） */
   linkFeatures?: LinkFieldFeature[];
   /** 固定字段锁定：不可删除/排序/改类型 */
   locked?: boolean;
@@ -482,33 +488,8 @@ const isAutoWideOnPc = (_field: TemplateField) => true;
 
 /** 与 MT 共用存储键：机构端可消费平台下发的固定字段规则 */
 const FIXED_FIELD_RULE_STORAGE_KEY = 'mt_global_fixed_report_field_rule';
-/** 与 MT 全局模板配置板同源，供「使用标准模板」下拉选用 */
-const GLOBAL_TEMPLATE_STORAGE_KEY = 'v8_template_board_data_global';
 const institutionFixedFieldRuleKey = (institutionId: string | number) =>
   `mt_inst_fixed_field_rule_${institutionId}`;
-
-type GlobalTemplatePickItem = {
-  id: string;
-  name: string;
-  templateType?: '报送' | '激活';
-  status?: string;
-  fields?: TemplateField[];
-};
-
-const readGlobalEnabledTemplates = (templateType: '报送' | '激活'): GlobalTemplatePickItem[] => {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(GLOBAL_TEMPLATE_STORAGE_KEY) || 'null');
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed.filter(
-        (t: GlobalTemplatePickItem) =>
-          t?.status === '启用' && (t.templateType || '报送') === templateType && Array.isArray(t.fields)
-      );
-    }
-  } catch {
-    // ignore malformed store
-  }
-  return [];
-};
 
 type StoredRuleField = Omit<TemplateField, 'maxLength'> & { maxLength?: number | null };
 
@@ -2970,12 +2951,33 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
     setFieldAddNotice('已使用标准模板');
   };
 
-  const enabledGlobalTemplatesForDesigner = readGlobalEnabledTemplates(formTemplateType);
+  const [enabledGlobalTemplatesForDesigner, setEnabledGlobalTemplatesForDesigner] = useState<
+    GlobalTemplateCatalogItem[]
+  >(() => readEnabledGlobalTemplates(formTemplateType));
 
-  const applyGlobalTemplateFields = (source: GlobalTemplatePickItem) => {
+  React.useEffect(() => {
+    const refresh = () => setEnabledGlobalTemplatesForDesigner(readEnabledGlobalTemplates(formTemplateType));
+    refresh();
+    void refreshGlobalTemplateCatalogFromApi().then(() => refresh());
+    window.addEventListener(GLOBAL_TEMPLATE_CATALOG_EVENT, refresh as EventListener);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    const timer = window.setInterval(() => {
+      void refreshGlobalTemplateCatalogFromApi().then(() => refresh());
+    }, 2000);
+    return () => {
+      window.removeEventListener(GLOBAL_TEMPLATE_CATALOG_EVENT, refresh as EventListener);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+      window.clearInterval(timer);
+    };
+  }, [formTemplateType]);
+
+  const applyGlobalTemplateFields = (source: GlobalTemplateCatalogItem) => {
     const stamp = Date.now();
-    const copied = (source.fields || []).map((field, index) => {
-      const next = {
+    const sourceFields = (Array.isArray(source.fields) ? source.fields : []) as TemplateField[];
+    const copied = sourceFields.map((field, index) => {
+      const next: TemplateField = {
         ...field,
         options: field.options ? [...field.options] : undefined,
         id: isLockedField(field) ? field.id : `fld_${stamp}_${index}`
@@ -5721,7 +5723,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                               <option value="">
                                 {enabledGlobalTemplatesForDesigner.length === 0
                                   ? '暂无全局启用模板'
-                                  : '使用标准模板'}
+                                  : '使用全局标准模板'}
                               </option>
                               {enabledGlobalTemplatesForDesigner.map((t) => (
                                 <option key={t.id} value={t.id}>
@@ -5736,7 +5738,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                         {formFields.length === 0 ? (
                           <div className="mt-3 p-8 text-center text-gray-400 space-y-3 bg-white rounded-lg">
                             <Layers className="w-8 h-8 text-gray-300 mx-auto" />
-                            <p className="text-xs">暂未添加字段，请点击下方「添加字段」或右上角「使用标准模板」。</p>
+                            <p className="text-xs">暂未添加字段，请点击下方「添加字段」或右上角「使用全局标准模板」。</p>
                           </div>
                         ) : (
                           <div className="mt-3 space-y-2">
@@ -9649,7 +9651,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                 <option value="">
                                   {enabledGlobalTemplatesForDesigner.length === 0
                                     ? '暂无全局启用模板'
-                                    : '使用标准模板'}
+                                    : '使用全局标准模板'}
                                 </option>
                                 {enabledGlobalTemplatesForDesigner.map((t) => (
                                   <option key={t.id} value={t.id}>
@@ -9664,7 +9666,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                           {formFields.length === 0 ? (
                             <div className="p-8 text-center bg-gray-50 text-gray-400 space-y-3">
                               <Layers className="w-8 h-8 text-gray-300 mx-auto" />
-                              <p className="text-xs">暂未添加字段，请点击下方“添加字段”或右上角“使用标准模板”。</p>
+                              <p className="text-xs">暂未添加字段，请点击下方“添加字段”或右上角“使用全局标准模板”。</p>
                               <div className="pt-2 flex items-center justify-center">
                                 <button
                                   type="button"

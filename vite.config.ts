@@ -5,6 +5,7 @@ import {fileURLToPath} from 'node:url';
 import path from 'path';
 import {defineConfig} from 'vite';
 import {terminalDocsPlugin} from './scripts/terminal-docs-plugin';
+import {suiteGlobalTemplateSyncPlugin} from './scripts/suite-global-template-sync-plugin.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -62,6 +63,7 @@ export default defineConfig(() => {
       react(),
       tailwindcss(),
       terminalDocsPlugin(path.resolve(__dirname, 'docs/terminals')),
+      suiteGlobalTemplateSyncPlugin(path.resolve(__dirname)),
       {
         name: 'terminal-status-api',
         configureServer(server) {

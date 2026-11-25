@@ -18,7 +18,8 @@ const frameHashBridge = {
       {
         tag: 'script',
         injectTo: 'head',
-        children: `if (window.parent !== window) {
+        children: `(function(){try{document.cookie.split(';').forEach(function(c){var n=c.trim().split('=')[0];if(n&&n.indexOf('ddsb_gtpl')===0){document.cookie=n+'=; path=/; max-age=0; SameSite=Lax';}});}catch(e){}})();
+if (window.parent !== window) {
   var postSuiteHash = function () { window.parent.postMessage({ type: 'suite:hash-change', hash: window.location.hash }, '*'); };
   ['pushState', 'replaceState'].forEach(function (method) {
     var original = window.history[method];

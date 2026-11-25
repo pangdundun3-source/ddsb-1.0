@@ -36,10 +36,17 @@ async function isRunning(port) {
 }
 
 function startApp(app) {
+  // 避免历史大体积 cookie 触发 Node/Vite 431 Request Header Fields Too Large
+  const maxHeader = '--max-http-header-size=131072';
+  const prevNodeOptions = process.env.NODE_OPTIONS || '';
+  const nodeOptions = prevNodeOptions.includes('--max-http-header-size')
+    ? prevNodeOptions
+    : `${prevNodeOptions} ${maxHeader}`.trim();
   const env = app.dir === rootDir
-    ? process.env
+    ? { ...process.env, NODE_OPTIONS: nodeOptions }
     : {
         ...process.env,
+        NODE_OPTIONS: nodeOptions,
         SUITE_APP_DIR: app.dir,
         SUITE_CACHE_DIR: path.join(rootDir, '.vite-cache', String(app.port)),
       };

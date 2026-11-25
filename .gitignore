@@ -3,6 +3,7 @@ build/
 dist/
 coverage/
 .vite-cache/
+.suite-sync/
 .runtime/
 backup/
 .DS_Store

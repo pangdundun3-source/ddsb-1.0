@@ -33,7 +33,7 @@ export const PRESET_REPORT_TEMPLATES: ReportTemplateDef[] = [
   {
     id: '突发事件速报模板',
     name: '突发事件速报模板',
-    requiresExternalAudit: true,
+    requiresExternalAudit: false,
     badge: '紧急快报',
     badgeColor: 'bg-rose-50 text-rose-700 border-rose-200',
     iconName: 'zap',
@@ -55,7 +55,7 @@ export const PRESET_REPORT_TEMPLATES: ReportTemplateDef[] = [
   {
     id: '民生诉求核查模板',
     name: '民生诉求核查模板',
-    requiresExternalAudit: true,
+    requiresExternalAudit: false,
     badge: '民生专报',
     badgeColor: 'bg-amber-50 text-amber-700 border-amber-200',
     iconName: 'help',
@@ -80,7 +80,7 @@ export const PRESET_REPORT_TEMPLATES: ReportTemplateDef[] = [
   {
     id: '网络谣言线索模板',
     name: '网络谣言线索模板',
-    requiresExternalAudit: true,
+    requiresExternalAudit: false,
     badge: '辟谣专报',
     badgeColor: 'bg-purple-50 text-purple-700 border-purple-200',
     iconName: 'shield',

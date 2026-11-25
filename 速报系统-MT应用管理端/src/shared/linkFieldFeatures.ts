@@ -12,7 +12,7 @@ export type LinkFieldFeature =
   | 'ocr'
   | 'ai_multimodal_deep';
 
-/** 互斥档位：文本提取 / 文本+OCR / 多模态深度解析 */
+/** 互斥档位：文本提取 / 图文OCR识别 / 多模态深度解析 */
 export type LinkExtractTier = 'text' | 'text_ocr' | 'full';
 
 export const LINK_FIELD_FEATURE_OPTIONS: Array<{
@@ -69,7 +69,7 @@ export const LINK_EXTRACT_TIER_OPTIONS: Array<{
   },
   {
     id: 'text_ocr',
-    label: '文本 + OCR 识别',
+    label: '图文OCR识别',
     requires: ['ai_text_extract', 'ocr']
   },
   {
@@ -214,7 +214,7 @@ export const getLinkExtractTierDisabledHint = (
     return '请先开通「AI文本提取」套餐（可选档位①）';
   }
   if (tier === 'text_ocr') {
-    return '请开通「文本 + OCR 识别」套餐（可选档位①②）';
+    return '请开通「图文OCR识别」套餐（可选档位①②）';
   }
   if (tier === 'full') {
     if (!hasOcr && !hasDeep) {

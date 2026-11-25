@@ -58,12 +58,12 @@ export const LINK_EXTRACT_PACKAGES = [
   {
     id: 'enhanced' as const,
     order: 2,
-    title: '文本 + OCR 识别套餐',
+    title: '图文OCR识别套餐',
     shortTitle: '套餐二 · 增强档',
     badge: '增强档·加购升级',
     capabilities: ['ai_text_extract', 'ocr'] as LinkExtractCapabilityId[],
     capabilityLabels: ['AI文本提取', 'OCR识别'],
-    selectableTiers: '①② 文本 + OCR',
+    selectableTiers: '①② 图文OCR识别',
     materials: '正文、附件、图片/截图',
     customers: '有图片 / 截图录入场景',
     description:

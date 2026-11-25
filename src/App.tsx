@@ -9,6 +9,14 @@ import {
   type TerminalMode,
 } from './data/terminalUrls';
 import {
+  clearLegacyGlobalTemplateCookies,
+  readPortalGlobalTemplateCatalog,
+  storePortalGlobalTemplateCatalog,
+  SUITE_GLOBAL_TEMPLATE_PUBLISH,
+  SUITE_GLOBAL_TEMPLATE_REQUEST,
+  SUITE_GLOBAL_TEMPLATE_RESPONSE,
+} from './shared/globalTemplatePortalBridge';
+import {
   docLabel,
   getExternalDocUrl,
   getHomeTerminalDocs,
@@ -237,6 +245,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    clearLegacyGlobalTemplateCookies();
+  }, []);
+
+  useEffect(() => {
     let isMounted = true;
     const staticAppsPromise = fetchStaticApps();
 
@@ -288,7 +300,33 @@ export default function App() {
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const data = event.data;
-      if (!data || event.source !== iframeRef.current?.contentWindow) return;
+      if (!data) return;
+
+      // 全局模板目录：应用端发布 / 客户管理端拉取（跨端口 iframe 经门户中转）
+      if (data.type === SUITE_GLOBAL_TEMPLATE_PUBLISH && Array.isArray(data.items)) {
+        storePortalGlobalTemplateCatalog(data.items);
+        // 同步写入 suite 文件接口，供非 iframe / 刷新后读取
+        void fetch('/api/suite-sync/global-templates', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: data.items }),
+        }).catch(() => undefined);
+        return;
+      }
+      if (data.type === SUITE_GLOBAL_TEMPLATE_REQUEST && event.source) {
+        const items = readPortalGlobalTemplateCatalog();
+        try {
+          (event.source as Window).postMessage(
+            { type: SUITE_GLOBAL_TEMPLATE_RESPONSE, items },
+            '*'
+          );
+        } catch {
+          // ignore
+        }
+        return;
+      }
+
+      if (event.source !== iframeRef.current?.contentWindow) return;
       if (data.type === FRAME_HASH_MESSAGE && typeof data.hash === 'string') {
         setFrameHash(data.hash);
         return;

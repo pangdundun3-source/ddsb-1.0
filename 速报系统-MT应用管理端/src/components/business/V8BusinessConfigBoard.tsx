@@ -4127,7 +4127,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                       content={
                         isGlobalScope
                           ? '此处启用的增值业务向全平台所有机构开放，机构端可按需开通或关闭；此处禁用的增值业务，机构端不再显示。名称与描述修改后同步至全平台。链接提取三项能力可分别向机构开放。'
-                          : '链接提取三档套餐可独立开通；开通后按并集生效：基础档→①文本提取；增强档→①②文本+OCR；多模态档→①②③。字段配置里的提取档位随开通组合自动放开/灰显。'
+                          : '链接提取三档套餐可独立开通；开通后按并集生效：基础档→①文本提取；增强档→①②图文OCR识别；多模态档→①②③。字段配置里的提取档位随开通组合自动放开/灰显。'
                       }
                     />
                   )}
@@ -8216,7 +8216,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                               onClick={handleLoadStandardPreset}
                               className="px-2.5 py-1 text-[11px] font-bold text-blue-700 bg-white border border-blue-200 rounded hover:bg-blue-50 cursor-pointer"
                             >
-                              使用标准模板
+                              使用全局标准模板
                             </button>
                           </div>
 

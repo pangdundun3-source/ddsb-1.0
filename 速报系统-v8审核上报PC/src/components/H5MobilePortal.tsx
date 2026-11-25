@@ -66,7 +66,7 @@ const REPORT_TEMPLATES = [
   {
     id: 'tmpl-1',
     name: '民生突发事件模板',
-    requiresExternalAudit: true,
+    requiresExternalAudit: false,
     typeTag: '突发事件',
     icon: Flame,
     color: 'bg-rose-50 text-rose-600 border-rose-200',
@@ -79,7 +79,7 @@ const REPORT_TEMPLATES = [
   {
     id: 'tmpl-2',
     name: '环保安监排查模板',
-    requiresExternalAudit: true,
+    requiresExternalAudit: false,
     typeTag: '舆情动态',
     icon: AlertTriangle,
     color: 'bg-amber-50 text-amber-600 border-amber-200',
@@ -92,7 +92,7 @@ const REPORT_TEMPLATES = [
   {
     id: 'tmpl-3',
     name: '网格每日巡查模板',
-    requiresExternalAudit: true,
+    requiresExternalAudit: false,
     typeTag: '民生诉求',
     icon: Shield,
     color: 'bg-blue-50 text-blue-600 border-blue-200',

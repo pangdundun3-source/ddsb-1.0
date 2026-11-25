@@ -44,18 +44,27 @@ import {
   buildClueFromUserText,
   buildQuickReportDraft,
   buildSoftExtraValues,
+  extractFreeformTitle,
   finalizeDraftWithOrg,
   formatAutoSubmitPrompt,
   formatOrgPrompt,
   formatSuccessPrompt,
+  hasHttpLink,
   isCancelKeyword,
   isEntryKeyword,
   isFormKeyword,
+  looksLikeQuickClue,
   looksLikeStructuredClue,
   makeQuickAttachment,
   mergeAttachments,
+  mergeClueWithLinkResult,
   toReportAttachments,
 } from '../utils/quickReportChat';
+import {
+  LINK_ANALYZING_TEXT,
+  formatLinkParseSuccessNotice,
+  parseLinkMultimodal,
+} from '../utils/linkMultimodalMock';
 import {
   makeFileAttachmentMock,
   makeVideoAttachmentMock,
@@ -138,7 +147,7 @@ const buildDefaultOaMessages = (): ChatMessage[] => [
   {
     id: 'msg_welcome',
     sender: 'account',
-    text: '您好，点点速豹助手为您服务。\n发送【报送】或点击菜单「快捷报送」，按模板填写即可：\n\n报送标题：\n报送描述：\n涉事属地：\n相关链接：\n\n✅ 60 秒内支持补充附件，超时自动完成提交；\n⚠️ 若发送新报送模板，系统会先提交当前这条待报送内容。\n回复【取消】退出快捷报送。',
+    text: '您好，点点速豹助手为您服务。\n发送【报送】、点菜单「快捷报送」，或直接粘贴原文链接/抖音分享口令即可快速报送。\n也可按模板填写：\n\n报送标题：\n报送描述：\n涉事属地：\n相关链接：\n\n✅ 60 秒内支持补充附件，超时自动完成提交；\n⚠️ 若发送新报送模板，系统会先提交当前这条待报送内容。\n回复【取消】退出快捷报送。',
   },
 ];
 
@@ -217,6 +226,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
   const autoSubmitTimerRef = useRef<number | null>(null);
   const quickDraftRef = useRef<QuickReportDraft | null>(null);
   const quickPhaseRef = useRef<QuickReportPhase>('idle');
+  const linkParseSeqRef = useRef(0);
 
   useEffect(() => {
     quickDraftRef.current = quickDraft;
@@ -363,6 +373,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
   };
 
   const resetQuickFlow = () => {
+    linkParseSeqRef.current += 1;
     clearAutoSubmitTimer();
     setQuickPhase('idle');
     setQuickDraft(null);
@@ -564,23 +575,52 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     });
   };
 
-  const processBodyAsDraft = (raw: string) => {
-    // 新模板文字到来：上一条待自动提交的草稿先落单
-    flushPendingAutoSubmitDraft();
-
-    const clueOrError = buildClueFromUserText(raw);
-    if ('error' in clueOrError) {
-      setQuickPhase('awaiting_body');
-      pushAccountReply(clueOrError.error, undefined, 200);
-      return;
-    }
-    const built = buildQuickReportDraft(raw, orgOptions, clueOrError);
+  const finishDraftFromClue = (raw: string, clue: ReturnType<typeof buildClueFromUserText>) => {
+    const built = buildQuickReportDraft(raw, orgOptions, clue);
     if ('error' in built) {
       setQuickPhase('awaiting_body');
       pushAccountReply(built.error, undefined, 200);
       return;
     }
     handleDraftReady(built);
+  };
+
+  /** 含链接时先解析（Mock 多模态），再进选机构 / 自动提交；纯文字仍走标签抽取 */
+  const processBodyAsDraft = (raw: string) => {
+    // 新模板文字到来：上一条待自动提交的草稿先落单
+    flushPendingAutoSubmitDraft();
+
+    if (hasHttpLink(raw)) {
+      const seq = ++linkParseSeqRef.current;
+      setQuickPhase('awaiting_body');
+      pushAccountReply(LINK_ANALYZING_TEXT, undefined, 80);
+      window.setTimeout(() => {
+        if (seq !== linkParseSeqRef.current) return;
+        const textClue = buildClueFromUserText(raw);
+        const freeTitle = extractFreeformTitle(raw);
+        const linkResult = parseLinkMultimodal(raw);
+        if (!linkResult.ok) {
+          pushAccountReply(linkResult.reason, undefined, 160);
+          return;
+        }
+        const merged = mergeClueWithLinkResult(
+          {
+            ...textClue,
+            title: textClue.title || freeTitle,
+            summary: textClue.summary || freeTitle || textClue.title,
+          },
+          linkResult
+        );
+        // 分享口令里已有可读标题时优先用用户文案
+        if (freeTitle) merged.title = freeTitle;
+        pushAccountReply(formatLinkParseSuccessNotice(linkResult), undefined, 120);
+        finishDraftFromClue(raw, merged);
+      }, 720);
+      return;
+    }
+
+    const clue = buildClueFromUserText(raw);
+    finishDraftFromClue(raw, clue);
   };
 
   const pushUserBubble = (text: string) => {
@@ -725,7 +765,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
         return;
       }
       // 选机构前、规定时间内的补充文字 → 先归档到本条
-      if (withinSession && !looksLikeStructuredClue(userMsgText)) {
+      if (withinSession && !looksLikeQuickClue(userMsgText)) {
         archiveSupplementaryTextToDraft(userMsgText);
         pushAccountReply(
           `请继续回复 1～${quickDraft.orgOptions.length} 选择报送机构，或回复【取消】退出。`,
@@ -740,13 +780,13 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
 
     // 自动提交等待中：
     // - 规定时间内的图文视频/补充文字 → 归档上一条并重置计时
-    // - 新结构化模板 → 先交上一条再开新单
+    // - 新结构化模板 / 新链接线索 → 先交上一条再开新单
     if (quickPhase === 'awaiting_auto_submit' && quickDraft) {
-      if (withinSession && !looksLikeStructuredClue(userMsgText)) {
+      if (withinSession && !looksLikeQuickClue(userMsgText)) {
         archiveSupplementaryTextToDraft(userMsgText);
         return;
       }
-      if (looksLikeStructuredClue(userMsgText)) {
+      if (looksLikeQuickClue(userMsgText)) {
         // 新模板（含超时后重发模板）：processBodyAsDraft 内 flush 上一条
         processBodyAsDraft(userMsgText);
         return;
@@ -758,7 +798,8 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
       return;
     }
 
-    if (quickPhase === 'awaiting_body' || looksLikeStructuredClue(userMsgText)) {
+    // 已在快捷报送，或直接粘贴结构化正文 / 原文链接（含抖音分享口令）
+    if (quickPhase === 'awaiting_body' || looksLikeQuickClue(userMsgText)) {
       if (!ensureQuickReportReady()) return;
       processBodyAsDraft(userMsgText);
       return;
