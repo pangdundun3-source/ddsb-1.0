@@ -32,6 +32,9 @@ export const TEXT_RECEIVED_CONTINUE_TIP =
 export const MEDIA_NEED_TEXT_TIP =
   '请先发送模板文字，再补图片或附件。';
 
+/** 会话中补充图片/视频/文件后的短提示 */
+export const ATTACHMENT_ADDED_TIP = '已补充到当前模板中';
+
 export type QuickAttachmentKind = 'text' | 'image' | 'video' | 'file' | 'link';
 
 export interface QuickAttachment {
@@ -470,19 +473,12 @@ export const buildQuickReportDraft = (
 
   if (!clue.title?.trim()) {
     if (hasHttpLink(raw)) {
-      return {
-        error:
-          '已检测到链接，但未能生成标题。请稍候重试，或补一行「报送标题：」后重发；也可回复【表单】页面填写。',
-      };
+      return { error: GUIDE_NEED_SUPPLEMENT };
     }
     if (!looksLikeStructuredClue(raw)) {
-      return {
-        error: `已进入快捷上报，但未能稳定识别标题/属地等关键信息。\n可直接发送原文链接（如抖音分享口令），或按下列格式发送：\n\n${STRUCTURED_CLUE_TEMPLATE}\n\n也可回复【表单】改为页面填写。`,
-      };
+      return { error: GUIDE_UNRECOGNIZED_CHAT };
     }
-    return {
-      error: '未能识别「报送标题」。请补充标题后重发，或回复【表单】在页面中填写。',
-    };
+    return { error: GUIDE_NEED_SUPPLEMENT };
   }
 
   const uniqueOrgs = Array.from(new Set(orgOptions.filter(Boolean)));
@@ -590,21 +586,33 @@ const QUICK_SESSION_TIP = `✅ ${Math.round(QUICK_REPORT_SESSION_MS / 1000)} 秒
 回复【取消】退出快捷报送。`;
 
 export const GUIDE_AFTER_MENU = `【快捷报送】
-可直接发送原文链接（如抖音/微信分享口令），系统将自动解析标题；
-也可按下列模板填写：
+直接发送原文链接或分享口令，也可按以下模板进行填报：
 
 ${STRUCTURED_CLUE_TEMPLATE}
 
 ${QUICK_SESSION_TIP}`;
 
 export const GUIDE_AFTER_KEYWORD = `已进入快捷报送。
-可直接发送原文链接（如抖音分享口令），或按下列模板填写：
+直接发送原文链接或分享口令，也可按以下模板进行填报：
 
 ${STRUCTURED_CLUE_TEMPLATE}
 
 ${QUICK_SESSION_TIP}`;
 
-export const LIGHT_TIP = `如需快速报送：点菜单「快捷报送」、发【报送】，或直接粘贴原文链接/分享口令。
-按模板填写亦可：
+/** 闲聊 / 无法识别有效线索时，下发与快捷报送一致的填写模板 */
+export const GUIDE_UNRECOGNIZED_CHAT = `【未能识别有效报送信息】
+直接发送原文链接或分享口令，也可按以下模板进行填报：
 
-${STRUCTURED_CLUE_TEMPLATE}`;
+${STRUCTURED_CLUE_TEMPLATE}
+
+${QUICK_SESSION_TIP}`;
+
+/** 未开通多模态时直接发链接/图文视频，或有链接却无标题 → 引导继续补充 */
+export const GUIDE_NEED_SUPPLEMENT = `【请继续补充】
+直接发送原文链接或分享口令，也可按以下模板进行填报：
+
+${STRUCTURED_CLUE_TEMPLATE}
+
+${QUICK_SESSION_TIP}`;
+
+export const LIGHT_TIP = GUIDE_UNRECOGNIZED_CHAT;

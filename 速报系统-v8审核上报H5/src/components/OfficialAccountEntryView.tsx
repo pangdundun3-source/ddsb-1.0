@@ -33,10 +33,11 @@ import {
 import { confirmDialog } from './ConfirmDialog';
 import { SpeedReport, UserProfile, UserRole } from '../types';
 import {
+  ATTACHMENT_ADDED_TIP,
   GUIDE_AFTER_KEYWORD,
   GUIDE_AFTER_MENU,
-  LIGHT_TIP,
-  MEDIA_NEED_TEXT_TIP,
+  GUIDE_NEED_SUPPLEMENT,
+  GUIDE_UNRECOGNIZED_CHAT,
   QUICK_REPORT_SESSION_MS,
   QuickAttachment,
   QuickReportDraft,
@@ -56,6 +57,7 @@ import {
   looksLikeQuickClue,
   looksLikeStructuredClue,
   makeQuickAttachment,
+  mediaAttachmentsOnly,
   mergeAttachments,
   mergeClueWithLinkResult,
   toReportAttachments,
@@ -70,6 +72,7 @@ import {
   makeVideoAttachmentMock,
 } from '../utils/multimodalClueMock';
 import { getAuditAssignmentStatus, getAuditBlockTip } from '../utils/submitGuard';
+import { isLinkAiMultimodalEnabled } from '../shared/valueAddedAccess';
 
 const OA_AVATAR_SRC = `${import.meta.env.BASE_URL}oa-avatar.jpg`;
 
@@ -570,27 +573,31 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
   const archiveSupplementaryTextToDraft = (raw: string) => {
     const short = raw.replace(/\s+/g, ' ').trim().slice(0, 16) || '补充文字';
     appendAttachmentsToDraft([makeQuickAttachment('text', `${short}.txt`)], {
-      notice: `已归档到本条报送：${short}${raw.trim().length > 16 ? '…' : ''}`,
+      notice: ATTACHMENT_ADDED_TIP,
       reschedule: quickPhaseRef.current === 'awaiting_auto_submit',
     });
   };
 
   const finishDraftFromClue = (raw: string, clue: ReturnType<typeof buildClueFromUserText>) => {
+    const pendingMedia = mediaAttachmentsOnly(quickDraftRef.current?.attachments);
     const built = buildQuickReportDraft(raw, orgOptions, clue);
     if ('error' in built) {
       setQuickPhase('awaiting_body');
       pushAccountReply(built.error, undefined, 200);
       return;
     }
+    if (pendingMedia.length) {
+      built.attachments = mergeAttachments(built.attachments, pendingMedia);
+    }
     handleDraftReady(built);
   };
 
-  /** 含链接时先解析（Mock 多模态），再进选机构 / 自动提交；纯文字仍走标签抽取 */
+  /** 含链接且已开通 AI 多模态时才做链接多模态解析；未开通则只做普通文字/链接字段抽取 */
   const processBodyAsDraft = (raw: string) => {
     // 新模板文字到来：上一条待自动提交的草稿先落单
     flushPendingAutoSubmitDraft();
 
-    if (hasHttpLink(raw)) {
+    if (hasHttpLink(raw) && isLinkAiMultimodalEnabled()) {
       const seq = ++linkParseSeqRef.current;
       setQuickPhase('awaiting_body');
       pushAccountReply(LINK_ANALYZING_TEXT, undefined, 80);
@@ -665,17 +672,18 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
         (phase === 'awaiting_body' && Boolean(draft.clue?.title)));
 
     if (canAttachToPrevious && draft) {
+      // 已有报送表单：中途补图/视频/文件 → 短提示
       appendAttachmentsToDraft([makeQuickAttachment(kind, name)], {
-        notice: `已归档到本条报送：${name}`,
+        notice: ATTACHMENT_ADDED_TIP,
         reschedule: phase === 'awaiting_auto_submit',
       });
       if (phase === 'awaiting_org') {
-        pushAccountReply('附件已加入本条报送，请继续回复数字选择机构。', undefined, 280);
+        pushAccountReply('请继续回复数字选择机构。', undefined, 280);
       }
       return;
     }
 
-    // 超时或无上一条：先交掉待提交草稿，再要求新模板文字
+    // 尚无报送表单（直接发图/视频）：引导【请继续补充】+ 填写模板
     if (phase === 'awaiting_auto_submit' && draft?.matched) {
       flushPendingAutoSubmitDraft();
     } else {
@@ -683,7 +691,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
       setQuickDraft(null);
     }
     setQuickPhase('awaiting_body');
-    pushAccountReply(MEDIA_NEED_TEXT_TIP, undefined, 200);
+    pushAccountReply(GUIDE_NEED_SUPPLEMENT, undefined, 200);
   };
 
   const uploadAlbumPhoto = () =>
@@ -811,40 +819,45 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
       return;
     }
 
-    // 原有轻量导航 + 低频引导
-    setTimeout(() => {
-      let replyText = LIGHT_TIP;
-      let cardAction: ChatMessage['cardAction'] | undefined;
+    // 明确导航意图：仍给入口卡片
+    if (userMsgText.includes('工作台') || userMsgText.includes('首页') || userMsgText.includes('瞭望')) {
+      pushAccountReply('您可以直接进入工作台首页：', {
+        kind: 'workbench',
+        label: '进入 工作台首页',
+      });
+      return;
+    }
+    if (userMsgText.includes('审核') || userMsgText.includes('审查') || userMsgText.includes('批复')) {
+      pushAccountReply('请选择审核身份：可点击菜单「报送审核」。', {
+        kind: 'audit_external',
+        label: '进入 外部组织审核',
+      });
+      return;
+    }
+    if (
+      userMsgText.includes('个人') ||
+      userMsgText.includes('中心') ||
+      userMsgText.includes('我的') ||
+      userMsgText.includes('资料')
+    ) {
+      pushAccountReply('已为您匹配个人中心入口：', {
+        kind: 'profile',
+        label: '进入 个人中心',
+      });
+      return;
+    }
+    if (userMsgText.includes('激活') || userMsgText.includes('开通') || userMsgText.includes('认证')) {
+      pushAccountReply('请完成账号激活与实名认证，验证通过后即可开通平台使用权限。', {
+        kind: 'activation',
+        label: '前往验证激活',
+      });
+      return;
+    }
 
-      if (userMsgText.includes('工作台') || userMsgText.includes('首页') || userMsgText.includes('瞭望')) {
-        replyText = '您可以直接进入工作台首页：';
-        cardAction = { kind: 'workbench', label: '进入 工作台首页' };
-      } else if (userMsgText.includes('审核') || userMsgText.includes('审查') || userMsgText.includes('批复')) {
-        replyText = '请选择审核身份：可点击菜单「报送审核」。';
-        cardAction = { kind: 'audit_external', label: '进入 外部组织审核' };
-      } else if (
-        userMsgText.includes('个人') ||
-        userMsgText.includes('中心') ||
-        userMsgText.includes('我的') ||
-        userMsgText.includes('资料')
-      ) {
-        replyText = '已为您匹配个人中心入口：';
-        cardAction = { kind: 'profile', label: '进入 个人中心' };
-      } else if (userMsgText.includes('激活') || userMsgText.includes('开通') || userMsgText.includes('认证')) {
-        replyText = '请完成账号激活与实名认证，验证通过后即可开通平台使用权限。';
-        cardAction = { kind: 'activation', label: '前往验证激活' };
-      }
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `reply_${Date.now()}`,
-          sender: 'account',
-          text: replyText,
-          cardAction,
-        },
-      ]);
-    }, 450);
+    // 随意闲聊 / 无法识别有效报送信息：下发快捷报送填写模板，并进入可继续填报状态
+    if (!ensureQuickReportReady()) return;
+    setQuickPhase('awaiting_body');
+    pushAccountReply(GUIDE_UNRECOGNIZED_CHAT, undefined, 280);
   };
 
   return (

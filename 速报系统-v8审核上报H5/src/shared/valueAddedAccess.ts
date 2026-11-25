@@ -143,6 +143,13 @@ export const isExternalAuditEnabled = () =>
     nameIncludes: '外部审核',
   });
 
+/** 链接「AI 多模态」解析是否可用（未开通则快捷报送遇链接只做普通字段抽取） */
+export const isLinkAiMultimodalEnabled = () =>
+  isValueAddedServiceEnabled({
+    dictCode: 'VA_AI_MULTIMODAL_DEEP',
+    nameIncludes: '多模态',
+  });
+
 /** 外部审核不可用时的原因：应用端未开通 / 机构侧停用 */
 export const getExternalAuditBlockReason = (): '未开通' | '已停用' => {
   const opts = { dictCode: 'VA_EXTERNAL_CONTACT_AUDIT', nameIncludes: '外部审核' };
