@@ -14,10 +14,17 @@ import {
 } from '../types';
 import { defaultGlobalMpControlConfig } from '../components/other-config/GlobalOtherConfigDefaultsSection';
 
-const RETIRED_VALUE_ADDED_SERVICE_IDS = new Set(['vas-screenshot-evidence']);
+const RETIRED_VALUE_ADDED_SERVICE_IDS = new Set([
+  'vas-screenshot-evidence',
+  'vas-link-multimodal-ai',
+]);
 
 export const dropRetiredValueAddedServices = (items: ValueAddedServiceItem[]) =>
-  items.filter((item) => !RETIRED_VALUE_ADDED_SERVICE_IDS.has(item.id));
+  items.filter(
+    (item) =>
+      !RETIRED_VALUE_ADDED_SERVICE_IDS.has(item.id) &&
+      !(item.name || '').includes('AI链接多模态识别')
+  );
 
 export const defaultValueAddedServices: ValueAddedServiceItem[] = [
   {
@@ -52,7 +59,7 @@ export const defaultValueAddedServices: ValueAddedServiceItem[] = [
   },
   {
     id: 'vas-first-publish-duplicate',
-    name: '报送首发重复识别',
+    name: '首发查重',
     isPurchased: true,
     isEnabled: true,
     tag: '增值扩展功能',
@@ -71,13 +78,33 @@ export const defaultValueAddedServices: ValueAddedServiceItem[] = [
     isGlobal: true,
   },
   {
-    id: 'vas-link-multimodal-ai',
-    name: 'AI链接多模态识别',
+    id: 'vas-ai-text-extract',
+    name: 'AI文本提取',
     isPurchased: true,
     isEnabled: true,
     tag: '增值扩展功能',
     description:
-      '报送模板支持粘贴原文链接后一键 AI 多模态提取：自动识别标题、摘要、属地与发布时间并回填表单，提升线索结构化录入效率',
+      '从粘贴正文或附件文本中抽取标题、摘要、属地、时间等并回填模板字段，提升结构化录入效率',
+    icon: 'auto_awesome',
+    isGlobal: true,
+  },
+  {
+    id: 'vas-ocr-recognize',
+    name: 'OCR识别',
+    isPurchased: true,
+    isEnabled: true,
+    tag: '增值扩展功能',
+    description: '对图片/截图做文字识别，生成可编辑文本并辅助填入报送字段',
+    icon: 'auto_awesome',
+    isGlobal: true,
+  },
+  {
+    id: 'vas-ai-multimodal-deep',
+    name: 'AI多模态深度解析',
+    isPurchased: true,
+    isEnabled: true,
+    tag: '增值扩展功能',
+    description: '对链接、图文、视频等多模态素材做深度结构化解析并回填关键字段',
     icon: 'auto_awesome',
     isGlobal: true,
   },

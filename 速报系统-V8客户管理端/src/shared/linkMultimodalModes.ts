@@ -41,6 +41,5 @@ export const isLinkMultimodalValueAdded = (item: {
   id?: string;
 }) =>
   item.dictCode === LINK_MULTIMODAL_DICT_CODE ||
-  item.id === 'va_7' ||
   item.id === 'vas-link-multimodal-ai' ||
   (item.name || '').includes('AI链接多模态识别');

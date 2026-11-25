@@ -565,7 +565,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({ initialModule })
       },
       {
         id: 'va_dup',
-        name: '报送首发重复识别',
+        name: '首发查重',
         dictCategoryName: '增值业务',
         dictCode: 'VA_FIRST_DUPLICATE_IDENTIFY',
         status: '启用',

@@ -1,6 +1,6 @@
 import React from 'react';
 import { AppNotification } from '../types';
-import { BackNavigationBar } from './BackNavigationBar';
+import { DetailBottomSheet } from './DetailBottomSheet';
 import {
   Megaphone,
   Building2,
@@ -87,11 +87,9 @@ export const AnnouncementDetailView: React.FC<AnnouncementDetailViewProps> = ({
   const detailData = getAnnouncementDetails(announcement.id);
 
   return (
-    <div className="absolute inset-0 z-40 bg-slate-100 flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-200">
+    <DetailBottomSheet open onClose={onClose}>
       {/* Scrollable Container */}
-      <div className="p-3 overflow-y-auto space-y-3 flex-1 text-xs">
-        <BackNavigationBar onBack={onClose} label="返回上一级" />
-
+      <div className="p-3 overflow-y-auto space-y-3 flex-1 min-h-0 text-xs">
         {/* Header Official Banner */}
         <div className="bg-gradient-to-br from-blue-700 via-indigo-800 to-slate-900 text-white rounded-2xl p-4 shadow-md space-y-2.5 relative overflow-hidden">
           {/* Subtle Background Pattern */}
@@ -153,6 +151,6 @@ export const AnnouncementDetailView: React.FC<AnnouncementDetailViewProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </DetailBottomSheet>
   );
 };

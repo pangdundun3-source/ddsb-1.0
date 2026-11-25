@@ -17,11 +17,9 @@ import {
   History,
   FileCheck2,
   Link2,
-  X,
-  ChevronLeft,
   Trash2,
 } from 'lucide-react';
-import { BackNavigationBar } from './BackNavigationBar';
+import { DetailBottomSheet } from './DetailBottomSheet';
 import { RecallConfirmDialog } from './RecallConfirmDialog';
 import {
   REJECT_TYPE_OPTIONS,
@@ -622,12 +620,9 @@ export const DetailModal: React.FC<DetailModalProps> = ({
     );
   };
   return (
-    <div className="absolute inset-0 z-40 bg-slate-100 flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-200">
-      
+    <DetailBottomSheet open={Boolean(report)} onClose={onClose}>
       {/* Scrollable Modal Content Body */}
-      <div className="p-3 overflow-y-auto space-y-3 flex-1 text-xs">
-
-        <BackNavigationBar onBack={onClose} />
+      <div className="p-3 overflow-y-auto space-y-3 flex-1 min-h-0 text-xs">
 
         {/* Two Tabs Switcher: 详情信息 & 流转状态 (放在上面) */}
         <div className="grid grid-cols-2 gap-1 bg-slate-200/90 p-1 rounded-xl border border-slate-200/80 shadow-2xs">
@@ -1155,81 +1150,68 @@ export const DetailModal: React.FC<DetailModalProps> = ({
 
       </div>
 
-      {/* Bottom Actions Bar */}
-      <div className="bg-white p-3 border-t border-slate-200 shrink-0 shadow-lg">
-        {canAudit ? (
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setRejectReasonCategory('');
-                setRejectSupplement('');
-                setAuditSheetMode('reject');
-              }}
-              className="py-3 px-4 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center space-x-1.5 transition-all active:scale-[0.99]"
-            >
-              <XCircle className="w-4 h-4" />
-              <span>{isBatchMode ? `批量驳回 (${totalAuditCount}条)` : '驳回'}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setAuditSheetMode('pass')}
-              className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center space-x-1.5 transition-all active:scale-[0.99]"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>{isBatchMode ? `批量通过 (${totalAuditCount}条)` : '通过'}</span>
-            </button>
-          </div>
-        ) : canEdit ? (
-          <div className="flex items-center space-x-2">
-            {onDeleteReport && (
+      {/* Bottom Actions Bar：仅保留业务操作，关闭靠点击阴影 */}
+      {(canAudit || canEdit || (report.status === 'pending_audit' && onDeleteReport)) && (
+        <div className="bg-white p-3 border-t border-slate-200 shrink-0 shadow-lg">
+          {canAudit ? (
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setShowDeleteConfirm(true)}
-                className="flex-1 py-2.5 px-3 bg-red-50 hover:bg-red-100 text-red-600 font-semibold text-xs rounded-xl flex items-center justify-center space-x-1.5 transition-colors border border-red-200 cursor-pointer"
+                onClick={() => {
+                  setRejectReasonCategory('');
+                  setRejectSupplement('');
+                  setAuditSheetMode('reject');
+                }}
+                className="py-3 px-4 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center space-x-1.5 transition-all active:scale-[0.99]"
               >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>删除</span>
+                <XCircle className="w-4 h-4" />
+                <span>{isBatchMode ? `批量驳回 (${totalAuditCount}条)` : '驳回'}</span>
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                onEditDraft(report);
-                onClose();
-              }}
-              className={`${onDeleteReport ? 'flex-[1.4]' : 'w-full'} py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center justify-center space-x-1.5 shadow-sm transition-colors cursor-pointer`}
-            >
-              <Edit3 className="w-4 h-4" />
-              <span>修改补充并重新提交</span>
-            </button>
-          </div>
-        ) : report.status === 'pending_audit' && onDeleteReport ? (
-          <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                onClick={() => setAuditSheetMode('pass')}
+                className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center space-x-1.5 transition-all active:scale-[0.99]"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>{isBatchMode ? `批量通过 (${totalAuditCount}条)` : '通过'}</span>
+              </button>
+            </div>
+          ) : canEdit ? (
+            <div className="flex items-center space-x-2">
+              {onDeleteReport && (
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="flex-1 py-2.5 px-3 bg-red-50 hover:bg-red-100 text-red-600 font-semibold text-xs rounded-xl flex items-center justify-center space-x-1.5 transition-colors border border-red-200 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>删除</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  onEditDraft(report);
+                  onClose();
+                }}
+                className={`${onDeleteReport ? 'flex-[1.4]' : 'w-full'} py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center justify-center space-x-1.5 shadow-sm transition-colors cursor-pointer`}
+              >
+                <Edit3 className="w-4 h-4" />
+                <span>修改补充</span>
+              </button>
+            </div>
+          ) : (
             <button
               type="button"
               onClick={() => setShowDeleteConfirm(true)}
-              className="flex-1 py-2.5 px-3 bg-red-50 hover:bg-red-100 text-red-600 font-semibold text-xs rounded-xl flex items-center justify-center space-x-1 transition-colors border border-red-200 cursor-pointer"
+              className="w-full py-2.5 px-3 bg-red-50 hover:bg-red-100 text-red-600 font-semibold text-xs rounded-xl flex items-center justify-center space-x-1 transition-colors border border-red-200 cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5 mr-1" />
               <span>删除</span>
             </button>
-            <button
-              onClick={onClose}
-              className="flex-1 py-2.5 px-3 bg-slate-900 hover:bg-black text-white font-semibold text-xs rounded-xl transition-colors cursor-pointer"
-            >
-              关闭
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={onClose}
-            className="w-full py-2.5 px-3 bg-slate-900 hover:bg-black text-white font-semibold text-xs rounded-xl transition-colors"
-          >
-            关闭详情
-          </button>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {showDeleteConfirm && onDeleteReport && (
         <RecallConfirmDialog
@@ -1356,14 +1338,13 @@ export const DetailModal: React.FC<DetailModalProps> = ({
       {/* 2. 点击匹配项标题后弹出的速报详情弹窗 (限制在模拟器内) */}
       {/* ========================================================= */}
       {previewDetailReport && (
-        <div
-          className="absolute inset-0 z-[60] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in duration-200"
-          onClick={() => setPreviewDetailReport(null)}
+        <DetailBottomSheet
+          open
+          onClose={() => setPreviewDetailReport(null)}
+          zIndexClassName="z-[60]"
+          panelClassName="bg-white"
         >
-          <div
-            className="bg-white w-full max-w-[360px] max-h-[86%] rounded-3xl shadow-2xl border border-slate-200/90 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="flex flex-col overflow-hidden min-h-0 flex-1">
             {/* Header */}
             <div className="bg-gradient-to-r from-blue-600 via-sky-600 to-cyan-600 text-white px-3.5 py-3 flex items-center justify-between shrink-0">
               <div className="min-w-0">
@@ -1380,14 +1361,6 @@ export const DetailModal: React.FC<DetailModalProps> = ({
                     size="xs"
                   />
                 )}
-                <button
-                  type="button"
-                  onClick={() => setPreviewDetailReport(null)}
-                  className="p-1 rounded-lg text-white/80 hover:text-white hover:bg-white/10 active:scale-95 transition-all"
-                  title="关闭"
-                >
-                  <X className="w-4 h-4" />
-                </button>
               </div>
             </div>
 
@@ -1512,9 +1485,9 @@ export const DetailModal: React.FC<DetailModalProps> = ({
               )}
             </div>
           </div>
-        </div>
+        </DetailBottomSheet>
       )}
 
-    </div>
+    </DetailBottomSheet>
   );
 };

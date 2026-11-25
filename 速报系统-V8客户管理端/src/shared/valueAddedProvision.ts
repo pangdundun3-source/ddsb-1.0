@@ -2,13 +2,6 @@
  * 同域用 localStorage；本地多端口 suite 用 cookie（localhost 跨端口共享）
  */
 
-import {
-  LinkMultimodalMode,
-  LINK_MULTIMODAL_DICT_CODE,
-  isLinkMultimodalValueAdded,
-  normalizeLinkMultimodalModes,
-} from './linkMultimodalModes';
-
 export const VALUE_ADDED_PROVISION_STORAGE_KEY = 'ddsb_value_added_provision';
 export const VALUE_ADDED_PROVISION_COOKIE_KEY = 'ddsb_va_prov';
 export const VALUE_ADDED_PROVISION_EVENT = 'ddsb-value-added-provision-updated';
@@ -19,20 +12,21 @@ export type ValueAddedProvisionItem = {
   dictCode?: string;
   status?: string;
   activatedStatus?: string;
-  linkMultimodalModes?: LinkMultimodalMode[];
 };
 
 type OrgProvisionMap = Record<string, boolean>;
-type OrgProvisionExtras = Record<string, { linkMultimodalModes?: LinkMultimodalMode[] }>;
 
 type ProvisionStore = {
   byOrg: Record<string, OrgProvisionMap>;
   latest: OrgProvisionMap;
-  byOrgExtras?: Record<string, OrgProvisionExtras>;
-  latestExtras?: OrgProvisionExtras;
+  byOrgExtras?: Record<string, unknown>;
+  latestExtras?: Record<string, unknown>;
 };
 
-const emptyStore = (): ProvisionStore => ({ byOrg: {}, latest: {}, byOrgExtras: {}, latestExtras: {} });
+const emptyStore = (): ProvisionStore => ({
+  byOrg: {},
+  latest: {},
+});
 
 const parseStore = (raw: string | null | undefined): ProvisionStore | null => {
   if (!raw) return null;
@@ -64,6 +58,11 @@ const readCookie = (name: string) => {
   return match ? decodeURIComponent(match[1]) : null;
 };
 
+const writeCookie = (name: string, value: string) => {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=31536000; SameSite=Lax`;
+};
+
 const readStore = (): ProvisionStore => {
   try {
     const fromLs = parseStore(localStorage.getItem(VALUE_ADDED_PROVISION_STORAGE_KEY));
@@ -75,18 +74,19 @@ const readStore = (): ProvisionStore => {
   return fromCookie || emptyStore();
 };
 
+export const readCurrentOrgName = () => {
+  try {
+    return localStorage.getItem('ddsb_current_org') || '';
+  } catch {
+    return '';
+  }
+};
+
 export const readValueAddedProvisionMap = (orgName?: string | null): OrgProvisionMap => {
   const store = readStore();
   const key = (orgName || '').trim();
   if (key && store.byOrg[key]) return store.byOrg[key];
   return store.latest || {};
-};
-
-export const readValueAddedProvisionExtras = (orgName?: string | null): OrgProvisionExtras => {
-  const store = readStore();
-  const key = (orgName || '').trim();
-  if (key && store.byOrgExtras?.[key]) return store.byOrgExtras[key];
-  return store.latestExtras || {};
 };
 
 export const lookupValueAddedActivated = (
@@ -99,83 +99,39 @@ export const lookupValueAddedActivated = (
   return undefined;
 };
 
-const lookupLinkMultimodalModes = (
-  extras: OrgProvisionExtras,
-  item: Pick<ValueAddedProvisionItem, 'dictCode' | 'name'>
-): LinkMultimodalMode[] | undefined => {
-  if (!extras || Object.keys(extras).length === 0) return undefined;
-  if (item.dictCode && extras[item.dictCode]?.linkMultimodalModes) {
-    return extras[item.dictCode].linkMultimodalModes;
-  }
-  if (item.name && extras[`name:${item.name}`]?.linkMultimodalModes) {
-    return extras[`name:${item.name}`].linkMultimodalModes;
-  }
-  if (extras[LINK_MULTIMODAL_DICT_CODE]?.linkMultimodalModes) {
-    return extras[LINK_MULTIMODAL_DICT_CODE].linkMultimodalModes;
-  }
-  return undefined;
-};
-
 export const applyValueAddedProvision = <
   T extends {
     name: string;
     dictCode?: string;
     status: '启用' | '停用';
     activatedStatus?: '已开通' | '未开通';
-    linkMultimodalModes?: LinkMultimodalMode[];
   }
 >(
   list: T[],
   orgName?: string | null
 ): T[] => {
   const map = readValueAddedProvisionMap(orgName);
-  const extras = readValueAddedProvisionExtras(orgName);
-  if ((!map || Object.keys(map).length === 0) && (!extras || Object.keys(extras).length === 0)) {
+  if (!map || Object.keys(map).length === 0) {
     return list;
   }
 
   return list.map((item) => {
-    let next: T = item;
     const activated = lookupValueAddedActivated(map, item);
-    if (activated !== undefined) {
-      if (!activated) {
-        next = {
-          ...next,
-          activatedStatus: '未开通' as const,
-          status: '停用' as const,
-        };
-      } else if (item.activatedStatus !== '已开通') {
-        next = {
-          ...next,
-          activatedStatus: '已开通' as const,
-          status: '启用' as const,
-        };
-      }
+    if (activated === undefined) return item;
+    if (!activated) {
+      return {
+        ...item,
+        activatedStatus: '未开通' as const,
+        status: '停用' as const,
+      };
     }
-
-    if (isLinkMultimodalValueAdded(item)) {
-      const modes = lookupLinkMultimodalModes(extras, item);
-      if (modes) {
-        next = {
-          ...next,
-          linkMultimodalModes: normalizeLinkMultimodalModes(modes),
-        };
-      } else if (!next.linkMultimodalModes?.length) {
-        next = {
-          ...next,
-          linkMultimodalModes: ['basic'],
-        };
-      }
+    if (item.activatedStatus !== '已开通') {
+      return {
+        ...item,
+        activatedStatus: '已开通' as const,
+        status: '启用' as const,
+      };
     }
-
-    return next;
+    return item;
   });
-};
-
-export const readCurrentOrgName = () => {
-  try {
-    return localStorage.getItem('ddsb_current_org') || '';
-  } catch {
-    return '';
-  }
 };

@@ -17,14 +17,17 @@ import {
   VALUE_ADDED_CATALOG_EVENT,
   VALUE_ADDED_CATALOG_STORAGE_KEY,
 } from '../../shared/valueAddedCatalog';
+import { alignAiValueAddedList } from '../../shared/valueAddedAiAlign';
 import {
-  LINK_MULTIMODAL_MODE_OPTIONS,
-  LinkMultimodalMode,
-  formatLinkMultimodalModesLabel,
-  isLinkMultimodalValueAdded,
-  normalizeLinkMultimodalModes,
-} from '../../shared/linkMultimodalModes';
+  DEFAULT_LINK_FIELD_FEATURES,
+  type LinkFieldFeature
+} from '../../shared/linkFieldFeatures';
 import { ControlNoticeTip } from './ControlNoticeTip';
+import { LinkExtractCapabilityPicker } from './LinkExtractCapabilityPicker';
+import {
+  LinkAiExtractPreviewBar,
+  LinkScreenshotPreviewButton
+} from './LinkFieldPreviewExtras';
 import {
   Search,
   Plus,
@@ -60,7 +63,6 @@ import {
   GripVertical,
   X,
   ArrowRight,
-  Settings2,
   ChevronDown,
 } from 'lucide-react';
 
@@ -73,6 +75,8 @@ export interface TemplateField {
   required: boolean;
   placeholder?: string;
   options?: string[];
+  /** 链接字段「提取」能力：文本 / OCR / 多模态深度解析（截图固定开启） */
+  linkFeatures?: LinkFieldFeature[];
 }
 
 export interface ScoreLevel {
@@ -206,7 +210,6 @@ interface ConfigModuleItem {
   status: '启用' | '停用';
   activatedStatus?: '已开通' | '未开通';
   /** AI 链接多模态识别：机构开通的提取能力（基础 / 深度，可多选） */
-  linkMultimodalModes?: Array<'basic' | 'deep'>;
   /** 创建时间；缺省时排序回退到 updateTime */
   createTime?: string;
   updateTime: string;
@@ -439,37 +442,29 @@ function loadPersistedDataStore(
   };
   // 增值业务：确保新增的默认增值业务项能够并入已持久化的数据，并同步最新系统文案
   if (Array.isArray(defaults?.value_added)) {
-    const existingList = (Array.isArray(saved?.value_added) ? [...saved.value_added] : [...defaults.value_added]).filter(
-      i => i.name !== '截图取证'
-    );
+    const existingList = (
+      Array.isArray(saved?.value_added) ? [...saved.value_added] : [...defaults.value_added]
+    ).filter((i) => i.name !== '截图取证');
     const existingNames = new Set(existingList.map(i => i.name));
     const existingIds = new Set(existingList.map(i => i.id));
     for (const defaultItem of defaults.value_added) {
       if (!existingIds.has(defaultItem.id) && !existingNames.has(defaultItem.name)) {
         existingList.push(defaultItem);
-      } else if (defaultItem.name === '报送首发重复识别') {
-        const targetIndex = existingList.findIndex(i => i.name === '报送首发重复识别' && !i.customized);
-        if (targetIndex !== -1) {
-          existingList[targetIndex] = {
-            ...existingList[targetIndex],
-            description: defaultItem.description,
-          };
-        }
-      } else if (isLinkMultimodalValueAdded(defaultItem)) {
+      } else if (defaultItem.name === '首发查重' || defaultItem.name === '报送首发重复识别') {
         const targetIndex = existingList.findIndex(
-          (i) => isLinkMultimodalValueAdded(i) && !i.linkMultimodalModes?.length
+          (i) =>
+            (i.name === '首发查重' || i.name === '报送首发重复识别') && !i.customized
         );
         if (targetIndex !== -1) {
           existingList[targetIndex] = {
             ...existingList[targetIndex],
-            linkMultimodalModes: normalizeLinkMultimodalModes(
-              defaultItem.linkMultimodalModes || ['basic', 'deep']
-            ),
+            name: '首发查重',
+            description: defaultItem.description,
           };
         }
       }
     }
-    merged.value_added = existingList;
+    merged.value_added = alignAiValueAddedList(existingList);
   }
   // 机构侧：名称/描述始终跟随全局母版（含已发布目录与全局持久化）
   if (Array.isArray(merged.value_added) && fallbackStorageKey && storageKey !== fallbackStorageKey) {
@@ -938,7 +933,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       },
       {
         id: 'va_5',
-        name: '报送首发重复识别',
+        name: '首发查重',
         dictCategoryName: '增值业务',
         dictCode: 'VA_REPORT_DUPLICATE_IDENTIFICATION',
         status: '启用',
@@ -960,15 +955,36 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       },
       {
         id: 'va_7',
-        name: 'AI链接多模态识别',
+        name: 'AI文本提取',
         dictCategoryName: '增值业务',
-        dictCode: 'VA_LINK_MULTIMODAL_AI',
+        dictCode: 'VA_AI_TEXT_EXTRACT',
         status: '启用',
         activatedStatus: '已开通',
-        updateTime: '2026-03-23 10:00:00',
+        updateTime: '2026-11-25 10:00:00',
         description:
-          '报送模板支持粘贴原文链接后一键 AI 多模态提取：自动识别标题、摘要、属地与发布时间并回填表单，提升线索结构化录入效率',
-        linkMultimodalModes: ['basic', 'deep'],
+          '从粘贴正文或附件文本中抽取标题、摘要、属地、时间等并回填模板字段，提升结构化录入效率',
+        isDefault: true
+      },
+      {
+        id: 'va_8',
+        name: 'OCR识别',
+        dictCategoryName: '增值业务',
+        dictCode: 'VA_OCR_RECOGNIZE',
+        status: '启用',
+        activatedStatus: '已开通',
+        updateTime: '2026-11-25 10:00:00',
+        description: '对图片/截图做文字识别，生成可编辑文本并辅助填入报送字段',
+        isDefault: true
+      },
+      {
+        id: 'va_9',
+        name: 'AI多模态深度解析',
+        dictCategoryName: '增值业务',
+        dictCode: 'VA_AI_MULTIMODAL_DEEP',
+        status: '启用',
+        activatedStatus: '已开通',
+        updateTime: '2026-11-25 10:00:00',
+        description: '对链接、图文、视频等多模态素材做深度结构化解析并回填关键字段',
         isDefault: true
       }
     ]
@@ -1056,6 +1072,8 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
 
   // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
+  /** 从模板「其他业务配置」快捷新增时，弹窗模块与当前左侧模块解耦，避免跳转 */
+  const [modalModuleOverride, setModalModuleOverride] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<ConfigModuleItem | null>(null);
   const [formName, setFormName] = useState('');
   const [formTemplateType, setFormTemplateType] = useState<'报送' | '激活'>('报送');
@@ -1908,7 +1926,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
   };
 
   const requestCloseConfigModal = async () => {
-    if (activeModule === 'audit_flow' && isAuditFlowDirty()) {
+    if (configModalModule === 'audit_flow' && isAuditFlowDirty()) {
       const confirmed = await confirmDialog(
         editingItem
           ? '已修改的内容尚未保存，退出后将不会保留。确认退出吗？'
@@ -1918,6 +1936,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       if (!confirmed) return;
     }
     flowModeDraftsRef.current = {};
+    setModalModuleOverride(null);
     setIsModalOpen(false);
   };
 
@@ -1940,7 +1959,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
   const isExternalDependentAuditFlowMode = (mode: 'adaptive' | 'max_n' | 'direct') =>
     mode === 'adaptive' || mode === 'max_n';
   const isAuditFlowSaveLocked =
-    activeModule === 'audit_flow' &&
+    (modalModuleOverride || activeModule) === 'audit_flow' &&
     isExternalAuditModeLocked &&
     isExternalDependentAuditFlowMode(formFlowMode);
 
@@ -2259,13 +2278,6 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
   // Preview Modal State
   const [previewItem, setPreviewItem] = useState<ConfigModuleItem | null>(null);
   const [editingValueAdded, setEditingValueAdded] = useState<{ id: string; globalOnly: boolean; name: string; description: string } | null>(null);
-  /** 机构侧：AI 链接多模态识别开通/编辑能力弹窗 */
-  const [linkMultimodalConfig, setLinkMultimodalConfig] = useState<{
-    itemId: string;
-    itemName: string;
-    modes: LinkMultimodalMode[];
-    intent: 'activate' | 'edit';
-  } | null>(null);
 
   // 全局编辑增值业务名称/描述：写入全局母版，并同步到所有已保存过独立配置的机构 + 客户管理端目录
   const handleSaveValueAddedEdit = () => {
@@ -2440,7 +2452,8 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
         ? [...systemRoleOptions]
         : type === 'select'
         ? ['选项一', '选项二', '选项三']
-        : undefined
+        : undefined,
+      linkFeatures: type === 'link' ? [...DEFAULT_LINK_FIELD_FEATURES] : undefined
     };
     setFormFields(prev => [...prev, newField]);
     setFieldAddNotice(`${meta.label}添加成功`);
@@ -2497,6 +2510,13 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
 
   // Get active module title
   const currentModuleLabel = moduleList.find(m => m.id === activeModule)?.label || '配置项';
+  const configModalModule = modalModuleOverride || activeModule;
+  const configModalLabel =
+    moduleList.find((m) => m.id === configModalModule)?.label || currentModuleLabel;
+
+  useEffect(() => {
+    if (!isModalOpen) setModalModuleOverride(null);
+  }, [isModalOpen]);
 
   // Current list for active module
   const currentList = dataStore[activeModule] || (activeModule === 'data_dict' ? (dataStore.data_dict || []) : []);
@@ -2693,17 +2713,23 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                   )}
 
                   {field.type === 'link' && (
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
-                        <LinkIcon className="w-3.5 h-3.5 text-slate-400" />
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex-1 min-w-0">
+                          <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                            <LinkIcon className="w-3.5 h-3.5 text-slate-400" />
+                          </div>
+                          <input
+                            type="url"
+                            value={fieldValue}
+                            onChange={(e) => handlePreviewValueChange(field.id, e.target.value)}
+                            placeholder={field.placeholder || 'https://...'}
+                            className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-[#1E5ABB] bg-white placeholder:text-slate-400"
+                          />
+                        </div>
+                        <LinkScreenshotPreviewButton />
                       </div>
-                      <input
-                        type="url"
-                        value={fieldValue}
-                        onChange={(e) => handlePreviewValueChange(field.id, e.target.value)}
-                        placeholder={field.placeholder || 'https://...'}
-                        className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-[#1E5ABB] bg-white placeholder:text-slate-400"
-                      />
+                      <LinkAiExtractPreviewBar field={field} />
                     </div>
                   )}
 
@@ -3074,10 +3100,6 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                   ...item,
                   status: newStatus,
                   activatedStatus: newStatus === '启用' ? '已开通' : '未开通',
-                  linkMultimodalModes:
-                    newStatus === '启用' && isLinkMultimodalValueAdded(item)
-                      ? normalizeLinkMultimodalModes(item.linkMultimodalModes)
-                      : item.linkMultimodalModes,
                   updateTime: nowStr
                 }
               : item
@@ -3092,63 +3114,12 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
             ? {
                 ...item,
                 status: newStatus,
-                linkMultimodalModes:
-                  newStatus === '启用' && isLinkMultimodalValueAdded(item)
-                    ? normalizeLinkMultimodalModes(item.linkMultimodalModes)
-                    : item.linkMultimodalModes,
                 updateTime: nowStr
               }
             : item
         )
       };
     });
-  };
-
-  const openLinkMultimodalConfig = (
-    item: ConfigModuleItem,
-    intent: 'activate' | 'edit'
-  ) => {
-    setLinkMultimodalConfig({
-      itemId: item.id,
-      itemName: item.name,
-      modes: normalizeLinkMultimodalModes(item.linkMultimodalModes),
-      intent,
-    });
-  };
-
-  const handleSaveLinkMultimodalConfig = async () => {
-    if (!linkMultimodalConfig) return;
-    const modes = normalizeLinkMultimodalModes(linkMultimodalConfig.modes);
-    if (modes.length === 0) {
-      await alertDialog('至少开通一种提取能力：基础链接内容提取 或 图文视频深度提取。');
-      return;
-    }
-    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    const shouldActivate = linkMultimodalConfig.intent === 'activate';
-    commitDataStore((prev) => ({
-      ...prev,
-      value_added: (prev.value_added || []).map((item) =>
-        item.id === linkMultimodalConfig.itemId
-          ? {
-              ...item,
-              linkMultimodalModes: modes,
-              ...(shouldActivate
-                ? {
-                    status: '启用' as const,
-                    activatedStatus: '已开通' as const,
-                  }
-                : {}),
-              updateTime: nowStr,
-            }
-          : item
-      ),
-    }));
-    setLinkMultimodalConfig(null);
-    showConfigToast(
-      shouldActivate
-        ? `已开通「${linkMultimodalConfig.itemName}」：${formatLinkMultimodalModesLabel(modes)}`
-        : `已更新提取能力：${formatLinkMultimodalModesLabel(modes)}`
-    );
   };
 
   // Handle Delete（审核流程 / 打分规则与停用校验一致：有关联报送模板时需确认并解绑停用）
@@ -3225,8 +3196,14 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
     }
   };
 
-  // Handle Open Modal for Add / Edit
-  const openAddModal = () => {
+  // Handle Open Modal for Add / Edit（可从模板「其他业务配置」指定模块直接打开新增弹框，不跳转模块）
+  const openAddModal = (forcedModule?: string) => {
+    const moduleId = forcedModule || activeModule;
+    if (forcedModule && forcedModule !== activeModule) {
+      setModalModuleOverride(forcedModule);
+    } else {
+      setModalModuleOverride(null);
+    }
     setEditingItem(null);
     setFormName('');
     setFormTemplateType('报送');
@@ -3234,10 +3211,10 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
     setModalActiveTab('build');
     setPreviewValues({});
 
-    if (activeModule === 'report_template') {
+    if (moduleId === 'report_template') {
       setFormScoreStatus('启用');
       setFormFields([]);
-    } else if (activeModule === 'data_dict' || activeModule === 'reject_reason') {
+    } else if (moduleId === 'data_dict' || moduleId === 'reject_reason') {
       const targetCat = dictSubCategoryFilter !== 'all' ? dictSubCategoryFilter : 'reject_reason';
       const targetMeta = getDictCategoryMeta(targetCat);
       const count = (dataStore.data_dict || []).filter(i => (i.dictCategory || 'reject_reason') === targetCat).length + 1;
@@ -3250,7 +3227,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       setFormScoreStatus('启用');
       setFormPersonnelRoleGroup(nextPersonnelRoleGroup);
       setFormDesc('');
-    } else if (activeModule === 'audit_score') {
+    } else if (moduleId === 'audit_score') {
       // 新增空态：不预填规则名、说明与等级业务内容
       setFormName('');
       setFormDesc('');
@@ -3259,7 +3236,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       setFormScoreStatus('启用');
       setFormRelatedTemplateId('');
       setFormScoreLevels([]);
-    } else if (activeModule === 'audit_flow') {
+    } else if (moduleId === 'audit_flow') {
       const defaultMode: 'adaptive' | 'max_n' | 'direct' =
         isGlobalScope || isExternalAuditProvisioned ? 'adaptive' : 'direct';
       // 新增：名称/说明空态；节点按当前模式生成骨架（模式一默认选中时不会再点选触发，需在此生成）
@@ -3281,7 +3258,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       setFormAuditNodes(defaultFlowNodes);
       setSelectedAuditNodeId(defaultFlowNodes[0]?.id || null);
       rememberAuditFlowBaseline('', '', '启用', defaultMode, 3, defaultFlowNodes);
-    } else if (activeModule === 'evaluation_rule') {
+    } else if (moduleId === 'evaluation_rule') {
       setFormName('人员考核配置');
       setFormDesc('用于配置人员月度目标上报量和数量、质量评分权重，考核页面按周期自动计算人员得分、等级和排名。');
       setFormEvalDimension('person');
@@ -3294,7 +3271,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       setFormEvalGrades(defaultEvaluationGrades);
       setFormScoreStatus('启用');
       setFormIndicators([]);
-    } else if (activeModule === 'value_added') {
+    } else if (moduleId === 'value_added') {
       setFormName('');
       setFormDictCode(`VA_00${((dataStore.value_added || []).length + 1)}`);
       setFormDesc('请填写增值扩展业务功能介绍与申请条件说明...');
@@ -3310,6 +3287,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       openPreviewItem(item);
       return;
     }
+    setModalModuleOverride(null);
     setEditingItem(item);
     setFormName(item.name);
     setFormTemplateType(item.templateType || '报送');
@@ -3461,6 +3439,8 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
     if (!formName.trim()) return;
 
     const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    // 模板页快捷新增时以弹窗覆盖模块为准，避免依赖左侧已跳转的 activeModule
+    const activeModule = configModalModule;
 
     if (activeModule === 'login_method' && editingItem) {
       const nextStatus = formScoreStatus;
@@ -4600,14 +4580,9 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                   })
                   .map((item) => item.id)}
                 onSaveNotice={(msg) => showConfigToast(msg)}
-                onNavigateToWorkflow={() => {
-                  setActiveModule('audit_flow');
-                  onModuleChange?.('audit_flow');
-                }}
-                onNavigateToScoring={() => {
-                  setActiveModule('audit_score');
-                  onModuleChange?.('audit_score');
-                }}
+                onNavigateToWorkflow={() => openAddModal('audit_flow')}
+                onNavigateToScoring={() => openAddModal('audit_score')}
+                valueAddedItems={dataStore.value_added}
               />
             ) : activeModule === 'evaluation_rule' ? (
               <div className="space-y-3">
@@ -5088,110 +5063,6 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                         </div>
                       </div>
                     )}
-                    {linkMultimodalConfig && (
-                      <div
-                        className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6"
-                        onClick={() => setLinkMultimodalConfig(null)}
-                      >
-                        <div
-                          className="w-full max-w-[480px] bg-white rounded-xl shadow-2xl overflow-hidden"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-                            <div>
-                              <div className="text-sm font-bold text-gray-900">
-                                {linkMultimodalConfig.intent === 'activate'
-                                  ? '开通 AI 链接多模态识别'
-                                  : '编辑提取能力'}
-                              </div>
-                              <div className="text-[11px] text-gray-400 mt-0.5">
-                                {linkMultimodalConfig.intent === 'activate'
-                                  ? `为「${linkMultimodalConfig.itemName}」选择本机构开通的提取能力`
-                                  : `调整「${linkMultimodalConfig.itemName}」已开通的提取能力`}
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setLinkMultimodalConfig(null)}
-                              className="w-7 h-7 rounded flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 cursor-pointer"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                          <div className="p-5 space-y-3">
-                            <p className="text-[11px] text-gray-500 leading-relaxed">
-                              可单独开通基础提取、图文视频深度提取，或两项同时开通；至少选择一种。
-                            </p>
-                            <div className="space-y-2">
-                              {LINK_MULTIMODAL_MODE_OPTIONS.map((opt) => {
-                                const checked = linkMultimodalConfig.modes.includes(opt.id);
-                                return (
-                                  <div
-                                    key={opt.id}
-                                    className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
-                                      checked
-                                        ? 'bg-violet-50 border-violet-300 shadow-2xs'
-                                        : 'bg-white border-gray-200'
-                                    }`}
-                                  >
-                                    <div className="min-w-0 flex-1">
-                                      <div className="text-[13px] font-bold text-gray-800">
-                                        {opt.label}
-                                      </div>
-                                      <div className="text-[11px] text-gray-500 mt-0.5 leading-snug">
-                                        {opt.desc}
-                                      </div>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      role="switch"
-                                      aria-checked={checked}
-                                      aria-label={opt.label}
-                                      onClick={() => {
-                                        const next = checked
-                                          ? linkMultimodalConfig.modes.filter((m) => m !== opt.id)
-                                          : Array.from(
-                                              new Set([...linkMultimodalConfig.modes, opt.id])
-                                            );
-                                        setLinkMultimodalConfig({
-                                          ...linkMultimodalConfig,
-                                          modes: next as LinkMultimodalMode[],
-                                        });
-                                      }}
-                                      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none cursor-pointer ${
-                                        checked ? 'bg-[#1890ff]' : 'bg-gray-200 hover:bg-gray-300'
-                                      }`}
-                                    >
-                                      <span
-                                        className={`pointer-events-none absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-xs transition-all duration-200 ${
-                                          checked ? 'right-0.5' : 'left-0.5'
-                                        }`}
-                                      />
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                          <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setLinkMultimodalConfig(null)}
-                              className="h-8 px-4 border border-gray-200 rounded text-xs text-gray-600 hover:bg-gray-50 cursor-pointer"
-                            >
-                              取消
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void handleSaveLinkMultimodalConfig()}
-                              className="h-8 px-4 bg-[#1890ff] hover:bg-blue-600 rounded text-xs font-bold text-white cursor-pointer"
-                            >
-                              {linkMultimodalConfig.intent === 'activate' ? '确认开通' : '保存'}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
                     {filteredList.map(item => {
                       const isActivated = valueAddedAllOperable
                         ? item.status === '启用'
@@ -5234,7 +5105,9 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                         globalOnly: item.status !== '启用',
                                         name: item.name,
                                         description:
-                                          item.name === '报送首发重复识别' && !item.customized
+                                          (item.name === '首发查重' ||
+                                            item.name === '报送首发重复识别') &&
+                                          !item.customized
                                             ? '通过抓取报送链接的文章原文比对判断内容是否重复，并结合提交时间线智能判定首发，避免多头报送与重复审核计分。'
                                             : item.description || '',
                                       })
@@ -5245,43 +5118,12 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                     <Edit3 className="w-3.5 h-3.5" />
                                   </button>
                                 )}
-                                {/* 机构侧：已开通后，开关旁配置入口 + 悬浮能力提示 */}
-                                {!isGlobalScope &&
-                                  isLinkMultimodalValueAdded(item) &&
-                                  isActivated && (
-                                  <div className="relative group/lm-cfg">
-                                    <button
-                                      type="button"
-                                      onClick={() => openLinkMultimodalConfig(item, 'edit')}
-                                      className="w-6 h-6 flex items-center justify-center rounded-md text-violet-500 hover:text-violet-700 hover:bg-violet-50 cursor-pointer transition-colors"
-                                      aria-label="配置提取能力"
-                                    >
-                                      <Settings2 className="w-3.5 h-3.5" />
-                                    </button>
-                                    <div className="pointer-events-none absolute right-0 top-full z-20 mt-1.5 w-max max-w-[220px] rounded-md bg-gray-900 px-2.5 py-1.5 text-[10px] leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/lm-cfg:opacity-100">
-                                      <div className="font-semibold mb-0.5">已开通提取能力</div>
-                                      <div className="text-white/90">
-                                        {formatLinkMultimodalModesLabel(item.linkMultimodalModes)}
-                                      </div>
-                                      <div className="mt-0.5 text-white/60">点击配置可修改</div>
-                                    </div>
-                                  </div>
-                                )}
                                 {isGlobalScope ? null : valueAddedAllOperable || isActivated ? (
                                   <button
                                     type="button"
                                     role="switch"
                                     aria-checked={item.status === '启用'}
                                     onClick={() => {
-                                      // 开通 AI 多模态：先弹窗配置提取能力，再落开通态
-                                      if (
-                                        !isGlobalScope &&
-                                        isLinkMultimodalValueAdded(item) &&
-                                        item.status !== '启用'
-                                      ) {
-                                        openLinkMultimodalConfig(item, 'activate');
-                                        return;
-                                      }
                                       void handleToggleStatus(item.id);
                                     }}
                                     className={`relative inline-flex h-6 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none cursor-pointer select-none text-[11px] font-medium ${
@@ -5321,11 +5163,13 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                             {/* Structured Description Box */}
                             <div className="mt-2.5 rounded-lg bg-gray-50/80 p-3 text-xs text-gray-600 leading-relaxed border border-gray-100 min-h-[66px] flex flex-col justify-center">
                               <p className="line-clamp-2 text-xs text-gray-600" title={
-                                item.name === '报送首发重复识别' && !item.customized
+                                (item.name === '首发查重' || item.name === '报送首发重复识别') &&
+                                !item.customized
                                   ? '通过抓取报送链接的文章原文比对判断内容是否重复，并结合提交时间线智能判定首发，避免多头报送与重复审核计分。'
                                   : (item.description || '暂无产品功能介绍说明')
                               }>
-                                {item.name === '报送首发重复识别' && !item.customized
+                                {(item.name === '首发查重' || item.name === '报送首发重复识别') &&
+                                !item.customized
                                   ? '通过抓取报送链接的文章原文比对判断内容是否重复，并结合提交时间线智能判定首发，避免多头报送与重复审核计分。'
                                   : (item.description || '暂无产品功能介绍说明')}
                               </p>
@@ -6622,7 +6466,10 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       )}
 
       {/* Add / Edit Modal */}
-      {isModalOpen && (
+      {isModalOpen && (() => {
+        const activeModule = configModalModule;
+        const currentModuleLabel = configModalLabel;
+        return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className={`relative bg-white rounded-lg shadow-xl w-full ${activeModule === 'audit_flow' ? 'max-w-6xl' : activeModule === 'report_template' ? 'max-w-6xl' : activeModule === 'audit_score' || activeModule === 'evaluation_rule' ? 'max-w-3xl' : 'max-w-md'} overflow-hidden animate-in fade-in zoom-in-95 max-h-[92vh] flex flex-col`}>
             {/* Header */}
@@ -8168,7 +8015,18 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                           <div className="relative">
                                             <select
                                               value={field.type}
-                                              onChange={e => handleUpdateField(index, { type: e.target.value as FieldType })}
+                                              onChange={e => {
+                                                const nextType = e.target.value as FieldType;
+                                                handleUpdateField(index, {
+                                                  type: nextType,
+                                                  linkFeatures:
+                                                    nextType === 'link'
+                                                      ? field.type === 'link'
+                                                        ? field.linkFeatures
+                                                        : [...DEFAULT_LINK_FIELD_FEATURES]
+                                                      : undefined
+                                                });
+                                              }}
                                               className="w-full pl-7 pr-2 py-1.5 bg-gray-50 border border-gray-200 rounded text-xs text-gray-700 font-medium focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] cursor-pointer"
                                             >
                                               {(formTemplateType === '激活' ? activationFieldTypeOptions : reportFieldTypeOptions).map(type => (
@@ -8194,6 +8052,16 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                                           placeholder="给提报人员看的填写提示，例如：请简要说明事件经过"
                                           className="w-full px-2.5 py-1.5 text-[11px] bg-gray-50/60 border border-gray-200 rounded text-gray-600 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
                                         />
+                                        {field.type === 'link' && (
+                                          <LinkExtractCapabilityPicker
+                                            compact
+                                            linkFeatures={field.linkFeatures}
+                                            valueAddedItems={dataStore.value_added}
+                                            onChange={(next) =>
+                                              handleUpdateField(index, { linkFeatures: next })
+                                            }
+                                          />
+                                        )}
                                         {field.type === 'select' && (
                                           <div className="p-2 bg-rose-50/40 border border-rose-100 rounded space-y-1.5">
                                             <div className="text-[10px] text-rose-700 font-bold">选择项配置</div>
@@ -8332,7 +8200,8 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
             </form>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 };

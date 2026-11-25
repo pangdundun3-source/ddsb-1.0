@@ -67,7 +67,7 @@ export const defaultValueAddedServices: ValueAddedServiceItem[] = [
   },
   {
     id: 'vas-first-publish-duplicate',
-    name: '报送首发重复识别',
+    name: '首发查重',
     isPurchased: true,
     isEnabled: true,
     tag: '增值扩展功能',
@@ -84,13 +84,31 @@ export const defaultValueAddedServices: ValueAddedServiceItem[] = [
     icon: 'auto_awesome',
   },
   {
-    id: 'vas-link-multimodal-ai',
-    name: 'AI链接多模态识别',
+    id: 'vas-ai-text-extract',
+    name: 'AI文本提取',
     isPurchased: true,
     isEnabled: true,
     tag: '增值扩展功能',
     description:
-      '报送模板支持粘贴原文链接后一键 AI 多模态提取：自动识别标题、摘要、属地与发布时间并回填表单，提升线索结构化录入效率',
+      '从粘贴正文或附件文本中抽取标题、摘要、属地、时间等并回填模板字段，提升结构化录入效率',
+    icon: 'auto_awesome',
+  },
+  {
+    id: 'vas-ocr-recognize',
+    name: 'OCR识别',
+    isPurchased: true,
+    isEnabled: true,
+    tag: '增值扩展功能',
+    description: '对图片/截图做文字识别，生成可编辑文本并辅助填入报送字段',
+    icon: 'auto_awesome',
+  },
+  {
+    id: 'vas-ai-multimodal-deep',
+    name: 'AI多模态深度解析',
+    isPurchased: true,
+    isEnabled: true,
+    tag: '增值扩展功能',
+    description: '对链接、图文、视频等多模态素材做深度结构化解析并回填关键字段',
     icon: 'auto_awesome',
   },
 ];
@@ -1038,8 +1056,8 @@ const RULE_NAV_ITEMS: NavItem[] = [
     key: 'value_added',
     label: '增值业务',
     icon: 'auto_awesome',
-    description: '批量审核、指令流转、系统公告、首发重复识别与 AI 链接多模态识别等增值扩展',
-    badge: '6项',
+    description: '批量审核、指令流转、系统公告、首发查重与 AI 文本提取、OCR、多模态深度解析等增值扩展',
+    badge: '8项',
   },
   {
     key: 'dictionary',
@@ -2376,7 +2394,7 @@ export const InstitutionBusinessRulesTab: React.FC<Props> = ({
                         <div className={`rounded-md p-2 border text-[11px] leading-relaxed ${
                           isPurchased && isEnabled ? 'bg-white text-gray-700 border-blue-200/60 shadow-2xs' : 'bg-gray-100/70 text-gray-400 border-gray-200'
                         }`}>
-                          {service.name === '报送首发重复识别'
+                          {service.name === '首发查重' || service.name === '报送首发重复识别'
                             ? '通过抓取报送链接的文章原文比对判断内容是否重复，并结合提交时间线智能判定首发，避免多头报送与重复审核计分。'
                             : service.description}
                         </div>

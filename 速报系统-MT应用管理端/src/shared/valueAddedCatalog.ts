@@ -23,12 +23,22 @@ const CATALOG_ALIASES: Array<{ ids: string[]; dictCodes: string[]; names: string
   {
     ids: ['va_5', 'va_dup'],
     dictCodes: ['VA_REPORT_DUPLICATE_IDENTIFICATION', 'VA_FIRST_DUPLICATE_IDENTIFY'],
-    names: ['报送首发重复识别'],
+    names: ['首发查重', '报送首发重复识别'],
   },
   {
-    ids: ['va_7', 'vas-link-multimodal-ai'],
-    dictCodes: ['VA_LINK_MULTIMODAL_AI'],
-    names: ['AI链接多模态识别'],
+    ids: ['va_7', 'vas-ai-text-extract'],
+    dictCodes: ['VA_AI_TEXT_EXTRACT'],
+    names: ['AI文本提取', 'AI基础文本提取'],
+  },
+  {
+    ids: ['va_8', 'vas-ocr-recognize'],
+    dictCodes: ['VA_OCR_RECOGNIZE'],
+    names: ['OCR识别'],
+  },
+  {
+    ids: ['va_9', 'vas-ai-multimodal-deep'],
+    dictCodes: ['VA_AI_MULTIMODAL_DEEP'],
+    names: ['AI多模态深度解析'],
   },
 ];
 
@@ -142,7 +152,51 @@ export const publishValueAddedCatalog = (items: ValueAddedCatalogItem[]) => {
   });
 };
 
-export const readValueAddedCatalog = (): ValueAddedCatalogItem[] => readStore().items;
+const sanitizeCatalogItems = (items: ValueAddedCatalogItem[]): ValueAddedCatalogItem[] =>
+  items
+    .filter(
+      (i) =>
+        i.id !== 'vas-link-multimodal-ai' &&
+        i.dictCode !== 'VA_LINK_MULTIMODAL_AI' &&
+        !(i.name || '').includes('AI链接多模态识别')
+    )
+    .map((i) => {
+      if (
+        i.dictCode === 'VA_REPORT_DUPLICATE_IDENTIFICATION' ||
+        i.dictCode === 'VA_FIRST_DUPLICATE_IDENTIFY' ||
+        i.id === 'va_5' ||
+        i.id === 'va_dup' ||
+        i.name === '报送首发重复识别' ||
+        i.name === '首发查重'
+      ) {
+        return {
+          ...i,
+          name: '首发查重',
+        };
+      }
+      if (
+        i.dictCode === 'VA_AI_TEXT_EXTRACT' ||
+        i.id === 'va_7' ||
+        i.id === 'vas-ai-text-extract' ||
+        i.name === 'AI基础文本提取' ||
+        i.name === 'AI文本提取'
+      ) {
+        return {
+          ...i,
+          id: i.id || 'va_7',
+          dictCode: 'VA_AI_TEXT_EXTRACT',
+          name: 'AI文本提取',
+          description:
+            i.description && !i.description.includes('链接后一键')
+              ? i.description
+              : '从粘贴正文或附件文本中抽取标题、摘要、属地、时间等并回填模板字段，提升结构化录入效率',
+        };
+      }
+      return i;
+    });
+
+export const readValueAddedCatalog = (): ValueAddedCatalogItem[] =>
+  sanitizeCatalogItems(readStore().items);
 
 export const applyValueAddedCatalog = <
   T extends { id?: string; dictCode?: string; name: string; description?: string }
@@ -155,6 +209,7 @@ export const applyValueAddedCatalog = <
   return list.map((item) => {
     const matched = matchValueAddedCatalogItem(catalog, item);
     if (!matched) return item;
+    if ((matched.name || '').includes('AI链接多模态识别')) return item;
     const nextName = matched.name;
     const nextDesc = matched.description ?? '';
     if (item.name === nextName && (item.description || '') === nextDesc) return item;

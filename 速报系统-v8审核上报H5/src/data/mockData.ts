@@ -547,6 +547,7 @@ export const REPORT_TEMPLATES: ReportTemplate[] = [
         label: '权威信息或现场来源链接',
         type: 'link',
         placeholder: 'https://...',
+        linkFeatures: ['ai_text_extract', 'ocr', 'ai_multimodal_deep'],
       },
       {
         id: 'incident_attachments',
@@ -670,6 +671,7 @@ export const REPORT_TEMPLATES: ReportTemplate[] = [
         type: 'link',
         required: true,
         placeholder: 'https://...',
+        linkFeatures: ['ai_text_extract', 'ocr'],
       },
       {
         id: 'rumor_attachments',
@@ -739,6 +741,7 @@ export const REPORT_TEMPLATES: ReportTemplate[] = [
         label: '风险来源或佐证链接',
         type: 'link',
         placeholder: 'https://...',
+        linkFeatures: ['ai_text_extract'],
       },
       {
         id: 'risk_attachments',

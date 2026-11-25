@@ -14,7 +14,17 @@ export type QuickReportPhase =
   | 'idle'
   | 'awaiting_body'
   | 'awaiting_org'
-  | 'awaiting_confirm';
+  /** 已具备可提交草稿，静默等待约定时长后自动提交 */
+  | 'awaiting_auto_submit';
+
+/** 会话关联与无确认自动提交的约定时长（毫秒） */
+export const QUICK_REPORT_SESSION_MS = 60_000;
+
+export const TEXT_RECEIVED_CONTINUE_TIP =
+  `已收到。✅ ${Math.round(QUICK_REPORT_SESSION_MS / 1000)} 秒内支持补充附件，超时自动完成提交。`;
+
+export const MEDIA_NEED_TEXT_TIP =
+  '请先发送模板文字，再补图片或附件。';
 
 export type QuickAttachmentKind = 'text' | 'image' | 'video' | 'file' | 'link';
 
@@ -467,24 +477,24 @@ export const formatOrgPrompt = (draft: QuickReportDraft) => {
   return lines.join('\n');
 };
 
-export const formatConfirmPrompt = (draft: QuickReportDraft) => {
+/** 进入自动提交等待：已收到 + 摘要合为一条 */
+export const formatAutoSubmitPrompt = (draft: QuickReportDraft) => {
   const matched = draft.matched;
   const matchNote = matched
     ? matched.isDefault
       ? `${matched.template.name}（默认匹配）`
       : matched.template.name
     : '未匹配';
-  const header = draft.canDirectSubmit ? '【待提交】' : '【待完善】';
+  const waitSec = Math.round(QUICK_REPORT_SESSION_MS / 1000);
+  const mediaAtts = mediaAttachmentsOnly(draft.attachments);
   const lines = [
-    header,
+    `已收到。✅ ${waitSec} 秒内支持补充附件，超时自动完成提交。`,
+    '',
+    '【待自动提交】',
     `报送机构：${draft.selectedOrg || '未选择'}`,
     `匹配模板：${matchNote}`,
+    `报送标题：${draft.clue.title}`,
   ];
-  if (matched?.reason) {
-    lines.push(`匹配说明：${matched.reason}`);
-  }
-  const mediaAtts = mediaAttachmentsOnly(draft.attachments);
-  lines.push(`报送标题：${draft.clue.title}`);
   if (draft.clue.summary && draft.clue.summary !== draft.clue.title) {
     lines.push(`报送描述：${draft.clue.summary}`);
   }
@@ -493,62 +503,49 @@ export const formatConfirmPrompt = (draft: QuickReportDraft) => {
     `相关链接：${draft.clue.link || '未识别'}`,
     '',
     mediaAtts.length
-      ? `当次附件：\n${formatAttachmentLines(mediaAtts).join('\n')}\n可点「+」继续补充图片、视频或文件。`
-      : '当次附件：暂无。可点「+」补充图片、视频或文件。'
+      ? `当次附件：\n${formatAttachmentLines(mediaAtts).join('\n')}`
+      : '当次附件：暂无（可继续上传）',
+    '',
+    '⚠️ 若发送新报送模板，系统会先提交当前这条待报送内容。',
+    '回复【取消】退出快捷报送。'
   );
-
-  if (draft.clue.reporterHint) {
-    lines.push(`文案报送人：${draft.clue.reporterHint}（仅核对，以绑定账号为准）`);
-  }
-
-  if (!draft.canDirectSubmit) {
-    lines.push(
-      '',
-      `缺少：${draft.missingLabels.slice(0, 6).join('、')}${draft.missingLabels.length > 6 ? '…' : ''}`
-    );
-    lines.push('', '当前缺少必填项，确认提交将按已有内容上报。');
-  } else {
-    lines.push('', '说明：模板细项将按初值提交。');
-  }
-  lines.push('', '1 确认提交', '0 取消');
   return lines.join('\n');
 };
+
+/** @deprecated 已改为无确认自动提交，保留别名以免旧引用报错 */
+export const formatConfirmPrompt = formatAutoSubmitPrompt;
 
 export const formatSuccessPrompt = (params: {
   title: string;
   org: string;
   templateName: string;
-  reportId: string;
+  reportId?: string;
 }) =>
   [
     '已提交审核。',
     `模板：${params.templateName}｜机构：${params.org}`,
     `标题：${params.title}`,
-    `单号：${params.reportId}`,
     '可在「我的报送」查看进度。',
   ].join('\n');
 
+const QUICK_SESSION_TIP = `✅ ${Math.round(QUICK_REPORT_SESSION_MS / 1000)} 秒内支持补充附件，超时自动完成提交；
+⚠️ 若发送新报送模板，系统会先提交当前这条待报送内容。
+回复【取消】退出快捷报送。`;
+
 export const GUIDE_AFTER_MENU = `【快捷报送】
-请按下列模板发送结构化文字（可复制后填写）：
+请按下列模板发送（可复制后填写）：
 
 ${STRUCTURED_CLUE_TEMPLATE}
 
-可点「+」补充图片、视频、文件等附件，随本条报送一并提交。
-流程：文字抽取 → 确认提交。
-完整表单请走菜单「手动报送」。
-回复【取消】退出。`;
+${QUICK_SESSION_TIP}`;
 
 export const GUIDE_AFTER_KEYWORD = `已进入快捷报送。
-请按下列模板发送结构化文字（可复制后填写）：
+请按下列模板发送（可复制后填写）：
 
 ${STRUCTURED_CLUE_TEMPLATE}
 
-可点「+」补充图片、视频、文件等附件。
-回复【取消】退出；回复【表单】改为页面填写。`;
+${QUICK_SESSION_TIP}`;
 
-export const LIGHT_TIP = `如需快速报送：点击菜单「快捷报送」，或发送【报送】后按模板粘贴：
+export const LIGHT_TIP = `如需快速报送：点菜单「快捷报送」或发【报送】，按模板填写：
 
-${STRUCTURED_CLUE_TEMPLATE}
-
-图片、视频、文件请在生成线索后作为当次附件上传。
-完整填写请使用「手动报送」。`;
+${STRUCTURED_CLUE_TEMPLATE}`;

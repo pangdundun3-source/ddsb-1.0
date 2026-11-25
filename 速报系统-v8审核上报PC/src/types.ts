@@ -166,6 +166,8 @@ export interface TemplateExtraField {
   min?: number;
   max?: number;
   defaultValue?: TemplateFieldValue;
+  /** 链接字段提取档位（与后台模板配置 linkFeatures 对齐） */
+  linkFeatures?: Array<'ai_text_extract' | 'ocr' | 'ai_multimodal_deep'>;
 }
 
 export interface ReportTemplateDef {

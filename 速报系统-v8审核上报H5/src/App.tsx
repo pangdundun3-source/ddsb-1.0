@@ -663,24 +663,17 @@ export default function App() {
           showToast('已返回“点点速豹”公众号');
         }}
         canGoBack={
-          !!selectedAnnouncement ||
           viewMode === 'notifications' ||
           isFormMode ||
           isCreatingNewReport ||
           !!editingReport ||
-          !!selectedReport ||
           !!profileSubPage ||
-          isProfileDetail ||
-          isActivationDetail
+          isActivationH5View
         }
         onBack={() => {
-          if (selectedAnnouncement) {
-            setSelectedAnnouncement(null);
-          } else if (isActivationH5View) {
+          if (isActivationH5View) {
             setIsActivationH5View(false);
             setIsOfficialAccount(true);
-          } else if (selectedReport) {
-            handleCloseReportDetail();
           } else if (viewMode === 'notifications') {
             setViewMode('main');
             setProfileSubPage(null);
@@ -689,10 +682,6 @@ export default function App() {
             setProfileSubPage(null);
           } else if (isFormMode || isCreatingNewReport || editingReport) {
             handleCloseForm();
-          } else if (isProfileDetail) {
-            setIsProfileDetail(false);
-          } else if (isActivationDetail) {
-            setIsActivationDetail(false);
           }
         }}
         pageTitle={isActivationH5View ? '哨兵系统' : isOfficialAccount ? '点点速豹' : getPageTitle()}

@@ -49,11 +49,15 @@ import {
   Sliders,
   SlidersHorizontal,
   Wand2,
-  Camera,
   X as WinCloseIcon
 } from 'lucide-react';
 import { TemplateOtherConfigPanel } from '../components/TemplateOtherConfigPanel';
 import { alertDialog, confirmDialog } from '../components/common/ConfirmDialog';
+import { LinkExtractCapabilityPicker } from '../components/business/LinkExtractCapabilityPicker';
+import {
+  LinkAiExtractPreviewBar,
+  LinkScreenshotPreviewButton
+} from '../components/business/LinkFieldPreviewExtras';
 import {
   VALUE_ADDED_PROVISION_EVENT,
   VALUE_ADDED_PROVISION_STORAGE_KEY,
@@ -67,12 +71,15 @@ import {
   isValueAddedCatalogApplied,
 } from '../shared/valueAddedCatalog';
 import { publishValueAddedClientStatus } from '../shared/valueAddedClientStatus';
+import { alignAiValueAddedList } from '../shared/valueAddedAiAlign';
 import {
-  LINK_MULTIMODAL_MODE_OPTIONS,
-  formatLinkMultimodalModesLabel,
-  isLinkMultimodalValueAdded,
-  normalizeLinkMultimodalModes,
-} from '../shared/linkMultimodalModes';
+  DEFAULT_LINK_FIELD_FEATURES,
+  type LinkFieldFeature,
+  hasLinkAiExtract,
+  linkExtractTierLabel,
+  normalizeLinkFieldFeatures,
+  resolveLinkExtractTier
+} from '../shared/linkFieldFeatures';
 import { INITIAL_ORG_NODES, INITIAL_PERSONNEL } from '../data/userOrgShared';
 
 export type FieldType =
@@ -104,6 +111,8 @@ export interface TemplateField {
   required: boolean;
   placeholder?: string;
   options?: string[];
+  /** 链接字段「提取」能力档位：文本 / 文本+OCR / 全量深度解析（截图固定开启） */
+  linkFeatures?: LinkFieldFeature[];
   /** 固定字段锁定：不可删除/排序/改类型 */
   locked?: boolean;
   /** 文本字段以多行输入框展示 */
@@ -248,8 +257,6 @@ interface ConfigModuleItem {
   isDefault?: boolean;
   status: '启用' | '停用';
   activatedStatus?: '已开通' | '未开通';
-  /** AI 链接多模态识别：应用端机构开通的提取能力 */
-  linkMultimodalModes?: Array<'basic' | 'deep'>;
   /** 创建时间；缺省时排序回退到 updateTime */
   createTime?: string;
   updateTime: string;
@@ -555,6 +562,10 @@ const changeFieldControl = (field: TemplateField, control: FieldControl): Templa
         : ['选项一', '选项二', '选项三']
       : type === 'identity'
         ? field.options || ['超级管理员', '机构管理员', '上报员', '审核员']
+        : undefined,
+    linkFeatures:
+      type === 'link'
+        ? normalizeLinkFieldFeatures(field.type === 'link' ? field.linkFeatures : undefined)
         : undefined,
     ...(type === 'static_text' ? { required: false } : {}),
     ...(type === 'file' ? { placeholder: FILE_FIELD_HINT } : {}),
@@ -1103,7 +1114,7 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       },
       {
         id: 'va_dup',
-        name: '报送首发重复识别',
+        name: '首发查重',
         dictCategoryName: '增值业务',
         dictCode: 'VA_FIRST_DUPLICATE_IDENTIFY',
         status: '启用',
@@ -1147,15 +1158,36 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       },
       {
         id: 'va_7',
-        name: 'AI链接多模态识别',
+        name: 'AI文本提取',
         dictCategoryName: '增值业务',
-        dictCode: 'VA_LINK_MULTIMODAL_AI',
+        dictCode: 'VA_AI_TEXT_EXTRACT',
         status: '启用',
         activatedStatus: '已开通',
-        updateTime: '2026-03-23 10:00:00',
+        updateTime: '2026-11-25 10:00:00',
         description:
-          '报送模板支持粘贴原文链接后一键 AI 多模态提取：自动识别标题、摘要、属地与发布时间并回填表单，提升线索结构化录入效率',
-        linkMultimodalModes: ['basic', 'deep'],
+          '从粘贴正文或附件文本中抽取标题、摘要、属地、时间等并回填模板字段，提升结构化录入效率',
+        isDefault: true
+      },
+      {
+        id: 'va_8',
+        name: 'OCR识别',
+        dictCategoryName: '增值业务',
+        dictCode: 'VA_OCR_RECOGNIZE',
+        status: '启用',
+        activatedStatus: '已开通',
+        updateTime: '2026-11-25 10:00:00',
+        description: '对图片/截图做文字识别，生成可编辑文本并辅助填入报送字段',
+        isDefault: true
+      },
+      {
+        id: 'va_9',
+        name: 'AI多模态深度解析',
+        dictCategoryName: '增值业务',
+        dictCode: 'VA_AI_MULTIMODAL_DEEP',
+        status: '启用',
+        activatedStatus: '已开通',
+        updateTime: '2026-11-25 10:00:00',
+        description: '对链接、图文、视频等多模态素材做深度结构化解析并回填关键字段',
         isDefault: true
       }
     ]
@@ -1167,16 +1199,16 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
       const orgName = readCurrentOrgName();
       setDataStore((prev) => {
         const prevList = prev.value_added || [];
-        const withCatalog = applyValueAddedCatalog(prevList);
+        const aligned = alignAiValueAddedList(prevList);
+        const withCatalog = alignAiValueAddedList(applyValueAddedCatalog(aligned));
         const nextList = applyValueAddedProvision(withCatalog, orgName);
         const unchanged =
+          prevList.length === nextList.length &&
           isValueAddedCatalogApplied(prevList, nextList) &&
           prevList.every(
             (item, idx) =>
               item.status === nextList[idx]?.status &&
-              item.activatedStatus === nextList[idx]?.activatedStatus &&
-              JSON.stringify(normalizeLinkMultimodalModes(item.linkMultimodalModes)) ===
-                JSON.stringify(normalizeLinkMultimodalModes(nextList[idx]?.linkMultimodalModes))
+              item.activatedStatus === nextList[idx]?.activatedStatus
           );
         if (unchanged) return prev;
         return { ...prev, value_added: nextList };
@@ -2759,7 +2791,8 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
         ? [...systemRoleOptions]
         : OPTION_FIELD_TYPES.includes(type)
           ? ['选项一', '选项二', '选项三']
-          : undefined
+          : undefined,
+      linkFeatures: type === 'link' ? [...DEFAULT_LINK_FIELD_FEATURES] : undefined
     };
     setFormFields(prev => [...prev, newField]);
     setFieldAddNotice(`${meta.label}添加成功`);
@@ -3186,25 +3219,21 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                   )}
 
                   {field.type === 'link' && (
-                    <div className="flex items-center gap-2">
-                      <div className={`relative flex-1 min-w-0 flex items-center border border-slate-200 px-3 ${fieldBox} focus-within:border-[#1E5ABB]`}>
-                        <LinkIcon className="w-3.5 h-3.5 text-slate-400 mr-2 shrink-0 pointer-events-none" />
-                        <input
-                          type="url"
-                          value={fieldValue}
-                          onChange={(e) => handlePreviewValueChange(field.id, e.target.value)}
-                          placeholder={field.placeholder || 'https://...'}
-                          className="w-full text-xs text-slate-700 bg-transparent focus:outline-none placeholder:text-slate-400"
-                        />
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className={`relative flex-1 min-w-0 flex items-center border border-slate-200 px-3 ${fieldBox} focus-within:border-[#1E5ABB]`}>
+                          <LinkIcon className="w-3.5 h-3.5 text-slate-400 mr-2 shrink-0 pointer-events-none" />
+                          <input
+                            type="url"
+                            value={fieldValue}
+                            onChange={(e) => handlePreviewValueChange(field.id, e.target.value)}
+                            placeholder={field.placeholder || 'https://...'}
+                            className="w-full text-xs text-slate-700 bg-transparent focus:outline-none placeholder:text-slate-400"
+                          />
+                        </div>
+                        <LinkScreenshotPreviewButton />
                       </div>
-                      <button
-                        type="button"
-                        className="shrink-0 self-stretch px-3 flex items-center gap-1 rounded-lg border border-[#1E5ABB] text-[#1E5ABB] bg-white hover:bg-blue-50 text-xs font-medium cursor-pointer"
-                        title="模拟截取原文"
-                      >
-                        <Camera className="w-3.5 h-3.5" />
-                        <span>截图</span>
-                      </button>
+                      <LinkAiExtractPreviewBar field={field} />
                     </div>
                   )}
 
@@ -5666,12 +5695,8 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                           value={controlValue}
                                           onChange={e => {
                                             if (fieldLocked) return;
-                                            const next = e.target.value;
-                                            if (next === 'textarea') {
-                                              handleUpdateField(index, { type: 'text', multiline: true });
-                                            } else {
-                                              handleUpdateField(index, { type: next as FieldType, multiline: undefined });
-                                            }
+                                            const next = e.target.value as FieldControl;
+                                            handleUpdateField(index, changeFieldControl(field, next));
                                           }}
                                           aria-label="字段类型"
                                           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
@@ -5716,6 +5741,19 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                         placeholder="设置填报提示引导词 (Placeholder)..."
                                         className="w-full px-3 py-2 border border-gray-200 rounded-md text-[13px] text-gray-500 bg-gray-50/70 focus:outline-none hover:border-gray-300 focus:border-[#1890ff] focus:bg-white focus:text-gray-700 disabled:bg-gray-100 disabled:text-gray-500"
                                       />
+                                    )}
+
+                                    {field.type === 'link' && !isReadOnly && (
+                                      <LinkExtractCapabilityPicker
+                                        linkFeatures={field.linkFeatures}
+                                        valueAddedItems={dataStore.value_added}
+                                        onChange={(next) => handleUpdateField(index, { linkFeatures: next })}
+                                      />
+                                    )}
+                                    {field.type === 'link' && isReadOnly && hasLinkAiExtract(field) && (
+                                      <div className="text-[11px] text-violet-600">
+                                        提取能力：{linkExtractTierLabel(resolveLinkExtractTier(field.linkFeatures)) || '未配置'}
+                                      </div>
                                     )}
 
                                     {OPTION_FIELD_TYPES.includes(field.type) && (
@@ -6663,54 +6701,6 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                   </div>
                                 )}
                               </div>
-                              {/* 紧贴标题下方同一内容区，不另起卡片行 */}
-                              {isLinkMultimodalValueAdded(item) && isActivated && (() => {
-                                const openedModes = normalizeLinkMultimodalModes(item.linkMultimodalModes);
-                                const hasExpandable = LINK_MULTIMODAL_MODE_OPTIONS.some(
-                                  (opt) => !openedModes.includes(opt.id)
-                                );
-                                return (
-                                  <div className="relative group/lm-tip mt-1 flex flex-nowrap items-center gap-1">
-                                    {LINK_MULTIMODAL_MODE_OPTIONS.map((opt) => {
-                                      const opened = openedModes.includes(opt.id);
-                                      const shortLabel =
-                                        opt.id === 'basic' ? '基础提取' : '图文视频深度提取';
-                                      return (
-                                        <span
-                                          key={opt.id}
-                                          className={`inline-flex items-center shrink-0 px-1.5 py-px rounded text-[10px] font-bold border whitespace-nowrap ${
-                                            opened
-                                              ? isEnabled
-                                                ? 'bg-violet-100 text-violet-700 border-violet-200'
-                                                : 'bg-gray-100 text-gray-500 border-gray-200'
-                                              : 'bg-white text-violet-400/90 border-dashed border-violet-300'
-                                          }`}
-                                          title={
-                                            opened
-                                              ? `已开通：${opt.label}`
-                                              : `未开通：${opt.label}（可扩展开通）`
-                                          }
-                                        >
-                                          {shortLabel}
-                                        </span>
-                                      );
-                                    })}
-                                    <span className="pointer-events-none absolute left-0 top-full z-20 mt-1 w-max max-w-[260px] rounded-md bg-gray-900 px-2.5 py-1.5 text-[10px] leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/lm-tip:opacity-100">
-                                      <span className="block">
-                                        已开通：{formatLinkMultimodalModesLabel(openedModes)}
-                                      </span>
-                                      {hasExpandable && (
-                                        <span className="block mt-0.5 text-amber-200/90">
-                                          未开通能力可联系应用管理端扩展开通
-                                        </span>
-                                      )}
-                                      <span className="block mt-0.5 text-white/60">
-                                        由应用管理端机构业务配置开通
-                                      </span>
-                                    </span>
-                                  </div>
-                                );
-                              })()}
                             </div>
                           </div>
 
@@ -9420,7 +9410,18 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                           <div className="relative">
                                             <select
                                               value={field.type}
-                                              onChange={e => handleUpdateField(index, { type: e.target.value as FieldType })}
+                                              onChange={e => {
+                                                const nextType = e.target.value as FieldType;
+                                                handleUpdateField(index, {
+                                                  type: nextType,
+                                                  linkFeatures:
+                                                    nextType === 'link'
+                                                      ? field.type === 'link'
+                                                        ? field.linkFeatures
+                                                        : [...DEFAULT_LINK_FIELD_FEATURES]
+                                                      : undefined
+                                                });
+                                              }}
                                               className="w-full pl-7 pr-2 py-1.5 bg-gray-50 border border-gray-200 rounded text-xs text-gray-700 font-medium focus:outline-none focus:ring-1 focus:ring-[#1E5ABB] cursor-pointer"
                                             >
                                               {(formTemplateType === '激活' ? activationFieldTypeOptions : reportFieldTypeOptions).map(type => (
@@ -9454,6 +9455,16 @@ export const BusinessConfig: React.FC<BusinessConfigProps> = ({
                                             onChange={e => handleUpdateField(index, { placeholder: e.target.value })}
                                             placeholder="给提报人员看的填写提示，例如：请简要说明事件经过"
                                             className="w-full px-2.5 py-1.5 text-xs bg-gray-50/60 border border-gray-200 rounded text-gray-600 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1E5ABB]"
+                                          />
+                                        )}
+                                        {field.type === 'link' && (
+                                          <LinkExtractCapabilityPicker
+                                            compact
+                                            linkFeatures={field.linkFeatures}
+                                            valueAddedItems={dataStore.value_added}
+                                            onChange={(next) =>
+                                              handleUpdateField(index, { linkFeatures: next })
+                                            }
                                           />
                                         )}
                                         {field.type === 'select' && (

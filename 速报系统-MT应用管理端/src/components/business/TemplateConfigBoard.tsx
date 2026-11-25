@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { alertDialog, confirmDialog } from '../common/ConfirmDialog';
 import { ControlNoticeTip } from './ControlNoticeTip';
+import { LinkExtractCapabilityPicker } from './LinkExtractCapabilityPicker';
+import { LinkAiExtractPreviewBar } from './LinkFieldPreviewExtras';
+import {
+  type LinkFieldFeature,
+  type ValueAddedProvisionLike,
+  normalizeLinkFieldFeatures
+} from '../../shared/linkFieldFeatures';
 import {
   FileText,
   Zap,
@@ -37,7 +44,6 @@ import {
   Award,
   GitBranch,
   Wand2,
-  ExternalLink,
   ChevronDown,
   ArrowUpDown,
   Clock,
@@ -83,6 +89,8 @@ export interface TemplateFieldItem {
   required: boolean;
   placeholder?: string;
   options?: string[];
+  /** 链接字段「提取」能力：文本 / OCR / 多模态深度解析（截图固定开启） */
+  linkFeatures?: LinkFieldFeature[];
   /** 来自全局固定字段规则：true 锁定不可改，false 默认带入可改；未设置时按旧版固定字段判断 */
   locked?: boolean;
   /** 文本字段以多行输入框展示 */
@@ -168,6 +176,8 @@ interface TemplateConfigBoardProps {
   blockExternalDependentFlows?: boolean;
   /** 模式一/二审核流程 id（不论启停），用于启用模板时校验 */
   externalDependentFlowIds?: string[];
+  /** 当前作用域增值业务列表，用于链接「提取能力」VIP 开通校验 */
+  valueAddedItems?: ValueAddedProvisionLike[];
 }
 
 export interface ScoringRuleOptionItem {
@@ -732,6 +742,7 @@ const readStoredColumnWidths = (): { left: number; right: number } => {
 export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   institutionId,
   isGlobalScope = false,
+  valueAddedItems,
   onSaveNotice,
   onNavigateToWorkflow,
   onNavigateToScoring,
@@ -1173,6 +1184,15 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     )
   );
 
+  // 报送模板：打分规则与审核流程都关联后，保存按钮才可点亮；脏检测逻辑不变
+  const isReportOtherConfigReady =
+    Boolean(currentScoreRuleId) && Boolean(currentAuditFlowId);
+  const canHighlightOtherConfigSave =
+    isOtherConfigDirty &&
+    (activeTemplate?.templateType !== '报送' || isReportOtherConfigReady);
+  const isOtherConfigSaveDisabled =
+    activeTemplate?.templateType === '报送' && !isReportOtherConfigReady;
+
   const confirmDiscardPending = async () =>
     !isOtherConfigDirty ||
     (await confirmDialog('右侧「其他业务配置」有未保存的修改，切换后将丢失，确认继续吗？', { okText: '继续切换' }));
@@ -1588,6 +1608,10 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
         : type === 'identity'
         ? field.options || ['超级管理员', '机构管理员', '上报员', '审核员']
         : undefined,
+      linkFeatures:
+        type === 'link'
+          ? normalizeLinkFieldFeatures(field.type === 'link' ? field.linkFeatures : undefined)
+          : undefined,
       ...(type === 'static_text' ? { required: false } : {}),
       ...(type === 'file' ? { placeholder: FILE_FIELD_HINT } : {}),
       ...((type === 'static_text') !== (field.type === 'static_text')
@@ -1599,6 +1623,10 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
   // Update right side business config (score rules / verification switches / adapted roles)
   const handleSaveOtherConfig = async () => {
     if (!activeTemplate) return;
+    if (activeTemplate.templateType === '报送' && !isReportOtherConfigReady) {
+      await alertDialog('请关联规则打分和审核流程');
+      return;
+    }
     if (
       activeTemplate.templateType === '报送' &&
       blockExternalDependentFlows &&
@@ -1631,8 +1659,15 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     showToast('已撤回更改，恢复为已保存配置');
   };
 
-  // Select score rule (pending modification)
+  const ADD_SCORE_RULE_OPTION = '__add_score_rule__';
+  const ADD_AUDIT_FLOW_OPTION = '__add_audit_flow__';
+
+  // Select score rule (pending modification)；下拉末项可直接新增
   const handleSelectScoreRule = (ruleId: string) => {
+    if (ruleId === ADD_SCORE_RULE_OPTION) {
+      handleManageScoringRules();
+      return;
+    }
     if (!activeTemplate) return;
     setPendingOtherConfig(prev => ({
       templateId: activeTemplate.id,
@@ -1673,8 +1708,30 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
     }));
   };
 
-  // Switch and select audit flow (pending modification)
+  // 快捷新增审核流程（由上层打开弹窗，不跳转模块）
+  const handleManageWorkflowModel = () => {
+    if (onNavigateToWorkflow) {
+      onNavigateToWorkflow();
+    } else {
+      showToast('请在业务配置中新增审核流程');
+    }
+  };
+
+  // 快捷新增打分规则（由上层打开弹窗，不跳转模块）
+  const handleManageScoringRules = () => {
+    if (onNavigateToScoring) {
+      onNavigateToScoring();
+    } else {
+      showToast('请在业务配置中新增打分规则');
+    }
+  };
+
+  // Switch and select audit flow (pending modification)；下拉末项可直接新增
   const handleSelectAuditFlow = (flowId: string) => {
+    if (flowId === ADD_AUDIT_FLOW_OPTION) {
+      handleManageWorkflowModel();
+      return;
+    }
     if (!activeTemplate) return;
     setPendingOtherConfig(prev => ({
       templateId: activeTemplate.id,
@@ -1685,24 +1742,6 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
       verificationOptions: prev?.templateId === activeTemplate.id && prev.verificationOptions !== undefined ? prev.verificationOptions : (activeTemplate.verificationOptions || defaultVerificationOptions),
       adaptedRoles: prev?.templateId === activeTemplate.id && prev.adaptedRoles !== undefined ? prev.adaptedRoles : (activeTemplate.adaptedRoles || defaultAdaptedRoles)
     }));
-  };
-
-  // Jump to workflow management model
-  const handleManageWorkflowModel = () => {
-    if (onNavigateToWorkflow) {
-      onNavigateToWorkflow();
-    } else {
-      showToast('已直达审核流程配置维护模块');
-    }
-  };
-
-  // Jump to scoring rules management model
-  const handleManageScoringRules = () => {
-    if (onNavigateToScoring) {
-      onNavigateToScoring();
-    } else {
-      showToast('已直达审核打分规则维护模块');
-    }
   };
 
   // Update active template verification option (pending modification)
@@ -2192,6 +2231,8 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                                 </button>
                               )}
                             </div>
+
+                            <LinkAiExtractPreviewBar field={field} />
 
                             {linkInvalid &&
                               (shot?.status === 'invalid' ? (
@@ -2756,6 +2797,20 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                       </label>
                     )}
                     </div>
+                    )}
+
+                    {field.type === 'link' && (
+                      <LinkExtractCapabilityPicker
+                        linkFeatures={field.linkFeatures}
+                        valueAddedItems={valueAddedItems}
+                        onChange={(next) => {
+                          setDesignerFields(
+                            designerFields.map((f) =>
+                              f.id === field.id ? { ...f, linkFeatures: next } : f
+                            )
+                          );
+                        }}
+                      />
                     )}
 
                     {/* Sub-box: Options for radio / checkbox / dropdown fields */}
@@ -3439,18 +3494,31 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                 </button>
               )}
 
-              {/* Dynamic Save Configuration Button */}
+              {/* Dynamic Save Configuration Button：报送模板两项未齐时置灰，齐选后按脏状态点亮 */}
               <button
                 type="button"
                 onClick={handleSaveOtherConfig}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                  isOtherConfigDirty
-                    ? 'bg-[#1890ff] hover:bg-blue-600 text-white shadow-2xs'
-                    : 'border border-gray-200 hover:bg-gray-50 text-gray-600 bg-white'
+                disabled={isOtherConfigSaveDisabled}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  isOtherConfigSaveDisabled
+                    ? 'border border-gray-100 bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : canHighlightOtherConfigSave
+                      ? 'bg-[#1890ff] hover:bg-blue-600 text-white shadow-2xs cursor-pointer'
+                      : 'border border-gray-200 hover:bg-gray-50 text-gray-600 bg-white cursor-pointer'
                 }`}
-                title={isOtherConfigDirty ? '配置已修改，点击保存生效' : '配置已是最新状态'}
+                title={
+                  isOtherConfigSaveDisabled
+                    ? '请关联规则打分和审核流程'
+                    : canHighlightOtherConfigSave
+                      ? '配置已修改，点击保存生效'
+                      : '配置已是最新状态'
+                }
               >
-                <Save className={`w-3.5 h-3.5 ${isOtherConfigDirty ? 'text-white' : 'text-gray-400'}`} />
+                <Save
+                  className={`w-3.5 h-3.5 ${
+                    canHighlightOtherConfigSave ? 'text-white' : 'text-gray-400'
+                  }`}
+                />
                 <span>保存配置</span>
               </button>
             </div>
@@ -3463,6 +3531,44 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                 f => f.id === currentAuditFlowId || f.name === currentAuditFlowId
               );
               const selectedScoreRule = scoringRules.find(r => r.id === currentScoreRuleId);
+              const hasScoreLinked = Boolean(selectedScoreRule);
+              const hasFlowLinked = Boolean(selectedFlow);
+              const associationGuide =
+                !hasScoreLinked && !hasFlowLinked
+                  ? {
+                      text: '请关联规则打分和审核流程',
+                      nextTab: null as 'score' | 'flow' | null
+                    }
+                  : hasScoreLinked && !hasFlowLinked
+                    ? {
+                        text: '请关联「审核流程」',
+                        nextTab: 'flow' as const
+                      }
+                    : !hasScoreLinked && hasFlowLinked
+                      ? {
+                          text: '请关联「规则打分」',
+                          nextTab: 'score' as const
+                        }
+                      : null;
+
+              const associationGuideTip = associationGuide ? (
+                associationGuide.nextTab && rightSubTab !== associationGuide.nextTab ? (
+                  <button
+                    type="button"
+                    onClick={() => setRightSubTab(associationGuide.nextTab!)}
+                    className="w-full text-left rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-[11px] leading-relaxed text-amber-800 hover:bg-amber-100/80 cursor-pointer inline-flex items-center justify-between gap-2"
+                  >
+                    <span>{associationGuide.text}</span>
+                    <ArrowRight className="w-3.5 h-3.5 shrink-0 text-amber-600" />
+                  </button>
+                ) : (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+                    <p className="text-[11px] leading-relaxed text-amber-800">
+                      {associationGuide.text}
+                    </p>
+                  </div>
+                )
+              ) : null;
 
               return (
                 <div className="space-y-3.5">
@@ -3479,6 +3585,11 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                     >
                       <Award className={`w-3.5 h-3.5 ${rightSubTab === 'score' ? 'text-gray-700' : 'text-gray-400'}`} />
                       <span>规则打分</span>
+                      {hasScoreLinked ? (
+                        <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
+                      ) : (
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" title="待关联" />
+                      )}
                     </button>
 
                     <button
@@ -3492,6 +3603,11 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                     >
                       <GitBranch className={`w-3.5 h-3.5 ${rightSubTab === 'flow' ? 'text-[#873bf5]' : 'text-gray-400'}`} />
                       <span>审核流程</span>
+                      {hasFlowLinked ? (
+                        <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
+                      ) : (
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" title="待关联" />
+                      )}
                     </button>
                   </div>
 
@@ -3517,6 +3633,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                                 {rule.name} ({rule.maxScore}分)
                               </option>
                             ))}
+                            <option value={ADD_SCORE_RULE_OPTION}>＋ 新增打分规则</option>
                           </select>
                           <ChevronDown className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                         </div>
@@ -3563,23 +3680,9 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                           </div>
                         </div>
                       </div>
-                      ) : (
-                        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                          尚未关联打分规则。关联并保存后，才可启用该模板。
-                        </p>
-                      )}
+                      ) : null}
 
-                      {/* Bottom Link */}
-                      <div className="text-center pt-1">
-                        <button
-                          type="button"
-                          onClick={handleManageScoringRules}
-                          className="text-xs text-[#1890ff] hover:underline flex items-center justify-center gap-1 mx-auto cursor-pointer font-medium group"
-                        >
-                          <span>管理打分规则库</span>
-                          <ExternalLink className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-                        </button>
-                      </div>
+                      {associationGuideTip}
                     </div>
                   )}
 
@@ -3605,6 +3708,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                                 {flow.name}
                               </option>
                             ))}
+                            <option value={ADD_AUDIT_FLOW_OPTION}>＋ 新增审核流程</option>
                           </select>
                           <ChevronDown className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                         </div>
@@ -3654,23 +3758,9 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                           <span>{selectedFlow.applyScopeText}</span>
                         </div>
                       </div>
-                      ) : (
-                        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                          尚未关联审核流程。关联并保存后，才可启用该模板。
-                        </p>
-                      )}
+                      ) : null}
 
-                      {/* Bottom Link: 管理审核流程模型 */}
-                      <div className="text-center pt-1.5">
-                        <button
-                          type="button"
-                          onClick={handleManageWorkflowModel}
-                          className="inline-flex items-center justify-center gap-1 text-xs font-medium text-[#1890ff] hover:text-blue-700 transition-colors cursor-pointer group"
-                        >
-                          <span>管理审核流程模型</span>
-                          <ExternalLink className="w-3 h-3 text-[#1890ff] group-hover:translate-x-0.5 transition-transform" />
-                        </button>
-                      </div>
+                      {associationGuideTip}
                     </div>
                   )}
                 </div>

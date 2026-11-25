@@ -4,9 +4,10 @@ import {
   Save,
   RotateCcw,
   Check,
+  CheckCircle2,
   Award,
   GitFork,
-  Plus,
+  ArrowRight,
   Clock,
   UserCheck,
   Smartphone,
@@ -201,22 +202,20 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
   const enabledScoreRules = scoreRules.filter((item) => !item.status || item.status === '启用');
   const enabledAuditFlows = auditFlows.filter((item) => !item.status || item.status === '启用');
 
-  // 1. Report template state (Score rules & Audit flows)
+  // 1. Report template state (Score rules & Audit flows) — 与 MT 一致：未关联时空选，须两项都关联后才可保存
   const [activeTab, setActiveTab] = useState<'score' | 'flow'>('score');
+  const ADD_SCORE_RULE_OPTION = '__add_score_rule__';
+  const ADD_AUDIT_FLOW_OPTION = '__add_audit_flow__';
 
-  const pickAvailableId = (preferred: string | undefined, options: { id: string }[], fallback = 'none') => {
-    if (preferred && options.some((item) => item.id === preferred)) return preferred;
-    return options[0]?.id || fallback;
+  const pickAvailableId = (preferred: string | undefined, options: { id: string }[]) => {
+    if (preferred && preferred !== 'none' && options.some((item) => item.id === preferred)) {
+      return preferred;
+    }
+    return '';
   };
 
-  const initialScoreRuleId = pickAvailableId(
-    template.relatedScoreRuleId || (template.id === '3' ? '202' : '201'),
-    enabledScoreRules
-  );
-  const initialFlowId = pickAvailableId(
-    template.relatedFlowId || (template.id === '3' ? '602' : '601'),
-    enabledAuditFlows
-  );
+  const initialScoreRuleId = pickAvailableId(template.relatedScoreRuleId, enabledScoreRules);
+  const initialFlowId = pickAvailableId(template.relatedFlowId, enabledAuditFlows);
 
   const [selectedScoreRuleId, setSelectedScoreRuleId] = useState<string>(initialScoreRuleId);
   const [scoreTiming, setScoreTiming] = useState<'first_audit' | 'final_audit'>(
@@ -241,18 +240,10 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   useEffect(() => {
-    const nextScoreRuleId = pickAvailableId(
-      template.relatedScoreRuleId || (template.id === '3' ? '202' : '201'),
-      enabledScoreRules
-    );
-    const nextFlowId = pickAvailableId(
-      template.relatedFlowId || (template.id === '3' ? '602' : '601'),
-      enabledAuditFlows
-    );
-    setSelectedScoreRuleId(nextScoreRuleId);
+    setSelectedScoreRuleId(pickAvailableId(template.relatedScoreRuleId, enabledScoreRules));
     setScoreTiming(template.scoreTiming || 'final_audit');
     setSyncToPerformance(template.syncToPerformance ?? true);
-    setSelectedFlowId(nextFlowId);
+    setSelectedFlowId(pickAvailableId(template.relatedFlowId, enabledAuditFlows));
 
     // Activation template values
     setVerifyPhone(template.verifyPhone ?? true);
@@ -281,23 +272,48 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
 
   const activeScoreRule = enabledScoreRules.find((r) => r.id === selectedScoreRuleId);
   const activeFlow = enabledAuditFlows.find((f) => f.id === selectedFlowId);
+  const hasScoreLinked = Boolean(activeScoreRule);
+  const hasFlowLinked = Boolean(activeFlow);
+  const isReportAssociationsReady = hasScoreLinked && hasFlowLinked;
+  const isSaveDisabled = !isActivationTemplate && !isReportAssociationsReady;
+  const canHighlightSave = isDirty && (isActivationTemplate || isReportAssociationsReady);
+
+  const associationGuide =
+    isActivationTemplate
+      ? null
+      : !hasScoreLinked && !hasFlowLinked
+        ? { text: '请关联规则打分和审核流程', nextTab: null as 'score' | 'flow' | null }
+        : hasScoreLinked && !hasFlowLinked
+          ? { text: '请关联「审核流程」', nextTab: 'flow' as const }
+          : !hasScoreLinked && hasFlowLinked
+            ? { text: '请关联「规则打分」', nextTab: 'score' as const }
+            : null;
 
   const enabledScoreRuleIds = enabledScoreRules.map((item) => item.id).join(',');
   const enabledAuditFlowIds = enabledAuditFlows.map((item) => item.id).join(',');
 
   useEffect(() => {
-    if (selectedScoreRuleId !== 'none' && !enabledScoreRules.some((item) => item.id === selectedScoreRuleId)) {
-      setSelectedScoreRuleId(enabledScoreRules[0]?.id || 'none');
+    if (
+      selectedScoreRuleId &&
+      selectedScoreRuleId !== 'none' &&
+      !enabledScoreRules.some((item) => item.id === selectedScoreRuleId)
+    ) {
+      setSelectedScoreRuleId('');
       setIsDirty(true);
     }
-    if (selectedFlowId !== 'none' && !enabledAuditFlows.some((item) => item.id === selectedFlowId)) {
-      setSelectedFlowId(enabledAuditFlows[0]?.id || 'none');
+    if (
+      selectedFlowId &&
+      selectedFlowId !== 'none' &&
+      !enabledAuditFlows.some((item) => item.id === selectedFlowId)
+    ) {
+      setSelectedFlowId('');
       setIsDirty(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在启用列表 ID 变化时校正选中项
   }, [enabledScoreRuleIds, enabledAuditFlowIds]);
 
   const handleSave = async () => {
+    if (!isActivationTemplate && !isReportAssociationsReady) return;
     const result = isActivationTemplate
       ? await onSave({
           verifyPhone,
@@ -328,22 +344,32 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
           : ['上报员', '审核员']
       );
     } else {
-      setSelectedScoreRuleId(
-        pickAvailableId(
-          template.relatedScoreRuleId || (template.id === '3' ? '202' : '201'),
-          enabledScoreRules
-        )
-      );
+      setSelectedScoreRuleId(pickAvailableId(template.relatedScoreRuleId, enabledScoreRules));
       setScoreTiming(template.scoreTiming || 'final_audit');
       setSyncToPerformance(template.syncToPerformance ?? true);
-      setSelectedFlowId(
-        pickAvailableId(
-          template.relatedFlowId || (template.id === '3' ? '602' : '601'),
-          enabledAuditFlows
-        )
-      );
+      setSelectedFlowId(pickAvailableId(template.relatedFlowId, enabledAuditFlows));
     }
     setIsDirty(false);
+  };
+
+  const handleSelectScoreRule = (value: string) => {
+    if (value === ADD_SCORE_RULE_OPTION) {
+      onNavigateToModule?.('audit_score');
+      return;
+    }
+    setSelectedScoreRuleId(value);
+    setIsDirty(true);
+    setSavedSuccess(false);
+  };
+
+  const handleSelectAuditFlow = (value: string) => {
+    if (value === ADD_AUDIT_FLOW_OPTION) {
+      onNavigateToModule?.('audit_flow');
+      return;
+    }
+    setSelectedFlowId(value);
+    setIsDirty(true);
+    setSavedSuccess(false);
   };
 
   const toggleAdaptedRole = (roleName: string) => {
@@ -387,12 +413,22 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
           <button
             type="button"
             onClick={handleSave}
-            className={`px-2.5 py-1 text-xs font-bold rounded flex items-center gap-1 cursor-pointer transition-colors shadow-2xs shrink-0 whitespace-nowrap ${
+            disabled={isSaveDisabled}
+            title={
+              isSaveDisabled
+                ? '请关联规则打分和审核流程'
+                : canHighlightSave
+                  ? '配置已修改，点击保存生效'
+                  : '配置已是最新状态'
+            }
+            className={`px-2.5 py-1 text-xs font-bold rounded flex items-center gap-1 transition-colors shadow-2xs shrink-0 whitespace-nowrap ${
               savedSuccess
-                ? 'bg-emerald-600 text-white'
-                : isDirty
-                  ? 'bg-[#1E5ABB] hover:bg-[#134092] text-white ring-2 ring-[#1E5ABB]/20'
-                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                ? 'bg-emerald-600 text-white cursor-pointer'
+                : isSaveDisabled
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : canHighlightSave
+                    ? 'bg-[#1E5ABB] hover:bg-[#134092] text-white ring-2 ring-[#1E5ABB]/20 cursor-pointer'
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700 cursor-pointer'
             }`}
           >
             {savedSuccess ? (
@@ -588,7 +624,7 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
           </div>
         </div>
       ) : (
-        /* 3. Report Template View: Scoring Rule & Audit Flow (Unchanged for 报送 templates) */
+        /* 3. Report Template View：与 MT 端其他业务配置对齐 */
         <>
           {/* Horizontal Segment Switcher */}
           <div className="px-4 py-2.5 bg-gray-50/40 border-b border-gray-100 shrink-0">
@@ -604,6 +640,11 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
               >
                 <Award className="w-3.5 h-3.5" />
                 <span>规则打分</span>
+                {hasScoreLinked ? (
+                  <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
+                ) : (
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" title="待关联" />
+                )}
               </button>
 
               <button
@@ -617,42 +658,65 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
               >
                 <GitFork className="w-3.5 h-3.5" />
                 <span>审核流程</span>
+                {hasFlowLinked ? (
+                  <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
+                ) : (
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" title="待关联" />
+                )}
               </button>
             </div>
           </div>
 
           {/* Content Area */}
           <div className="p-4 overflow-y-auto max-h-[750px] text-xs">
-            {activeTab === 'score' ? (
+            {(() => {
+              const associationGuideTip = associationGuide ? (
+                associationGuide.nextTab && activeTab !== associationGuide.nextTab ? (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab(associationGuide.nextTab!)}
+                    className="w-full text-left rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-[11px] leading-relaxed text-amber-800 hover:bg-amber-100/80 cursor-pointer inline-flex items-center justify-between gap-2"
+                  >
+                    <span>{associationGuide.text}</span>
+                    <ArrowRight className="w-3.5 h-3.5 shrink-0 text-amber-600" />
+                  </button>
+                ) : (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+                    <p className="text-[11px] leading-relaxed text-amber-800">
+                      {associationGuide.text}
+                    </p>
+                  </div>
+                )
+              ) : null;
+
+              return activeTab === 'score' ? (
               /* Tab 1: 规则打分关联 */
               <div className="space-y-4">
-                {/* Rule Selector */}
                 <div>
                   <label className="block text-[11px] text-gray-600 font-medium mb-1">
                     关联打分规则
                   </label>
                   <select
                     value={selectedScoreRuleId}
-                    onChange={e => {
-                      setSelectedScoreRuleId(e.target.value);
-                      setIsDirty(true);
-                      setSavedSuccess(false);
-                    }}
+                    onChange={e => handleSelectScoreRule(e.target.value)}
                     className="w-full px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white font-medium text-gray-800 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
                   >
-                    <option value="none">不关联评分规则 (免评分)</option>
+                    <option value="" disabled>
+                      请选择打分规则
+                    </option>
                     {enabledScoreRules.map((r) => (
                       <option key={r.id} value={r.id}>
                         {r.name} {r.totalScore ? `(${r.totalScore}分)` : ''}
                       </option>
                     ))}
+                    {onNavigateToModule && (
+                      <option value={ADD_SCORE_RULE_OPTION}>＋ 新增打分规则</option>
+                    )}
                   </select>
                 </div>
 
-                {/* Rule Detail */}
                 {activeScoreRule ? (
                   <div className="p-3 bg-amber-50/30 rounded-lg border border-amber-100 space-y-3">
-                    {/* Meta Summary */}
                     <div className="flex items-center justify-between text-[11px]">
                       <span className="font-bold text-gray-800">{activeScoreRule.name}</span>
                       <span className="font-mono font-bold text-amber-700">
@@ -660,7 +724,6 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
                       </span>
                     </div>
 
-                    {/* Score Level Badges */}
                     {activeScoreRule.scoreLevels && activeScoreRule.scoreLevels.length > 0 && (
                       <div>
                         <div className="text-[10px] text-gray-400 mb-1.5 font-medium">分级得分标准</div>
@@ -680,7 +743,6 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
                       </div>
                     )}
 
-                    {/* Timing & Sync Options */}
                     <div className="pt-2 border-t border-amber-100 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-gray-600 text-[11px]">打分时机</span>
@@ -699,56 +761,40 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
                       </div>
                     </div>
                   </div>
-                ) : (
-                  <div className="py-6 text-center text-gray-400 text-xs bg-gray-50/50 rounded-lg border border-dashed border-gray-200">
-                    当前模板免评分，审核过程无需打分
-                  </div>
-                )}
+                ) : null}
 
-                {/* 快捷新增打分规则 */}
-                {onNavigateToModule && (
-                  <button
-                    type="button"
-                    onClick={() => onNavigateToModule('audit_score')}
-                    className="w-full text-center py-1.5 text-[11px] text-[#1E5ABB] hover:bg-blue-50 rounded-md border border-dashed border-blue-200 inline-flex items-center justify-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <span>新增打分规则</span>
-                  </button>
-                )}
+                {associationGuideTip}
               </div>
             ) : (
               /* Tab 2: 审核流程关联 */
               <div className="space-y-4">
-                {/* Flow Selector */}
                 <div>
                   <label className="block text-[11px] text-gray-600 font-medium mb-1">
                     关联审核流程
                   </label>
                   <select
                     value={selectedFlowId}
-                    onChange={e => {
-                      setSelectedFlowId(e.target.value);
-                      setIsDirty(true);
-                      setSavedSuccess(false);
-                    }}
+                    onChange={e => handleSelectAuditFlow(e.target.value)}
                     className="w-full px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white font-medium text-gray-800 focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer"
                   >
-                    <option value="none">免审批流程 (直接入库)</option>
+                    <option value="" disabled>
+                      请选择审核流程
+                    </option>
                     {enabledAuditFlows.map((f) => (
                       <option key={f.id} value={f.id}>
                         {f.name} ({f.flowDepth || f.auditNodes?.length || 1}级)
                       </option>
                     ))}
+                    {onNavigateToModule && (
+                      <option value={ADD_AUDIT_FLOW_OPTION}>＋ 新增审核流程</option>
+                    )}
                   </select>
                 </div>
 
-                {/* Flow Node Timeline */}
                 {activeFlow ? (
                   <div className="p-3 bg-purple-50/30 rounded-lg border border-purple-100 space-y-3">
                     <div className="text-[10px] text-gray-400 font-medium">审批节点链路</div>
 
-                    {/* Node List */}
                     <div className="space-y-1.5">
                       {activeFlow.auditNodes?.map((node, idx) => (
                         <div
@@ -777,7 +823,6 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
                       ))}
                     </div>
 
-                    {/* Footer Note */}
                     <div className="pt-2 border-t border-purple-100 flex items-center justify-between text-[10px] text-gray-400">
                       <span>
                         兜底: {activeFlow.ownerMissingStrategy === 'fallback_role' ? `转${activeFlow.ownerMissingFallbackRole || '机构管理员'}` : '直转上级'}
@@ -785,25 +830,12 @@ export const TemplateOtherConfigPanel: React.FC<TemplateOtherConfigPanelProps> =
                       <span>全辖机构适用</span>
                     </div>
                   </div>
-                ) : (
-                  <div className="py-6 text-center text-gray-400 text-xs bg-gray-50/50 rounded-lg border border-dashed border-gray-200">
-                    当前模板免审批，提报提交后直接入库归档
-                  </div>
-                )}
+                ) : null}
 
-                {/* 快捷新增审核流程 */}
-                {onNavigateToModule && (
-                  <button
-                    type="button"
-                    onClick={() => onNavigateToModule('audit_flow')}
-                    className="w-full text-center py-1.5 text-[11px] text-[#1E5ABB] hover:bg-blue-50 rounded-md border border-dashed border-blue-200 inline-flex items-center justify-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <span>新增审核流程</span>
-                  </button>
-                )}
+                {associationGuideTip}
               </div>
-            )}
+            );
+            })()}
           </div>
         </>
       )}

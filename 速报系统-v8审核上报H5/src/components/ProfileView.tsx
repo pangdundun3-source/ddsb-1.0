@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { UserProfile, UserRole, SpeedReport, PortalUserKind } from '../types';
-import { BackNavigationBar } from './BackNavigationBar';
+import { DetailBottomSheet } from './DetailBottomSheet';
 import {
   User,
   QrCode,
@@ -605,10 +605,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       user.subDepartment && user.subDepartment !== '西坝区网格03' ? user.subDepartment : '西坝区环保局'
     }`;
 
-    return (
-      <div className="relative flex-1 p-3.5 space-y-3 overflow-y-auto bg-slate-50 min-h-full">
+    const detailPanel = (
+      <DetailBottomSheet open onClose={() => setShowUserDetail(false)} zIndexClassName="z-[70]">
+        <div className="relative flex-1 min-h-0 p-3.5 space-y-3 overflow-y-auto bg-slate-50">
         {orgSwitcherSheet}
-        <BackNavigationBar onBack={() => setShowUserDetail(false)} />
 
         {/* User Badge Profile Header Card */}
         <div className="overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-sm">
@@ -865,13 +865,22 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           <p className="font-semibold">台中市网信办 · 个人基础信息服务</p>
           <p className="font-mono">更新时间：2026-08-13 09:15:00</p>
         </div>
-      </div>
+        </div>
+      </DetailBottomSheet>
+    );
+
+    return (
+      <>
+        <div className="flex-1 bg-slate-50" aria-hidden />
+        {phoneScreenEl ? createPortal(detailPanel, phoneScreenEl) : detailPanel}
+      </>
     );
   }
 
   if (isActivationDetailActive) {
-    return (
-      <div className="flex-1 p-3.5 space-y-4 overflow-y-auto bg-slate-50 min-h-full">
+    const activationPanel = (
+      <DetailBottomSheet open onClose={() => setShowActivationDetail(false)} zIndexClassName="z-[70]">
+        <div className="flex-1 min-h-0 p-3.5 space-y-4 overflow-y-auto bg-slate-50">
         {/* 可编辑表单卡片 */}
         <div className="bg-white rounded-2xl p-4 shadow-2xs border border-slate-200/90 space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -948,7 +957,15 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           <p className="font-semibold">台中市网信办 · 激活上报直连通道服务</p>
           <p className="font-mono">更新时间：2026-08-13 09:15:00</p>
         </div>
-      </div>
+        </div>
+      </DetailBottomSheet>
+    );
+
+    return (
+      <>
+        <div className="flex-1 bg-slate-50" aria-hidden />
+        {phoneScreenEl ? createPortal(activationPanel, phoneScreenEl) : activationPanel}
+      </>
     );
   }
 

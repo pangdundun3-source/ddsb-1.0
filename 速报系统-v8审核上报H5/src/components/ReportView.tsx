@@ -14,6 +14,10 @@ import {
   getTemplateFieldDomId,
   getTemplateFieldError,
 } from './TemplateExtraFields';
+import {
+  linkExtractTierLabel,
+  resolveLinkExtractTier,
+} from '../shared/linkFieldFeatures';
 
 interface ReportViewProps {
   reports: SpeedReport[];
@@ -590,27 +594,76 @@ export const ReportView: React.FC<ReportViewProps> = ({
           <div className="min-h-0 overflow-y-auto p-3.5 space-y-3.5 pb-4 bg-gradient-to-b from-violet-50/80 via-slate-50 to-slate-100">
             <BackNavigationBar onBack={handleReturnToPrevious} />
 
-            {/* 顶部多模态能力标识：链接字段靠下时，进页即可感知 */}
-            {selectedTemplate.extraFields.some((field) => field.type === 'link') && (
-              <div className="rounded-xl border border-violet-200/90 bg-gradient-to-r from-violet-600 via-fuchsia-600 to-indigo-600 p-[1px] shadow-sm shadow-violet-500/20">
-                <div className="rounded-[11px] bg-white/95 px-3 py-2.5 flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white flex items-center justify-center shrink-0 shadow-sm">
-                    <Sparkles className="w-4.5 h-4.5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[13px] font-extrabold text-slate-900">多模态智能上报</span>
-                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 border border-violet-200">
-                        AI
-                      </span>
+            {/* 多模态顶栏：链接输入 / 截图 / 提取合并在同一框内 */}
+            {(() => {
+              const linkFields = selectedTemplate.extraFields.filter((f) => f.type === 'link');
+              if (!linkFields.length) return null;
+              const activeTier = linkFields
+                .map((f) => resolveLinkExtractTier(f.linkFeatures))
+                .filter(Boolean);
+              const primaryTier = activeTier[0] || null;
+              const primaryTierLabel = linkExtractTierLabel(primaryTier);
+              return (
+                <div className="rounded-xl border border-violet-200/90 bg-gradient-to-r from-violet-600 via-fuchsia-600 to-indigo-600 p-[1px] shadow-sm shadow-violet-500/20">
+                  <div className="rounded-[11px] bg-white/95 px-3 py-2.5 space-y-2.5 text-xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                        <Sparkles className="w-4.5 h-4.5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[13px] font-extrabold text-slate-900">多模态智能上报</span>
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 border border-violet-200">
+                            <span>AI</span>
+                            {primaryTierLabel && (
+                              <>
+                                <span className="w-px h-2.5 bg-violet-300" aria-hidden />
+                                <span>{primaryTierLabel}</span>
+                              </>
+                            )}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                      粘贴链接后可一键提取标题、描述并回填表单
-                    </p>
+                    <TemplateExtraFields
+                      embedded
+                      fields={linkFields}
+                      values={extraFieldValues}
+                      errors={extraFieldErrors}
+                      onChange={(fieldId, value) => {
+                        setExtraFieldValues((prev) => ({ ...prev, [fieldId]: value }));
+                        if (extraFieldErrors[fieldId]) {
+                          setExtraFieldErrors((prev) => ({ ...prev, [fieldId]: false }));
+                        }
+                      }}
+                      onScreenshotPendingChange={setTemplateShotPending}
+                      onToast={onToast}
+                      onAiExtractFill={(payload) => {
+                        setFormTitle(payload.title);
+                        setFormSummary(payload.summary);
+                        setFormCoreDemand(payload.summary);
+                        setFormMatchedLink(payload.link);
+                        if (payload.district) {
+                          setFormDistrict(payload.district);
+                          setFormAddress(payload.district);
+                        }
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          title: false,
+                          summary: false,
+                          coreDemand: false,
+                          matchedLink: false,
+                          district: false,
+                        }));
+                        if (extraFieldErrors[payload.linkFieldId]) {
+                          setExtraFieldErrors((prev) => ({ ...prev, [payload.linkFieldId]: false }));
+                        }
+                      }}
+                    />
                   </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {isResubmit && (
               <div className="px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 shadow-2xs">
@@ -930,7 +983,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
               )}
 
               <TemplateExtraFields
-                fields={selectedTemplate.extraFields}
+                fields={selectedTemplate.extraFields.filter((f) => f.type !== 'link')}
                 values={extraFieldValues}
                 errors={extraFieldErrors}
                 onChange={(fieldId, value) => {

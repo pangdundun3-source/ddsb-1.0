@@ -36,6 +36,8 @@ import {
   GUIDE_AFTER_KEYWORD,
   GUIDE_AFTER_MENU,
   LIGHT_TIP,
+  MEDIA_NEED_TEXT_TIP,
+  QUICK_REPORT_SESSION_MS,
   QuickAttachment,
   QuickReportDraft,
   QuickReportPhase,
@@ -43,7 +45,7 @@ import {
   buildQuickReportDraft,
   buildSoftExtraValues,
   finalizeDraftWithOrg,
-  formatConfirmPrompt,
+  formatAutoSubmitPrompt,
   formatOrgPrompt,
   formatSuccessPrompt,
   isCancelKeyword,
@@ -112,6 +114,19 @@ interface ChatMessage {
 
 const OA_CHAT_STORAGE_KEY = 'wechat_v8_oa_chat_messages';
 const OA_CHAT_MAX_MESSAGES = 200;
+const OA_QUICK_ORG_DEMO_KEY = 'wechat_v8_oa_quick_org_demo';
+
+/** 演示视角：单机构跳过选机构；多机构走选机构确认 */
+type QuickOrgDemoMode = 'single' | 'multi';
+
+const loadQuickOrgDemoMode = (): QuickOrgDemoMode => {
+  try {
+    const raw = localStorage.getItem(OA_QUICK_ORG_DEMO_KEY);
+    return raw === 'single' ? 'single' : 'multi';
+  } catch {
+    return 'multi';
+  }
+};
 
 const buildDefaultOaMessages = (): ChatMessage[] => [
   {
@@ -123,7 +138,7 @@ const buildDefaultOaMessages = (): ChatMessage[] => [
   {
     id: 'msg_welcome',
     sender: 'account',
-    text: '您好，点点速豹助手为您服务。\n发送【报送】或点击菜单「快捷报送」，按模板填写即可生成线索：\n\n报送标题：\n报送描述：\n涉事属地：\n相关链接：\n\n图片、视频、文件可作为当次附件上传。',
+    text: '您好，点点速豹助手为您服务。\n发送【报送】或点击菜单「快捷报送」，按模板填写即可：\n\n报送标题：\n报送描述：\n涉事属地：\n相关链接：\n\n✅ 60 秒内支持补充附件，超时自动完成提交；\n⚠️ 若发送新报送模板，系统会先提交当前这条待报送内容。\n回复【取消】退出快捷报送。',
   },
 ];
 
@@ -194,6 +209,28 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
   };
   const [quickPhase, setQuickPhase] = useState<QuickReportPhase>('idle');
   const [quickDraft, setQuickDraft] = useState<QuickReportDraft | null>(null);
+  /** 演示入口：单机构 / 多机构（点击「快捷报送」选择） */
+  const [quickOrgDemoMode, setQuickOrgDemoMode] = useState<QuickOrgDemoMode>(loadQuickOrgDemoMode);
+  const [showQuickDemoPicker, setShowQuickDemoPicker] = useState(false);
+  /** 上一条用户消息时间戳：用于会话关联判定（不预挂倒计时） */
+  const lastUserMsgAtRef = useRef<number>(0);
+  const autoSubmitTimerRef = useRef<number | null>(null);
+  const quickDraftRef = useRef<QuickReportDraft | null>(null);
+  const quickPhaseRef = useRef<QuickReportPhase>('idle');
+
+  useEffect(() => {
+    quickDraftRef.current = quickDraft;
+  }, [quickDraft]);
+  useEffect(() => {
+    quickPhaseRef.current = quickPhase;
+  }, [quickPhase]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(OA_QUICK_ORG_DEMO_KEY, quickOrgDemoMode);
+    } catch {
+      /* ignore */
+    }
+  }, [quickOrgDemoMode]);
 
   // New follower activation state (User must activate after following before using platform functions)
   const [isActivated, setIsActivated] = useState<boolean>(() => {
@@ -223,10 +260,15 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
   }, [isFollowing]);
 
   const orgOptions = React.useMemo(() => {
-    const primary = user?.department || '台中市网信办';
-    const extras = user?.associatedDepts || [];
+    const primary = user?.department || '牡丹江东宁市网信办';
+    const extras = user?.associatedDepts?.length
+      ? user.associatedDepts
+      : ['绥化市网信办'];
+    if (quickOrgDemoMode === 'single') {
+      return [primary];
+    }
     return Array.from(new Set([primary, ...extras]));
-  }, [user]);
+  }, [user, quickOrgDemoMode]);
 
   const openActivationRef = useRef<() => void>(() => {});
 
@@ -313,15 +355,47 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     );
   };
 
+  const clearAutoSubmitTimer = () => {
+    if (autoSubmitTimerRef.current != null) {
+      window.clearTimeout(autoSubmitTimerRef.current);
+      autoSubmitTimerRef.current = null;
+    }
+  };
+
   const resetQuickFlow = () => {
+    clearAutoSubmitTimer();
     setQuickPhase('idle');
     setQuickDraft(null);
+    lastUserMsgAtRef.current = 0;
+  };
+
+  /** 是否仍归属当前快捷上报会话（与上一条用户消息时间差 ≤ 约定时长） */
+  const isWithinSessionWindow = (now = Date.now()) => {
+    const last = lastUserMsgAtRef.current;
+    if (!last) return false;
+    return now - last <= QUICK_REPORT_SESSION_MS;
+  };
+
+  const markUserMessage = (now = Date.now()) => {
+    lastUserMsgAtRef.current = now;
   };
 
   /** 底部菜单/快捷报送不做激活拦截；激活仅作关注后消息引导 */
   const ensureQuickReportReady = (): boolean => true;
 
-  const startQuickReportMode = (from: 'menu' | 'keyword') => {
+  const openQuickDemoPicker = () => {
+    closeFlyoutMenus();
+    setShowPlusDrawer(false);
+    setShowQuickDemoPicker(true);
+  };
+
+  const startQuickReportMode = (
+    from: 'menu' | 'keyword',
+    mode: QuickOrgDemoMode = quickOrgDemoMode
+  ) => {
+    clearAutoSubmitTimer();
+    setQuickOrgDemoMode(mode);
+    setShowQuickDemoPicker(false);
     setQuickPhase('awaiting_body');
     setQuickDraft(null);
     setInputMode('chat');
@@ -363,22 +437,93 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     };
   };
 
-  const goFinalConfirm = (draft: QuickReportDraft) => {
+  /**
+   * 提交一条快捷草稿。
+   * softReset：连续发下一条模板时先交上一条，保留会话时间戳，不清成全新 idle 会话。
+   */
+  const submitQuickDraft = (
+    draft: QuickReportDraft,
+    options?: { softReset?: boolean }
+  ): boolean => {
+    if (!draft.matched) return false;
+    const auditOrg = draft.selectedOrg || user?.department || '';
+    const blockTip = getAuditBlockTip(
+      getAuditAssignmentStatus(auditOrg, draft.matched.template.id)
+    );
+    if (blockTip) {
+      pushAccountReply(`${blockTip}\n也可回复【取消】退出。`);
+      setQuickPhase('awaiting_auto_submit');
+      setQuickDraft(draft);
+      scheduleAutoSubmit();
+      return false;
+    }
+    const payload = buildReportPayload(draft);
+    const reportId = onQuickReportSubmit?.(payload) || payload.id || '';
+    pushAccountReply(
+      formatSuccessPrompt({
+        title: payload.title || '',
+        org: payload.authorDept || '',
+        templateName: draft.matched.template.name,
+        reportId,
+      }),
+      {
+        kind: 'report_list',
+        label: '查看我的报送',
+      },
+      options?.softReset ? 120 : 350
+    );
+    clearAutoSubmitTimer();
+    setQuickDraft(null);
+    setQuickPhase('idle');
+    if (!options?.softReset) {
+      lastUserMsgAtRef.current = 0;
+    }
+    return true;
+  };
+
+  /** 连续发新模板前：若上一条已进入自动提交等待，先提交再开新草稿 */
+  const flushPendingAutoSubmitDraft = () => {
+    const draft = quickDraftRef.current;
+    const phase = quickPhaseRef.current;
+    if (phase !== 'awaiting_auto_submit' || !draft?.matched) return;
+    submitQuickDraft(draft, { softReset: true });
+  };
+
+  const scheduleAutoSubmit = () => {
+    clearAutoSubmitTimer();
+    autoSubmitTimerRef.current = window.setTimeout(() => {
+      autoSubmitTimerRef.current = null;
+      const draft = quickDraftRef.current;
+      const phase = quickPhaseRef.current;
+      if (phase !== 'awaiting_auto_submit' || !draft?.matched) return;
+      submitQuickDraft(draft);
+    }, QUICK_REPORT_SESSION_MS);
+  };
+
+  /** 机构已确认：合并「已收到 + 待自动提交」为一条，进入静默等待 */
+  const goAwaitAutoSubmit = (
+    draft: QuickReportDraft,
+    options?: { showSummary?: boolean }
+  ) => {
     setQuickDraft(draft);
-    setQuickPhase('awaiting_confirm');
-    pushAccountReply(formatConfirmPrompt(draft));
+    setQuickPhase('awaiting_auto_submit');
+    if (options?.showSummary !== false) {
+      pushAccountReply(formatAutoSubmitPrompt(draft), undefined, 200);
+    }
+    scheduleAutoSubmit();
   };
 
   const goConfirmWithOrg = (draft: QuickReportDraft, org: string) => {
     const finalized = finalizeDraftWithOrg(draft, org);
-    goFinalConfirm(finalized);
+    goAwaitAutoSubmit(finalized, { showSummary: true });
   };
 
   const handleDraftReady = (draft: QuickReportDraft) => {
     setQuickDraft(draft);
     if (draft.orgOptions.length > 1) {
+      // 多机构：先确认机构，暂不提示继续上传
       setQuickPhase('awaiting_org');
-      pushAccountReply(formatOrgPrompt(draft));
+      pushAccountReply(formatOrgPrompt(draft), undefined, 200);
       return;
     }
     const org = draft.selectedOrg || draft.orgOptions[0];
@@ -387,12 +532,13 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
       resetQuickFlow();
       return;
     }
-    goConfirmWithOrg(draft, org);
+    const finalized = finalizeDraftWithOrg(draft, org);
+    goAwaitAutoSubmit(finalized, { showSummary: true });
   };
 
   const appendAttachmentsToDraft = (
     extras: QuickAttachment[],
-    options?: { notice?: string; rePromptConfirm?: boolean }
+    options?: { notice?: string; reschedule?: boolean }
   ) => {
     setQuickDraft((prev) => {
       if (!prev) return prev;
@@ -402,15 +548,27 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
       };
       window.setTimeout(() => {
         if (options?.notice) pushAccountReply(options.notice, undefined, 120);
-        if (options?.rePromptConfirm) {
-          pushAccountReply(formatConfirmPrompt(next), undefined, 380);
+        if (options?.reschedule && quickPhaseRef.current === 'awaiting_auto_submit') {
+          scheduleAutoSubmit();
         }
       }, 0);
       return next;
     });
   };
 
+  /** 规定时间内补充的文字：归档为上一条附件，不新开模板 */
+  const archiveSupplementaryTextToDraft = (raw: string) => {
+    const short = raw.replace(/\s+/g, ' ').trim().slice(0, 16) || '补充文字';
+    appendAttachmentsToDraft([makeQuickAttachment('text', `${short}.txt`)], {
+      notice: `已归档到本条报送：${short}${raw.trim().length > 16 ? '…' : ''}`,
+      reschedule: quickPhaseRef.current === 'awaiting_auto_submit',
+    });
+  };
+
   const processBodyAsDraft = (raw: string) => {
+    // 新模板文字到来：上一条待自动提交的草稿先落单
+    flushPendingAutoSubmitDraft();
+
     const clueOrError = buildClueFromUserText(raw);
     if ('error' in clueOrError) {
       setQuickPhase('awaiting_body');
@@ -438,7 +596,11 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     ]);
   };
 
-  /** 图片/视频/文档：仅挂到当次报送附件，不做内容识别 */
+  /**
+   * 图片/视频/文档：
+   * - 规定时间内且已有上一条草稿 → 直接归档到上一条，并重置自动提交等待
+   * - 超时新会话 / 尚无模板文字 → 若上一条待交则先落单，再提示先发模板文字
+   */
   const addMediaAsAttachment = (
     kind: 'image' | 'video' | 'file',
     name: string,
@@ -450,24 +612,39 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     closeFlyoutMenus();
     pushUserBubble(userLabel);
 
-    if (!quickDraft) {
-      if (quickPhase === 'idle') setQuickPhase('awaiting_body');
-      pushAccountReply(
-        '图片、视频仅作为当次报送的附件上传，不参与线索识别。\n请先发送结构化文字生成线索，再点「+」补充附件。',
-        undefined,
-        200
-      );
+    const now = Date.now();
+    const within = isWithinSessionWindow(now);
+    const draft = quickDraftRef.current;
+    const phase = quickPhaseRef.current;
+    markUserMessage(now);
+
+    const canAttachToPrevious =
+      Boolean(draft) &&
+      within &&
+      (phase === 'awaiting_org' ||
+        phase === 'awaiting_auto_submit' ||
+        (phase === 'awaiting_body' && Boolean(draft.clue?.title)));
+
+    if (canAttachToPrevious && draft) {
+      appendAttachmentsToDraft([makeQuickAttachment(kind, name)], {
+        notice: `已归档到本条报送：${name}`,
+        reschedule: phase === 'awaiting_auto_submit',
+      });
+      if (phase === 'awaiting_org') {
+        pushAccountReply('附件已加入本条报送，请继续回复数字选择机构。', undefined, 280);
+      }
       return;
     }
 
-    const inConfirm = quickPhase === 'awaiting_confirm';
-    appendAttachmentsToDraft([makeQuickAttachment(kind, name)], {
-      notice: `已添加附件：${name}`,
-      rePromptConfirm: inConfirm,
-    });
-    if (!inConfirm && quickPhase === 'awaiting_org') {
-      pushAccountReply('附件已加入本条报送，可继续选择机构。', undefined, 280);
+    // 超时或无上一条：先交掉待提交草稿，再要求新模板文字
+    if (phase === 'awaiting_auto_submit' && draft?.matched) {
+      flushPendingAutoSubmitDraft();
+    } else {
+      clearAutoSubmitTimer();
+      setQuickDraft(null);
     }
+    setQuickPhase('awaiting_body');
+    pushAccountReply(MEDIA_NEED_TEXT_TIP, undefined, 200);
   };
 
   const uploadAlbumPhoto = () =>
@@ -500,12 +677,17 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     chatEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
   }, [messages]);
 
+  // 卸载时清掉自动提交定时器
+  useEffect(() => () => clearAutoSubmitTimer(), []);
+
   // Handle send chat message
   const handleSendMessage = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!inputText.trim()) return;
 
     const userMsgText = inputText.trim();
+    const now = Date.now();
+    const withinSession = isWithinSessionWindow(now);
     const userMsg: ChatMessage = {
       id: `user_${Date.now()}`,
       sender: 'user',
@@ -515,6 +697,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
 
     setMessages((prev) => [...prev, userMsg]);
     setInputText('');
+    markUserMessage(now);
 
     // —— 快捷上报状态机 ——
     if (isCancelKeyword(userMsgText)) {
@@ -542,47 +725,37 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
         goConfirmWithOrg(quickDraft, quickDraft.orgOptions[index]);
         return;
       }
+      // 选机构前、规定时间内的补充文字 → 先归档到本条
+      if (withinSession && !looksLikeStructuredClue(userMsgText)) {
+        archiveSupplementaryTextToDraft(userMsgText);
+        pushAccountReply(
+          `请继续回复 1～${quickDraft.orgOptions.length} 选择报送机构，或回复【取消】退出。`,
+          undefined,
+          320
+        );
+        return;
+      }
       pushAccountReply(`请回复 1～${quickDraft.orgOptions.length} 选择报送机构，或回复【取消】退出。`);
       return;
     }
 
-    if (quickPhase === 'awaiting_confirm' && quickDraft?.matched) {
-      const confirmSubmit =
-        userMsgText === '1' ||
-        userMsgText === '确认提交' ||
-        userMsgText.includes('确认提交');
-      if (confirmSubmit) {
-        const auditOrg = quickDraft.selectedOrg || user?.department || '';
-        const blockTip = getAuditBlockTip(
-          getAuditAssignmentStatus(auditOrg, quickDraft.matched.template.id)
-        );
-        if (blockTip) {
-          pushAccountReply(`${blockTip}\n也可回复【0】取消。`);
-          return;
-        }
-        const payload = buildReportPayload(quickDraft);
-        const reportId = onQuickReportSubmit?.(payload) || payload.id || '';
-        pushAccountReply(
-          formatSuccessPrompt({
-            title: payload.title || '',
-            org: payload.authorDept || '',
-            templateName: quickDraft.matched.template.name,
-            reportId,
-          }),
-          {
-            kind: 'report_list',
-            label: '查看我的报送',
-          }
-        );
-        resetQuickFlow();
+    // 自动提交等待中：
+    // - 规定时间内的图文视频/补充文字 → 归档上一条并重置计时
+    // - 新结构化模板 → 先交上一条再开新单
+    if (quickPhase === 'awaiting_auto_submit' && quickDraft) {
+      if (withinSession && !looksLikeStructuredClue(userMsgText)) {
+        archiveSupplementaryTextToDraft(userMsgText);
         return;
       }
-      if (userMsgText === '0') {
-        resetQuickFlow();
-        pushAccountReply('已取消快捷上报。');
+      if (looksLikeStructuredClue(userMsgText)) {
+        // 新模板（含超时后重发模板）：processBodyAsDraft 内 flush 上一条
+        processBodyAsDraft(userMsgText);
         return;
       }
-      pushAccountReply('请回复【1】确认提交，或【0】取消。');
+      // 超时且非新模板：先交上一条，再引导
+      flushPendingAutoSubmitDraft();
+      setQuickPhase('awaiting_body');
+      pushAccountReply(GUIDE_AFTER_KEYWORD, undefined, 200);
       return;
     }
 
@@ -791,11 +964,9 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
 
           <button
             id="menu-btn-quick-report"
-            onClick={() => {
-              startQuickReportMode('menu');
-            }}
+            onClick={openQuickDemoPicker}
             className="flex-1 flex items-center justify-center border-l border-[#e5e5e5] text-[#222222] text-[12px] font-normal hover:bg-black/5 active:bg-black/10 transition-colors px-0.5 whitespace-nowrap overflow-hidden"
-            title="快捷报送（对话转报送）"
+            title="快捷报送（可切换单机构/多机构演示）"
           >
             <span>快捷报送</span>
           </button>
@@ -892,9 +1063,11 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
               placeholder={
                 quickPhase === 'awaiting_body'
                   ? '粘贴结构化文字线索...'
-                  : quickPhase === 'awaiting_org' || quickPhase === 'awaiting_confirm'
-                    ? '回复数字...'
-                    : '发消息...'
+                  : quickPhase === 'awaiting_org'
+                    ? '回复数字选择机构...'
+                    : quickPhase === 'awaiting_auto_submit'
+                      ? '可继续补充文字或附件...'
+                      : '发消息...'
               }
               rows={quickPhase === 'awaiting_body' ? 2 : 1}
               className="w-full bg-white border border-[#e0e0e0] rounded-md px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 resize-none"
@@ -1152,7 +1325,7 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
                     type="button"
                     onClick={() => {
                       setShowServiceProfile(false);
-                      startQuickReportMode('menu');
+                      openQuickDemoPicker();
                     }}
                     disabled={!isFollowing}
                     className="w-full px-4 py-3.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between active:bg-slate-100 disabled:opacity-40"
@@ -1166,6 +1339,82 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 快捷报送 · 演示视角切换 */}
+      {showQuickDemoPicker && (
+        <div className="absolute inset-0 z-50 flex flex-col justify-end bg-black/45 animate-in fade-in duration-150">
+          <button
+            type="button"
+            className="flex-1 w-full cursor-default"
+            aria-label="关闭演示选择"
+            onClick={() => setShowQuickDemoPicker(false)}
+          />
+          <div className="bg-[#f2f2f2] rounded-t-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-200">
+            <div className="px-4 pt-3 pb-2 text-center">
+              <p className="text-[13px] font-bold text-slate-800">快捷报送 · 演示入口</p>
+              <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                给开发 / 领导切换视角：单机构跳过选机构，多机构走确认机构流程
+              </p>
+            </div>
+            <div className="mx-3 mb-2 rounded-xl bg-white overflow-hidden divide-y divide-slate-100">
+              <button
+                type="button"
+                onClick={() => startQuickReportMode('menu', 'single')}
+                className="w-full px-4 py-3.5 text-left active:bg-slate-50 flex items-start gap-3"
+              >
+                <span
+                  className={`mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                    quickOrgDemoMode === 'single'
+                      ? 'border-[#07c160] bg-[#07c160]'
+                      : 'border-slate-300'
+                  }`}
+                >
+                  {quickOrgDemoMode === 'single' && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                  )}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[15px] font-medium text-slate-900">单机构演示</span>
+                  <span className="block text-[11px] text-slate-500 mt-0.5">
+                    仅本账号主机构（{user?.department || '主机构'}），识别后直接等待自动提交
+                  </span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => startQuickReportMode('menu', 'multi')}
+                className="w-full px-4 py-3.5 text-left active:bg-slate-50 flex items-start gap-3"
+              >
+                <span
+                  className={`mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                    quickOrgDemoMode === 'multi'
+                      ? 'border-[#07c160] bg-[#07c160]'
+                      : 'border-slate-300'
+                  }`}
+                >
+                  {quickOrgDemoMode === 'multi' && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                  )}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[15px] font-medium text-slate-900">多机构演示</span>
+                  <span className="block text-[11px] text-slate-500 mt-0.5">
+                    主机构 + 关联机构，识别后先选报送机构再自动提交
+                  </span>
+                </span>
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowQuickDemoPicker(false)}
+              className="w-full bg-white mt-1 py-3.5 text-[16px] font-medium text-slate-800 active:bg-slate-50"
+            >
+              取消
+            </button>
+            <div className="h-[env(safe-area-inset-bottom,8px)] bg-white" />
           </div>
         </div>
       )}

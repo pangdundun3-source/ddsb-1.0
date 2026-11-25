@@ -40,6 +40,10 @@ import {
   getAuditBlockTip
 } from '../utils/submitGuard';
 import { isTemplateBlockedByExternalAudit } from '../shared/valueAddedAccess';
+import {
+  linkExtractTierLabel,
+  resolveLinkExtractTier,
+} from '../shared/linkFieldFeatures';
 
 const DEFAULT_ATTACHMENTS: Attachment[] = [
   {
@@ -522,26 +526,6 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
 
         {/* Modal Scrollable Body */}
         <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5 bg-gradient-to-b from-violet-50/40 via-white to-white">
-          {/* 顶部多模态能力标识：链接字段靠下时，进页即可感知 */}
-          {selectedTemplate.extraFields.some((field) => field.type === 'link') && (
-            <div className="rounded-xl border border-violet-200 bg-gradient-to-r from-violet-50 via-fuchsia-50 to-indigo-50 px-4 py-3 flex items-center gap-3 shadow-2xs">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white flex items-center justify-center shrink-0 shadow-sm">
-                <Sparkles className="w-5 h-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-extrabold text-slate-900">多模态智能上报</span>
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 border border-violet-200">
-                    AI
-                  </span>
-                </div>
-                <p className="text-[12px] text-slate-500 mt-0.5">
-                  本模板支持链接多模态提取：粘贴链接后可一键回填标题与描述
-                </p>
-              </div>
-            </div>
-          )}
-
           {/* SECTION 1: 模板选择器 (Template Selection Header Bar) */}
           {!isEditMode && (
           <div className="bg-gradient-to-br from-slate-50 to-blue-50/50 p-4 rounded-xl border border-blue-100/80 shadow-2xs" id="template-selection-card">
@@ -613,8 +597,64 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
           </div>
           )}
 
-          {/* SECTION 2: 报送核心表单 (Main Form) */}
+          {/* SECTION 2: 报送核心表单 — 多模态链接合并进顶栏 */}
           <form onSubmit={handleSubmit} id="new-report-form" className="space-y-4 text-xs">
+            {(() => {
+              const linkFields = selectedTemplate.extraFields.filter((f) => f.type === 'link');
+              if (!linkFields.length) return null;
+              const primaryTier = resolveLinkExtractTier(linkFields[0]?.linkFeatures);
+              const primaryTierLabel = linkExtractTierLabel(primaryTier);
+              return (
+                <div className="rounded-xl border border-violet-200 bg-gradient-to-r from-violet-50 via-fuchsia-50 to-indigo-50 px-4 py-3 space-y-3 shadow-2xs">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                      <Sparkles className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-extrabold text-slate-900">多模态智能上报</span>
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 border border-violet-200">
+                          <span>AI</span>
+                          {primaryTierLabel && (
+                            <>
+                              <span className="w-px h-2.5 bg-violet-300" aria-hidden />
+                              <span>{primaryTierLabel}</span>
+                            </>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <PCTemplateExtraFields
+                    embedded
+                    fields={linkFields}
+                    values={extraFieldValues}
+                    errors={extraFieldErrors}
+                    onChange={(fieldId, value) => {
+                      setExtraFieldValues((previous) => ({ ...previous, [fieldId]: value }));
+                      if (extraFieldErrors[fieldId]) {
+                        setExtraFieldErrors((previous) => ({ ...previous, [fieldId]: false }));
+                      }
+                    }}
+                    onToast={triggerToast}
+                    onAiExtractFill={(payload) => {
+                      setTitle(payload.title);
+                      setSummary(payload.summary);
+                      setDemands(payload.summary);
+                      if (payload.district) {
+                        setRegion(payload.district);
+                        setOccurAddress(payload.district);
+                      }
+                      setCoreFieldErrors({ title: false, summary: false });
+                      if (extraFieldErrors[payload.linkFieldId]) {
+                        setExtraFieldErrors((previous) => ({ ...previous, [payload.linkFieldId]: false }));
+                      }
+                    }}
+                  />
+                </div>
+              );
+            })()}
+
             {/* Title */}
             <div>
               <div className="mb-1">
@@ -675,9 +715,9 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
               )}
             </div>
 
-            {/* Template-defined fields synced from the H5 report form */}
+            {/* 其余模板字段（链接已置顶，此处排除） */}
             <PCTemplateExtraFields
-              fields={selectedTemplate.extraFields}
+              fields={selectedTemplate.extraFields.filter((f) => f.type !== 'link')}
               values={extraFieldValues}
               errors={extraFieldErrors}
               onChange={(fieldId, value) => {

@@ -32,6 +32,8 @@ interface PCTemplateExtraFieldsProps {
   onChange: (fieldId: string, value: TemplateFieldValue) => void;
   onToast?: (msg: string) => void;
   onAiExtractFill?: (payload: LinkAiExtractFillPayload) => void;
+  /** 嵌入多模态顶栏时，链接提取区更紧凑 */
+  embedded?: boolean;
 }
 
 type LinkShotState = {
@@ -108,6 +110,7 @@ export const PCTemplateExtraFields: React.FC<PCTemplateExtraFieldsProps> = ({
   onChange,
   onToast,
   onAiExtractFill,
+  embedded = false,
 }) => {
   const visibleFields = fields.filter(
     (field) => field.type !== 'attachment' && field.type !== 'static_text'
@@ -452,41 +455,68 @@ export const PCTemplateExtraFields: React.FC<PCTemplateExtraFieldsProps> = ({
                     )}
                   </div>
 
-                  <div className="rounded-lg border border-violet-100 bg-violet-50/70 px-3 py-2.5 space-y-1.5">
-                    <div className="flex items-center gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1 text-[12px] font-bold text-violet-800">
-                          <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                          <span>AI 多模态提取</span>
-                        </div>
-                        <p className="text-[11px] text-violet-600/90 mt-0.5">
-                          根据链接自动提取标题、描述等信息并回填表单
+                  <div
+                    className={
+                      embedded
+                        ? 'flex flex-wrap items-center gap-2 pt-0.5'
+                        : 'rounded-lg border border-violet-100 bg-violet-50/70 px-3 py-2.5 space-y-1.5'
+                    }
+                  >
+                    {embedded ? (
+                      <>
+                        <p className="min-w-0 flex-1 text-[11px] text-violet-700/90">
+                          AI 自动解析链接内容，智能回填表单字段
                         </p>
+                        <button
+                          type="button"
+                          disabled={linkAiExtracts[field.id]?.status === 'loading'}
+                          onClick={() => runLinkAiExtract(field.id, asString(value))}
+                          className="shrink-0 px-3 py-1.5 rounded-lg border border-violet-300 bg-white text-violet-700 text-xs font-bold flex items-center gap-1 hover:bg-violet-50 disabled:text-gray-400 disabled:border-gray-200"
+                        >
+                          {linkAiExtracts[field.id]?.status === 'loading' ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-3.5 h-3.5" />
+                          )}
+                          {linkAiExtracts[field.id]?.status === 'loading' ? '提取中' : '提取'}
+                        </button>
+                      </>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1 text-[12px] font-bold text-violet-800">
+                            <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                            <span>AI 多模态提取</span>
+                          </div>
+                          <p className="text-[11px] text-violet-600/90 mt-0.5">
+                            根据链接自动解析内容并智能回填表单
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={linkAiExtracts[field.id]?.status === 'loading'}
+                          onClick={() => runLinkAiExtract(field.id, asString(value))}
+                          className="shrink-0 px-3 py-1.5 rounded-lg border border-violet-300 bg-white text-violet-700 text-xs font-bold flex items-center gap-1 hover:bg-violet-50 disabled:text-gray-400 disabled:border-gray-200"
+                        >
+                          {linkAiExtracts[field.id]?.status === 'loading' ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-3.5 h-3.5" />
+                          )}
+                          {linkAiExtracts[field.id]?.status === 'loading' ? '提取中' : '提取'}
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        disabled={linkAiExtracts[field.id]?.status === 'loading'}
-                        onClick={() => runLinkAiExtract(field.id, asString(value))}
-                        className="shrink-0 px-3 py-1.5 rounded-lg border border-violet-300 bg-white text-violet-700 text-xs font-bold flex items-center gap-1 hover:bg-violet-50 disabled:text-gray-400 disabled:border-gray-200"
-                      >
-                        {linkAiExtracts[field.id]?.status === 'loading' ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <Sparkles className="w-3.5 h-3.5" />
-                        )}
-                        {linkAiExtracts[field.id]?.status === 'loading' ? '提取中' : '提取'}
-                      </button>
-                    </div>
+                    )}
                     {linkAiExtracts[field.id]?.status === 'error' && (
-                      <p className="flex items-start gap-1 text-[11px] text-rose-600">
+                      <p className={`flex items-start gap-1 text-[11px] text-rose-600 ${embedded ? 'w-full basis-full' : ''}`}>
                         <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
                         <span>{linkAiExtracts[field.id]?.reason}</span>
                       </p>
                     )}
                     {linkAiExtracts[field.id]?.status === 'done' && (
-                      <p className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
+                      <p className={`flex items-center gap-1 text-[11px] text-emerald-600 font-medium ${embedded ? 'w-full basis-full' : ''}`}>
                         <Check className="w-3.5 h-3.5 shrink-0" />
-                        <span>已提取并回填标题、描述等字段</span>
+                        <span>已提取并智能回填相关字段</span>
                       </p>
                     )}
                   </div>

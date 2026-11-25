@@ -144,10 +144,22 @@ export const isExternalAuditEnabled = () =>
     nameIncludes: '外部审核',
   });
 
-export const isLinkMultimodalAiEnabled = () =>
+export const isAiTextExtractEnabled = () =>
   isValueAddedServiceEnabled({
-    dictCode: 'VA_LINK_MULTIMODAL_AI',
-    nameIncludes: 'AI链接多模态识别',
+    dictCode: 'VA_AI_TEXT_EXTRACT',
+    nameIncludes: 'AI文本提取',
+  });
+
+export const isOcrRecognizeEnabled = () =>
+  isValueAddedServiceEnabled({
+    dictCode: 'VA_OCR_RECOGNIZE',
+    nameIncludes: 'OCR识别',
+  });
+
+export const isAiMultimodalDeepEnabled = () =>
+  isValueAddedServiceEnabled({
+    dictCode: 'VA_AI_MULTIMODAL_DEEP',
+    nameIncludes: 'AI多模态深度解析',
   });
 
 /** 增值业务不可用时的原因：应用端未开通 / 机构侧停用 */
