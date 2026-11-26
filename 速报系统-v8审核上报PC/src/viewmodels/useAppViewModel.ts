@@ -220,6 +220,7 @@ export const useAppViewModel = () => {
         'ddsb_pc_notifications_v2',
         'ddsb_pc_notifications_v3',
         'ddsb_pc_notifications_v4',
+        'ddsb_pc_notifications_v5',
         NOTIFICATIONS_STORAGE_KEY
       ].forEach((key) => localStorage.removeItem(key));
     } catch {

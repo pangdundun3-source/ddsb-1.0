@@ -17,8 +17,8 @@ export const isWithinRetention = (item: NotificationItem, now = Date.now()) => {
 };
 
 /** 实验数据：原型阶段每次刷新都从 INITIAL 恢复，不持久化已读状态 */
-export const NOTIFICATIONS_SEED_VERSION = 5;
-export const NOTIFICATIONS_STORAGE_KEY = 'ddsb_pc_notifications_v5';
+export const NOTIFICATIONS_SEED_VERSION = 6;
+export const NOTIFICATIONS_STORAGE_KEY = 'ddsb_pc_notifications_v6';
 
 /** 与消息时间一致的 YYYY-MM-DD HH:mm（本地时间），便于排序和截取 */
 export const formatNotificationTime = (date = new Date()) => {
@@ -41,6 +41,7 @@ export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
   {
     id: 'notif-u2',
     type: 'todo',
+    todoKind: 'normal',
     title: '台中市秋季旅游推广媒体传播分析',
     content: '李四 · 台中市网信办',
     time: '2026-11-10 08:45',
@@ -49,11 +50,34 @@ export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
     originLabel: '疑似重复'
   },
   {
+    id: 'notif-u2-timeout',
+    type: 'todo',
+    todoKind: 'timeout',
+    title: '台中市秋季旅游推广媒体传播分析',
+    content: '李四 · 台中市网信办',
+    time: '2026-11-10 09:20',
+    isUnread: true,
+    relatedReportId: 102,
+    originLabel: '疑似重复'
+  },
+  {
     id: 'notif-u3',
     type: 'todo',
+    todoKind: 'normal',
     title: '南屯区老旧小区改造政策解读及反馈收集',
     content: '赵六 · 台中市网信办',
     time: '2026-11-09 16:20',
+    isUnread: true,
+    relatedReportId: 104,
+    originLabel: '疑似首发'
+  },
+  {
+    id: 'notif-u3-timeout',
+    type: 'todo',
+    todoKind: 'timeout',
+    title: '南屯区老旧小区改造政策解读及反馈收集',
+    content: '赵六 · 台中市网信办',
+    time: '2026-11-09 16:55',
     isUnread: true,
     relatedReportId: 104,
     originLabel: '疑似首发'

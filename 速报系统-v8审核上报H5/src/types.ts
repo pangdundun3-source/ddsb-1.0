@@ -135,6 +135,9 @@ export type NotificationType =
 /** 结果通知的细分结论（列表摘要/强调色用） */
 export type NotificationResultKind = 'mid_pass' | 'rejected' | 'adopted' | 'transferred';
 
+/** 待办通知细分：普通待办 / 超时催办（超规定时限未处理后再发） */
+export type NotificationTodoKind = 'normal' | 'timeout';
+
 export interface AppNotification {
   id: string;
   type: NotificationType;
@@ -148,6 +151,8 @@ export interface AppNotification {
   priority?: 'normal' | 'urgent' | 'important';
   /** 仅结果通知：中间通过 / 驳回 / 终审采纳 / 转办 */
   resultKind?: NotificationResultKind;
+  /** 仅待办通知：普通待办 / 超时提醒 */
+  todoKind?: NotificationTodoKind;
 }
 
 export type UserRole = '上报员' | '审核员';

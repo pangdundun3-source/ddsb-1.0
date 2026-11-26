@@ -114,16 +114,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               latestNotification.isRead ? 'border-slate-200/80 text-slate-700' : 'border-blue-200 text-slate-800'
             }`}
           >
-            {/* Row 1: Badge + Title + Origin + Unread Indicator + Close Button */}
+            {/* Row 1: Badge + Title + Origin + 超时提醒 + Unread Indicator + Close Button */}
             <div className="flex items-center gap-1.5 min-w-0">
               <span className={`shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${meta.badgeClass}`}>
                 {meta.icon}
                 <span>{meta.badgeText}</span>
               </span>
-              <h4 className="text-xs font-bold text-slate-900 leading-snug truncate min-w-0 flex-1">
+              <h4
+                className={`text-xs font-bold text-slate-900 leading-snug truncate min-w-0 ${
+                  latestNotification.todoKind === 'timeout' ? 'max-w-[40%]' : 'flex-1'
+                }`}
+              >
                 {latestNotification.title}
               </h4>
               {relatedTag && <IdentificationBadge tag={relatedTag} size="xs" className="shrink-0" />}
+              {latestNotification.type === '待办通知' && latestNotification.todoKind === 'timeout' && (
+                <>
+                  <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded text-[#B91C1C] bg-[#FEE2E2] border border-[#FECACA]">
+                    超时提醒
+                  </span>
+                  <span
+                    className="text-[10px] font-medium text-[#DC2626] truncate min-w-0 flex-1"
+                    title="已超规定时限（30分钟），请尽快审核"
+                  >
+                    已超规定时限（30分钟），请尽快审核
+                  </span>
+                </>
+              )}
               {!latestNotification.isRead && (
                 <span className="shrink-0 w-2 h-2 rounded-full bg-blue-600 ring-2 ring-blue-100" />
               )}

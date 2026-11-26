@@ -97,6 +97,8 @@ interface CardView {
   unreadBorder: string;
 }
 
+const TODO_TIMEOUT_TIP = '已超规定时限（30分钟），请尽快审核';
+
 /** 类型标签只保留三类：平台公告 / 待办通知 / 结果通知 */
 const getCardView = (notif: AppNotification, relatedReport?: SpeedReport): CardView => {
   if (notif.type === '平台公告') {
@@ -193,14 +195,27 @@ export const NotificationView: React.FC<NotificationViewProps> = ({
               <span>{view.badgeText}</span>
             </span>
             <span
-              className={`text-xs leading-snug truncate min-w-0 flex-1 ${
-                notif.isRead ? 'font-medium text-slate-600' : 'font-bold text-slate-900'
-              }`}
+              className={`text-xs leading-snug truncate min-w-0 ${
+                notif.todoKind === 'timeout' ? 'max-w-[42%]' : 'flex-1'
+              } ${notif.isRead ? 'font-medium text-slate-600' : 'font-bold text-slate-900'}`}
             >
               {view.title}
             </span>
             {view.identificationTag && (
               <IdentificationBadge tag={view.identificationTag} size="xs" className="shrink-0" />
+            )}
+            {notif.type === '待办通知' && notif.todoKind === 'timeout' && (
+              <>
+                <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded text-[#B91C1C] bg-[#FEE2E2] border border-[#FECACA]">
+                  超时提醒
+                </span>
+                <span
+                  className="text-[10px] font-medium text-[#DC2626] truncate min-w-0 flex-1"
+                  title={TODO_TIMEOUT_TIP}
+                >
+                  {TODO_TIMEOUT_TIP}
+                </span>
+              </>
             )}
             <span className="shrink-0 w-3.5 h-3.5 mt-0.5 inline-flex items-center justify-center">
               {notif.isRead ? (

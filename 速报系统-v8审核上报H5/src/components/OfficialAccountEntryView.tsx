@@ -767,22 +767,29 @@ export const OfficialAccountEntryView: React.FC<OfficialAccountEntryViewProps> =
     }
 
     if (quickPhase === 'awaiting_org' && quickDraft) {
-      const index = Number(userMsgText) - 1;
-      if (Number.isInteger(index) && index >= 0 && index < quickDraft.orgOptions.length) {
-        goConfirmWithOrg(quickDraft, quickDraft.orgOptions[index]);
+      const orgCount = quickDraft.orgOptions.length;
+      const orgPickReply = `请回复 1～${orgCount} 选择报送机构，或回复【取消】退出。`;
+      // 纯数字：合法则选机构；超出可选范围则只提示，不当作补充
+      if (/^\d+$/.test(userMsgText)) {
+        const index = Number(userMsgText) - 1;
+        if (Number.isInteger(index) && index >= 0 && index < orgCount) {
+          goConfirmWithOrg(quickDraft, quickDraft.orgOptions[index]);
+          return;
+        }
+        pushAccountReply(orgPickReply);
         return;
       }
-      // 选机构前、规定时间内的补充文字 → 先归档到本条
+      // 文字类：规定时间内先归档补充，再提示继续选机构
       if (withinSession && !looksLikeQuickClue(userMsgText)) {
         archiveSupplementaryTextToDraft(userMsgText);
         pushAccountReply(
-          `请继续回复 1～${quickDraft.orgOptions.length} 选择报送机构，或回复【取消】退出。`,
+          `请继续回复 1～${orgCount} 选择报送机构，或回复【取消】退出。`,
           undefined,
           320
         );
         return;
       }
-      pushAccountReply(`请回复 1～${quickDraft.orgOptions.length} 选择报送机构，或回复【取消】退出。`);
+      pushAccountReply(orgPickReply);
       return;
     }
 

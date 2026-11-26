@@ -27,6 +27,9 @@ export type NotificationType = 'platform_notice' | 'todo' | 'result';
 /** 结果通知的细分结论（列表摘要/强调色用） */
 export type NotificationResultKind = 'mid_pass' | 'rejected' | 'adopted' | 'transferred';
 
+/** 待办通知细分：普通待办 / 超时催办（超规定时限未处理后再发） */
+export type NotificationTodoKind = 'normal' | 'timeout';
+
 export interface NotificationItem {
   id: string;
   type: NotificationType;
@@ -41,6 +44,8 @@ export interface NotificationItem {
   originLabel?: OriginTypeLabel;
   /** 仅结果通知：中间通过 / 驳回 / 终审采纳 / 转办 */
   resultKind?: NotificationResultKind;
+  /** 仅待办通知：普通待办 / 超时提醒 */
+  todoKind?: NotificationTodoKind;
   announcementContent?: string;
 }
 

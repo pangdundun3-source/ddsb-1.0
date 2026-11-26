@@ -240,6 +240,19 @@ export const MessageCenter: React.FC<MessageCenterProps> = ({
                           {item.originLabel && item.originLabel !== '识别中' && (
                             <ReportOriginBadge label={item.originLabel} size="sm" className="shrink-0" />
                           )}
+                          {item.type === 'todo' && item.todoKind === 'timeout' && (
+                            <>
+                              <span className="text-[10px] font-bold px-1.5 py-px rounded shrink-0 text-[#B91C1C] bg-[#FEE2E2] border border-[#FECACA]">
+                                超时提醒
+                              </span>
+                              <span
+                                className="text-xs font-medium text-[#DC2626] truncate min-w-0"
+                                title="已超规定时限（30分钟），请尽快审核"
+                              >
+                                已超规定时限（30分钟），请尽快审核
+                              </span>
+                            </>
+                          )}
                         </span>
                         <span
                           className={`mt-1 block text-xs truncate ${
