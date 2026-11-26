@@ -16,7 +16,7 @@ export interface OrgTreeFilterPanelProps {
 }
 
 /**
- * 统计管理右侧机构树：标题「机构名称」，默认展开，支持展开/收起。
+ * 统计管理左侧机构树：标题为机构名称，默认展开，支持展开/收起。
  */
 export const OrgTreeFilterPanel: React.FC<OrgTreeFilterPanelProps> = ({
   value,

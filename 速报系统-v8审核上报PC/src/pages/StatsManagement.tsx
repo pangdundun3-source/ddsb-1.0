@@ -590,6 +590,13 @@ export const StatsManagement: React.FC<StatsManagementProps> = ({
       </section>
 
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+      <OrgTreeFilterPanel
+        value={draft.orgNodeId}
+        onChange={(orgId) => setDraft((prev) => ({ ...prev, orgNodeId: orgId }))}
+        orgNodes={scopedOrgNodes}
+        rootOrgName={headerOrgName}
+        className="xl:self-stretch"
+      />
       <div className="min-w-0 flex-1 space-y-4">
       {/* 指标趋势图 */}
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] sm:p-5">
@@ -820,14 +827,6 @@ export const StatsManagement: React.FC<StatsManagementProps> = ({
         />
       </div>
       </div>
-
-      <OrgTreeFilterPanel
-        value={draft.orgNodeId}
-        onChange={(orgId) => setDraft((prev) => ({ ...prev, orgNodeId: orgId }))}
-        orgNodes={scopedOrgNodes}
-        rootOrgName={headerOrgName}
-        className="xl:self-stretch"
-      />
       </div>
     </div>
   );
