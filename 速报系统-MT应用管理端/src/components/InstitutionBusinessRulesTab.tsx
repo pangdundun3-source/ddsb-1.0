@@ -85,7 +85,7 @@ export const defaultValueAddedServices: ValueAddedServiceItem[] = [
   },
   {
     id: 'vas-ai-text-extract',
-    name: 'AI文本提取',
+    name: '文本提取',
     isPurchased: true,
     isEnabled: true,
     tag: '增值扩展功能',
@@ -95,7 +95,7 @@ export const defaultValueAddedServices: ValueAddedServiceItem[] = [
   },
   {
     id: 'vas-ocr-recognize',
-    name: 'OCR识别',
+    name: '图片OCR提取',
     isPurchased: true,
     isEnabled: true,
     tag: '增值扩展功能',
@@ -104,7 +104,7 @@ export const defaultValueAddedServices: ValueAddedServiceItem[] = [
   },
   {
     id: 'vas-ai-multimodal-deep',
-    name: 'AI多模态深度解析',
+    name: '多模态提取',
     isPurchased: true,
     isEnabled: true,
     tag: '增值扩展功能',
@@ -1056,7 +1056,7 @@ const RULE_NAV_ITEMS: NavItem[] = [
     key: 'value_added',
     label: '增值业务',
     icon: 'auto_awesome',
-    description: '批量审核、指令流转、系统公告、首发查重与 AI 文本提取、OCR、多模态深度解析等增值扩展',
+    description: '批量审核、指令流转、系统公告、首发查重与文本提取、图片OCR提取、多模态提取等增值扩展',
     badge: '8项',
   },
   {

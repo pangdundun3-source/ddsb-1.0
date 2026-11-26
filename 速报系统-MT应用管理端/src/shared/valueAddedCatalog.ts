@@ -28,17 +28,17 @@ const CATALOG_ALIASES: Array<{ ids: string[]; dictCodes: string[]; names: string
   {
     ids: ['va_7', 'vas-ai-text-extract'],
     dictCodes: ['VA_AI_TEXT_EXTRACT'],
-    names: ['AI文本提取', 'AI基础文本提取'],
+    names: ['文本提取', 'AI文本提取', 'AI基础文本提取'],
   },
   {
     ids: ['va_8', 'vas-ocr-recognize'],
     dictCodes: ['VA_OCR_RECOGNIZE'],
-    names: ['OCR识别'],
+    names: ['图片OCR提取', 'OCR识别', '图文OCR识别'],
   },
   {
     ids: ['va_9', 'vas-ai-multimodal-deep'],
     dictCodes: ['VA_AI_MULTIMODAL_DEEP'],
-    names: ['AI多模态深度解析'],
+    names: ['多模态提取', 'AI多模态提取', 'AI多模态深度解析', '多模态深度解析'],
   },
 ];
 
@@ -179,13 +179,13 @@ const sanitizeCatalogItems = (items: ValueAddedCatalogItem[]): ValueAddedCatalog
         i.id === 'va_7' ||
         i.id === 'vas-ai-text-extract' ||
         i.name === 'AI基础文本提取' ||
-        i.name === 'AI文本提取'
+        i.name === '文本提取' || i.name === 'AI文本提取'
       ) {
         return {
           ...i,
           id: i.id || 'va_7',
           dictCode: 'VA_AI_TEXT_EXTRACT',
-          name: 'AI文本提取',
+          name: '文本提取',
           description:
             i.description && !i.description.includes('链接后一键')
               ? i.description

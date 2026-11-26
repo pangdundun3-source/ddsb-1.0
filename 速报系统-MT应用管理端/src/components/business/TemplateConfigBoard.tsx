@@ -2,10 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { alertDialog, confirmDialog } from '../common/ConfirmDialog';
 import { ControlNoticeTip } from './ControlNoticeTip';
 import { LinkExtractCapabilityPicker } from './LinkExtractCapabilityPicker';
-import { LinkAiExtractPreviewBar } from './LinkFieldPreviewExtras';
+import { LinkAiExtractPreviewButton } from './LinkFieldPreviewExtras';
 import {
   type LinkFieldFeature,
   type ValueAddedProvisionLike,
+  hasLinkAiExtract,
+  hasLinkScreenshot,
   normalizeLinkFieldFeatures
 } from '../../shared/linkFieldFeatures';
 import {
@@ -92,7 +94,7 @@ export interface TemplateFieldItem {
   required: boolean;
   placeholder?: string;
   options?: string[];
-  /** 链接字段「提取」能力：文本 / OCR / 多模态深度解析（截图固定开启） */
+  /** 链接字段功能配置：AI 三档 → AI识别；截图 → 截图按钮 */
   linkFeatures?: LinkFieldFeature[];
   /** 来自全局固定字段规则：true 锁定不可改，false 默认带入可改；未设置时按旧版固定字段判断 */
   locked?: boolean;
@@ -179,7 +181,7 @@ interface TemplateConfigBoardProps {
   blockExternalDependentFlows?: boolean;
   /** 模式一/二审核流程 id（不论启停），用于启用模板时校验 */
   externalDependentFlowIds?: string[];
-  /** 当前作用域增值业务列表，用于链接「提取能力」VIP 开通校验 */
+  /** 当前作用域增值业务列表，用于链接「功能配置」VIP 开通校验 */
   valueAddedItems?: ValueAddedProvisionLike[];
 }
 
@@ -2198,7 +2200,9 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                                   }`}
                                 />
                               </div>
-                              {shot?.status !== 'done' && (
+                              {hasLinkAiExtract(field) ? (
+                                <LinkAiExtractPreviewButton field={field} />
+                              ) : hasLinkScreenshot(field) && shot?.status !== 'done' ? (
                                 <button
                                   type="button"
                                   disabled={shot?.status === 'loading'}
@@ -2227,13 +2231,11 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                                     </>
                                   )}
                                 </button>
-                              )}
+                              ) : null}
                             </div>
 
-                            <LinkAiExtractPreviewBar field={field} />
-
                             {linkInvalid &&
-                              (shot?.status === 'invalid' ? (
+                              (shot?.status === 'invalid' && hasLinkScreenshot(field) ? (
                                 <p className="flex items-center gap-1 text-[11px] text-rose-500">
                                   <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                                   <span>网址格式不正确，无法截图，请修改为以 http:// 或 https:// 开头的正确网址</span>
@@ -2242,14 +2244,14 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                                 <p className="text-[11px] text-rose-500">请输入正确的网址，需以 http:// 或 https:// 开头</p>
                               ))}
 
-                            {shot?.status === 'empty' && !linkValue && (
+                            {hasLinkScreenshot(field) && shot?.status === 'empty' && !linkValue && (
                               <p className="flex items-center gap-1 text-[11px] text-amber-600">
                                 <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                                 <span>原文地址为空，请先输入原文链接再截图</span>
                               </p>
                             )}
 
-                            {shot?.status === 'error' && (
+                            {hasLinkScreenshot(field) && shot?.status === 'error' && (
                               <div className="flex items-start justify-between gap-2 px-2.5 py-2 rounded-lg bg-rose-50 border border-rose-100 text-[11px] text-rose-600">
                                 <div className="flex items-start gap-1.5 min-w-0">
                                   <AlertCircle className="w-3.5 h-3.5 mt-px shrink-0" />
@@ -2268,7 +2270,7 @@ export const TemplateConfigBoard: React.FC<TemplateConfigBoardProps> = ({
                               </div>
                             )}
 
-                            {shot?.status === 'done' && (
+                            {hasLinkScreenshot(field) && shot?.status === 'done' && (
                               <div className="flex items-start gap-3 p-2 rounded-lg bg-slate-50 border border-slate-200">
                                 <button
                                   type="button"

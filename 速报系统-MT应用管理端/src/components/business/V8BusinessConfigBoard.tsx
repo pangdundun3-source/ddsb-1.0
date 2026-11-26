@@ -35,12 +35,14 @@ import {
 } from '../../shared/valueAddedAiAlign';
 import {
   DEFAULT_LINK_FIELD_FEATURES,
-  type LinkFieldFeature
+  type LinkFieldFeature,
+  hasLinkAiExtract,
+  hasLinkScreenshot,
 } from '../../shared/linkFieldFeatures';
 import { ControlNoticeTip } from './ControlNoticeTip';
 import { LinkExtractCapabilityPicker } from './LinkExtractCapabilityPicker';
 import {
-  LinkAiExtractPreviewBar,
+  LinkAiExtractPreviewButton,
   LinkScreenshotPreviewButton
 } from './LinkFieldPreviewExtras';
 import {
@@ -90,7 +92,7 @@ export interface TemplateField {
   required: boolean;
   placeholder?: string;
   options?: string[];
-  /** 链接字段「提取」能力：文本 / OCR / 多模态深度解析（截图固定开启） */
+  /** 链接字段功能配置：AI 三档 → AI识别；截图 → 截图按钮 */
   linkFeatures?: LinkFieldFeature[];
 }
 
@@ -994,7 +996,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       },
       {
         id: 'va_7',
-        name: 'AI文本提取',
+        name: '文本提取',
         dictCategoryName: '增值业务',
         dictCode: 'VA_AI_TEXT_EXTRACT',
         status: '启用',
@@ -1006,7 +1008,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       },
       {
         id: 'va_8',
-        name: 'OCR识别',
+        name: '图片OCR提取',
         dictCategoryName: '增值业务',
         dictCode: 'VA_OCR_RECOGNIZE',
         status: '停用',
@@ -1018,14 +1020,14 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
       },
       {
         id: 'va_9',
-        name: 'AI多模态深度解析',
+        name: '多模态提取',
         dictCategoryName: '增值业务',
         dictCode: 'VA_AI_MULTIMODAL_DEEP',
         status: '停用',
         activatedStatus: '未开通',
         updateTime: '2026-11-25 10:00:00',
         description:
-          '在文本提取与 OCR 之上，叠加多模态深度解析，对图文、视频等复杂素材做深度结构化解析并回填关键字段。适用于需解析外链、富媒体与视频的深度报送场景。',
+          '在文本提取与 OCR 之上，叠加多模态提取，对图文、视频等复杂素材做深度结构化解析并回填关键字段。适用于需解析外链、富媒体与视频的深度报送场景。',
         isDefault: true
       }
     ]
@@ -2836,23 +2838,24 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                   )}
 
                   {field.type === 'link' && (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <div className="relative flex-1 min-w-0">
-                          <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
-                            <LinkIcon className="w-3.5 h-3.5 text-slate-400" />
-                          </div>
-                          <input
-                            type="url"
-                            value={fieldValue}
-                            onChange={(e) => handlePreviewValueChange(field.id, e.target.value)}
-                            placeholder={field.placeholder || 'https://...'}
-                            className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-[#1E5ABB] bg-white placeholder:text-slate-400"
-                          />
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1 min-w-0">
+                        <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                          <LinkIcon className="w-3.5 h-3.5 text-slate-400" />
                         </div>
-                        <LinkScreenshotPreviewButton />
+                        <input
+                          type="url"
+                          value={fieldValue}
+                          onChange={(e) => handlePreviewValueChange(field.id, e.target.value)}
+                          placeholder={field.placeholder || 'https://...'}
+                          className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-[#1E5ABB] bg-white placeholder:text-slate-400"
+                        />
                       </div>
-                      <LinkAiExtractPreviewBar field={field} />
+                      {hasLinkAiExtract(field) ? (
+                        <LinkAiExtractPreviewButton field={field} />
+                      ) : hasLinkScreenshot(field) ? (
+                        <LinkScreenshotPreviewButton />
+                      ) : null}
                     </div>
                   )}
 
@@ -4127,7 +4130,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                       content={
                         isGlobalScope
                           ? '此处启用的增值业务向全平台所有机构开放，机构端可按需开通或关闭；此处禁用的增值业务，机构端不再显示。名称与描述修改后同步至全平台。链接提取三项能力可分别向机构开放。'
-                          : '链接提取三档套餐可独立开通；开通后按并集生效：基础档→①文本提取；增强档→①②图文OCR识别；多模态档→①②③。字段配置里的提取档位随开通组合自动放开/灰显。'
+                          : '链接提取三档套餐可独立开通；开通后按并集生效：基础档→①文本提取；增强档→①②图片OCR提取；多模态档→①②③ 多模态提取。字段配置里的提取档位随开通组合自动放开/灰显。'
                       }
                     />
                   )}
@@ -5441,7 +5444,7 @@ export const V8BusinessConfigBoard: React.FC<BusinessConfigProps> = ({
                               {addonBlockedByBase && valueAddedAllOperable && (
                                 <div className="mt-1.5 text-[10px] text-amber-800 font-medium flex items-center gap-1 bg-amber-50/90 px-2 py-0.5 rounded border border-amber-200/80">
                                   <Info className="w-3 h-3 text-amber-600 shrink-0" />
-                                  <span>需先开通底座「AI文本提取」后再加购</span>
+                                  <span>需先开通底座「文本提取」后再加购</span>
                                 </div>
                               )}
                               {linkProvisionMeta?.provisionRole === 'base' && isActivated && (

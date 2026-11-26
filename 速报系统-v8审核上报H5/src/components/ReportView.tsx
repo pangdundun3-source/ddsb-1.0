@@ -14,11 +14,6 @@ import {
   getTemplateFieldDomId,
   getTemplateFieldError,
 } from './TemplateExtraFields';
-import {
-  linkExtractTierLabel,
-  resolveLinkExtractTier,
-} from '../shared/linkFieldFeatures';
-
 interface ReportViewProps {
   reports: SpeedReport[];
   user: UserProfile;
@@ -598,11 +593,6 @@ export const ReportView: React.FC<ReportViewProps> = ({
             {(() => {
               const linkFields = selectedTemplate.extraFields.filter((f) => f.type === 'link');
               if (!linkFields.length) return null;
-              const activeTier = linkFields
-                .map((f) => resolveLinkExtractTier(f.linkFeatures))
-                .filter(Boolean);
-              const primaryTier = activeTier[0] || null;
-              const primaryTierLabel = linkExtractTierLabel(primaryTier);
               return (
                 <div className="rounded-xl border border-violet-200/90 bg-gradient-to-r from-violet-600 via-fuchsia-600 to-indigo-600 p-[1px] shadow-sm shadow-violet-500/20">
                   <div className="rounded-[11px] bg-white/95 px-3 py-2.5 space-y-2.5 text-xs">
@@ -611,18 +601,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
                         <Sparkles className="w-4.5 h-4.5" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[13px] font-extrabold text-slate-900">多模态智能上报</span>
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 border border-violet-200">
-                            <span>AI</span>
-                            {primaryTierLabel && (
-                              <>
-                                <span className="w-px h-2.5 bg-violet-300" aria-hidden />
-                                <span>{primaryTierLabel}</span>
-                              </>
-                            )}
-                          </span>
-                        </div>
+                        <span className="text-[13px] font-extrabold text-slate-900">多模态智能上报</span>
                       </div>
                     </div>
                     <TemplateExtraFields

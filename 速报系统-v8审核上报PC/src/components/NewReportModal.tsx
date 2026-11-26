@@ -40,11 +40,6 @@ import {
   getAuditBlockTip
 } from '../utils/submitGuard';
 import { isTemplateBlockedByExternalAudit } from '../shared/valueAddedAccess';
-import {
-  linkExtractTierLabel,
-  resolveLinkExtractTier,
-} from '../shared/linkFieldFeatures';
-
 const DEFAULT_ATTACHMENTS: Attachment[] = [
   {
     id: 'att-upload-1',
@@ -602,8 +597,6 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
             {(() => {
               const linkFields = selectedTemplate.extraFields.filter((f) => f.type === 'link');
               if (!linkFields.length) return null;
-              const primaryTier = resolveLinkExtractTier(linkFields[0]?.linkFeatures);
-              const primaryTierLabel = linkExtractTierLabel(primaryTier);
               return (
                 <div className="rounded-xl border border-violet-200 bg-gradient-to-r from-violet-50 via-fuchsia-50 to-indigo-50 px-4 py-3 space-y-3 shadow-2xs">
                   <div className="flex items-center gap-3">
@@ -611,18 +604,7 @@ export const NewReportModal: React.FC<NewReportModalProps> = ({
                       <Sparkles className="w-5 h-5" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-extrabold text-slate-900">多模态智能上报</span>
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 border border-violet-200">
-                          <span>AI</span>
-                          {primaryTierLabel && (
-                            <>
-                              <span className="w-px h-2.5 bg-violet-300" aria-hidden />
-                              <span>{primaryTierLabel}</span>
-                            </>
-                          )}
-                        </span>
-                      </div>
+                      <span className="text-sm font-extrabold text-slate-900">多模态智能上报</span>
                     </div>
                   </div>
                   <PCTemplateExtraFields

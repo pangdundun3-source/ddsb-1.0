@@ -13,6 +13,11 @@ import {
   X,
 } from 'lucide-react';
 import { TemplateExtraField, TemplateFieldValue } from '../types';
+import {
+  hasLinkAiExtract,
+  hasLinkScreenshot,
+  linkAiCapabilityPills,
+} from '../shared/linkFieldFeatures';
 import { LINK_ANALYZING_TEXT, parseLinkMultimodal } from '../utils/linkMultimodalMock';
 
 export type LinkAiExtractFillPayload = {
@@ -119,7 +124,57 @@ export const PCTemplateExtraFields: React.FC<PCTemplateExtraFieldsProps> = ({
   const [linkShots, setLinkShots] = useState<Record<string, LinkShotState>>({});
   const [linkShotViewer, setLinkShotViewer] = useState<{ url: string; shotAt?: string } | null>(null);
   const [linkAiExtracts, setLinkAiExtracts] = useState<Record<string, LinkAiExtractState>>({});
+  /** 链接 AI 能力胶囊选中项；默认优先「文本」 */
+  const [selectedAiCapability, setSelectedAiCapability] = useState<Record<string, string>>({});
   const linkAiTimersRef = useRef<Record<string, number>>({});
+
+  const resolveSelectedAiCapability = (
+    fieldId: string,
+    pills: Array<{ id: string; label: string }>
+  ) => {
+    if (pills.length === 0) return '';
+    const current = selectedAiCapability[fieldId];
+    if (current && pills.some((p) => p.id === current)) return current;
+    const textPill = pills.find((p) => p.id === 'ai_text_extract');
+    return textPill?.id || pills[0].id;
+  };
+
+  const renderAiCapabilityCapsule = (field: TemplateExtraField) => {
+    const pills = linkAiCapabilityPills(field);
+    if (pills.length === 0) return null;
+    const selected = resolveSelectedAiCapability(field.id, pills);
+    return (
+      <div
+        className="min-w-0 flex items-stretch rounded-full border border-violet-200 bg-white overflow-hidden"
+        role="tablist"
+        aria-label="AI识别能力"
+      >
+        {pills.map((pill, index) => {
+          const active = selected === pill.id;
+          return (
+            <React.Fragment key={pill.id}>
+              {index > 0 && (
+                <span className="w-px self-stretch bg-violet-200 my-1.5" aria-hidden />
+              )}
+              <button
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() =>
+                  setSelectedAiCapability((prev) => ({ ...prev, [field.id]: pill.id }))
+                }
+                className={`px-2.5 py-1.5 text-[11px] font-medium whitespace-nowrap transition-colors cursor-pointer ${
+                  active ? 'bg-violet-600 text-white' : 'text-violet-700 hover:bg-violet-50'
+                }`}
+              >
+                {pill.label}
+              </button>
+            </React.Fragment>
+          );
+        })}
+      </div>
+    );
+  };
 
   const clearLinkAiTimer = (fieldId: string) => {
     const timer = linkAiTimersRef.current[fieldId];
@@ -417,113 +472,168 @@ export const PCTemplateExtraFields: React.FC<PCTemplateExtraFieldsProps> = ({
 
               {field.type === 'link' && (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <div className="relative flex-1">
-                      <LinkIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                      <input
-                        type="url"
-                        value={asString(value)}
-                        placeholder={field.placeholder || 'https://...'}
-                        onChange={(event) => {
-                          onChange(field.id, event.target.value);
-                          clearLinkAiTimer(field.id);
-                          setLinkAiExtracts((prev) => {
-                            if (!prev[field.id]) return prev;
-                            const next = { ...prev };
-                            delete next[field.id];
-                            return next;
-                          });
-                          setLinkShots((prev) => {
-                            const next = { ...prev };
-                            delete next[field.id];
-                            return next;
-                          });
-                        }}
-                        className={`w-full pl-8 pr-3 py-2 border rounded-lg text-xs font-mono focus:outline-none focus:ring-2 ${fieldBorder(hasError)}`}
-                      />
-                    </div>
-                    {linkShot?.status !== 'done' && (
-                      <button
-                        type="button"
-                        disabled={linkShot?.status === 'loading'}
-                        onClick={() => captureLink(field.id, asString(value))}
-                        className="px-3 py-2 border border-blue-200 rounded-lg text-blue-700 text-xs font-semibold flex items-center gap-1 bg-white hover:bg-blue-50 disabled:text-gray-400"
-                      >
-                        {linkShot?.status === 'loading' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
-                        {linkShot?.status === 'loading' ? '截图中' : '截图'}
-                      </button>
-                    )}
-                  </div>
-
-                  <div
-                    className={
-                      embedded
-                        ? 'flex flex-wrap items-center gap-2 pt-0.5'
-                        : 'rounded-lg border border-violet-100 bg-violet-50/70 px-3 py-2.5 space-y-1.5'
-                    }
-                  >
-                    {embedded ? (
-                      <>
-                        <p className="min-w-0 flex-1 text-[11px] text-violet-700/90">
-                          AI 自动解析链接内容，智能回填表单字段
-                        </p>
-                        <button
-                          type="button"
-                          disabled={linkAiExtracts[field.id]?.status === 'loading'}
-                          onClick={() => runLinkAiExtract(field.id, asString(value))}
-                          className="shrink-0 px-3 py-1.5 rounded-lg border border-violet-300 bg-white text-violet-700 text-xs font-bold flex items-center gap-1 hover:bg-violet-50 disabled:text-gray-400 disabled:border-gray-200"
-                        >
-                          {linkAiExtracts[field.id]?.status === 'loading' ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <Sparkles className="w-3.5 h-3.5" />
-                          )}
-                          {linkAiExtracts[field.id]?.status === 'loading' ? '提取中' : '提取'}
-                        </button>
-                      </>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1 text-[12px] font-bold text-violet-800">
-                            <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                            <span>AI 多模态提取</span>
-                          </div>
-                          <p className="text-[11px] text-violet-600/90 mt-0.5">
-                            根据链接自动解析内容并智能回填表单
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          disabled={linkAiExtracts[field.id]?.status === 'loading'}
-                          onClick={() => runLinkAiExtract(field.id, asString(value))}
-                          className="shrink-0 px-3 py-1.5 rounded-lg border border-violet-300 bg-white text-violet-700 text-xs font-bold flex items-center gap-1 hover:bg-violet-50 disabled:text-gray-400 disabled:border-gray-200"
-                        >
-                          {linkAiExtracts[field.id]?.status === 'loading' ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <Sparkles className="w-3.5 h-3.5" />
-                          )}
-                          {linkAiExtracts[field.id]?.status === 'loading' ? '提取中' : '提取'}
-                        </button>
+                  {embedded ? (
+                    <>
+                      <div className="relative">
+                        <LinkIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                        <input
+                          type="url"
+                          value={asString(value)}
+                          placeholder={field.placeholder || 'https://...'}
+                          onChange={(event) => {
+                            onChange(field.id, event.target.value);
+                            clearLinkAiTimer(field.id);
+                            setLinkAiExtracts((prev) => {
+                              if (!prev[field.id]) return prev;
+                              const next = { ...prev };
+                              delete next[field.id];
+                              return next;
+                            });
+                            setLinkShots((prev) => {
+                              const next = { ...prev };
+                              delete next[field.id];
+                              return next;
+                            });
+                          }}
+                          className={`w-full pl-8 pr-3 py-2 border rounded-lg text-xs font-mono focus:outline-none focus:ring-2 ${fieldBorder(hasError)}`}
+                        />
                       </div>
-                    )}
-                    {linkAiExtracts[field.id]?.status === 'error' && (
-                      <p className={`flex items-start gap-1 text-[11px] text-rose-600 ${embedded ? 'w-full basis-full' : ''}`}>
-                        <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
-                        <span>{linkAiExtracts[field.id]?.reason}</span>
-                      </p>
-                    )}
-                    {linkAiExtracts[field.id]?.status === 'done' && (
-                      <p className={`flex items-center gap-1 text-[11px] text-emerald-600 font-medium ${embedded ? 'w-full basis-full' : ''}`}>
-                        <Check className="w-3.5 h-3.5 shrink-0" />
-                        <span>已提取并智能回填相关字段</span>
-                      </p>
-                    )}
-                  </div>
-
-                  {linkShot?.status === 'empty' && <p className="text-[11px] text-amber-600">请先输入链接再截图</p>}
-                  {linkShot?.status === 'invalid' && <p className="text-[11px] text-rose-500">网址格式不正确，请修改后重试</p>}
-                  {linkShot?.status === 'done' && (
+                      {hasLinkAiExtract(field) && linkAiExtracts[field.id]?.status === 'error' && (
+                        <p className="flex items-start gap-1 text-[11px] text-rose-600">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
+                          <span>{linkAiExtracts[field.id]?.reason}</span>
+                        </p>
+                      )}
+                      {hasLinkAiExtract(field) && linkAiExtracts[field.id]?.status === 'done' && (
+                        <p className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
+                          <Check className="w-3.5 h-3.5 shrink-0" />
+                          <span>已提取并智能回填相关字段</span>
+                        </p>
+                      )}
+                      {hasLinkScreenshot(field) && linkShot?.status === 'empty' && (
+                        <p className="text-[11px] text-amber-600">请先输入链接再截图</p>
+                      )}
+                      {hasLinkScreenshot(field) && linkShot?.status === 'invalid' && (
+                        <p className="text-[11px] text-rose-500">网址格式不正确，请修改后重试</p>
+                      )}
+                      {(hasLinkAiExtract(field) ||
+                        (hasLinkScreenshot(field) && linkShot?.status !== 'done')) && (
+                        <div className="flex items-center gap-2 min-w-0">
+                          {hasLinkAiExtract(field) && renderAiCapabilityCapsule(field)}
+                          <div className="flex-1" aria-hidden />
+                          {hasLinkAiExtract(field) ? (
+                            <button
+                              type="button"
+                              disabled={linkAiExtracts[field.id]?.status === 'loading'}
+                              onClick={() => runLinkAiExtract(field.id, asString(value))}
+                              className="shrink-0 h-9 px-3 rounded-full border border-violet-300 bg-white text-violet-700 text-xs font-bold inline-flex items-center gap-1 hover:bg-violet-50 disabled:text-gray-400 disabled:border-gray-200"
+                            >
+                              {linkAiExtracts[field.id]?.status === 'loading' ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Sparkles className="w-3.5 h-3.5" />
+                              )}
+                              {linkAiExtracts[field.id]?.status === 'loading' ? '识别中' : 'AI识别'}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={linkShot?.status === 'loading'}
+                              onClick={() => captureLink(field.id, asString(value))}
+                              className="shrink-0 h-9 px-3 rounded-full border border-blue-200 bg-white text-blue-700 text-xs font-semibold inline-flex items-center gap-1 hover:bg-blue-50 disabled:text-gray-400"
+                            >
+                              {linkShot?.status === 'loading' ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Camera className="w-3.5 h-3.5" />
+                              )}
+                              {linkShot?.status === 'loading' ? '截图中' : '截图'}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <LinkIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                          <input
+                            type="url"
+                            value={asString(value)}
+                            placeholder={field.placeholder || 'https://...'}
+                            onChange={(event) => {
+                              onChange(field.id, event.target.value);
+                              clearLinkAiTimer(field.id);
+                              setLinkAiExtracts((prev) => {
+                                if (!prev[field.id]) return prev;
+                                const next = { ...prev };
+                                delete next[field.id];
+                                return next;
+                              });
+                              setLinkShots((prev) => {
+                                const next = { ...prev };
+                                delete next[field.id];
+                                return next;
+                              });
+                            }}
+                            className={`w-full pl-8 pr-3 py-2 border rounded-lg text-xs font-mono focus:outline-none focus:ring-2 ${fieldBorder(hasError)}`}
+                          />
+                        </div>
+                        {hasLinkAiExtract(field) ? (
+                          <div className="shrink-0 flex items-center gap-2">
+                            {renderAiCapabilityCapsule(field)}
+                            <button
+                              type="button"
+                              disabled={linkAiExtracts[field.id]?.status === 'loading'}
+                              onClick={() => runLinkAiExtract(field.id, asString(value))}
+                              className="px-3 py-2 border border-violet-300 rounded-lg text-violet-700 text-xs font-bold flex items-center gap-1 bg-white hover:bg-violet-50 disabled:text-gray-400 disabled:border-gray-200"
+                            >
+                              {linkAiExtracts[field.id]?.status === 'loading' ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Sparkles className="w-3.5 h-3.5" />
+                              )}
+                              {linkAiExtracts[field.id]?.status === 'loading' ? '识别中' : 'AI识别'}
+                            </button>
+                          </div>
+                        ) : hasLinkScreenshot(field) && linkShot?.status !== 'done' ? (
+                          <button
+                            type="button"
+                            disabled={linkShot?.status === 'loading'}
+                            onClick={() => captureLink(field.id, asString(value))}
+                            className="px-3 py-2 border border-blue-200 rounded-lg text-blue-700 text-xs font-semibold flex items-center gap-1 bg-white hover:bg-blue-50 disabled:text-gray-400"
+                          >
+                            {linkShot?.status === 'loading' ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Camera className="w-3.5 h-3.5" />
+                            )}
+                            {linkShot?.status === 'loading' ? '截图中' : '截图'}
+                          </button>
+                        ) : null}
+                      </div>
+                      {hasLinkAiExtract(field) && linkAiExtracts[field.id]?.status === 'error' && (
+                        <p className="flex items-start gap-1 text-[11px] text-rose-600">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
+                          <span>{linkAiExtracts[field.id]?.reason}</span>
+                        </p>
+                      )}
+                      {hasLinkAiExtract(field) && linkAiExtracts[field.id]?.status === 'done' && (
+                        <p className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
+                          <Check className="w-3.5 h-3.5 shrink-0" />
+                          <span>已提取并智能回填相关字段</span>
+                        </p>
+                      )}
+                      {hasLinkScreenshot(field) && linkShot?.status === 'empty' && (
+                        <p className="text-[11px] text-amber-600">请先输入链接再截图</p>
+                      )}
+                      {hasLinkScreenshot(field) && linkShot?.status === 'invalid' && (
+                        <p className="text-[11px] text-rose-500">网址格式不正确，请修改后重试</p>
+                      )}
+                    </>
+                  )}
+                  {hasLinkScreenshot(field) && linkShot?.status === 'done' && (
                     <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-2">
                       <button
                         type="button"

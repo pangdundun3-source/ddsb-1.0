@@ -1,13 +1,13 @@
 import React from 'react';
 import {
-  LINK_EXTRACT_TIER_OPTIONS,
-  type LinkExtractTier,
+  LINK_FIELD_FEATURE_OPTIONS,
   type LinkFieldFeature,
   type ValueAddedProvisionLike,
-  featuresOfLinkExtractTier,
-  getLinkExtractTierDisabledHint,
-  isLinkExtractTierAvailable,
-  resolveLinkExtractTier
+  getLinkVipFeatureDisabledHint,
+  hasLinkFieldFeature,
+  isLinkFeatureProvisioned,
+  normalizeLinkFieldFeatures,
+  toggleLinkConfigFeature,
 } from '../../shared/linkFieldFeatures';
 
 type Props = {
@@ -17,49 +17,68 @@ type Props = {
   compact?: boolean;
 };
 
-/** 链接「提取能力」三档互斥 Tab：按增值开通态灰显不可用档 */
+const VIP_OPTIONS = LINK_FIELD_FEATURE_OPTIONS.filter((o) => o.id !== 'screenshot');
+
+/**
+ * 链接「配置」：
+ * - 链接截图 与 VIP 组互斥
+ * - VIP（文本提取 / 图片OCR提取 / 多模态提取）可多选
+ * - 再点已选项可取消 → 纯链接
+ */
 export const LinkExtractCapabilityPicker: React.FC<Props> = ({
   linkFeatures,
   valueAddedItems,
   onChange,
-  compact = false
+  compact = false,
 }) => {
-  const selected = resolveLinkExtractTier(linkFeatures);
+  const selected = normalizeLinkFieldFeatures(linkFeatures);
+  const shotActive = hasLinkFieldFeature({ linkFeatures: selected }, 'screenshot');
   const labelCls = compact ? 'text-[10px]' : 'text-[11px]';
   const tabCls = compact ? 'text-[10px] px-1.5 py-1' : 'text-[11px] px-2 py-1';
 
-  const selectTier = (tier: LinkExtractTier) => {
-    if (!isLinkExtractTierAvailable(tier, valueAddedItems)) return;
-    // 再点已选档位 → 清空（仅截图、不提取）
-    if (selected === tier) {
-      onChange([]);
-      return;
-    }
-    onChange(featuresOfLinkExtractTier(tier));
+  const applyToggle = (feature: LinkFieldFeature) => {
+    onChange(toggleLinkConfigFeature(selected, feature));
   };
 
+  const pillClass = (active: boolean, available: boolean) =>
+    `min-w-max inline-flex items-center justify-center gap-0.5 rounded-md ${tabCls} font-medium whitespace-nowrap transition-colors ${
+      !available && !active
+        ? 'text-gray-400 cursor-not-allowed'
+        : active
+          ? 'bg-violet-600 text-white shadow-2xs cursor-pointer'
+          : 'text-gray-600 hover:bg-white/90 cursor-pointer'
+    }`;
+
   return (
-    <div className="flex items-center gap-2 min-w-0">
-      <span className={`shrink-0 font-medium text-violet-700 ${labelCls}`}>提取能力</span>
+    <div className="flex items-center gap-2 min-w-0 w-full">
+      <span className={`shrink-0 font-medium text-violet-700 ${labelCls}`}>配置</span>
       <div
-        className="inline-flex items-stretch gap-0.5 p-0.5 rounded-lg bg-violet-50/80 border border-violet-100 min-w-0 max-w-full overflow-x-auto"
-        role="tablist"
-        aria-label="链接提取档位"
+        className="flex flex-1 min-w-0 items-stretch gap-0 p-0.5 rounded-lg bg-violet-50/80 border border-violet-100 overflow-x-auto"
+        aria-label="链接配置"
       >
-        {LINK_EXTRACT_TIER_OPTIONS.map((opt) => {
-          const available = isLinkExtractTierAvailable(opt.id, valueAddedItems);
-          const active = selected === opt.id;
-          const disabledHint = available
-            ? ''
-            : getLinkExtractTierDisabledHint(opt.id, valueAddedItems);
+        <button
+          type="button"
+          aria-pressed={shotActive}
+          title={shotActive ? '链接截图（再点取消）' : '链接截图'}
+          onClick={() => applyToggle('screenshot')}
+          className={pillClass(shotActive, true)}
+        >
+          链接截图
+        </button>
+
+        <span className="w-px self-stretch bg-violet-200 mx-0.5 my-0.5 shrink-0" aria-hidden />
+
+        {VIP_OPTIONS.map((opt) => {
+          const active = hasLinkFieldFeature({ linkFeatures: selected }, opt.id);
+          const available = isLinkFeatureProvisioned(opt.id, valueAddedItems);
+          const disabledHint = available ? '' : getLinkVipFeatureDisabledHint(opt.id);
           const canClick = available || active;
 
           return (
             <button
               key={opt.id}
               type="button"
-              role="tab"
-              aria-selected={active}
+              aria-pressed={active}
               disabled={!canClick}
               title={
                 available
@@ -70,23 +89,13 @@ export const LinkExtractCapabilityPicker: React.FC<Props> = ({
               }
               onClick={() => {
                 if (!available && !active) return;
-                if (!available && active) {
-                  onChange([]);
-                  return;
-                }
-                selectTier(opt.id);
+                applyToggle(opt.id);
               }}
-              className={`inline-flex items-center justify-center gap-0.5 rounded-md ${tabCls} font-medium whitespace-nowrap transition-colors ${
-                !available && !active
-                  ? 'text-gray-400 cursor-not-allowed'
-                  : active
-                    ? 'bg-violet-600 text-white shadow-2xs cursor-pointer'
-                    : 'text-gray-600 hover:bg-white/90 cursor-pointer'
-              }`}
+              className={pillClass(active, available)}
             >
               <span>{opt.label}</span>
               <span
-                className={`text-[8px] font-bold leading-none ${
+                className={`shrink-0 text-[8px] font-bold leading-none ${
                   !available ? 'text-gray-400' : active ? 'text-amber-200' : 'text-amber-600'
                 }`}
               >

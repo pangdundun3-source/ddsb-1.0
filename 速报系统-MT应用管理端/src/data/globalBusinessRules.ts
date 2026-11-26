@@ -79,7 +79,7 @@ export const defaultValueAddedServices: ValueAddedServiceItem[] = [
   },
   {
     id: 'vas-ai-text-extract',
-    name: 'AI文本提取',
+    name: '文本提取',
     isPurchased: true,
     isEnabled: true,
     tag: '增值扩展功能',
@@ -90,7 +90,7 @@ export const defaultValueAddedServices: ValueAddedServiceItem[] = [
   },
   {
     id: 'vas-ocr-recognize',
-    name: 'OCR识别',
+    name: '图片OCR提取',
     isPurchased: true,
     isEnabled: true,
     tag: '增值扩展功能',
@@ -100,7 +100,7 @@ export const defaultValueAddedServices: ValueAddedServiceItem[] = [
   },
   {
     id: 'vas-ai-multimodal-deep',
-    name: 'AI多模态深度解析',
+    name: '多模态提取',
     isPurchased: true,
     isEnabled: true,
     tag: '增值扩展功能',

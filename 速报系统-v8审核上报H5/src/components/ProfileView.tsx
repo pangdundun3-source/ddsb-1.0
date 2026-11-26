@@ -104,7 +104,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [internalShowActivationDetail, setInternalShowActivationDetail] = useState<boolean>(false);
   const [isActivationModalOpen, setIsActivationModalOpen] = useState<boolean>(false);
   const [showOrgSwitcher, setShowOrgSwitcher] = useState(false);
-  const [showPortalKindMenu, setShowPortalKindMenu] = useState(false);
   const [showRoleExpand, setShowRoleExpand] = useState(false);
 
   const orgOptions = Array.from(
@@ -132,11 +131,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     { kind: 'v8_org', label: '内部机构' },
   ];
   const currentPortalKind: PortalUserKind = isV8OrgUser ? 'v8_org' : 'external';
-  const currentPortalKindLabel =
-    portalKindOptions.find((item) => item.kind === currentPortalKind)?.label || '外部组织';
 
   const handleSelectPortalKind = (kind: PortalUserKind) => {
-    setShowPortalKindMenu(false);
     if (!onChangePortalUserKind || kind === currentPortalKind) return;
     onChangePortalUserKind(kind);
   };
@@ -992,62 +988,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             )}
           </button>
           <div className="min-w-0 flex-1 pt-0.5">
-            <div className="flex items-center gap-2 min-w-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowUserDetail(true);
-                  onToast('进入个人基础信息详情');
-                }}
-                className="text-left min-w-0 shrink"
-              >
-                <h2 className="text-[17px] font-extrabold text-white tracking-wide truncate">
-                  {user.name}
-                </h2>
-              </button>
-              {onChangePortalUserKind && (
-                <div className="relative shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setShowPortalKindMenu((v) => !v)}
-                    className="inline-flex items-center gap-0.5 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-bold text-white border border-white/25 active:bg-white/25"
-                    title="切换用户视角"
-                  >
-                    <span>{currentPortalKindLabel}</span>
-                    <ChevronDown
-                      className={`w-3 h-3 transition-transform ${showPortalKindMenu ? 'rotate-180' : ''}`}
-                    />
-                  </button>
-                  {showPortalKindMenu && (
-                    <>
-                      <button
-                        type="button"
-                        aria-label="关闭视角选择"
-                        className="fixed inset-0 z-[70]"
-                        onClick={() => setShowPortalKindMenu(false)}
-                      />
-                      <div className="absolute left-0 top-[calc(100%+6px)] z-[80] min-w-[7.5rem] rounded-xl bg-white shadow-lg border border-slate-100 overflow-hidden">
-                        {portalKindOptions.map((item) => {
-                          const active = item.kind === currentPortalKind;
-                          return (
-                            <button
-                              key={item.kind}
-                              type="button"
-                              onClick={() => handleSelectPortalKind(item.kind)}
-                              className={`w-full px-3 py-2.5 text-left text-[12px] font-semibold border-b border-slate-100 last:border-b-0 active:bg-slate-50 ${
-                                active ? 'bg-blue-50 text-blue-700' : 'text-slate-700'
-                              }`}
-                            >
-                              {item.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowUserDetail(true);
+                onToast('进入个人基础信息详情');
+              }}
+              className="text-left min-w-0 w-full"
+            >
+              <h2 className="text-[17px] font-extrabold text-white tracking-wide truncate">
+                {user.name}
+              </h2>
+            </button>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {roleTags.map((tag) => (
                 <span
@@ -1099,32 +1051,61 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </div>
       </div>
 
-      {/* 所属机构卡片 */}
+      {/* 所属机构卡片（含内外部视角切换） */}
       <div className="space-y-2">
-        <div className="flex items-center gap-1.5 px-0.5">
-          <span className="w-1 h-3.5 rounded-full bg-blue-600" />
-          <h3 className="text-[13px] font-bold text-slate-800">所属机构</h3>
-        </div>
-        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs px-3.5 py-3 flex items-center gap-3">
-          <div className="w-11 h-11 rounded-full bg-blue-50 flex items-center justify-center shrink-0 border border-blue-100">
-            <Building2 className="w-5 h-5 text-blue-600" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-[14px] font-bold text-slate-800 truncate">{user.department}</div>
-            <div className="text-[11px] text-slate-400 mt-0.5 truncate">当前所属机构</div>
-          </div>
-          {canSwitchOrg ? (
-            <button
-              type="button"
-              onClick={() => setShowOrgSwitcher(true)}
-              className="shrink-0 inline-flex items-center gap-0.5 text-[13px] font-semibold text-blue-600 active:opacity-70"
-            >
-              切换
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          ) : (
-            <span className="shrink-0 text-[11px] text-slate-400">单机构</span>
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+          {onChangePortalUserKind && (
+            <div className="px-3 pt-3 pb-2.5 border-b border-slate-100 bg-slate-50/70">
+              <div
+                className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-slate-100/90 border border-slate-200/80"
+                role="tablist"
+                aria-label="切换用户视角"
+              >
+                {portalKindOptions.map((item) => {
+                  const active = item.kind === currentPortalKind;
+                  return (
+                    <button
+                      key={item.kind}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => handleSelectPortalKind(item.kind)}
+                      className={`rounded-lg px-2 py-2 text-[13px] font-bold tracking-wide transition-colors ${
+                        active
+                          ? 'bg-white text-blue-700 shadow-sm'
+                          : 'text-slate-500 active:bg-white/60'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           )}
+          <div className="px-3.5 py-3 flex items-center gap-3">
+            <div className="w-11 h-11 rounded-full bg-blue-50 flex items-center justify-center shrink-0 border border-blue-100">
+              <Building2 className="w-5 h-5 text-blue-600" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[14px] font-bold text-slate-800 truncate">{user.department}</div>
+              <div className="text-[11px] text-slate-400 mt-0.5 truncate">
+                {isV8OrgUser ? '内部机构视角' : '当前所属机构'}
+              </div>
+            </div>
+            {!isV8OrgUser && canSwitchOrg ? (
+              <button
+                type="button"
+                onClick={() => setShowOrgSwitcher(true)}
+                className="shrink-0 inline-flex items-center gap-0.5 text-[13px] font-semibold text-blue-600 active:opacity-70"
+              >
+                切换
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            ) : !isV8OrgUser ? (
+              <span className="shrink-0 text-[11px] text-slate-400">单机构</span>
+            ) : null}
+          </div>
         </div>
       </div>
 
